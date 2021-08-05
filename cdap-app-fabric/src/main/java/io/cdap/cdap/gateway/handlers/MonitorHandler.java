@@ -31,6 +31,13 @@ import io.cdap.cdap.common.security.AuditPolicy;
 import io.cdap.cdap.common.twill.MasterServiceManager;
 import io.cdap.cdap.gateway.handlers.util.AbstractAppFabricHttpHandler;
 import io.cdap.cdap.proto.SystemServiceMeta;
+import io.cdap.cdap.proto.element.EntityType;
+import io.cdap.cdap.proto.id.InstanceId;
+import io.cdap.cdap.proto.id.SystemServiceId;
+import io.cdap.cdap.proto.security.ApplicationPermission;
+import io.cdap.cdap.proto.security.StandardPermission;
+import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
+import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
@@ -66,11 +73,16 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
 
   private final Map<String, MasterServiceManager> serviceManagementMap;
   private final ServiceStore serviceStore;
+  private final AccessEnforcer accessEnforcer;
+  private final AuthenticationContext authenticationContext;
 
   @Inject
-  public MonitorHandler(Map<String, MasterServiceManager> serviceMap, ServiceStore serviceStore) {
+  public MonitorHandler(Map<String, MasterServiceManager> serviceMap, ServiceStore serviceStore,
+                        AccessEnforcer accessEnforcer, AuthenticationContext authenticationContext) {
     this.serviceManagementMap = serviceMap;
     this.serviceStore = serviceStore;
+    this.accessEnforcer = accessEnforcer;
+    this.authenticationContext = authenticationContext;
   }
 
   /**
@@ -83,6 +95,9 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
     if (!serviceManagementMap.containsKey(serviceName)) {
       throw new NotFoundException(String.format("Invalid service name %s", serviceName));
     }
+
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), StandardPermission.GET);
 
     MasterServiceManager serviceManager = serviceManagementMap.get(serviceName);
     if (serviceManager.isServiceEnabled()) {
@@ -104,6 +119,8 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
     if (!serviceManagementMap.containsKey(serviceName)) {
       throw new NotFoundException(String.format("Invalid service name %s", serviceName));
     }
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), StandardPermission.GET);
     MasterServiceManager serviceManager = serviceManagementMap.get(serviceName);
     if (serviceManager.isServiceEnabled()) {
       int actualInstance = serviceManagementMap.get(serviceName).getInstances();
@@ -126,6 +143,9 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
     if (!serviceManagementMap.containsKey(serviceName)) {
       throw new NotFoundException(String.format("Invalid service name %s", serviceName));
     }
+
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), StandardPermission.UPDATE);
 
     MasterServiceManager serviceManager = serviceManagementMap.get(serviceName);
     int instances = getInstances(request);
@@ -155,6 +175,8 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
   @Path("/system/services/status")
   @GET
   public void getBootStatus(HttpRequest request, HttpResponder responder) {
+    accessEnforcer.enforceOnParent(EntityType.SYSTEM_SERVICE, new InstanceId(""), authenticationContext.getPrincipal(),
+                                   StandardPermission.LIST);
     Map<String, String> result = new HashMap<>();
     for (String service : serviceManagementMap.keySet()) {
       MasterServiceManager masterServiceManager = serviceManagementMap.get(service);
@@ -169,6 +191,8 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
   @Path("/system/services")
   @GET
   public void getServiceSpec(HttpRequest request, HttpResponder responder) {
+    accessEnforcer.enforceOnParent(EntityType.SYSTEM_SERVICE, new InstanceId(""), authenticationContext.getPrincipal(),
+                                   StandardPermission.LIST);
     List<SystemServiceMeta> response = new ArrayList<>();
     SortedSet<String> services = new TreeSet<>(serviceManagementMap.keySet());
     List<String> serviceList = new ArrayList<>(services);
@@ -214,6 +238,13 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
   @GET
   public void getLatestRestartServiceInstanceStatus(HttpRequest request, HttpResponder responder,
                                                     @PathParam("service-name") String serviceName) throws Exception {
+    if (!serviceManagementMap.containsKey(serviceName)) {
+      throw new NotFoundException(String.format("Invalid service name %s", serviceName));
+    }
+
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), StandardPermission.GET);
+
     try {
       responder.sendJson(HttpResponseStatus.OK,
                          GSON.toJson(serviceStore.getLatestRestartInstancesRequest(serviceName)));
@@ -232,6 +263,9 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
     if (!serviceManagementMap.containsKey(serviceName)) {
       throw new NotFoundException(String.format("Invalid service name %s", serviceName));
     }
+
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), StandardPermission.UPDATE);
 
     MasterServiceManager masterServiceManager = serviceManagementMap.get(serviceName);
     if (!masterServiceManager.isServiceEnabled()) {
@@ -265,6 +299,9 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
     if (!serviceManagementMap.containsKey(serviceName)) {
       throw new NotFoundException(String.format("Invalid service name %s", serviceName));
     }
+
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), StandardPermission.UPDATE);
 
     MasterServiceManager masterServiceManager = serviceManagementMap.get(serviceName);
     if (!masterServiceManager.isServiceEnabled()) {
@@ -302,6 +339,8 @@ public class MonitorHandler extends AbstractAppFabricHttpHandler {
     if (!serviceManagementMap.containsKey(serviceName)) {
       throw new NotFoundException(String.format("Invalid service name %s", serviceName));
     }
+    SystemServiceId systemServiceId = new SystemServiceId(serviceName);
+    accessEnforcer.enforce(systemServiceId, authenticationContext.getPrincipal(), ApplicationPermission.EXECUTE);
     MasterServiceManager masterServiceManager = serviceManagementMap.get(serviceName);
 
     try {
