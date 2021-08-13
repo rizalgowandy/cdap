@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017 Cask Data, Inc.
+ * Copyright © 2021 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -17,6 +17,10 @@
 package io.cdap.cdap.app.runtime.spark.submit;
 
 import com.google.common.collect.ImmutableList;
+<<<<<<< HEAD
+import io.cdap.cdap.api.spark.Spark;
+=======
+>>>>>>> 11f1c2c4886 (wip - thin impl)
 import io.cdap.cdap.app.runtime.Arguments;
 import io.cdap.cdap.app.runtime.spark.SparkRuntimeContext;
 import io.cdap.cdap.app.runtime.spark.SparkRuntimeContextConfig;
@@ -25,7 +29,10 @@ import io.cdap.cdap.app.runtime.spark.SparkRuntimeUtils;
 import io.cdap.cdap.app.runtime.spark.distributed.SparkExecutionService;
 import io.cdap.cdap.internal.app.runtime.workflow.BasicWorkflowToken;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowProgramInfo;
-import io.cdap.cdap.master.spi.environment.MasterEnvironment;
+<<<<<<< HEAD
+import io.cdap.cdap.master.spi.environment.SparkConfigs;
+=======
+>>>>>>> 11f1c2c4886 (wip - thin impl)
 import io.cdap.cdap.proto.id.ProgramRunId;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
@@ -33,6 +40,12 @@ import org.apache.twill.filesystem.LocationFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+<<<<<<< HEAD
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+=======
+>>>>>>> 11f1c2c4886 (wip - thin impl)
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -40,54 +53,56 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 /**
- * A {@link SparkSubmitter} to submit Spark job that runs on cluster.
+ * k8s spark submitter.
  */
-public class DistributedSparkSubmitter extends AbstractSparkSubmitter {
-
-  private static final Logger LOG = LoggerFactory.getLogger(DistributedSparkSubmitter.class);
+public class KubeSparkSubmitter extends AbstractSparkSubmitter {
+  private static final Logger LOG = LoggerFactory.getLogger(KubeSparkSubmitter.class);
 
   private final Configuration hConf;
-  private final String schedulerQueueName;
   private final SparkExecutionService sparkExecutionService;
-  private final long tokenRenewalInterval;
+  private final SparkConfigs sparkConfigs;
 
-  public DistributedSparkSubmitter(Configuration hConf, LocationFactory locationFactory,
-                                   String hostname, SparkRuntimeContext runtimeContext,
-                                   @Nullable String schedulerQueueName) {
+  /**
+   * kube spark submitter
+   * @param hConf
+   * @param locationFactory
+   * @param hostname
+   * @param runtimeContext
+   * @param sparkConfigs
+   */
+  public KubeSparkSubmitter(Configuration hConf, LocationFactory locationFactory,
+                            String hostname, SparkRuntimeContext runtimeContext, SparkConfigs sparkConfigs) {
     this.hConf = hConf;
-    this.schedulerQueueName = schedulerQueueName;
     ProgramRunId programRunId = runtimeContext.getProgram().getId().run(runtimeContext.getRunId().getId());
     WorkflowProgramInfo workflowInfo = runtimeContext.getWorkflowInfo();
     BasicWorkflowToken workflowToken = workflowInfo == null ? null : workflowInfo.getWorkflowToken();
     this.sparkExecutionService = new SparkExecutionService(locationFactory, hostname, programRunId, workflowToken);
-
-    Arguments systemArgs = runtimeContext.getProgramOptions().getArguments();
-    this.tokenRenewalInterval = systemArgs.hasOption(SparkRuntimeContextConfig.CREDENTIALS_UPDATE_INTERVAL_MS)
-      ? Long.parseLong(systemArgs.getOption(SparkRuntimeContextConfig.CREDENTIALS_UPDATE_INTERVAL_MS))
-      : -1L;
+    this.sparkConfigs = sparkConfigs;
   }
 
   @Override
   protected Map<String, String> getSubmitConf() {
+    System.err.println("### Getting submit configs from kube submitter");
     Map<String, String> config = new HashMap<>();
-    if (schedulerQueueName != null && !schedulerQueueName.isEmpty()) {
-      config.put("spark.yarn.queue", schedulerQueueName);
-    }
-    if (tokenRenewalInterval > 0) {
-      config.put("spark.yarn.token.renewal.interval", Long.toString(tokenRenewalInterval));
-    }
-    config.put("spark.yarn.appMasterEnv.CDAP_LOG_DIR",  ApplicationConstants.LOG_DIR_EXPANSION_VAR);
+    config.put("spark.kubernetes.driverEnv.CDAP_LOG_DIR", ApplicationConstants.LOG_DIR_EXPANSION_VAR);
     config.put("spark.executorEnv.CDAP_LOG_DIR", ApplicationConstants.LOG_DIR_EXPANSION_VAR);
+    config.putAll(sparkConfigs.getConfigs());
+    File templateFile = new File("podTemplate");
+    try (FileWriter writer = new FileWriter(templateFile)) {
+      writer.write(sparkConfigs.getPodTemplateString());
+      config.put("spark.kubernetes.driver.podTemplateFile", templateFile.getAbsolutePath());
+    } catch (IOException e) {
+      LOG.error("Error while writing file.", e);
+    }
 
-    config.put("spark.yarn.security.tokens.hbase.enabled", "false");
-    config.put("spark.yarn.security.tokens.hive.enabled", "false");
 
     return config;
   }
 
   @Override
   protected void addMaster(Map<String, String> configs, ImmutableList.Builder<String> argBuilder) {
-    argBuilder.add("--master").add("yarn")
+    System.err.println("### Kube master address: " + "k8s://" + sparkConfigs.getMasterBasePath());
+    argBuilder.add("--master").add("k8s://" + sparkConfigs.getMasterBasePath())
       .add("--deploy-mode").add("cluster");
   }
 
