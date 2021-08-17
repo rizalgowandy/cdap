@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.master.spi.environment;
 
+import io.cdap.cdap.master.spi.environment.spark.SparkEnvConfig;
 import org.apache.twill.api.TwillRunnerService;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
@@ -85,4 +86,11 @@ public interface MasterEnvironment {
    * Returns a {@link Supplier} of {@link TwillRunnerService} for running programs.
    */
   Supplier<TwillRunnerService> getTwillRunnerSupplier();
+
+  /**
+   * Returns a {@link SparkEnvConfig} of
+   */
+  default SparkEnvConfig getSparkConf() {
+    throw new UnsupportedOperationException("Method not implemented");
+  }
 }
