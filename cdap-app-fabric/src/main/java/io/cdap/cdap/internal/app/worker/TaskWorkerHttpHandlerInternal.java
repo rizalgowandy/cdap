@@ -19,6 +19,7 @@ package io.cdap.cdap.internal.app.worker;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.inject.Singleton;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.service.worker.RunnableTaskContext;
 import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -45,6 +46,8 @@ import org.slf4j.LoggerFactory;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -53,9 +56,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 
@@ -72,8 +77,14 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
   private static final Logger LOG = LoggerFactory.getLogger(TaskWorkerHttpHandlerInternal.class);
   private static final Gson GSON = new GsonBuilder().registerTypeAdapter(BasicThrowable.class,
                                                                          new BasicThrowableCodec()).create();
+
+  private enum STATUS {
+    SUCCESS,
+    FAILURE
+  }
+
   private final RunnableTaskLauncher runnableTaskLauncher;
-  private final BiConsumer<Boolean, String> stopper;
+  private final BiConsumer<Boolean, TaskDetails> stopper;
 
   private final AtomicBoolean hasInflightRequest = new AtomicBoolean(false);
 
@@ -83,23 +94,28 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
   private final AtomicInteger requestProcessedCount = new AtomicInteger(0);
 
   private final String metadataServiceEndpoint;
+  private final MetricsCollectionService metricsCollectionService;
 
   /**
    * If true, pod will restart once an operation finish its execution.
    */
   private final AtomicBoolean mustRestart = new AtomicBoolean(false);
 
-  public TaskWorkerHttpHandlerInternal(CConfiguration cConf, Consumer<String> stopper) {
+  public TaskWorkerHttpHandlerInternal(CConfiguration cConf, Consumer<String> stopper,
+                                       MetricsCollectionService metricsCollectionService) {
     int killAfterRequestCount = cConf.getInt(Constants.TaskWorker.CONTAINER_KILL_AFTER_REQUEST_COUNT, 0);
     this.runnableTaskLauncher = new RunnableTaskLauncher(cConf);
+    this.metricsCollectionService = metricsCollectionService;
     this.metadataServiceEndpoint = cConf.get(Constants.TaskWorker.METADATA_SERVICE_END_POINT);
-    this.stopper = (terminate, className) -> {
+    this.stopper = (terminate, taskDetails) -> {
+      emitMetrics(taskDetails);
+
       if (mustRestart.get()) {
-        stopper.accept(className);
+        stopper.accept(taskDetails.getClassName());
         return;
       }
 
-      if (!terminate || className == null || killAfterRequestCount <= 0) {
+      if (!terminate || taskDetails.getClassName() == null || killAfterRequestCount <= 0) {
         // No need to restart.
         requestProcessedCount.decrementAndGet();
         hasInflightRequest.set(false);
@@ -107,7 +123,7 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
       }
 
       if (requestProcessedCount.get() >= killAfterRequestCount) {
-        stopper.accept(className);
+        stopper.accept(taskDetails.getClassName());
       } else {
         hasInflightRequest.set(false);
       }
@@ -143,34 +159,54 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
     }
   }
 
+  private void emitMetrics(TaskDetails taskDetails) {
+    long time = System.currentTimeMillis() - taskDetails.getStartTime();
+    Map<String, String> metricTags = new HashMap<>();
+    metricTags.put(Constants.Metrics.Tag.CLASS, taskDetails.getWrappedClassName() != null ?
+      taskDetails.getWrappedClassName() : taskDetails.getClassName());
+    metricTags
+      .put(Constants.Metrics.Tag.STATUS,
+           taskDetails.isSuccess() ? STATUS.SUCCESS.name().toLowerCase() : STATUS.FAILURE.name().toLowerCase());
+    metricTags.put(Constants.Metrics.Tag.TRIES, String.valueOf(taskDetails.getAttemptCount()));
+    metricsCollectionService.getContext(metricTags).increment(Constants.Metrics.TaskWorker.REQUEST_COUNT, 1L);
+    metricsCollectionService.getContext(metricTags).gauge(Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS, time);
+  }
+
   @POST
   @Path("/run")
-  public void run(FullHttpRequest request, HttpResponder responder) {
+  public void run(FullHttpRequest request, HttpResponder responder,
+                  @QueryParam("attempt") @DefaultValue("1") String attempt) {
     if (!hasInflightRequest.compareAndSet(false, true)) {
       responder.sendStatus(HttpResponseStatus.TOO_MANY_REQUESTS);
       return;
     }
     requestProcessedCount.incrementAndGet();
 
+    int attemptCount = Integer.parseInt(attempt);
+    long startTime = System.currentTimeMillis();
     String className = null;
+    String wrappedClassName = null;
     try {
       RunnableTaskRequest runnableTaskRequest =
         GSON.fromJson(request.content().toString(StandardCharsets.UTF_8), RunnableTaskRequest.class);
       className = runnableTaskRequest.getClassName();
+      wrappedClassName = runnableTaskRequest.getWrappedClassName();
       RunnableTaskContext runnableTaskContext = runnableTaskLauncher.launchRunnableTask(runnableTaskRequest);
 
       responder.sendContent(HttpResponseStatus.OK,
-                            new RunnableTaskBodyProducer(runnableTaskContext, stopper, className),
+                            new RunnableTaskBodyProducer(runnableTaskContext, stopper,
+                                                         new TaskDetails(true, attemptCount, className,
+                                                                         wrappedClassName, startTime)),
                             new DefaultHttpHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM));
     } catch (ClassNotFoundException | ClassCastException ex) {
       responder.sendString(HttpResponseStatus.BAD_REQUEST, exceptionToJson(ex), EmptyHttpHeaders.INSTANCE);
       // Since the user class is not even loaded, no user code ran, hence it's ok to not terminate the runner
-      stopper.accept(false, className);
+      stopper.accept(false, new TaskDetails(false, attemptCount, className, wrappedClassName, startTime));
     } catch (Exception ex) {
       LOG.error("Failed to run task {}", request.content().toString(StandardCharsets.UTF_8), ex);
       responder.sendString(HttpResponseStatus.INTERNAL_SERVER_ERROR, exceptionToJson(ex), EmptyHttpHeaders.INSTANCE);
       // Potentially ran user code, hence terminate the runner.
-      stopper.accept(true, className);
+      stopper.accept(true, new TaskDetails(false, attemptCount, className, wrappedClassName, startTime));
     }
   }
 
@@ -210,15 +246,16 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
    */
   private static class RunnableTaskBodyProducer extends BodyProducer {
     private final ByteBuffer response;
-    private final BiConsumer<Boolean, String> stopper;
-    private final String className;
+    private final BiConsumer<Boolean, TaskDetails> stopper;
+    private final TaskDetails taskDetails;
     private final boolean terminateOnComplete;
     private boolean done = false;
 
-    RunnableTaskBodyProducer(RunnableTaskContext context, BiConsumer<Boolean, String> stopper, String className) {
+    RunnableTaskBodyProducer(RunnableTaskContext context, BiConsumer<Boolean, TaskDetails> stopper,
+                             TaskDetails taskDetails) {
       this.response = context.getResult();
       this.stopper = stopper;
-      this.className = className;
+      this.taskDetails = taskDetails;
       this.terminateOnComplete = context.isTerminateOnComplete();
     }
 
@@ -234,13 +271,13 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
 
     @Override
     public void finished() {
-      stopper.accept(terminateOnComplete, className);
+      stopper.accept(terminateOnComplete, taskDetails);
     }
 
     @Override
     public void handleError(@Nullable Throwable cause) {
       LOG.error("Error when sending chunks", cause);
-      stopper.accept(terminateOnComplete, className);
+      stopper.accept(terminateOnComplete, taskDetails);
     }
   }
 }

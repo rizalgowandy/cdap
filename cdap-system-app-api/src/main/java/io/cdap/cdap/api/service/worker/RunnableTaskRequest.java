@@ -31,13 +31,17 @@ public class RunnableTaskRequest {
   private final ArtifactId artifactId;
   @Nullable
   private final String namespace;
+  @Nullable
+  private final String wrappedClassName;
 
   private RunnableTaskRequest(String className, @Nullable String param,
-                              @Nullable ArtifactId artifactId, @Nullable String namespace) {
+                              @Nullable ArtifactId artifactId, @Nullable String namespace,
+                              @Nullable String wrappedClassName) {
     this.className = className;
     this.param = param;
     this.artifactId = artifactId;
     this.namespace = namespace;
+    this.wrappedClassName = wrappedClassName;
   }
 
   public String getClassName() {
@@ -59,12 +63,18 @@ public class RunnableTaskRequest {
     return namespace;
   }
 
+  @Nullable
+  public String getWrappedClassName() {
+    return wrappedClassName;
+  }
+
   @Override
   public String toString() {
-    String requestString = "RunnableTaskRequest{className=%s, param=%s, artifactId=%s, namespace=%s}";
+    String requestString =
+      "RunnableTaskRequest{className=%s, param=%s, artifactId=%s, namespace=%s, wrappedClassName=%s}";
     return String.format(requestString, className,
                          param == null ? null : param.length() > 500 ? param.substring(500) : param,
-                         artifactId, namespace);
+                         artifactId, namespace, wrappedClassName);
   }
 
   public static Builder getBuilder(String taskClassName) {
@@ -82,6 +92,8 @@ public class RunnableTaskRequest {
     private ArtifactId artifactId;
     @Nullable
     private String namespace;
+    @Nullable
+    private String wrappedClassName;
 
     private Builder(String className) {
       this.className = className;
@@ -102,8 +114,13 @@ public class RunnableTaskRequest {
       return this;
     }
 
+    public Builder withWrappedClassName(String wrappedClassName) {
+      this.wrappedClassName = wrappedClassName;
+      return this;
+    }
+
     public RunnableTaskRequest build() {
-      return new RunnableTaskRequest(className, param, artifactId, namespace);
+      return new RunnableTaskRequest(className, param, artifactId, namespace, wrappedClassName);
     }
   }
 }

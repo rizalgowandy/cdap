@@ -57,7 +57,7 @@ import java.util.zip.GZIPOutputStream;
 public class RemoteTaskExecutor {
 
   private static final Gson GSON = new Gson();
-  private static final String TASK_WORKER_URL = "/worker/run";
+  private static final String TASK_WORKER_URL = "/worker/run?attempt=%s";
 
   private final boolean compression;
   private final RemoteClient remoteClient;
@@ -82,9 +82,10 @@ public class RemoteTaskExecutor {
   public byte[] runTask(RunnableTaskRequest runnableTaskRequest) throws Exception {
     ByteBuffer requestBody = encodeTaskRequest(runnableTaskRequest);
 
-    return Retries.callWithRetries(() -> {
+    return Retries.callWithRetries((attempt) -> {
       try {
-        HttpRequest.Builder requestBuilder = remoteClient.requestBuilder(HttpMethod.POST, TASK_WORKER_URL)
+        HttpRequest.Builder requestBuilder = remoteClient
+          .requestBuilder(HttpMethod.POST, String.format(TASK_WORKER_URL, attempt))
           .withBody(requestBody.duplicate());
         if (compression) {
           requestBuilder.addHeader(HttpHeaders.CONTENT_ENCODING, "gzip");
@@ -108,7 +109,7 @@ public class RemoteTaskExecutor {
         throw new RetryableException(
           String.format("Received exception %s for %s", e.getMessage(), runnableTaskRequest.getClassName()));
       }
-    }, retryStrategy);
+    }, retryStrategy, Retries.DEFAULT_PREDICATE);
   }
 
   private ByteBuffer encodeTaskRequest(RunnableTaskRequest request) throws IOException {

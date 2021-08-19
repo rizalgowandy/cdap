@@ -179,6 +179,7 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
       .withParam(systemAppParam)
       .withNamespace(getNamespace())
       .withArtifact(getArtifactId().toApiArtifactId())
+      .withWrappedClassName(runnableTaskRequest.getClassName())
       .build();
     return remoteTaskExecutor.runTask(taskRequest);
   }

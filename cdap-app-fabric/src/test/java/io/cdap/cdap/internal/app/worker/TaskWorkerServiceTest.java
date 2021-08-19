@@ -26,6 +26,7 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
+import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.proto.BasicThrowable;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
@@ -87,7 +88,8 @@ public class TaskWorkerServiceTest {
     SConfiguration sConf = createSConf();
 
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
-                                                                (namespaceId, retryStrategy) -> null);
+                                                                (namespaceId, retryStrategy) -> null,
+                                                                new NoOpMetricsCollectionService());
     // start the service
     taskWorkerService.startAndWait();
     this.taskWorkerService = taskWorkerService;
@@ -101,7 +103,7 @@ public class TaskWorkerServiceTest {
     }
   }
 
-  private void waitForTaskWorkerToFinish(TaskWorkerService taskWorker) {
+  static void waitForTaskWorkerToFinish(TaskWorkerService taskWorker) {
     CompletableFuture<Service.State> future = new CompletableFuture<>();
     taskWorker.addListener(new ServiceListenerAdapter() {
       @Override
@@ -130,7 +132,8 @@ public class TaskWorkerServiceTest {
     cConf.setInt(Constants.TaskWorker.CONTAINER_KILL_AFTER_DURATION_SECOND, 5);
 
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
-                                                                (namespaceId, retryStrategy) -> null);
+                                                                (namespaceId, retryStrategy) -> null,
+                                                                new NoOpMetricsCollectionService());
     // start the service
     taskWorkerService.startAndWait();
 
@@ -146,7 +149,8 @@ public class TaskWorkerServiceTest {
     cConf.setInt(Constants.TaskWorker.CONTAINER_KILL_AFTER_DURATION_SECOND, 2);
 
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
-                                                                (namespaceId, retryStrategy) -> null);
+                                                                (namespaceId, retryStrategy) -> null,
+                                                                new NoOpMetricsCollectionService());
     // start the service
     taskWorkerService.startAndWait();
 
@@ -176,7 +180,8 @@ public class TaskWorkerServiceTest {
     cConf.setInt(Constants.TaskWorker.CONTAINER_KILL_AFTER_DURATION_SECOND, 0);
 
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
-                                                                (namespaceId, retryStrategy) -> null);
+                                                                (namespaceId, retryStrategy) -> null,
+                                                                new NoOpMetricsCollectionService());
     // start the service
     taskWorkerService.startAndWait();
 
