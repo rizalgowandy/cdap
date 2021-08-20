@@ -21,29 +21,29 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Represents environment specific spark configurations.
+ * Represents environment specific spark submit configurations.
  */
-public class SparkEnvConfig {
-  private final String masterBasePath;
-  private final Map<String, String> envConfigs;
+public class SparkSubmitConfig {
+  private final String master;
+  private final Map<String, String> configs;
 
-  public SparkEnvConfig(String masterBasePath, Map<String, String> envConfigs) {
-    this.envConfigs = Collections.unmodifiableMap(new HashMap<>(envConfigs));
-    this.masterBasePath = masterBasePath;
+  public SparkSubmitConfig(String master, Map<String, String> configs) {
+    this.configs = Collections.unmodifiableMap(new HashMap<>(configs));
+    this.master = master;
   }
 
   /**
    * Returns spark master base path. This should be used to set spark master url:
    * https://spark.apache.org/docs/latest/submitting-applications.html#master-urls
    */
-  public String getMasterBasePath() {
-    return masterBasePath;
+  public String getMaster() {
+    return master;
   }
 
   /**
-   * Returns additional environment specific spark configurations.
+   * Returns additional environment specific spark submit configurations. These will be added to --conf of spark submit.
    */
-  public Map<String, String> getEnvConfigs() {
-    return envConfigs;
+  public Map<String, String> getConfigs() {
+    return configs;
   }
 }

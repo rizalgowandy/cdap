@@ -16,7 +16,8 @@
 
 package io.cdap.cdap.master.spi.environment;
 
-import io.cdap.cdap.master.spi.environment.spark.SparkEnvConfig;
+import io.cdap.cdap.master.spi.environment.spark.SparkSubmitConfig;
+import io.cdap.cdap.master.spi.environment.spark.SparkSubmitDependencies;
 import org.apache.twill.api.TwillRunnerService;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
@@ -88,9 +89,9 @@ public interface MasterEnvironment {
   Supplier<TwillRunnerService> getTwillRunnerSupplier();
 
   /**
-   * Returns a {@link SparkEnvConfig} of
+   * Returns a {@link SparkSubmitConfig} of this environment.
    */
-  default SparkEnvConfig getSparkConf() {
+  default SparkSubmitConfig getSparkSubmitConfig(SparkSubmitDependencies dependencies) {
     throw new UnsupportedOperationException("Method not implemented");
   }
 }
