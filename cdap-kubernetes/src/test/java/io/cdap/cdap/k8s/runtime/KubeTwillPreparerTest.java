@@ -17,7 +17,10 @@
 package io.cdap.cdap.k8s.runtime;
 
 import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.models.V1Container;
+import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.util.Config;
+import io.kubernetes.client.util.Yaml;
 import org.apache.twill.api.AbstractTwillRunnable;
 import org.apache.twill.api.ResourceSpecification;
 import org.apache.twill.api.TwillSpecification;
@@ -26,7 +29,9 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.File;
 import java.net.URI;
+import java.util.List;
 
 /**
  * Tests for {@link KubeTwillPreparer}.

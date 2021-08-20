@@ -16,12 +16,16 @@
 
 package io.cdap.cdap.master.spi.environment;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Map;
 
 /**
  * Spark configs.
  */
 public class SparkConfigs {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkConfigs.class);
   private final Map<String, String> configs;
   private final String podTemplateString;
   private final String masterBasePath;
@@ -41,6 +45,7 @@ public class SparkConfigs {
   }
 
   public String getPodTemplateString() {
+    LOG.info("### returning string: {}", podTemplateString);
     return podTemplateString;
   }
 }

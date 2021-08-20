@@ -97,6 +97,8 @@ public abstract class SparkProgramRuntimeProvider implements ProgramRuntimeProvi
 
     switch (mode) {
       case LOCAL:
+        LOG.debug("### using local mode");
+        System.err.println("### using local mode");
         // Rewrite YarnClient based on config. The LOCAL runner is used in both SDK and distributed mode
         // The actual mode that Spark is running is determined by the cdap.spark.cluster.mode attribute
         // in the hConf
@@ -120,6 +122,8 @@ public abstract class SparkProgramRuntimeProvider implements ProgramRuntimeProvi
           throw Throwables.propagate(e);
         }
       case DISTRIBUTED:
+        LOG.debug("### using distributed mode");
+        System.err.println("### using distributed mode");
         // The distributed program runner is only used by the CDAP master to launch the twill container
         // hence it doesn't need to do any class rewrite.
         // We only create the SparkRunnerClassLoader once and keep reusing it since in the CDAP master, there is

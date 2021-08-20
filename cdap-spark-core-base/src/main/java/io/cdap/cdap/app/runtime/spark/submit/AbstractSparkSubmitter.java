@@ -229,14 +229,17 @@ public abstract class AbstractSparkSubmitter implements SparkSubmitter {
         builder.add("--py-files").add(pyFiles);
       }
     } else {
-      builder.add("--class").add(SparkMainWrapper.class.getName());
+      builder.add("--class").add("org.apache.spark.examples.SparkPi");
     }
 
+    /*
     if ("file".equals(jobFile.getScheme())) {
       builder.add(jobFile.getPath());
     } else {
       builder.add(jobFile.toString());
     }
+     */
+    builder.add("local:///opt/spark/examples/jars/spark-examples_2.12–3.0.1.jar");
 
     if (!isPySpark) {
       // Add extra arguments for easily identifying the program from command line.
