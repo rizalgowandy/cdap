@@ -68,6 +68,7 @@ import io.cdap.cdap.gateway.handlers.ProfileHttpHandler;
 import io.cdap.cdap.gateway.handlers.ProgramLifecycleHttpHandler;
 import io.cdap.cdap.gateway.handlers.ProgramLifecycleHttpHandlerInternal;
 import io.cdap.cdap.gateway.handlers.ProvisionerHttpHandler;
+import io.cdap.cdap.gateway.handlers.SupportBundleHttpHandler;
 import io.cdap.cdap.gateway.handlers.TransactionHttpHandler;
 import io.cdap.cdap.gateway.handlers.UsageHandler;
 import io.cdap.cdap.gateway.handlers.VersionHandler;
@@ -112,6 +113,8 @@ import io.cdap.cdap.internal.pipeline.SynchronousPipelineFactory;
 import io.cdap.cdap.internal.profile.ProfileService;
 import io.cdap.cdap.internal.provision.ProvisionerModule;
 import io.cdap.cdap.internal.sysapp.SystemAppManagementService;
+import io.cdap.cdap.logging.read.FileLogReader;
+import io.cdap.cdap.logging.read.LogReader;
 import io.cdap.cdap.metadata.LocalPreferencesFetcherInternal;
 import io.cdap.cdap.metadata.PreferencesFetcher;
 import io.cdap.cdap.pipeline.PipelineFactory;
@@ -332,6 +335,7 @@ public final class AppFabricServiceRuntimeModule extends RuntimeModule {
       bind(ProgramLifecycleService.class).in(Scopes.SINGLETON);
       bind(SystemAppManagementService.class).in(Scopes.SINGLETON);
       bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
+      bind(LogReader.class).to(FileLogReader.class);
       bind(CoreSchedulerService.class).in(Scopes.SINGLETON);
       bind(Scheduler.class).to(CoreSchedulerService.class);
       install(new PrivateModule() {
@@ -379,6 +383,7 @@ public final class AppFabricServiceRuntimeModule extends RuntimeModule {
       handlerBinder.addBinding().to(WorkflowStatsSLAHttpHandler.class);
       handlerBinder.addBinding().to(AuthorizationHandler.class);
       handlerBinder.addBinding().to(SecureStoreHandler.class);
+      handlerBinder.addBinding().to(SupportBundleHttpHandler.class);
       handlerBinder.addBinding().to(RemotePrivilegesHandler.class);
       handlerBinder.addBinding().to(OperationalStatsHttpHandler.class);
       handlerBinder.addBinding().to(ProfileHttpHandler.class);
