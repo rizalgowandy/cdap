@@ -24,9 +24,11 @@ import io.cdap.cdap.api.spark.JavaSparkExecutionContext;
 import io.cdap.cdap.etl.api.StageMetrics;
 import io.cdap.cdap.etl.api.engine.sql.SQLEngine;
 import io.cdap.cdap.etl.api.engine.sql.SQLEngineException;
+import io.cdap.cdap.etl.api.engine.sql.SparkSQLEngine;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLDataset;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLPullDataset;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLPushDataset;
+import io.cdap.cdap.etl.api.engine.sql.dataset.SparkPullDataset;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLJoinDefinition;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLJoinRequest;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLPullRequest;
@@ -221,6 +223,13 @@ public class BatchSQLEngineAdapter<T> implements Closeable {
                                   JavaSparkContext jsc) throws SQLEngineException {
     // Create pull operation for this dataset and wait until completion
     SQLPullRequest pullRequest = new SQLPullRequest(dataset);
+
+    if (sqlEngine instanceof SparkSQLEngine) {
+      SparkPullDataset<StructuredRecord> sparkPullDataset =
+        ((SparkSQLEngine<?, ?, ?, ?>) sqlEngine).getSparkPullProvider(pullRequest);
+      return (JavaRDD<T>) sparkPullDataset.create(jsc);
+    }
+
     SQLPullDataset<StructuredRecord, ?, ?> sqlPullDataset = sqlEngine.getPullProvider(pullRequest);
 
     // Run operation to read from the InputFormatProvider supplied by this operation.
