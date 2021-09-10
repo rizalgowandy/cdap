@@ -21,14 +21,12 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.app.runtime.Arguments;
 import io.cdap.cdap.app.runtime.ProgramOptions;
 import io.cdap.cdap.app.store.Store;
-import io.cdap.cdap.common.BadRequestException;
 import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -61,9 +59,6 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.http.HttpResponder;
 import io.netty.buffer.ByteBuf;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import javafx.util.Pair;
@@ -73,21 +68,13 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Reader;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -99,15 +86,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import javax.annotation.Nullable;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
 /** Support Bundle HTTP Handler. */
@@ -185,13 +166,12 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
    */
   @POST
   @Path("/support/bundle")
-  public void createSupportBundle(
-    HttpRequest request,
-    HttpResponder responder,
-    @Nullable @QueryParam("namespace-id") String namespaceId,
-    @Nullable @QueryParam("app-id") String appId,
-    @Nullable @QueryParam("workflow-name") String workflowName,
-    @Nullable @QueryParam("run-id") String runId) {
+  public void createSupportBundle(HttpRequest request,
+                                  HttpResponder responder,
+                                  @Nullable @QueryParam("namespace-id") String namespaceId,
+                                  @Nullable @QueryParam("app-id") String appId,
+                                  @Nullable @QueryParam("workflow-name") String workflowName,
+                                  @Nullable @QueryParam("run-id") String runId) {
     generateSupportBundle(namespaceId, appId, workflowName, runId, responder);
   }
 
@@ -202,8 +182,6 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
     UUID uuid = UUID.randomUUID();
     responder.sendString(
       HttpResponseStatus.OK, String.format("Support Bundle %s generated.", uuid));
-    // Generates statusJson to keep updates the status
-    FileWriter statusJson = null;
     try {
       if (namespaceId != null) {
         NamespaceId namespace = new NamespaceId(namespaceId);
@@ -220,6 +198,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
       // Puts all the files under the uuid path
       File baseDirectory = new File(cConf.get(Constants.CFG_LOCAL_DATA_SUPPORT_BUNDLE_DIR));
       int fileCount = 1;
+      DirUtils.mkdirs(baseDirectory);
       if (baseDirectory.list() != null && baseDirectory.list().length > 0) {
         fileCount = baseDirectory.list().length;
       }
@@ -231,9 +210,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
       }
       File basePath =
         new File(cConf.get(Constants.CFG_LOCAL_DATA_SUPPORT_BUNDLE_DIR), uuid.toString());
-      if (!basePath.exists()) {
-        basePath.mkdirs();
-      }
+      DirUtils.mkdirs(basePath);
       if (namespaceId == null) {
         namespaceList =
           namespaceQueryAdmin.list().stream()
@@ -258,9 +235,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
               applicationLifecycleService.getAppDetail(new ApplicationId(namespaceId, appId))));
         }
         File systemLogPath = new File(basePath.getPath(), "system-log");
-        if (!systemLogPath.exists()) {
-          systemLogPath.mkdirs();
-        }
+        DirUtils.mkdirs(systemLogPath);
         // Generates system log for user request
         generateSystemLog(systemLogPath.getPath(), basePath, apps);
         if (runId == null) {
@@ -268,9 +243,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
             latestProgramRunId = null;
             latestRunRecordDetail = null;
             File appFolderPath = new File(basePath.toString(), app.getName());
-            if (!appFolderPath.exists()) {
-              appFolderPath.mkdirs();
-            }
+            DirUtils.mkdirs(appFolderPath);
             // Generates application file and get application id and detail
             Pair<ApplicationId, ApplicationDetail> applicationPair =
               generateApplicationFile(namespaceId, app.getName(), appFolderPath.toString());
@@ -308,9 +281,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
           }
         } else if (appId != null) {
           File appFolderPath = new File(basePath.toString(), appId);
-          if (!appFolderPath.exists()) {
-            appFolderPath.mkdirs();
-          }
+          DirUtils.mkdirs(appFolderPath);
           Pair<ApplicationId, ApplicationDetail> applicationPair =
             generateApplicationFile(namespaceId, appId, appFolderPath.toString());
           latestProgramRunId =
@@ -332,49 +303,25 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
         }
       }
     } catch (Exception e) {
-      LOG.error("Can not generate support bundle: ", e);
-    } finally {
-      try {
-        if (statusJson != null) {
-          statusJson.close();
-        }
-      } catch (IOException e) {
-        LOG.error("Can not close status json file ", e);
-      }
+      LOG.error("Can not generate support bundle ", e);
     }
   }
 
   /** Gets oldest folder from the root directory */
+  @Nullable
   private File getOldestFolder(File baseDirectory) {
-    File[] supportFiles = baseDirectory.listFiles();
-    long oldestDate = Long.MAX_VALUE;
-    File oldestFile = null;
-    if (supportFiles != null && supportFiles.length > 0) {
-      for (File f : supportFiles) {
-        if (f.lastModified() < oldestDate) {
-          oldestDate = f.lastModified();
-          oldestFile = f;
-        }
-      }
-    }
-    return oldestFile;
+    return DirUtils.listFiles(baseDirectory).stream()
+      .reduce((f1, f2) -> f1.lastModified() < f2.lastModified() ? f1 : f2)
+      .orElse(null);
   }
 
   /** Deletes old folders after certain number of folders exist */
   private void deleteOldFolders(File oldFilesDirectory) {
-    String[] entries = oldFilesDirectory.list();
-    if (entries != null && entries.length > 0) {
-      for (String s : entries) {
-        File currentFile = new File(oldFilesDirectory.getPath(), s);
-        // Recursive the full directory and delete all old files
-        if (currentFile.isDirectory()) {
-          deleteOldFolders(currentFile);
-        } else {
-          currentFile.delete();
-        }
-      }
+    try {
+      DirUtils.deleteDirectoryContents(oldFilesDirectory);
+    } catch (IOException e) {
+      LOG.warn("Failed to clean up directory {}", oldFilesDirectory, e);
     }
-    oldFilesDirectory.delete();
   }
 
   /** Generates system log */
@@ -403,16 +350,10 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
             }
           });
       futureService.get();
-      if (apps == null || apps.size() == 0) {
-        addToStatus(serviceId, basePath.getPath());
-      } else {
-        for (ApplicationRecord app : apps) {
-          File appFolderPath = new File(basePath.toString(), app.getName());
-          if (!appFolderPath.exists()) {
-            appFolderPath.mkdirs();
-          }
-          addToStatus(serviceId, appFolderPath.getPath());
-        }
+      for (ApplicationRecord app : apps) {
+        File appFolderPath = new File(basePath.toString(), app.getName());
+        DirUtils.mkdirs(appFolderPath);
+        addToStatus(serviceId, appFolderPath.getPath());
       }
     }
   }
@@ -425,7 +366,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
     CompletableFuture<Void> futureApplication =
       CompletableFuture.runAsync(
         () -> {
-          try (FileWriter file = new FileWriter(appFolderPath + "/" + appId + ".json")) {
+          try (FileWriter file = new FileWriter(new File(appFolderPath, appId + ".json"))) {
             file.write(GSON.toJson(applicationDetail));
             file.flush();
           } catch (IOException e) {
@@ -484,7 +425,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
       }
       return metrics;
     } catch (Exception e) {
-      LOG.error("Can not add metrics: ", e);
+      LOG.error("Can not add metrics ", e);
       return new JsonObject();
     }
   }
@@ -516,7 +457,7 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
       CompletableFuture.runAsync(
         () -> {
           try (FileWriter file =
-                 new FileWriter(appPath + "/" + latestProgramRunId.getRun() + ".json")) {
+                 new FileWriter(new File(appPath, latestProgramRunId.getRun() + ".json"))) {
             JsonObject jsonObject = new JsonObject();
             jsonObject.addProperty("status", latestRunRecordDetail.getStatus().toString());
             jsonObject.addProperty("start", latestRunRecordDetail.getStartTs());
@@ -538,11 +479,11 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
 
   /** Generates log file within certain path */
   private void generateLogFile(LoggingContext loggingContext, String basePath, String filePath) {
-    try (FileWriter file = new FileWriter(basePath + "/" + filePath)) {
-      long currentTimeMillis = System.currentTimeMillis();
-      long fromMillis = currentTimeMillis - TimeUnit.DAYS.toMillis(1);
-      CloseableIterator<LogEvent> logIter =
-        logReader.getLog(loggingContext, fromMillis, currentTimeMillis, FilterParser.parse(""));
+    long currentTimeMillis = System.currentTimeMillis();
+    long fromMillis = currentTimeMillis - TimeUnit.DAYS.toMillis(1);
+    try (FileWriter file = new FileWriter(new File(basePath, filePath));
+         CloseableIterator<LogEvent> logIter =
+           logReader.getLog(loggingContext, fromMillis, currentTimeMillis, FilterParser.parse(""))) {
       AbstractChunkedLogProducer logsProducer =
         new TextChunkedLogProducer(logIter, logPattern, true);
       ByteBuf chunk = logsProducer.nextChunk();
@@ -553,13 +494,13 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
       }
       file.flush();
     } catch (Exception e) {
-      LOG.error("Can not generate log file: ", e);
+      LOG.error("Can not generate log file ", e);
     }
   }
 
   /** Adds status info into file */
   private synchronized void addToStatus(String serviceId, String basePath) throws IOException {
-    try (FileWriter statusJson = new FileWriter(basePath + "/" + "status.json")) {
+    try (FileWriter statusJson = new FileWriter(new File(basePath, "status.json"))) {
       serviceJson.addProperty(serviceId, true);
       statusJson.write(serviceJson.toString());
       statusJson.flush();
