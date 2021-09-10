@@ -97,13 +97,13 @@ import javax.ws.rs.QueryParam;
 public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
   private static final Logger LOG = LoggerFactory.getLogger(SupportBundleHttpHandler.class);
   private static final Gson GSON =
-    ApplicationSpecificationAdapter.addTypeAdapters(new GsonBuilder())
-      .registerTypeAdapter(Arguments.class, new ArgumentsCodec())
-      .registerTypeAdapter(ProgramOptions.class, new ProgramOptionsCodec())
-      .registerTypeAdapter(
-        org.apache.twill.internal.Arguments.class,
-        new org.apache.twill.internal.json.ArgumentsCodec())
-      .create();
+      ApplicationSpecificationAdapter.addTypeAdapters(new GsonBuilder())
+          .registerTypeAdapter(Arguments.class, new ArgumentsCodec())
+          .registerTypeAdapter(ProgramOptions.class, new ProgramOptionsCodec())
+          .registerTypeAdapter(
+              org.apache.twill.internal.Arguments.class,
+              new org.apache.twill.internal.json.ArgumentsCodec())
+          .create();
   private static final Type MAP_TYPE = new TypeToken<Map<String, Boolean>>() { }.getType();
 
   private final NamespaceQueryAdmin namespaceQueryAdmin;
@@ -120,38 +120,37 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
 
   @Inject
   SupportBundleHttpHandler(
-    Store store,
-    NamespaceQueryAdmin namespaceQueryAdmin,
-    ApplicationLifecycleService applicationLifecycleService,
-    MetricsQueryHelper metricsQueryHelper,
-    LogReader logReader,
-    CConfiguration cConf) {
+      Store store,
+      NamespaceQueryAdmin namespaceQueryAdmin,
+      ApplicationLifecycleService applicationLifecycleService,
+      MetricsQueryHelper metricsQueryHelper,
+      LogReader logReader,
+      CConfiguration cConf) {
     this.store = store;
     this.namespaceQueryAdmin = namespaceQueryAdmin;
     this.applicationLifecycleService = applicationLifecycleService;
     this.metricsQueryHelper = metricsQueryHelper;
     this.logReader = logReader;
     this.logPattern =
-      cConf.get(LoggingConfiguration.LOG_PATTERN, LoggingConfiguration.DEFAULT_LOG_PATTERN);
+        cConf.get(LoggingConfiguration.LOG_PATTERN, LoggingConfiguration.DEFAULT_LOG_PATTERN);
     this.serviceList =
-      Arrays.asList(
-        Constants.Service.APP_FABRIC_HTTP,
-        Constants.Service.DATASET_EXECUTOR,
-        Constants.Service.EXPLORE_HTTP_USER_SERVICE,
-        Constants.Service.LOGSAVER,
-        Constants.Service.MESSAGING_SERVICE,
-        Constants.Service.METADATA_SERVICE,
-        Constants.Service.METRICS,
-        Constants.Service.METRICS_PROCESSOR,
-        Constants.Service.RUNTIME,
-        Constants.Service.TRANSACTION,
-        "pipeline");
+        Arrays.asList(
+            Constants.Service.APP_FABRIC_HTTP,
+            Constants.Service.DATASET_EXECUTOR,
+            Constants.Service.EXPLORE_HTTP_USER_SERVICE,
+            Constants.Service.LOGSAVER,
+            Constants.Service.MESSAGING_SERVICE,
+            Constants.Service.METADATA_SERVICE,
+            Constants.Service.METRICS,
+            Constants.Service.METRICS_PROCESSOR,
+            Constants.Service.RUNTIME,
+            Constants.Service.TRANSACTION,
+            "pipeline");
     this.listOfFileNames = new ArrayList<>(serviceList);
     listOfFileNames.addAll(Arrays.asList("applicationFile", "runtimelog", "runtimeinfo"));
     this.cConf = cConf;
     String homePath = System.getProperty("user.home") + "/support/bundle";
     cConf.set(Constants.CFG_LOCAL_DATA_SUPPORT_BUNDLE_DIR, homePath);
-
   }
 
   /**
@@ -160,28 +159,32 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
    * @param namespaceId the namespace id
    * @param appId the app id
    * @param workflowName the workflow name
-   * @param runId the runid of the workflow
-   *     uuid of this support bundle
+   * @param runId the runid of the workflow uuid of this support bundle
    * @throws NotFoundException is thrown when the application, workflow, or runid is not found
    */
   @POST
   @Path("/support/bundle")
-  public void createSupportBundle(HttpRequest request,
-                                  HttpResponder responder,
-                                  @Nullable @QueryParam("namespace-id") String namespaceId,
-                                  @Nullable @QueryParam("app-id") String appId,
-                                  @Nullable @QueryParam("workflow-name") String workflowName,
-                                  @Nullable @QueryParam("run-id") String runId) {
+  public void createSupportBundle(
+      HttpRequest request,
+      HttpResponder responder,
+      @Nullable @QueryParam("namespace-id") String namespaceId,
+      @Nullable @QueryParam("app-id") String appId,
+      @Nullable @QueryParam("workflow-name") String workflowName,
+      @Nullable @QueryParam("run-id") String runId) {
     generateSupportBundle(namespaceId, appId, workflowName, runId, responder);
   }
 
   /** Generates Support Bundle for the given parameters. */
   private void generateSupportBundle(
-    String namespaceId, String appId, String workflowName, String runId, HttpResponder responder) {
+      String namespaceId,
+      String appId,
+      String workflowName,
+      String runId,
+      HttpResponder responder) {
     // Generate a universal unique id for each bundle and return to the front end right away
     UUID uuid = UUID.randomUUID();
     responder.sendString(
-      HttpResponseStatus.OK, String.format("Support Bundle %s generated.", uuid));
+        HttpResponseStatus.OK, String.format("Support Bundle %s generated.", uuid));
     try {
       if (namespaceId != null) {
         NamespaceId namespace = new NamespaceId(namespaceId);
@@ -209,13 +212,13 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
         deleteOldFolders(oldFilesDirectory);
       }
       File basePath =
-        new File(cConf.get(Constants.CFG_LOCAL_DATA_SUPPORT_BUNDLE_DIR), uuid.toString());
+          new File(cConf.get(Constants.CFG_LOCAL_DATA_SUPPORT_BUNDLE_DIR), uuid.toString());
       DirUtils.mkdirs(basePath);
       if (namespaceId == null) {
         namespaceList =
-          namespaceQueryAdmin.list().stream()
-            .map(meta -> meta.getName())
-            .collect(Collectors.toList());
+            namespaceQueryAdmin.list().stream()
+                .map(meta -> meta.getName())
+                .collect(Collectors.toList());
       } else {
         namespaceList.add(namespaceId);
       }
@@ -226,13 +229,14 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
         List<ApplicationRecord> apps = new ArrayList<>();
         if (appId == null) {
           Predicate<ApplicationDetail> predicate = (detail) -> true;
-          apps = applicationLifecycleService.getApps(namespace, predicate).stream()
-            .map(ApplicationRecord::new)
-            .collect(Collectors.toList());
+          apps =
+              applicationLifecycleService.getApps(namespace, predicate).stream()
+                  .map(ApplicationRecord::new)
+                  .collect(Collectors.toList());
         } else {
           apps.add(
-            new ApplicationRecord(
-              applicationLifecycleService.getAppDetail(new ApplicationId(namespaceId, appId))));
+              new ApplicationRecord(
+                  applicationLifecycleService.getAppDetail(new ApplicationId(namespaceId, appId))));
         }
         File systemLogPath = new File(basePath.getPath(), "system-log");
         DirUtils.mkdirs(systemLogPath);
@@ -246,18 +250,18 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
             DirUtils.mkdirs(appFolderPath);
             // Generates application file and get application id and detail
             Pair<ApplicationId, ApplicationDetail> applicationPair =
-              generateApplicationFile(namespaceId, app.getName(), appFolderPath.toString());
+                generateApplicationFile(namespaceId, app.getName(), appFolderPath.toString());
             Map<ProgramRunId, RunRecordDetail> runMap =
-              store.getRuns(
-                applicationPair.getKey(),
-                ProgramRunStatus.ALL,
-                Integer.MAX_VALUE,
-                meta -> true);
+                store.getRuns(
+                    applicationPair.getKey(),
+                    ProgramRunStatus.ALL,
+                    Integer.MAX_VALUE,
+                    meta -> true);
             long startTs = 0;
             // Gets the latest run info
             for (ProgramRunId programRunId : runMap.keySet()) {
               if (startTs < runMap.get(programRunId).getStartTs()
-                && programRunId.getProgram().equals("DataPipelineWorkflow")) {
+                  && programRunId.getProgram().equals("DataPipelineWorkflow")) {
                 latestProgramRunId = programRunId;
                 latestRunRecordDetail = runMap.get(programRunId);
                 startTs = runMap.get(programRunId).getStartTs();
@@ -265,41 +269,41 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
             }
             if (latestProgramRunId != null) {
               JsonObject metrics =
-                queryMetrics(
-                  namespaceId,
-                  app.getName(),
-                  latestProgramRunId.getRun(),
-                  workflowName,
-                  applicationPair.getValue().getConfiguration(),
-                  latestRunRecordDetail != null ? latestRunRecordDetail.getStartTs() : 0,
-                  latestRunRecordDetail != null && latestRunRecordDetail.getStopTs() != null
-                    ? latestRunRecordDetail.getStopTs()
-                    : DateTime.now().getMillis());
+                  queryMetrics(
+                      namespaceId,
+                      app.getName(),
+                      latestProgramRunId.getRun(),
+                      workflowName,
+                      applicationPair.getValue().getConfiguration(),
+                      latestRunRecordDetail != null ? latestRunRecordDetail.getStartTs() : 0,
+                      latestRunRecordDetail != null && latestRunRecordDetail.getStopTs() != null
+                          ? latestRunRecordDetail.getStopTs()
+                          : DateTime.now().getMillis());
               generateLogFileAndRunInfo(
-                latestProgramRunId, latestRunRecordDetail, appFolderPath.toString(), metrics);
+                  latestProgramRunId, latestRunRecordDetail, appFolderPath.toString(), metrics);
             }
           }
         } else if (appId != null) {
           File appFolderPath = new File(basePath.toString(), appId);
           DirUtils.mkdirs(appFolderPath);
           Pair<ApplicationId, ApplicationDetail> applicationPair =
-            generateApplicationFile(namespaceId, appId, appFolderPath.toString());
+              generateApplicationFile(namespaceId, appId, appFolderPath.toString());
           latestProgramRunId =
-            new ProgramRunId(namespaceId, appId, ProgramType.WORKFLOW, workflowName, runId);
+              new ProgramRunId(namespaceId, appId, ProgramType.WORKFLOW, workflowName, runId);
           latestRunRecordDetail = store.getRun(latestProgramRunId);
           JsonObject metrics =
-            queryMetrics(
-              namespaceId,
-              appId,
-              runId,
-              workflowName,
-              applicationPair.getValue().getConfiguration(),
-              latestRunRecordDetail != null ? latestRunRecordDetail.getStartTs() : 0,
-              latestRunRecordDetail != null && latestRunRecordDetail.getStopTs() != null
-                ? latestRunRecordDetail.getStopTs()
-                : DateTime.now().getMillis());
+              queryMetrics(
+                  namespaceId,
+                  appId,
+                  runId,
+                  workflowName,
+                  applicationPair.getValue().getConfiguration(),
+                  latestRunRecordDetail != null ? latestRunRecordDetail.getStartTs() : 0,
+                  latestRunRecordDetail != null && latestRunRecordDetail.getStopTs() != null
+                      ? latestRunRecordDetail.getStopTs()
+                      : DateTime.now().getMillis());
           generateLogFileAndRunInfo(
-            latestProgramRunId, latestRunRecordDetail, appFolderPath.toString(), metrics);
+              latestProgramRunId, latestRunRecordDetail, appFolderPath.toString(), metrics);
         }
       }
     } catch (Exception e) {
@@ -311,8 +315,8 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
   @Nullable
   private File getOldestFolder(File baseDirectory) {
     return DirUtils.listFiles(baseDirectory).stream()
-      .reduce((f1, f2) -> f1.lastModified() < f2.lastModified() ? f1 : f2)
-      .orElse(null);
+        .reduce((f1, f2) -> f1.lastModified() < f2.lastModified() ? f1 : f2)
+        .orElse(null);
   }
 
   /** Deletes old folders after certain number of folders exist */
@@ -326,29 +330,29 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
 
   /** Generates system log */
   private void generateSystemLog(String systemLogPath, File basePath, List<ApplicationRecord> apps)
-    throws Exception {
+      throws Exception {
     String componentId = "services";
     for (String serviceId : serviceList) {
       CompletableFuture<Void> futureService =
-        CompletableFuture.runAsync(
-          () -> {
-            if (serviceId.equals("pipeline")) {
-              generateLogFile(
-                LoggingContextHelper.getLoggingContext(
-                  "system",
-                  serviceId,
-                  "studio",
-                  ProgramType.valueOfCategoryName(componentId)),
-                systemLogPath,
-                serviceId + "-system-log.txt");
-            } else {
-              generateLogFile(
-                LoggingContextHelper.getLoggingContext(
-                  Id.Namespace.SYSTEM.getId(), componentId, serviceId),
-                systemLogPath,
-                serviceId + "-system-log.txt");
-            }
-          });
+          CompletableFuture.runAsync(
+              () -> {
+                if (serviceId.equals("pipeline")) {
+                  generateLogFile(
+                      LoggingContextHelper.getLoggingContext(
+                          "system",
+                          serviceId,
+                          "studio",
+                          ProgramType.valueOfCategoryName(componentId)),
+                      systemLogPath,
+                      serviceId + "-system-log.txt");
+                } else {
+                  generateLogFile(
+                      LoggingContextHelper.getLoggingContext(
+                          Id.Namespace.SYSTEM.getId(), componentId, serviceId),
+                      systemLogPath,
+                      serviceId + "-system-log.txt");
+                }
+              });
       futureService.get();
       for (ApplicationRecord app : apps) {
         File appFolderPath = new File(basePath.toString(), app.getName());
@@ -360,19 +364,19 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
 
   /** Generates application file and return application id and detail */
   private Pair<ApplicationId, ApplicationDetail> generateApplicationFile(
-    String namespaceId, String appId, String appFolderPath) throws Exception {
+      String namespaceId, String appId, String appFolderPath) throws Exception {
     ApplicationId applicationId = new ApplicationId(namespaceId, appId);
     ApplicationDetail applicationDetail = applicationLifecycleService.getAppDetail(applicationId);
     CompletableFuture<Void> futureApplication =
-      CompletableFuture.runAsync(
-        () -> {
-          try (FileWriter file = new FileWriter(new File(appFolderPath, appId + ".json"))) {
-            file.write(GSON.toJson(applicationDetail));
-            file.flush();
-          } catch (IOException e) {
-            LOG.error("Can not write application file ", e);
-          }
-        });
+        CompletableFuture.runAsync(
+            () -> {
+              try (FileWriter file = new FileWriter(new File(appFolderPath, appId + ".json"))) {
+                file.write(GSON.toJson(applicationDetail));
+                file.flush();
+              } catch (IOException e) {
+                LOG.error("Can not write application file ", e);
+              }
+            });
     futureApplication.get();
     addToStatus("applicationFile", appFolderPath);
     return new Pair<>(applicationId, applicationDetail);
@@ -380,18 +384,18 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
 
   /** Gets the metrics details for the run id */
   private JsonObject queryMetrics(
-    String namespaceId,
-    String appId,
-    String runId,
-    String workflowName,
-    String configuration,
-    long startTs,
-    long stopTs) {
+      String namespaceId,
+      String appId,
+      String runId,
+      String workflowName,
+      String configuration,
+      long startTs,
+      long stopTs) {
     try {
       JSONObject appConf =
-        configuration != null && configuration.length() > 0
-          ? new JSONObject(configuration)
-          : new JSONObject();
+          configuration != null && configuration.length() > 0
+              ? new JSONObject(configuration)
+              : new JSONObject();
       List<String> metricsList = new ArrayList<>();
       JSONArray stages = appConf.has("stages") ? appConf.getJSONArray("stages") : new JSONArray();
       for (int i = 0; i < stages.length(); i++) {
@@ -403,14 +407,14 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
       List<String> queryTags = Arrays.asList(namespaceId, appId, runId, workflowName);
       Map<String, List<String>> queryParams = new HashMap<>();
       queryParams.put(
-        Constants.AppFabric.QUERY_PARAM_START_TIME,
-        Collections.singletonList(String.valueOf(startTs - 5000)));
+          Constants.AppFabric.QUERY_PARAM_START_TIME,
+          Collections.singletonList(String.valueOf(startTs - 5000)));
       queryParams.put(
-        Constants.AppFabric.QUERY_PARAM_END_TIME,
-        Collections.singletonList(String.valueOf(stopTs)));
+          Constants.AppFabric.QUERY_PARAM_END_TIME,
+          Collections.singletonList(String.valueOf(stopTs)));
       MetricQueryResult metricQueryResult =
-        metricsQueryHelper.executeTagQuery(
-          queryTags, metricsList, new ArrayList<>(), queryParams);
+          metricsQueryHelper.executeTagQuery(
+              queryTags, metricsList, new ArrayList<>(), queryParams);
       JsonObject metrics = new JsonObject();
       for (MetricQueryResult.TimeSeries timeSeries : metricQueryResult.getSeries()) {
         if (!metrics.has(timeSeries.getMetricName())) {
@@ -432,47 +436,47 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
 
   /** Generates pipeline log file and run info file */
   private void generateLogFileAndRunInfo(
-    ProgramRunId latestProgramRunId,
-    RunRecordDetail latestRunRecordDetail,
-    String appPath,
-    JsonObject metrics)
-    throws Exception {
+      ProgramRunId latestProgramRunId,
+      RunRecordDetail latestRunRecordDetail,
+      String appPath,
+      JsonObject metrics)
+      throws Exception {
 
     // Generates pipeline log file for user request
     CompletableFuture<Void> futurePipelineLog =
-      CompletableFuture.runAsync(
-        () -> {
-          try {
-            LoggingContext loggingContext =
-              LoggingContextHelper.getLoggingContextWithRunId(latestProgramRunId, null);
-            generateLogFile(loggingContext, appPath, latestProgramRunId.getRun() + "-log.txt");
-          } catch (Exception e) {
-            LOG.error("Can not write pipeline log file ", e);
-          }
-        });
+        CompletableFuture.runAsync(
+            () -> {
+              try {
+                LoggingContext loggingContext =
+                    LoggingContextHelper.getLoggingContextWithRunId(latestProgramRunId, null);
+                generateLogFile(loggingContext, appPath, latestProgramRunId.getRun() + "-log.txt");
+              } catch (Exception e) {
+                LOG.error("Can not write pipeline log file ", e);
+              }
+            });
     futurePipelineLog.get();
     addToStatus("runtimelog", appPath);
     // Generate runtime info details file
     CompletableFuture<Void> futureRuntimeInfo =
-      CompletableFuture.runAsync(
-        () -> {
-          try (FileWriter file =
-                 new FileWriter(new File(appPath, latestProgramRunId.getRun() + ".json"))) {
-            JsonObject jsonObject = new JsonObject();
-            jsonObject.addProperty("status", latestRunRecordDetail.getStatus().toString());
-            jsonObject.addProperty("start", latestRunRecordDetail.getStartTs());
-            jsonObject.addProperty("end", latestRunRecordDetail.getStopTs());
-            jsonObject.addProperty(
-              "profileName", latestRunRecordDetail.getProfileId().getProfile());
-            jsonObject.addProperty(
-              "runtimeArgs", latestRunRecordDetail.getProperties().get("runtimeArgs"));
-            jsonObject.add("metrics", metrics);
-            file.write(GSON.toJson(jsonObject));
-            file.flush();
-          } catch (IOException e) {
-            LOG.error("Can not write runtime file ", e);
-          }
-        });
+        CompletableFuture.runAsync(
+            () -> {
+              try (FileWriter file =
+                  new FileWriter(new File(appPath, latestProgramRunId.getRun() + ".json"))) {
+                JsonObject jsonObject = new JsonObject();
+                jsonObject.addProperty("status", latestRunRecordDetail.getStatus().toString());
+                jsonObject.addProperty("start", latestRunRecordDetail.getStartTs());
+                jsonObject.addProperty("end", latestRunRecordDetail.getStopTs());
+                jsonObject.addProperty(
+                    "profileName", latestRunRecordDetail.getProfileId().getProfile());
+                jsonObject.addProperty(
+                    "runtimeArgs", latestRunRecordDetail.getProperties().get("runtimeArgs"));
+                jsonObject.add("metrics", metrics);
+                file.write(GSON.toJson(jsonObject));
+                file.flush();
+              } catch (IOException e) {
+                LOG.error("Can not write runtime file ", e);
+              }
+            });
     futureRuntimeInfo.get();
     addToStatus("runtimeinfo", appPath);
   }
@@ -482,10 +486,11 @@ public class SupportBundleHttpHandler extends AbstractAppFabricHttpHandler {
     long currentTimeMillis = System.currentTimeMillis();
     long fromMillis = currentTimeMillis - TimeUnit.DAYS.toMillis(1);
     try (FileWriter file = new FileWriter(new File(basePath, filePath));
-         CloseableIterator<LogEvent> logIter =
-           logReader.getLog(loggingContext, fromMillis, currentTimeMillis, FilterParser.parse(""))) {
+        CloseableIterator<LogEvent> logIter =
+            logReader.getLog(
+                loggingContext, fromMillis, currentTimeMillis, FilterParser.parse(""))) {
       AbstractChunkedLogProducer logsProducer =
-        new TextChunkedLogProducer(logIter, logPattern, true);
+          new TextChunkedLogProducer(logIter, logPattern, true);
       ByteBuf chunk = logsProducer.nextChunk();
       while (chunk.capacity() > 0) {
         String log = chunk.toString(StandardCharsets.UTF_8);
