@@ -66,7 +66,7 @@ public class DefaultServicePluginConfigurer extends DefaultPluginConfigurer impl
                          PluginSelector selector, MacroEvaluator macroEvaluator, MacroParserOptions options) {
     try {
       Plugin plugin = addPlugin(pluginType, pluginName, pluginId, properties, selector);
-      return pluginInstantiator.newInstance(plugin, macroEvaluator, options);
+      return pluginInstantiator.newInstance(plugin, macroEvaluator, false, options);
     } catch (PluginNotExistsException | IOException e) {
       return null;
     } catch (ClassNotFoundException e) {

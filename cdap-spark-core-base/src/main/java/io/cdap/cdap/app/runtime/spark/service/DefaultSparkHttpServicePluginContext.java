@@ -223,7 +223,7 @@ public class DefaultSparkHttpServicePluginContext implements SparkHttpServicePlu
     }
 
     try {
-      return pluginInstantiator.newInstance(getExtraPlugin(pluginId), evaluator);
+      return pluginInstantiator.newInstance(getExtraPlugin(pluginId), evaluator, true);
     } catch (ClassNotFoundException e) {
       // Shouldn't happen, unless there is bug in file localization
       throw new IllegalArgumentException("Plugin class not found", e);

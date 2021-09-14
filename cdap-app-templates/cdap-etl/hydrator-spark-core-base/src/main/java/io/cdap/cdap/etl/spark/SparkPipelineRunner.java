@@ -267,11 +267,18 @@ public abstract class SparkPipelineRunner {
         sinkRunnables.add(stageData.createStoreTask(stageSpec, new BatchSinkFunction(
           pluginFunctionContext, functionCacheFactory.newCache())));
 
-      } else if (Transform.PLUGIN_TYPE.equals(pluginType)) {
+      } else if (SparkCompute.PLUGIN_TYPE.equals(pluginType) || Transform.PLUGIN_TYPE.equals(pluginType)) {
 
-        SparkCollection<RecordInfo<Object>> combinedData = stageData.transform(stageSpec, collector);
-        emittedBuilder = addEmitted(emittedBuilder, pipelinePhase, stageSpec,
-                                    combinedData, groupedDag, branchers, shufflers, hasErrorOutput, hasAlertOutput);
+        Object plugin = pluginContext.newPluginInstance(stageName, macroEvaluator);
+        if (plugin instanceof SparkCompute) {
+          SparkCollection<Object> computed = stageData.compute(stageSpec, (SparkCompute<Object, Object>) plugin);
+          addEmitted(emittedBuilder, pipelinePhase, stageSpec, mapToRecordInfoCollection(stageName, computed),
+                     groupedDag, branchers, shufflers, false, false);
+        } else {
+          SparkCollection<RecordInfo<Object>> combinedData = stageData.transform(stageSpec, collector);
+          emittedBuilder = addEmitted(emittedBuilder, pipelinePhase, stageSpec,
+                                      combinedData, groupedDag, branchers, shufflers, hasErrorOutput, hasAlertOutput);
+        }
 
       } else if (SplitterTransform.PLUGIN_TYPE.equals(pluginType)) {
 
@@ -302,13 +309,6 @@ public abstract class SparkPipelineRunner {
           emittedBuilder = addEmitted(emittedBuilder, pipelinePhase, stageSpec,
                                       combinedData, groupedDag, branchers, shufflers, hasErrorOutput, hasAlertOutput);
         }
-
-      } else if (SparkCompute.PLUGIN_TYPE.equals(pluginType)) {
-
-        SparkCompute<Object, Object> sparkCompute = pluginContext.newPluginInstance(stageName, macroEvaluator);
-        SparkCollection<Object> computed = stageData.compute(stageSpec, sparkCompute);
-        addEmitted(emittedBuilder, pipelinePhase, stageSpec, mapToRecordInfoCollection(stageName, computed),
-                   groupedDag, branchers, shufflers, false, false);
 
       } else if (SparkSink.PLUGIN_TYPE.equals(pluginType)) {
 

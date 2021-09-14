@@ -90,7 +90,7 @@ public class DefaultPluginContext implements PluginContext {
       if (pluginInstantiator == null) {
         throw new UnsupportedOperationException("Plugin is not supported");
       }
-      return pluginInstantiator.newInstance(plugin, evaluator);
+      return pluginInstantiator.newInstance(plugin, evaluator, true);
     } catch (InvalidPluginConfigException e) {
       throw e;
     } catch (ClassNotFoundException e) {
