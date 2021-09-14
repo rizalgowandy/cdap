@@ -561,7 +561,7 @@ public class ArtifactRepositoryTest {
                                            .build());
 
           TestMacroEvaluator testMacroEvaluator = new TestMacroEvaluator(propertySubstitutions, new HashMap<>());
-          Callable<String> plugin = instantiator.newInstance(pluginInfo, testMacroEvaluator);
+          Callable<String> plugin = instantiator.newInstance(pluginInfo, testMacroEvaluator, false);
           Assert.assertEquals("localhost/index.html:80,true,101,k,64.0,52.0,42,32,81,AuthInfo{token='token', id='id'}",
                               plugin.call());
 

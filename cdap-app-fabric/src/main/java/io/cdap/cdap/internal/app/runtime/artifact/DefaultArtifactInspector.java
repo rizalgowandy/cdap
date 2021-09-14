@@ -29,6 +29,7 @@ import io.cdap.cdap.api.annotation.Metadata;
 import io.cdap.cdap.api.annotation.MetadataProperty;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
+import io.cdap.cdap.api.annotation.RuntimeImplementation;
 import io.cdap.cdap.api.app.Application;
 import io.cdap.cdap.api.artifact.ApplicationClass;
 import io.cdap.cdap.api.artifact.ArtifactClasses;
@@ -87,6 +88,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
@@ -254,7 +257,25 @@ final class DefaultArtifactInspector implements ArtifactInspector {
     }
 
     try {
-      for (Class<?> cls : getPluginClasses(exportPackages, pluginClassLoader)) {
+      Iterable<Class<?>> pluginClasses = getPluginClasses(exportPackages, pluginClassLoader);
+      Map<Class, SortedMap<Integer, String>> runtimeImplementations = new HashMap<>();
+      for (Class<?> cls : pluginClasses) {
+        RuntimeImplementation runtimeImplementation = cls.getAnnotation(RuntimeImplementation.class);
+        if (runtimeImplementation == null) {
+          continue;
+        }
+        String previous = runtimeImplementations
+          .computeIfAbsent(runtimeImplementation.pluginClass(), c -> new TreeMap<>())
+          .put(runtimeImplementation.order(), cls.getName());
+        if (previous != null) {
+          throw new IllegalStateException(
+            String.format("Two runtime implementations %s and %s for plugin %s share same order value %d. Please" +
+                            "assign unique order values", previous, cls, runtimeImplementation.pluginClass(),
+                          runtimeImplementation.order()));
+        }
+      }
+
+      for (Class<?> cls : pluginClasses) {
         Plugin pluginAnnotation = cls.getAnnotation(Plugin.class);
         if (pluginAnnotation == null) {
           continue;
@@ -269,11 +290,14 @@ final class DefaultArtifactInspector implements ArtifactInspector {
           if (mutation != null) {
             mutations.add(mutation);
           }
+          SortedMap<Integer, String> runtimeClassNames = runtimeImplementations.get(cls);
           PluginClass pluginClass = PluginClass.builder()
             .setName(pluginName)
             .setType(pluginAnnotation.type())
             .setCategory(getPluginCategory(cls))
             .setClassName(cls.getName())
+            .setRuntimeClassNames(runtimeClassNames != null ? runtimeClassNames.values()
+                                    : Collections.singletonList(cls.getName()))
             .setConfigFieldName(configField)
             .setProperties(pluginProperties)
             .setRequirements(getArtifactRequirements(cls))
