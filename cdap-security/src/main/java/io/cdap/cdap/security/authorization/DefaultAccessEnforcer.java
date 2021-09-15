@@ -20,14 +20,21 @@ import com.google.common.collect.Sets;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
+import io.cdap.cdap.api.metrics.MetricsContext;
+import io.cdap.cdap.api.metrics.NoopMetricsContext;
 import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.metrics.ProgramTypeMetricTag;
 import io.cdap.cdap.proto.element.EntityType;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.NamespacedEntityId;
+import io.cdap.cdap.proto.id.ParentedId;
+import io.cdap.cdap.proto.id.ProgramId;
+import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.security.Credential;
 import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
@@ -40,7 +47,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -62,11 +71,15 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
   private final int logTimeTakenAsWarn;
   private final AccessEnforcer internalAccessEnforcer;
   private final boolean internalAuthEnabled;
+  private final boolean metricsCollectionEnabled;
+  private final boolean metricsTagsEnabled;
+  private final MetricsCollectionService metricsCollectionService;
 
   @Inject
   DefaultAccessEnforcer(CConfiguration cConf, SConfiguration sConf,
                         AccessControllerInstantiator accessControllerInstantiator,
-                        @Named(INTERNAL_ACCESS_ENFORCER) AccessEnforcer internalAccessEnforcer) {
+                        @Named(INTERNAL_ACCESS_ENFORCER) AccessEnforcer internalAccessEnforcer,
+                        MetricsCollectionService metricsCollectionService) {
     super(cConf);
     this.sConf = sConf;
     this.accessControllerInstantiator = accessControllerInstantiator;
@@ -75,15 +88,25 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
     this.logTimeTakenAsWarn = cConf.getInt(Constants.Security.Authorization.EXTENSION_OPERATION_TIME_WARN_THRESHOLD);
     this.internalAccessEnforcer = internalAccessEnforcer;
     this.internalAuthEnabled = SecurityUtil.isInternalAuthEnabled(cConf);
+    this.metricsCollectionEnabled = cConf.getBoolean(Constants.Metrics.AUTHORIZATION_METRICS_ENABLED);
+    this.metricsTagsEnabled = cConf.getBoolean(Constants.Metrics.AUTHORIZATION_METRICS_TAGS_ENABLED);
+    this.metricsCollectionService = metricsCollectionService;
   }
 
   @Override
   public void enforce(EntityId entity, Principal principal, Set<? extends Permission> permissions)
     throws AccessException {
+    MetricsContext metricsContext = createEntityIdMetricsContext(entity);
     if (internalAuthEnabled && principal.getFullCredential() != null
       && principal.getFullCredential().getType() == Credential.CredentialType.INTERNAL) {
       LOG.trace("Internal Principal enforce({}, {}, {})", entity, principal, permissions);
-      internalAccessEnforcer.enforce(entity, principal, permissions);
+      try {
+        internalAccessEnforcer.enforce(entity, principal, permissions);
+        metricsContext.increment(Constants.Metrics.Authorization.INTERNAL_CHECK_SUCCESS_COUNT, 1);
+      } catch (Throwable e) {
+        metricsContext.increment(Constants.Metrics.Authorization.INTERNAL_CHECK_FAILURE_COUNT, 1);
+        throw e;
+      }
       return;
     }
     if (!isSecurityAuthorizationEnabled()) {
@@ -91,6 +114,7 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
     }
     // bypass the check when the principal is the master user and the entity is in the system namespace
     if (isAccessingSystemNSAsMasterUser(entity, principal) || isEnforcingOnSamePrincipalId(entity, principal)) {
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_CHECK_BYPASS_COUNT, 1);
       return;
     }
 
@@ -100,8 +124,13 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
     long startTime = System.nanoTime();
     try {
       accessControllerInstantiator.get().enforce(entity, principal, permissions);
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_CHECK_SUCCESS_COUNT, 1);
+    } catch (Throwable e) {
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_CHECK_FAILURE_COUNT, 1);
+      throw e;
     } finally {
       long timeTaken = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+      metricsContext.gauge(Constants.Metrics.Authorization.EXTENSION_CHECK_SECONDS, timeTaken);
       String logLine = "Enforced permissions {} on {} for principal {}. Time spent in enforcement was {} ms.";
       if (timeTaken > logTimeTakenAsWarn) {
         LOG.warn(logLine, permissions, entity, principal, timeTaken);
@@ -114,10 +143,17 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
   @Override
   public void enforceOnParent(EntityType entityType, EntityId parentId, Principal principal, Permission permission)
     throws AccessException {
+    MetricsContext metricsContext = createEntityIdMetricsContext(parentId);
     if (internalAuthEnabled && principal.getFullCredential() != null
       && principal.getFullCredential().getType() == Credential.CredentialType.INTERNAL) {
       LOG.trace("Internal Principal enforceOnParent({}, {}, {})", parentId, principal, permission);
-      internalAccessEnforcer.enforceOnParent(entityType, parentId, principal, permission);
+      try {
+        internalAccessEnforcer.enforceOnParent(entityType, parentId, principal, permission);
+        metricsContext.increment(Constants.Metrics.Authorization.INTERNAL_CHECK_SUCCESS_COUNT, 1);
+      } catch (Throwable e) {
+        metricsContext.increment(Constants.Metrics.Authorization.INTERNAL_CHECK_FAILURE_COUNT, 1);
+        throw e;
+      }
       return;
     }
 
@@ -127,6 +163,7 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
 
     // bypass the check when the principal is the master user and the entity is in the system namespace
     if (isAccessingSystemNSAsMasterUser(parentId, principal) || isEnforcingOnSamePrincipalId(parentId, principal)) {
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_CHECK_BYPASS_COUNT, 1);
       return;
     }
 
@@ -136,8 +173,13 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
     long startTime = System.nanoTime();
     try {
       accessControllerInstantiator.get().enforceOnParent(entityType, parentId, principal, permission);
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_CHECK_SUCCESS_COUNT, 1);
+    } catch (Throwable e) {
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_CHECK_FAILURE_COUNT, 1);
+      throw e;
     } finally {
       long timeTaken = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+      metricsContext.gauge(Constants.Metrics.Authorization.EXTENSION_CHECK_SECONDS, timeTaken);
       String logLine = "Enforced permission {} on {} in {} for principal {}. Time spent in enforcement was {} ms.";
       if (timeTaken > logTimeTakenAsWarn) {
         LOG.warn(logLine, permission, entityType, parentId, principal, timeTaken);
@@ -150,10 +192,16 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
   @Override
   public Set<? extends EntityId> isVisible(Set<? extends EntityId> entityIds, Principal principal)
     throws AccessException {
+    // Pass null for creating metrics context. Aggregations are not supported for visibility checks.
+    MetricsContext metricsContext = createEntityIdMetricsContext(null);
     if (internalAuthEnabled && principal.getFullCredential() != null
       && principal.getFullCredential().getType() == Credential.CredentialType.INTERNAL) {
       LOG.trace("Internal Principal enforce({}, {})", entityIds, principal);
-      return internalAccessEnforcer.isVisible(entityIds, principal);
+      Set<? extends EntityId> visibleEntities = internalAccessEnforcer.isVisible(entityIds, principal);
+      long nonVisibleEntities = entityIds.size() - visibleEntities.size();
+      metricsContext.increment(Constants.Metrics.Authorization.INTERNAL_VISIBLE_ENTITY_COUNT, visibleEntities.size());
+      metricsContext.increment(Constants.Metrics.Authorization.INTERNAL_NONVISIBLE_ENTITY_COUNT, nonVisibleEntities);
+      return visibleEntities;
     }
 
     if (!isSecurityAuthorizationEnabled()) {
@@ -167,6 +215,8 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
         visibleEntities.add(entityId);
       }
     }
+    metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_VISIBLE_BYPASSED_ENTITY_COUNT,
+                             visibleEntities.size());
 
     principal = getUserPrinciple(principal);
 
@@ -176,8 +226,13 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
     long startTime = System.nanoTime();
     try {
       moreVisibleEntities = accessControllerInstantiator.get().isVisible(difference, principal);
+      long nonVisibleEntities = entityIds.size() - moreVisibleEntities.size() - visibleEntities.size();
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_VISIBLE_ENTITY_COUNT,
+                               moreVisibleEntities.size());
+      metricsContext.increment(Constants.Metrics.Authorization.EXTENSION_NONVISIBLE_ENTITY_COUNT, nonVisibleEntities);
     } finally {
       long timeTaken = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+      metricsContext.gauge(Constants.Metrics.Authorization.EXTENSION_VISIBILITY_SECONDS, timeTaken);
       String logLine = "Checked visibility of {} for principal {}. Time spent in visibility check was {} ms.";
       if (timeTaken > logTimeTakenAsWarn) {
         LOG.warn(logLine, difference, principal, timeTaken);
@@ -225,5 +280,67 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
   private boolean isEnforcingOnSamePrincipalId(EntityId entityId, Principal principal) {
     return entityId.getEntityType().equals(EntityType.KERBEROSPRINCIPAL) &&
       principal.getName().equals(entityId.getEntityName());
+  }
+
+  /**
+   * Constructs metrics tags for a given entity ID.
+   */
+  static Map<String, String> createEntityIdMetricsTags(EntityId entityId) {
+    Map<String, String> tags = new HashMap<>();
+    EntityId currEntityId = entityId;
+    addTagsForEntityId(tags, currEntityId);
+    while (currEntityId instanceof ParentedId) {
+      currEntityId = ((ParentedId) currEntityId).getParent();
+      addTagsForEntityId(tags, currEntityId);
+    }
+    return tags;
+  }
+
+  private static void addTagsForEntityId(Map<String, String> tags, EntityId entityId) {
+    switch (entityId.getEntityType()) {
+      case INSTANCE:
+        tags.put(Constants.Metrics.Tag.INSTANCE_ID, entityId.getEntityName());
+        break;
+      case NAMESPACE:
+        tags.put(Constants.Metrics.Tag.NAMESPACE, entityId.getEntityName());
+        break;
+      case PROGRAM_RUN:
+        ProgramRunId programRunId = (ProgramRunId) entityId;
+        tags.put(Constants.Metrics.Tag.RUN_ID, entityId.getEntityName());
+        tags.put(ProgramTypeMetricTag.getTagName(programRunId.getType()), programRunId.getProgram());
+        break;
+      case DATASET:
+        tags.put(Constants.Metrics.Tag.DATASET, entityId.getEntityName());
+        break;
+      case APPLICATION:
+        tags.put(Constants.Metrics.Tag.APP, entityId.getEntityName());
+        break;
+      case PROGRAM:
+        ProgramId programId = (ProgramId) entityId;
+        tags.put(Constants.Metrics.Tag.PROGRAM, programId.getProgram());
+        tags.put(Constants.Metrics.Tag.PROGRAM_TYPE, ProgramTypeMetricTag.getTagName(programId.getType()));
+        break;
+      case PROFILE:
+        tags.put(Constants.Metrics.Tag.PROFILE, entityId.getEntityName());
+        break;
+      default:
+        // No tags to set
+    }
+  }
+
+  /**
+   * Constructs tags and returns a metrics context for a given entity ID.
+   */
+  private MetricsContext createEntityIdMetricsContext(EntityId entityId) {
+    if (!metricsCollectionEnabled) {
+      return new NoopMetricsContext();
+    }
+    Map<String, String> tags;
+    if (metricsTagsEnabled && entityId != null) {
+      tags = createEntityIdMetricsTags(entityId);
+    } else {
+      tags = Collections.emptyMap();
+    }
+    return metricsCollectionService == null ? new NoopMetricsContext(tags) : metricsCollectionService.getContext(tags);
   }
 }

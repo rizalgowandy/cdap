@@ -754,6 +754,11 @@ public final class Constants {
     public static final String PROGRAM_METRICS_ENABLED = "app.program.metrics.enabled";
     public static final String STRUCTURED_TABLE_TIME_METRICS_ENABLED = "structured.table.time.metrics.enabled";
 
+    /** Whether to enable metrics tracking for authorization */
+    public static final String AUTHORIZATION_METRICS_ENABLED = "security.authorization.metrics.enabled";
+    /** Whether to enable entity tagging for metrics for aggregation purposes. */
+    public static final String AUTHORIZATION_METRICS_TAGS_ENABLED = "security.authorization.metrics.tags.enabled";
+
     /**
      * Metric's dataset related constants.
      */
@@ -904,6 +909,25 @@ public final class Constants {
      */
     public static final class MetadataStorage {
       public static final String METRICS_PREFIX = "metadata.storage.";
+    }
+
+    /**
+     * Authorization metrics
+     */
+    public static final class Authorization {
+      public static final String INTERNAL_CHECK_SUCCESS_COUNT = "authorization.internal.check.success.count";
+      public static final String INTERNAL_CHECK_FAILURE_COUNT = "authorization.internal.check.failure.count";
+      public static final String INTERNAL_VISIBLE_ENTITY_COUNT = "authorization.internal.visible.entity.count";
+      public static final String INTERNAL_NONVISIBLE_ENTITY_COUNT = "authorization.internal.nonvisible.entity.count";
+      public static final String EXTENSION_CHECK_SUCCESS_COUNT = "authorization.extension.check.success.count";
+      public static final String EXTENSION_CHECK_FAILURE_COUNT = "authorization.extension.check.failure.count";
+      public static final String EXTENSION_CHECK_BYPASS_COUNT = "authorization.extension.check.bypass.count";
+      public static final String EXTENSION_VISIBLE_ENTITY_COUNT = "authorization.extension.visible.entity.count";
+      public static final String EXTENSION_VISIBLE_BYPASSED_ENTITY_COUNT =
+        "authorization.extension.visible.bypassed.entity.count";
+      public static final String EXTENSION_NONVISIBLE_ENTITY_COUNT = "authorization.extension.nonvisible.entity.count";
+      public static final String EXTENSION_CHECK_SECONDS = "authorization.extension.check.seconds";
+      public static final String EXTENSION_VISIBILITY_SECONDS = "authorization.extension.visibility.seconds";
     }
   }
 
