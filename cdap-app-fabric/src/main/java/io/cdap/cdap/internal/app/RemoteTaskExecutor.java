@@ -94,7 +94,7 @@ public class RemoteTaskExecutor {
     long startTime = System.currentTimeMillis();
     ByteBuffer requestBody = encodeTaskRequest(runnableTaskRequest);
 
-    try{
+    try {
       RetryableTaskResult retryableTaskResult = Retries.callWithRetries((attempt) -> {
         try {
           HttpRequest.Builder requestBuilder = remoteClient
@@ -126,7 +126,7 @@ public class RemoteTaskExecutor {
       //emit metrics with successful result
       emitMetrics(startTime, true, runnableTaskRequest, retryableTaskResult.getAttempts());
       return retryableTaskResult.getResult();
-    } catch(Exception e){
+    } catch (Exception e) {
       //emit metrics with failed result
       emitMetrics(startTime, false, runnableTaskRequest, getAttempts(e));
       throw e;
@@ -135,6 +135,7 @@ public class RemoteTaskExecutor {
 
   /**
    * Find if attempt count is included in the suppressed throwable
+   *
    * @param e Exception to analyze
    * @return attempt count
    */

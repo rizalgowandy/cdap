@@ -24,13 +24,12 @@ public class RetryableTaskResult {
   private final byte[] result;
   private final int attempts;
 
-  RetryableTaskResult(byte[] result, int attempts){
+  RetryableTaskResult(byte[] result, int attempts) {
     this.result = result;
     this.attempts = attempts;
   }
 
   /**
-   *
    * @return byte[] result of task
    */
   public byte[] getResult() {
@@ -38,7 +37,6 @@ public class RetryableTaskResult {
   }
 
   /**
-   *
    * @return number of attempts for the task
    */
   public int getAttempts() {

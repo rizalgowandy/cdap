@@ -894,7 +894,8 @@ public final class Constants {
     public static final class TaskWorker {
       public static final String REQUEST_COUNT = Constants.TaskWorker.METRIC_PREFIX + "request.count";
       public static final String REQUEST_LATENCY_MS = Constants.TaskWorker.METRIC_PREFIX + "request.latency.millis";
-      public static final String CLIENT_REQUEST_COUNT = "client." + Constants.TaskWorker.METRIC_PREFIX + "request.count";
+      public static final String CLIENT_REQUEST_COUNT =
+        "client." + Constants.TaskWorker.METRIC_PREFIX + "request.count";
       public static final String CLIENT_REQUEST_LATENCY_MS =
         "client." + Constants.TaskWorker.METRIC_PREFIX + "request.latency.millis";
     }
