@@ -123,7 +123,8 @@ public class TaskWorkerMetricsTest {
     String taskClassName = TaskWorkerServiceTest.TestRunnableClass.class.getName();
     String wrappedClassName = "testClassName";
     RunnableTaskRequest req = RunnableTaskRequest.getBuilder(
-      taskClassName).withParam("100").withParamClassName(wrappedClassName).build();
+      taskClassName).withParam("100")
+      .withEmbeddedTaskRequest(RunnableTaskRequest.getBuilder(wrappedClassName).build()).build();
     String reqBody = GSON.toJson(req);
     HttpResponse response = HttpRequests.execute(
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())

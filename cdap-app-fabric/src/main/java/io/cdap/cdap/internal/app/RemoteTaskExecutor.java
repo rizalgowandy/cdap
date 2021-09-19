@@ -155,9 +155,7 @@ public class RemoteTaskExecutor {
   }
 
   private void emitMetrics(long startTime, boolean success, RunnableTaskRequest runnableTaskRequest, int attempts) {
-    String paramClassName = runnableTaskRequest.getParam() == null ? null : runnableTaskRequest.getParam()
-      .getParamClassName();
-    String taskClass = paramClassName != null ? paramClassName : runnableTaskRequest.getClassName();
+    String taskClass = getTaskClassName(runnableTaskRequest);
     Map<String, String> metricTags = new HashMap<>();
     metricTags.put(Constants.Metrics.Tag.CLASS, taskClass);
     metricTags.put(Constants.Metrics.Tag.STATUS, success ? "success" : "failure");
@@ -166,6 +164,13 @@ public class RemoteTaskExecutor {
     metricsCollectionService.getContext(metricTags)
       .gauge(Constants.Metrics.TaskWorker.CLIENT_REQUEST_LATENCY_MS, System.currentTimeMillis() - startTime);
     LOG.debug("Emitting metric tags {} with service {}", metricTags, metricsCollectionService);
+  }
+
+  private String getTaskClassName(RunnableTaskRequest runnableTaskRequest) {
+    if (runnableTaskRequest.getParam() == null || runnableTaskRequest.getParam().getEmbeddedTaskRequest() == null) {
+      return runnableTaskRequest.getClassName();
+    }
+    return runnableTaskRequest.getParam().getEmbeddedTaskRequest().getClassName();
   }
 
   private ByteBuffer encodeTaskRequest(RunnableTaskRequest request) throws IOException {

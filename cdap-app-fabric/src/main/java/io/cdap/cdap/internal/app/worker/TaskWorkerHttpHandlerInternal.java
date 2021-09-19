@@ -160,8 +160,7 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
   private void emitMetrics(TaskDetails taskDetails) {
     long time = System.currentTimeMillis() - taskDetails.getStartTime();
     Map<String, String> metricTags = new HashMap<>();
-    metricTags.put(Constants.Metrics.Tag.CLASS, taskDetails.getParamClassName() != null ?
-      taskDetails.getParamClassName() : taskDetails.getClassName());
+    metricTags.put(Constants.Metrics.Tag.CLASS, taskDetails.getClassName());
     metricTags
       .put(Constants.Metrics.Tag.STATUS,
            taskDetails.isSuccess() ? STATUS.SUCCESS.name().toLowerCase() : STATUS.FAILURE.name().toLowerCase());
@@ -180,28 +179,33 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
 
     long startTime = System.currentTimeMillis();
     String className = null;
-    String paramClassName = null;
     try {
       RunnableTaskRequest runnableTaskRequest =
         GSON.fromJson(request.content().toString(StandardCharsets.UTF_8), RunnableTaskRequest.class);
-      className = runnableTaskRequest.getClassName();
-      paramClassName = runnableTaskRequest.getParam().getParamClassName();
+      className = getTaskClassName(runnableTaskRequest);
       RunnableTaskContext runnableTaskContext = runnableTaskLauncher.launchRunnableTask(runnableTaskRequest);
 
       responder.sendContent(HttpResponseStatus.OK,
                             new RunnableTaskBodyProducer(runnableTaskContext, stopper,
-                                                         new TaskDetails(true, className, paramClassName, startTime)),
+                                                         new TaskDetails(true, className, startTime)),
                             new DefaultHttpHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM));
     } catch (ClassNotFoundException | ClassCastException ex) {
       responder.sendString(HttpResponseStatus.BAD_REQUEST, exceptionToJson(ex), EmptyHttpHeaders.INSTANCE);
       // Since the user class is not even loaded, no user code ran, hence it's ok to not terminate the runner
-      stopper.accept(false, new TaskDetails(false, className, paramClassName, startTime));
+      stopper.accept(false, new TaskDetails(false, className, startTime));
     } catch (Exception ex) {
       LOG.error("Failed to run task {}", request.content().toString(StandardCharsets.UTF_8), ex);
       responder.sendString(HttpResponseStatus.INTERNAL_SERVER_ERROR, exceptionToJson(ex), EmptyHttpHeaders.INSTANCE);
       // Potentially ran user code, hence terminate the runner.
-      stopper.accept(true, new TaskDetails(false, className, paramClassName, startTime));
+      stopper.accept(true, new TaskDetails(false, className, startTime));
     }
+  }
+
+  private String getTaskClassName(RunnableTaskRequest runnableTaskRequest) {
+    if (runnableTaskRequest.getParam() == null || runnableTaskRequest.getParam().getEmbeddedTaskRequest() == null) {
+      return runnableTaskRequest.getClassName();
+    }
+    return runnableTaskRequest.getParam().getEmbeddedTaskRequest().getClassName();
   }
 
   @GET

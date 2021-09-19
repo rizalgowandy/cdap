@@ -35,9 +35,9 @@ public class RunnableTaskRequest {
 
   private RunnableTaskRequest(String className, @Nullable String param,
                               @Nullable ArtifactId artifactId, @Nullable String namespace,
-                              @Nullable String wrappedClassName) {
+                              @Nullable RunnableTaskRequest embeddedTaskRequest) {
     this.className = className;
-    this.param = new RunnableTaskParam(param, wrappedClassName);
+    this.param = new RunnableTaskParam(param, embeddedTaskRequest);
     this.artifactId = artifactId;
     this.namespace = namespace;
   }
@@ -64,10 +64,10 @@ public class RunnableTaskRequest {
   @Override
   public String toString() {
     String requestString =
-      "RunnableTaskRequest{className=%s, param=%s, artifactId=%s, namespace=%s, wrappedClassName=%s}";
+      "RunnableTaskRequest{className=%s, param=%s, artifactId=%s, namespace=%s}";
     return String.format(requestString, className, param == null ? null :
-                           param.getParamValue().length() > 500 ?
-                             param.getParamValue().substring(500) : param.getParamValue(),
+                           param.getSimpleParam().length() > 500 ?
+                             param.getSimpleParam().substring(500) : param.getSimpleParam(),
                          artifactId, namespace);
   }
 
@@ -81,20 +81,20 @@ public class RunnableTaskRequest {
   public static class Builder {
     private final String className;
     @Nullable
-    private String param;
+    private String simpleParam;
     @Nullable
     private ArtifactId artifactId;
     @Nullable
     private String namespace;
     @Nullable
-    private String paramClassName;
+    private RunnableTaskRequest embeddedTaskRequest;
 
     private Builder(String className) {
       this.className = className;
     }
 
     public Builder withParam(String param) {
-      this.param = param;
+      this.simpleParam = param;
       return this;
     }
 
@@ -108,13 +108,13 @@ public class RunnableTaskRequest {
       return this;
     }
 
-    public Builder withParamClassName(String paramClassName) {
-      this.paramClassName = paramClassName;
+    public Builder withEmbeddedTaskRequest(RunnableTaskRequest embeddedTaskRequest) {
+      this.embeddedTaskRequest = embeddedTaskRequest;
       return this;
     }
 
     public RunnableTaskRequest build() {
-      return new RunnableTaskRequest(className, param, artifactId, namespace, paramClassName);
+      return new RunnableTaskRequest(className, simpleParam, artifactId, namespace, embeddedTaskRequest);
     }
   }
 }

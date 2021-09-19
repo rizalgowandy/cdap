@@ -16,8 +16,6 @@
 
 package io.cdap.cdap.internal.app.worker;
 
-import javax.annotation.Nullable;
-
 /**
  * Class for holding details of a task
  */
@@ -25,13 +23,11 @@ public class TaskDetails {
   private final boolean success;
   private final String className;
   private final long startTime;
-  private final String paramClassName;
 
-  public TaskDetails(boolean success, String className, @Nullable String paramClassName, long startTime) {
+  public TaskDetails(boolean success, String className, long startTime) {
     this.success = success;
     this.className = className;
     this.startTime = startTime;
-    this.paramClassName = paramClassName;
   }
 
   public boolean isSuccess() {
@@ -40,10 +36,6 @@ public class TaskDetails {
 
   public String getClassName() {
     return className;
-  }
-
-  public String getParamClassName() {
-    return paramClassName;
   }
 
   public long getStartTime() {

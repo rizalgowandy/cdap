@@ -27,30 +27,31 @@ public class RunnableTaskParam {
   /**
    * Param string value
    */
-  private final String paramValue;
+  private final String simpleParam;
   /**
    * Param class name
    */
-  private final String paramClassName;
+  private final RunnableTaskRequest embeddedTaskRequest;
 
-  public RunnableTaskParam(String paramValue, @Nullable String paramClassName) {
-    this.paramValue = paramValue;
-    this.paramClassName = paramClassName;
+  public RunnableTaskParam(@Nullable String simpleParam, @Nullable RunnableTaskRequest embeddedTaskRequest) {
+    this.simpleParam = simpleParam;
+    this.embeddedTaskRequest = embeddedTaskRequest;
   }
 
   @Nullable
-  public String getParamClassName() {
-    return paramClassName;
+  public RunnableTaskRequest getEmbeddedTaskRequest() {
+    return embeddedTaskRequest;
   }
 
-  public String getParamValue() {
-    return paramValue;
+  @Nullable
+  public String getSimpleParam() {
+    return simpleParam;
   }
 
   @Override
   public String toString() {
-    String format = "RunnableTaskParam{paramValue='%s' , paramClassName='%s'}";
-    return String.format(format, paramValue, paramClassName);
+    String format = "RunnableTaskParam{simpleParam='%s' , embeddedTaskRequest='%s'}";
+    return String.format(format, simpleParam, embeddedTaskRequest);
   }
 
   @Override
@@ -62,12 +63,12 @@ public class RunnableTaskParam {
       return false;
     }
     RunnableTaskParam that = (RunnableTaskParam) o;
-    return Objects.equals(paramValue, that.paramValue) && Objects
-      .equals(paramClassName, that.paramClassName);
+    return Objects.equals(simpleParam, that.simpleParam) && Objects
+      .equals(embeddedTaskRequest, that.embeddedTaskRequest);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(paramValue, paramClassName);
+    return Objects.hash(simpleParam, embeddedTaskRequest);
   }
 }
