@@ -55,8 +55,12 @@ public class RunnableTaskParam {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (!(o instanceof RunnableTaskParam)) return false;
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof RunnableTaskParam)) {
+      return false;
+    }
     RunnableTaskParam that = (RunnableTaskParam) o;
     return Objects.equals(paramValue, that.paramValue) && Objects
       .equals(paramClassName, that.paramClassName);
