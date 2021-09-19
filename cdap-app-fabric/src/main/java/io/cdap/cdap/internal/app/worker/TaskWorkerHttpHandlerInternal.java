@@ -56,11 +56,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
-import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 
@@ -162,51 +160,47 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
   private void emitMetrics(TaskDetails taskDetails) {
     long time = System.currentTimeMillis() - taskDetails.getStartTime();
     Map<String, String> metricTags = new HashMap<>();
-    metricTags.put(Constants.Metrics.Tag.CLASS, taskDetails.getWrappedClassName() != null ?
-      taskDetails.getWrappedClassName() : taskDetails.getClassName());
+    metricTags.put(Constants.Metrics.Tag.CLASS, taskDetails.getParamClassName() != null ?
+      taskDetails.getParamClassName() : taskDetails.getClassName());
     metricTags
       .put(Constants.Metrics.Tag.STATUS,
            taskDetails.isSuccess() ? STATUS.SUCCESS.name().toLowerCase() : STATUS.FAILURE.name().toLowerCase());
-    metricTags.put(Constants.Metrics.Tag.TRIES, String.valueOf(taskDetails.getAttemptCount()));
     metricsCollectionService.getContext(metricTags).increment(Constants.Metrics.TaskWorker.REQUEST_COUNT, 1L);
     metricsCollectionService.getContext(metricTags).gauge(Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS, time);
   }
 
   @POST
   @Path("/run")
-  public void run(FullHttpRequest request, HttpResponder responder,
-                  @QueryParam("attempt") @DefaultValue("1") String attempt) {
+  public void run(FullHttpRequest request, HttpResponder responder) {
     if (!hasInflightRequest.compareAndSet(false, true)) {
       responder.sendStatus(HttpResponseStatus.TOO_MANY_REQUESTS);
       return;
     }
     requestProcessedCount.incrementAndGet();
 
-    int attemptCount = Integer.parseInt(attempt);
     long startTime = System.currentTimeMillis();
     String className = null;
-    String wrappedClassName = null;
+    String paramClassName = null;
     try {
       RunnableTaskRequest runnableTaskRequest =
         GSON.fromJson(request.content().toString(StandardCharsets.UTF_8), RunnableTaskRequest.class);
       className = runnableTaskRequest.getClassName();
-      wrappedClassName = runnableTaskRequest.getWrappedClassName();
+      paramClassName = runnableTaskRequest.getParam().getParamClassName();
       RunnableTaskContext runnableTaskContext = runnableTaskLauncher.launchRunnableTask(runnableTaskRequest);
 
       responder.sendContent(HttpResponseStatus.OK,
                             new RunnableTaskBodyProducer(runnableTaskContext, stopper,
-                                                         new TaskDetails(true, attemptCount, className,
-                                                                         wrappedClassName, startTime)),
+                                                         new TaskDetails(true, className, paramClassName, startTime)),
                             new DefaultHttpHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM));
     } catch (ClassNotFoundException | ClassCastException ex) {
       responder.sendString(HttpResponseStatus.BAD_REQUEST, exceptionToJson(ex), EmptyHttpHeaders.INSTANCE);
       // Since the user class is not even loaded, no user code ran, hence it's ok to not terminate the runner
-      stopper.accept(false, new TaskDetails(false, attemptCount, className, wrappedClassName, startTime));
+      stopper.accept(false, new TaskDetails(false, className, paramClassName, startTime));
     } catch (Exception ex) {
       LOG.error("Failed to run task {}", request.content().toString(StandardCharsets.UTF_8), ex);
       responder.sendString(HttpResponseStatus.INTERNAL_SERVER_ERROR, exceptionToJson(ex), EmptyHttpHeaders.INSTANCE);
       // Potentially ran user code, hence terminate the runner.
-      stopper.accept(true, new TaskDetails(false, attemptCount, className, wrappedClassName, startTime));
+      stopper.accept(true, new TaskDetails(false, className, paramClassName, startTime));
     }
   }
 

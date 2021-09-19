@@ -106,7 +106,7 @@ public class TaskWorkerMetricsTest {
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
-    TaskWorkerServiceTest.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertSame(1, published.size());
 
@@ -123,13 +123,13 @@ public class TaskWorkerMetricsTest {
     String taskClassName = TaskWorkerServiceTest.TestRunnableClass.class.getName();
     String wrappedClassName = "testClassName";
     RunnableTaskRequest req = RunnableTaskRequest.getBuilder(
-      taskClassName).withParam("100").withWrappedClassName(wrappedClassName).build();
+      taskClassName).withParam("100").withParamClassName(wrappedClassName).build();
     String reqBody = GSON.toJson(req);
     HttpResponse response = HttpRequests.execute(
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
-    TaskWorkerServiceTest.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertSame(1, published.size());
 
@@ -139,56 +139,6 @@ public class TaskWorkerMetricsTest {
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS));
     //check the clz tag is set correctly
     Assert.assertEquals(wrappedClassName, metricValues.getTags().get(Constants.Metrics.Tag.CLASS));
-  }
-
-  @Test
-  public void testRetryRequest() throws IOException {
-    String taskClassName = TaskWorkerServiceTest.TestRunnableClass.class.getName();
-    RunnableTaskRequest req = RunnableTaskRequest.getBuilder(
-      taskClassName).withParam("100").build();
-    String reqBody = GSON.toJson(req);
-    HttpResponse response = HttpRequests.execute(
-      HttpRequest.post(uri.resolve("/v3Internal/worker/run?attempt=10").toURL())
-        .withBody(reqBody).build(),
-      new DefaultHttpRequestConfig(false));
-    TaskWorkerServiceTest.waitForTaskWorkerToFinish(taskWorkerService);
-    Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
-    Assert.assertSame(1, published.size());
-
-    //check the metrics are present
-    MetricValues metricValues = published.get(0);
-    Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_COUNT));
-    Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS));
-    //check the clz tag is set correctly
-    Assert.assertEquals(taskClassName, metricValues.getTags().get(Constants.Metrics.Tag.CLASS));
-    Assert.assertEquals("success", metricValues.getTags().get(Constants.Metrics.Tag.STATUS));
-    int retryCount = Integer.parseInt(metricValues.getTags().get(Constants.Metrics.Tag.TRIES));
-    Assert.assertEquals(10, retryCount);
-  }
-
-  @Test
-  public void testFailedRequest() throws IOException {
-    String taskClassName = TestFailingRunnableClass.class.getName();
-    RunnableTaskRequest req = RunnableTaskRequest.getBuilder(
-      taskClassName).withParam("100").build();
-    String reqBody = GSON.toJson(req);
-    HttpResponse response = HttpRequests.execute(
-      HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
-        .withBody(reqBody).build(),
-      new DefaultHttpRequestConfig(false));
-    TaskWorkerServiceTest.waitForTaskWorkerToFinish(taskWorkerService);
-    Assert.assertEquals(HttpURLConnection.HTTP_INTERNAL_ERROR, response.getResponseCode());
-    Assert.assertSame(1, published.size());
-
-    //check the metrics are present
-    MetricValues metricValues = published.get(0);
-    Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_COUNT));
-    Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS));
-    //check the clz tag is set correctly
-    Assert.assertEquals(taskClassName, metricValues.getTags().get(Constants.Metrics.Tag.CLASS));
-    int attemptCount = Integer.parseInt(metricValues.getTags().get(Constants.Metrics.Tag.TRIES));
-    Assert.assertEquals("failure", metricValues.getTags().get(Constants.Metrics.Tag.STATUS));
-    Assert.assertEquals(1, attemptCount);
   }
 
   private boolean hasMetric(MetricValues metricValues, String metricName) {

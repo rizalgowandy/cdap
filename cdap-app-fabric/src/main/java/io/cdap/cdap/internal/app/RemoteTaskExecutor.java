@@ -19,6 +19,9 @@ package io.cdap.cdap.internal.app;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.gson.Gson;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
+import io.cdap.cdap.api.retry.RetriesExhaustedException;
+import io.cdap.cdap.api.retry.RetryFailedException;
 import io.cdap.cdap.api.retry.RetryableException;
 import io.cdap.cdap.api.service.worker.RemoteExecutionException;
 import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
@@ -36,6 +39,8 @@ import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -46,6 +51,7 @@ import java.net.HttpURLConnection;
 import java.net.NoRouteToHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.DeflaterInputStream;
 import java.util.zip.GZIPInputStream;
@@ -57,18 +63,22 @@ import java.util.zip.GZIPOutputStream;
 public class RemoteTaskExecutor {
 
   private static final Gson GSON = new Gson();
-  private static final String TASK_WORKER_URL = "/worker/run?attempt=%s";
+  private static final String TASK_WORKER_URL = "/worker/run";
+  private static final Logger LOG = LoggerFactory.getLogger(RemoteTaskExecutor.class);
 
   private final boolean compression;
   private final RemoteClient remoteClient;
   private final RetryStrategy retryStrategy;
+  private final MetricsCollectionService metricsCollectionService;
 
-  public RemoteTaskExecutor(CConfiguration cConf, RemoteClientFactory remoteClientFactory) {
+  public RemoteTaskExecutor(CConfiguration cConf, MetricsCollectionService metricsCollectionService,
+                            RemoteClientFactory remoteClientFactory) {
     this.compression = cConf.getBoolean(Constants.TaskWorker.COMPRESSION_ENABLED);
     this.remoteClient = remoteClientFactory.createRemoteClient(Constants.Service.TASK_WORKER,
                                                                new DefaultHttpRequestConfig(false),
                                                                Constants.Gateway.INTERNAL_API_VERSION_3);
     this.retryStrategy = RetryStrategies.fromConfiguration(cConf, Constants.Service.TASK_WORKER + ".");
+    this.metricsCollectionService = metricsCollectionService;
   }
 
   /**
@@ -80,36 +90,81 @@ public class RemoteTaskExecutor {
    * @throws Exception returned by remote task if any
    */
   public byte[] runTask(RunnableTaskRequest runnableTaskRequest) throws Exception {
+    //initialize start time for collecting latency metric
+    long startTime = System.currentTimeMillis();
     ByteBuffer requestBody = encodeTaskRequest(runnableTaskRequest);
 
-    return Retries.callWithRetries((attempt) -> {
-      try {
-        HttpRequest.Builder requestBuilder = remoteClient
-          .requestBuilder(HttpMethod.POST, String.format(TASK_WORKER_URL, attempt))
-          .withBody(requestBody.duplicate());
-        if (compression) {
-          requestBuilder.addHeader(HttpHeaders.CONTENT_ENCODING, "gzip");
-          requestBuilder.addHeader(HttpHeaders.ACCEPT_ENCODING, "gzip, deflate");
-        }
-        HttpRequest httpRequest = requestBuilder.build();
+    try{
+      RetryableTaskResult retryableTaskResult = Retries.callWithRetries((attempt) -> {
+        try {
+          HttpRequest.Builder requestBuilder = remoteClient
+            .requestBuilder(HttpMethod.POST, TASK_WORKER_URL)
+            .withBody(requestBody.duplicate());
+          if (compression) {
+            requestBuilder.addHeader(HttpHeaders.CONTENT_ENCODING, "gzip");
+            requestBuilder.addHeader(HttpHeaders.ACCEPT_ENCODING, "gzip, deflate");
+          }
+          HttpRequest httpRequest = requestBuilder.build();
 
-        HttpResponse httpResponse = remoteClient.execute(httpRequest);
-        if (httpResponse.getResponseCode() == HttpResponseStatus.TOO_MANY_REQUESTS.code()) {
+          HttpResponse httpResponse = remoteClient.execute(httpRequest);
+          if (httpResponse.getResponseCode() == HttpResponseStatus.TOO_MANY_REQUESTS.code()) {
+            throw new RetryableException(
+              String.format("Received response code %s for %s", httpResponse.getResponseCode(),
+                            runnableTaskRequest.getClassName()));
+          }
+          if (httpResponse.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            BasicThrowable basicThrowable = GSON
+              .fromJson(new String(getResponseBody(httpResponse)), BasicThrowable.class);
+            throw RemoteExecutionException.fromBasicThrowable(basicThrowable);
+          }
+          return new RetryableTaskResult(getResponseBody(httpResponse), attempt);
+        } catch (NoRouteToHostException e) {
           throw new RetryableException(
-            String.format("Received response code %s for %s", httpResponse.getResponseCode(),
-                          runnableTaskRequest.getClassName()));
+            String.format("Received exception %s for %s", e.getMessage(), runnableTaskRequest.getClassName()));
         }
-        if (httpResponse.getResponseCode() != HttpURLConnection.HTTP_OK) {
-          BasicThrowable basicThrowable = GSON
-            .fromJson(new String(getResponseBody(httpResponse)), BasicThrowable.class);
-          throw RemoteExecutionException.fromBasicThrowable(basicThrowable);
-        }
-        return getResponseBody(httpResponse);
-      } catch (NoRouteToHostException e) {
-        throw new RetryableException(
-          String.format("Received exception %s for %s", e.getMessage(), runnableTaskRequest.getClassName()));
+      }, retryStrategy, Retries.DEFAULT_PREDICATE);
+      //emit metrics with successful result
+      emitMetrics(startTime, true, runnableTaskRequest, retryableTaskResult.getAttempts());
+      return retryableTaskResult.getResult();
+    } catch(Exception e){
+      //emit metrics with failed result
+      emitMetrics(startTime, false, runnableTaskRequest, getAttempts(e));
+      throw e;
+    }
+  }
+
+  /**
+   * Find if attempt count is included in the suppressed throwable
+   * @param e Exception to analyze
+   * @return attempt count
+   */
+  private int getAttempts(Exception e) {
+    int attempts = 0;
+    Throwable[] suppressed = e.getSuppressed();
+    for (Throwable t : suppressed) {
+      if (t instanceof RetryFailedException) {
+        attempts = ((RetryFailedException) t).getRetries();
+        break;
+      } else if (t instanceof RetriesExhaustedException) {
+        attempts = ((RetriesExhaustedException) t).getRetries();
+        break;
       }
-    }, retryStrategy, Retries.DEFAULT_PREDICATE);
+    }
+    return attempts;
+  }
+
+  private void emitMetrics(long startTime, boolean success, RunnableTaskRequest runnableTaskRequest, int attempts) {
+    String paramClassName = runnableTaskRequest.getParam() == null ? null : runnableTaskRequest.getParam()
+      .getParamClassName();
+    String taskClass = paramClassName != null ? paramClassName : runnableTaskRequest.getClassName();
+    Map<String, String> metricTags = new HashMap<>();
+    metricTags.put(Constants.Metrics.Tag.CLASS, taskClass);
+    metricTags.put(Constants.Metrics.Tag.STATUS, success ? "success" : "failure");
+    metricTags.put(Constants.Metrics.Tag.TRIES, String.valueOf(attempts));
+    metricsCollectionService.getContext(metricTags).increment(Constants.Metrics.TaskWorker.CLIENT_REQUEST_COUNT, 1L);
+    metricsCollectionService.getContext(metricTags)
+      .gauge(Constants.Metrics.TaskWorker.CLIENT_REQUEST_LATENCY_MS, System.currentTimeMillis() - startTime);
+    LOG.debug("Emitting metric tags {} with service {}", metricTags, metricsCollectionService);
   }
 
   private ByteBuffer encodeTaskRequest(RunnableTaskRequest request) throws IOException {

@@ -23,8 +23,6 @@ import io.cdap.cdap.api.service.worker.RunnableTaskContext;
 import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
 import io.cdap.cdap.common.conf.CConfiguration;
 
-import java.nio.ByteBuffer;
-
 /**
  * RunnableTaskLauncher launches a {@link RunnableTask} by loading its class and calling its run method.
  */
@@ -51,7 +49,7 @@ public class RunnableTaskLauncher {
     }
     RunnableTask runnableTask = (RunnableTask) obj;
     RunnableTaskContext runnableTaskContext = RunnableTaskContext.getBuilder()
-      .withParam(request.getParam())
+      .withParam(request.getParam().getParamValue())
       .withArtifactId(request.getArtifactId())
       .withNamespace(request.getNamespace())
       .build();

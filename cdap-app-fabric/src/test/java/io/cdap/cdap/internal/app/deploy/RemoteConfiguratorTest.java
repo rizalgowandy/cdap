@@ -25,6 +25,7 @@ import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.app.ProgramType;
 import io.cdap.cdap.api.artifact.ApplicationClass;
 import io.cdap.cdap.api.artifact.ArtifactClasses;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.app.deploy.ConfigResponse;
 import io.cdap.cdap.app.deploy.Configurator;
 import io.cdap.cdap.common.NotFoundException;
@@ -100,6 +101,7 @@ public class RemoteConfiguratorTest {
   private static CConfiguration cConf;
   private static NettyHttpService httpService;
   private static RemoteClientFactory remoteClientFactory;
+  private static MetricsCollectionService metricsCollectionService;
 
   @BeforeClass
   public static void init() throws Exception {
@@ -134,6 +136,7 @@ public class RemoteConfiguratorTest {
 
     discoveryService.register(URIScheme.createDiscoverable(Constants.Service.TASK_WORKER, httpService));
     discoveryService.register(URIScheme.createDiscoverable(Constants.Service.APP_FABRIC_HTTP, httpService));
+    metricsCollectionService = new NoOpMetricsCollectionService();
   }
 
   @AfterClass
@@ -161,7 +164,7 @@ public class RemoteConfiguratorTest {
                                                    new ApplicationClass(AllProgramsApp.class.getName(), "", null),
                                                    null, null, null);
 
-    Configurator configurator = new RemoteConfigurator(cConf, info, remoteClientFactory);
+    Configurator configurator = new RemoteConfigurator(cConf, metricsCollectionService, info, remoteClientFactory);
 
     // Extract response from the configurator.
     ListenableFuture<ConfigResponse> result = configurator.config();
@@ -195,7 +198,7 @@ public class RemoteConfiguratorTest {
                                                    new ApplicationClass(AllProgramsApp.class.getName(), "", null),
                                                    null, null, null);
 
-    Configurator configurator = new RemoteConfigurator(cConf, info, remoteClientFactory);
+    Configurator configurator = new RemoteConfigurator(cConf, metricsCollectionService, info, remoteClientFactory);
 
     // Expect the future.get would throw an exception
     configurator.config().get(10, TimeUnit.SECONDS);
@@ -215,7 +218,7 @@ public class RemoteConfiguratorTest {
                                                    new ApplicationClass(ConfigTestApp.class.getName(), "", null),
                                                    "BadApp", null, GSON.toJson("invalid"));
 
-    Configurator configurator = new RemoteConfigurator(cConf, info, remoteClientFactory);
+    Configurator configurator = new RemoteConfigurator(cConf, metricsCollectionService, info, remoteClientFactory);
 
     // Expect the future.get would throw an exception
     configurator.config().get(10, TimeUnit.SECONDS);

@@ -108,7 +108,7 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
     this.preferencesFetcher = preferencesFetcher;
     this.cConf = cConf;
     this.contextAccessEnforcer = contextAccessEnforcer;
-    this.remoteTaskExecutor = new RemoteTaskExecutor(cConf, remoteClientFactory);
+    this.remoteTaskExecutor = new RemoteTaskExecutor(cConf, metricsCollectionService, remoteClientFactory);
     this.namespaceQueryAdmin = namespaceQueryAdmin;
   }
 
@@ -179,7 +179,7 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
       .withParam(systemAppParam)
       .withNamespace(getNamespace())
       .withArtifact(getArtifactId().toApiArtifactId())
-      .withWrappedClassName(runnableTaskRequest.getClassName())
+      .withParamClassName(runnableTaskRequest.getClassName())
       .build();
     return remoteTaskExecutor.runTask(taskRequest);
   }

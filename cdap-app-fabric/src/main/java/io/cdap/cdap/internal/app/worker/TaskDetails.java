@@ -23,34 +23,27 @@ import javax.annotation.Nullable;
  */
 public class TaskDetails {
   private final boolean success;
-  private final int attemptCount;
   private final String className;
   private final long startTime;
-  private final String wrappedClassName;
+  private final String paramClassName;
 
-  public TaskDetails(boolean success, int attemptCount, String className,
-                     @Nullable String wrappedClassName, long startTime) {
+  public TaskDetails(boolean success, String className, @Nullable String paramClassName, long startTime) {
     this.success = success;
-    this.attemptCount = attemptCount;
     this.className = className;
     this.startTime = startTime;
-    this.wrappedClassName = wrappedClassName;
+    this.paramClassName = paramClassName;
   }
 
   public boolean isSuccess() {
     return success;
   }
 
-  public int getAttemptCount() {
-    return attemptCount;
-  }
-
   public String getClassName() {
     return className;
   }
 
-  public String getWrappedClassName() {
-    return wrappedClassName;
+  public String getParamClassName() {
+    return paramClassName;
   }
 
   public long getStartTime() {

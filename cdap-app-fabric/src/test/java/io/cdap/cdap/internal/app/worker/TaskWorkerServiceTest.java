@@ -17,7 +17,6 @@
 package io.cdap.cdap.internal.app.worker;
 
 import com.google.common.util.concurrent.Service;
-import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.gson.Gson;
 import io.cdap.cdap.api.service.worker.RunnableTask;
 import io.cdap.cdap.api.service.worker.RunnableTaskContext;
@@ -32,9 +31,7 @@ import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.apache.twill.common.Threads;
 import org.apache.twill.discovery.InMemoryDiscoveryService;
-import org.apache.twill.internal.ServiceListenerAdapter;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,7 +49,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
@@ -103,27 +99,6 @@ public class TaskWorkerServiceTest {
     }
   }
 
-  static void waitForTaskWorkerToFinish(TaskWorkerService taskWorker) {
-    CompletableFuture<Service.State> future = new CompletableFuture<>();
-    taskWorker.addListener(new ServiceListenerAdapter() {
-      @Override
-      public void terminated(Service.State from) {
-        future.complete(from);
-      }
-
-      @Override
-      public void failed(Service.State from, Throwable failure) {
-        future.completeExceptionally(failure);
-      }
-    }, Threads.SAME_THREAD_EXECUTOR);
-    try {
-      Uninterruptibles.getUninterruptibly(future);
-      LOG.debug("Task worker stopped");
-    } catch (Exception e) {
-      LOG.warn("Task worker stopped with exception", e);
-    }
-  }
-
   @Test
   public void testPeriodicRestart() {
     CConfiguration cConf = createCConf();
@@ -137,7 +112,7 @@ public class TaskWorkerServiceTest {
     // start the service
     taskWorkerService.startAndWait();
 
-    waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
   }
 
@@ -168,7 +143,7 @@ public class TaskWorkerServiceTest {
 
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertEquals(want, response.getResponseBodyAsString());
-    waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
   }
 
@@ -202,7 +177,7 @@ public class TaskWorkerServiceTest {
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
 
-    waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
   }
 
@@ -219,7 +194,7 @@ public class TaskWorkerServiceTest {
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
-    waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertEquals(want, response.getResponseBodyAsString());
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
@@ -277,7 +252,7 @@ public class TaskWorkerServiceTest {
         conflictResponse++;
       }
     }
-    waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
     Assert.assertEquals(1, okResponse);
     Assert.assertEquals(concurrentRequests, okResponse + conflictResponse);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());

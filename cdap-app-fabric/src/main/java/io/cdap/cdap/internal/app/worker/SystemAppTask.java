@@ -119,8 +119,8 @@ public class SystemAppTask implements RunnableTask {
 
       LOG.debug("Launching system app task {}", taskClassName);
       RunnableTask runnableTask = (RunnableTask) injector.getInstance(clazz);
-      RunnableTaskContext runnableTaskContext = new RunnableTaskContext(taskRequest.getParam(), null, null,
-                                                                        systemAppTaskContext) {
+      RunnableTaskContext runnableTaskContext = new RunnableTaskContext(taskRequest.getParam().getParamValue(), null,
+                                                                        null, systemAppTaskContext) {
         @Override
         public void writeResult(byte[] data) throws IOException {
           context.writeResult(data);

@@ -26,22 +26,20 @@ import javax.annotation.Nullable;
 public class RunnableTaskRequest {
   private final String className;
   @Nullable
-  private final String param;
+  private final RunnableTaskParam param;
   @Nullable
   private final ArtifactId artifactId;
   @Nullable
   private final String namespace;
   @Nullable
-  private final String wrappedClassName;
 
   private RunnableTaskRequest(String className, @Nullable String param,
                               @Nullable ArtifactId artifactId, @Nullable String namespace,
                               @Nullable String wrappedClassName) {
     this.className = className;
-    this.param = param;
+    this.param = new RunnableTaskParam(param, wrappedClassName);
     this.artifactId = artifactId;
     this.namespace = namespace;
-    this.wrappedClassName = wrappedClassName;
   }
 
   public String getClassName() {
@@ -49,7 +47,7 @@ public class RunnableTaskRequest {
   }
 
   @Nullable
-  public String getParam() {
+  public RunnableTaskParam getParam() {
     return param;
   }
 
@@ -63,18 +61,14 @@ public class RunnableTaskRequest {
     return namespace;
   }
 
-  @Nullable
-  public String getWrappedClassName() {
-    return wrappedClassName;
-  }
-
   @Override
   public String toString() {
     String requestString =
       "RunnableTaskRequest{className=%s, param=%s, artifactId=%s, namespace=%s, wrappedClassName=%s}";
-    return String.format(requestString, className,
-                         param == null ? null : param.length() > 500 ? param.substring(500) : param,
-                         artifactId, namespace, wrappedClassName);
+    return String.format(requestString, className, param == null ? null :
+                           param.getParamValue().length() > 500 ?
+                             param.getParamValue().substring(500) : param.getParamValue(),
+                         artifactId, namespace);
   }
 
   public static Builder getBuilder(String taskClassName) {
@@ -93,7 +87,7 @@ public class RunnableTaskRequest {
     @Nullable
     private String namespace;
     @Nullable
-    private String wrappedClassName;
+    private String paramClassName;
 
     private Builder(String className) {
       this.className = className;
@@ -114,13 +108,13 @@ public class RunnableTaskRequest {
       return this;
     }
 
-    public Builder withWrappedClassName(String wrappedClassName) {
-      this.wrappedClassName = wrappedClassName;
+    public Builder withParamClassName(String paramClassName) {
+      this.paramClassName = paramClassName;
       return this;
     }
 
     public RunnableTaskRequest build() {
-      return new RunnableTaskRequest(className, param, artifactId, namespace, wrappedClassName);
+      return new RunnableTaskRequest(className, param, artifactId, namespace, paramClassName);
     }
   }
 }

@@ -17,6 +17,7 @@
 package io.cdap.cdap.common.service;
 
 import io.cdap.cdap.api.retry.RetriesExhaustedException;
+import io.cdap.cdap.api.retry.RetryFailedException;
 import io.cdap.cdap.api.retry.RetryableException;
 import io.cdap.cdap.common.logging.LogSamplers;
 import io.cdap.cdap.common.logging.Loggers;
@@ -221,6 +222,7 @@ public final class Retries {
         return v;
       } catch (Throwable t) {
         if (!isRetryable.test(t)) {
+          t.addSuppressed(new RetryFailedException("Retry failed. Encountered non retryable exception.", failures + 1));
           throw t;
         }
 
@@ -229,7 +231,7 @@ public final class Retries {
           String errMsg = String.format("Retries exhausted after %d failures and %d ms.",
                                         failures, System.currentTimeMillis() - startTime);
           LOG.debug(errMsg);
-          t.addSuppressed(new RetriesExhaustedException(errMsg));
+          t.addSuppressed(new RetriesExhaustedException(errMsg, failures + 1));
           throw t;
         }
 
@@ -241,6 +243,7 @@ public final class Retries {
           // if we were interrupted while waiting for the next retry, treat it like no retries were attempted
           t.addSuppressed(e);
           Thread.currentThread().interrupt();
+          t.addSuppressed(new RetryFailedException("Retry failed. Thread got interrupted.", failures + 1));
           throw t;
         }
       }

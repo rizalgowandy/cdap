@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017 Cask Data, Inc.
+ * Copyright © 2021 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -17,37 +17,23 @@
 package io.cdap.cdap.api.retry;
 
 /**
- * An exception that indicates an operation failed after it was retried.
+ * Exception for retry failure. Provides the number of retries.
  */
-public class RetriesExhaustedException extends RuntimeException {
-
-  /**
-   * Number of retries
-   */
+public class RetryFailedException extends RuntimeException {
   private int retries;
 
-  public RetriesExhaustedException(String message, int retries) {
+  public RetryFailedException(String message, int retries) {
     super(message);
     this.retries = retries;
   }
 
-  public RetriesExhaustedException(String message) {
-    super(message);
-  }
-
-  public RetriesExhaustedException(Throwable cause) {
-    super(cause);
-  }
-
-  public RetriesExhaustedException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
   /**
-   * Return the retry count set
+   * Return the retry count
+   *
    * @return
    */
   public int getRetries() {
     return retries;
   }
+
 }
