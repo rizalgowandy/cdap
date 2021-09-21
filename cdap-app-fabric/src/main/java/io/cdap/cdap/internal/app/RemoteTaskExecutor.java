@@ -94,7 +94,7 @@ public class RemoteTaskExecutor {
     ByteBuffer requestBody = encodeTaskRequest(runnableTaskRequest);
 
     try {
-      byte[] result = Retries.callWithRetries((attempts) -> {
+      return Retries.callWithRetries((attempts) -> {
         try {
           HttpRequest.Builder requestBuilder = remoteClient
             .requestBuilder(HttpMethod.POST, TASK_WORKER_URL)
@@ -116,15 +116,15 @@ public class RemoteTaskExecutor {
               .fromJson(new String(getResponseBody(httpResponse)), BasicThrowable.class);
             throw RemoteExecutionException.fromBasicThrowable(basicThrowable);
           }
+          byte[] result = getResponseBody(httpResponse);
           //emit metrics with successful result
           emitMetrics(startTime, true, runnableTaskRequest, attempts);
-          return getResponseBody(httpResponse);
+          return result;
         } catch (NoRouteToHostException e) {
           throw new RetryableException(
             String.format("Received exception %s for %s", e.getMessage(), runnableTaskRequest.getClassName()));
         }
       }, retryStrategy, Retries.DEFAULT_PREDICATE);
-      return result;
     } catch (Exception e) {
       //emit metrics with failed result
       emitMetrics(startTime, false, runnableTaskRequest, getAttempts(e));
