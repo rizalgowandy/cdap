@@ -19,7 +19,7 @@ package io.cdap.cdap.api.retry;
 /**
  * Exception for retry failure. Provides the number of retries.
  */
-public class RetryFailedException extends RuntimeException {
+public class RetryFailedException extends RuntimeException implements RetryCountProvider {
   private int retries;
 
   public RetryFailedException(String message, int retries) {

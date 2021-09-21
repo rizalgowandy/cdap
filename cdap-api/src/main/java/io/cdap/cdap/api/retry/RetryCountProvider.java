@@ -14,32 +14,15 @@
  * the License.
  */
 
-package io.cdap.cdap.internal.app;
+package io.cdap.cdap.api.retry;
 
 /**
- * RetryableTaskResult captures the result for RemoteTaskExecution
+ * Retry count provider interface
  */
-public class RetryableTaskResult {
-
-  private final byte[] result;
-  private final int attempts;
-
-  RetryableTaskResult(byte[] result, int attempts) {
-    this.result = result;
-    this.attempts = attempts;
-  }
-
+public interface RetryCountProvider {
   /**
-   * @return byte[] result of task
+   * Return the retry count
+   * @return
    */
-  public byte[] getResult() {
-    return result;
-  }
-
-  /**
-   * @return number of attempts for the task
-   */
-  public int getAttempts() {
-    return attempts;
-  }
+  int getRetries();
 }

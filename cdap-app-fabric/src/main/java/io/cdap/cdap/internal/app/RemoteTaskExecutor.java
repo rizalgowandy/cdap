@@ -20,8 +20,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.gson.Gson;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
-import io.cdap.cdap.api.retry.RetriesExhaustedException;
-import io.cdap.cdap.api.retry.RetryFailedException;
+import io.cdap.cdap.api.retry.RetryCountProvider;
 import io.cdap.cdap.api.retry.RetryableException;
 import io.cdap.cdap.api.service.worker.RemoteExecutionException;
 import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
@@ -95,7 +94,7 @@ public class RemoteTaskExecutor {
     ByteBuffer requestBody = encodeTaskRequest(runnableTaskRequest);
 
     try {
-      RetryableTaskResult retryableTaskResult = Retries.callWithRetries((attempt) -> {
+      byte[] result = Retries.callWithRetries((attempts) -> {
         try {
           HttpRequest.Builder requestBuilder = remoteClient
             .requestBuilder(HttpMethod.POST, TASK_WORKER_URL)
@@ -117,15 +116,15 @@ public class RemoteTaskExecutor {
               .fromJson(new String(getResponseBody(httpResponse)), BasicThrowable.class);
             throw RemoteExecutionException.fromBasicThrowable(basicThrowable);
           }
-          return new RetryableTaskResult(getResponseBody(httpResponse), attempt);
+          //emit metrics with successful result
+          emitMetrics(startTime, true, runnableTaskRequest, attempts);
+          return getResponseBody(httpResponse);
         } catch (NoRouteToHostException e) {
           throw new RetryableException(
             String.format("Received exception %s for %s", e.getMessage(), runnableTaskRequest.getClassName()));
         }
       }, retryStrategy, Retries.DEFAULT_PREDICATE);
-      //emit metrics with successful result
-      emitMetrics(startTime, true, runnableTaskRequest, retryableTaskResult.getAttempts());
-      return retryableTaskResult.getResult();
+      return result;
     } catch (Exception e) {
       //emit metrics with failed result
       emitMetrics(startTime, false, runnableTaskRequest, getAttempts(e));
@@ -140,18 +139,13 @@ public class RemoteTaskExecutor {
    * @return attempt count
    */
   private int getAttempts(Exception e) {
-    int attempts = 0;
     Throwable[] suppressed = e.getSuppressed();
     for (Throwable t : suppressed) {
-      if (t instanceof RetryFailedException) {
-        attempts = ((RetryFailedException) t).getRetries();
-        break;
-      } else if (t instanceof RetriesExhaustedException) {
-        attempts = ((RetriesExhaustedException) t).getRetries();
-        break;
+      if (t instanceof RetryCountProvider) {
+        return ((RetryCountProvider) t).getRetries();
       }
     }
-    return attempts;
+    return 0;
   }
 
   private void emitMetrics(long startTime, boolean success, RunnableTaskRequest runnableTaskRequest, int attempts) {
@@ -163,7 +157,6 @@ public class RemoteTaskExecutor {
     metricsCollectionService.getContext(metricTags).increment(Constants.Metrics.TaskWorker.CLIENT_REQUEST_COUNT, 1L);
     metricsCollectionService.getContext(metricTags)
       .gauge(Constants.Metrics.TaskWorker.CLIENT_REQUEST_LATENCY_MS, System.currentTimeMillis() - startTime);
-    LOG.debug("Emitting metric tags {} with service {}", metricTags, metricsCollectionService);
   }
 
   private String getTaskClassName(RunnableTaskRequest runnableTaskRequest) {

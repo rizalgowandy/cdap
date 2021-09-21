@@ -36,8 +36,13 @@ import io.cdap.http.ChannelPipelineModifier;
 import io.cdap.http.NettyHttpService;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.InMemoryDiscoveryService;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -53,44 +58,60 @@ public class RemoteTaskExecutorTest {
   private static RemoteClientFactory remoteClientFactory;
   private static CConfiguration cConf;
   private static NettyHttpService httpService;
+  private static InMemoryDiscoveryService discoveryService;
+
   private List<MetricValues> published;
   private AggregatedMetricsCollectionService mockMetricsCollector;
+  private Cancellable registered;
 
-  public void beforeTest(boolean startHttpService) throws Exception {
-    published = new ArrayList<>();
+  @BeforeClass
+  public static void init() throws Exception {
     cConf = CConfiguration.create();
-    InMemoryDiscoveryService discoveryService = new InMemoryDiscoveryService();
+    discoveryService = new InMemoryDiscoveryService();
     remoteClientFactory = new RemoteClientFactory(discoveryService,
                                                   new DefaultInternalAuthenticator(new AuthenticationTestContext()));
-    if (startHttpService) {
-      httpService = new CommonNettyHttpServiceBuilder(cConf, "test")
-        .setHttpHandlers(
-          new TaskWorkerHttpHandlerInternal(cConf, className -> {
-          }, new NoOpMetricsCollectionService())
-        )
-        .setPort(cConf.getInt(Constants.ArtifactLocalizer.PORT))
-        .setChannelPipelineModifier(new ChannelPipelineModifier() {
-          @Override
-          public void modify(ChannelPipeline pipeline) {
-            pipeline.addAfter("compressor", "decompressor", new HttpContentDecompressor());
-          }
-        })
-        .build();
-      httpService.start();
-      discoveryService.register(URIScheme.createDiscoverable(Constants.Service.TASK_WORKER, httpService));
-    }
-    mockMetricsCollector = new AggregatedMetricsCollectionService(10L) {
+    httpService = new CommonNettyHttpServiceBuilder(cConf, "test")
+      .setHttpHandlers(
+        new TaskWorkerHttpHandlerInternal(cConf, className -> {
+        }, new NoOpMetricsCollectionService())
+      )
+      .setPort(cConf.getInt(Constants.ArtifactLocalizer.PORT))
+      .setChannelPipelineModifier(new ChannelPipelineModifier() {
+        @Override
+        public void modify(ChannelPipeline pipeline) {
+          pipeline.addAfter("compressor", "decompressor", new HttpContentDecompressor());
+        }
+      })
+      .build();
+    httpService.start();
+  }
+
+  @Before
+  public void beforeTest() {
+    published = new ArrayList<>();
+    mockMetricsCollector = new AggregatedMetricsCollectionService(1000L) {
       @Override
       protected void publish(Iterator<MetricValues> metrics) {
         Iterators.addAll(published, metrics);
       }
     };
     mockMetricsCollector.startAndWait();
+    registered = discoveryService
+      .register(URIScheme.createDiscoverable(Constants.Service.TASK_WORKER, httpService));
+  }
+
+  @After
+  public void afterTest() {
+    registered.cancel();
+  }
+
+  @AfterClass
+  public static void cleanup() throws Exception {
+    httpService.stop();
   }
 
   @Test
   public void testFailedMetrics() throws Exception {
-    beforeTest(true);
     RemoteTaskExecutor remoteTaskExecutor = new RemoteTaskExecutor(cConf, mockMetricsCollector, remoteClientFactory);
     RunnableTaskRequest runnableTaskRequest = RunnableTaskRequest.getBuilder(InValidRunnableClass.class.getName()).
       withParam("param").build();
@@ -108,12 +129,10 @@ public class RemoteTaskExecutorTest {
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.CLIENT_REQUEST_COUNT));
     //check the clz tag is set correctly
     Assert.assertEquals(InValidRunnableClass.class.getName(), metricValues.getTags().get("clz"));
-    cleanup();
   }
 
   @Test
   public void testSuccessMetrics() throws Exception {
-    beforeTest(true);
     RemoteTaskExecutor remoteTaskExecutor = new RemoteTaskExecutor(cConf, mockMetricsCollector, remoteClientFactory);
     RunnableTaskRequest runnableTaskRequest = RunnableTaskRequest.getBuilder(ValidRunnableClass.class.getName()).
       withParam("param").build();
@@ -127,12 +146,12 @@ public class RemoteTaskExecutorTest {
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.CLIENT_REQUEST_COUNT));
     //check the clz tag is set correctly
     Assert.assertEquals(ValidRunnableClass.class.getName(), metricValues.getTags().get("clz"));
-    cleanup();
   }
 
   @Test
   public void testRetryMetrics() throws Exception {
-    beforeTest(false);
+    // Remove the service registration
+    registered.cancel();
     RemoteTaskExecutor remoteTaskExecutor = new RemoteTaskExecutor(cConf, mockMetricsCollector, remoteClientFactory);
     RunnableTaskRequest runnableTaskRequest = RunnableTaskRequest.getBuilder(ValidRunnableClass.class.getName()).
       withParam("param").build();
@@ -160,10 +179,6 @@ public class RemoteTaskExecutorTest {
       }
     }
     return false;
-  }
-
-  public static void cleanup() throws Exception {
-    httpService.stop();
   }
 
   static class ValidRunnableClass implements RunnableTask {
