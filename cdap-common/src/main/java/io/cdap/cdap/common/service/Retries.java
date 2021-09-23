@@ -183,7 +183,7 @@ public final class Retries {
   public static <V, T extends Throwable> V callWithRetries(Callable<V, T> callable,
                                                            RetryStrategy retryStrategy,
                                                            Predicate<Throwable> isRetryable) throws T {
-    return callWithRetries((attempt) -> callable.call(), retryStrategy, isRetryable);
+    return callWithRetries((retryContext) -> callable.call(), retryStrategy, isRetryable);
   }
 
   /**
