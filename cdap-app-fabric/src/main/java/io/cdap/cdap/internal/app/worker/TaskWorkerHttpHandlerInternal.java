@@ -21,6 +21,7 @@ import com.google.gson.GsonBuilder;
 import com.google.inject.Singleton;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.service.worker.RunnableTaskContext;
+import io.cdap.cdap.api.service.worker.RunnableTaskParam;
 import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
@@ -48,6 +49,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -75,11 +77,8 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
   private static final Logger LOG = LoggerFactory.getLogger(TaskWorkerHttpHandlerInternal.class);
   private static final Gson GSON = new GsonBuilder().registerTypeAdapter(BasicThrowable.class,
                                                                          new BasicThrowableCodec()).create();
-
-  private enum STATUS {
-    SUCCESS,
-    FAILURE
-  }
+  private static final String SUCCESS = "success";
+  private static final String FAILURE = "failure";
 
   private final RunnableTaskLauncher runnableTaskLauncher;
   private final BiConsumer<Boolean, TaskDetails> stopper;
@@ -161,9 +160,7 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
     long time = System.currentTimeMillis() - taskDetails.getStartTime();
     Map<String, String> metricTags = new HashMap<>();
     metricTags.put(Constants.Metrics.Tag.CLASS, taskDetails.getClassName());
-    metricTags
-      .put(Constants.Metrics.Tag.STATUS,
-           taskDetails.isSuccess() ? STATUS.SUCCESS.name().toLowerCase() : STATUS.FAILURE.name().toLowerCase());
+    metricTags.put(Constants.Metrics.Tag.STATUS, taskDetails.isSuccess() ? SUCCESS : FAILURE);
     metricsCollectionService.getContext(metricTags).increment(Constants.Metrics.TaskWorker.REQUEST_COUNT, 1L);
     metricsCollectionService.getContext(metricTags).gauge(Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS, time);
   }
@@ -202,10 +199,10 @@ public class TaskWorkerHttpHandlerInternal extends AbstractHttpHandler {
   }
 
   private String getTaskClassName(RunnableTaskRequest runnableTaskRequest) {
-    if (runnableTaskRequest.getParam() == null || runnableTaskRequest.getParam().getEmbeddedTaskRequest() == null) {
-      return runnableTaskRequest.getClassName();
-    }
-    return runnableTaskRequest.getParam().getEmbeddedTaskRequest().getClassName();
+    return Optional.ofNullable(runnableTaskRequest.getParam())
+      .map(RunnableTaskParam::getEmbeddedTaskRequest)
+      .map(RunnableTaskRequest::getClassName)
+      .orElse(runnableTaskRequest.getClassName());
   }
 
   @GET

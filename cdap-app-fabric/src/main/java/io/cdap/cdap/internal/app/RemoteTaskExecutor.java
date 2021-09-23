@@ -94,7 +94,7 @@ public class RemoteTaskExecutor {
     ByteBuffer requestBody = encodeTaskRequest(runnableTaskRequest);
 
     try {
-      return Retries.callWithRetries((attempts) -> {
+      return Retries.callWithRetries((retryContext) -> {
         try {
           HttpRequest.Builder requestBuilder = remoteClient
             .requestBuilder(HttpMethod.POST, TASK_WORKER_URL)
@@ -118,7 +118,7 @@ public class RemoteTaskExecutor {
           }
           byte[] result = getResponseBody(httpResponse);
           //emit metrics with successful result
-          emitMetrics(startTime, true, runnableTaskRequest, attempts);
+          emitMetrics(startTime, true, runnableTaskRequest, retryContext.getRetryAttempt());
           return result;
         } catch (NoRouteToHostException e) {
           throw new RetryableException(

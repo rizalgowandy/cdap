@@ -17,6 +17,7 @@
 package io.cdap.cdap.internal.app.worker;
 
 import com.google.common.collect.Iterators;
+import com.google.common.util.concurrent.Service;
 import com.google.gson.Gson;
 import io.cdap.cdap.api.metrics.MetricValue;
 import io.cdap.cdap.api.metrics.MetricValues;
@@ -44,6 +45,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Tests for TaskWorker Metrics
@@ -55,6 +57,7 @@ public class TaskWorkerMetricsTest {
   private TaskWorkerService taskWorkerService;
   private List<MetricValues> published;
   private URI uri;
+  private CompletableFuture<Service.State> taskWorkerStateFuture;
 
   private CConfiguration createCConf() {
     CConfiguration cConf = CConfiguration.create();
@@ -78,12 +81,12 @@ public class TaskWorkerMetricsTest {
         Iterators.addAll(published, metrics);
       }
     };
-    TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
+    taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
                                                                 (namespaceId, retryStrategy) -> null,
                                                                 mockMetricsCollector);
+    taskWorkerStateFuture = TaskWorkerTestUtil.getServiceCompletionFuture(taskWorkerService);
     // start the service
     taskWorkerService.startAndWait();
-    this.taskWorkerService = taskWorkerService;
     InetSocketAddress addr = taskWorkerService.getBindAddress();
     this.uri = URI.create(String.format("http://%s:%s", addr.getHostName(), addr.getPort()));
   }
@@ -92,21 +95,21 @@ public class TaskWorkerMetricsTest {
   public void afterTest() {
     if (taskWorkerService != null) {
       taskWorkerService.stopAndWait();
-      taskWorkerService = null;
     }
   }
 
   @Test
   public void testSimpleRequest() throws IOException {
     String taskClassName = TaskWorkerServiceTest.TestRunnableClass.class.getName();
-    RunnableTaskRequest req = RunnableTaskRequest.getBuilder(
-      taskClassName).withParam("100").build();
+    RunnableTaskRequest req = RunnableTaskRequest.getBuilder(taskClassName)
+      .withParam("100")
+      .build();
     String reqBody = GSON.toJson(req);
     HttpResponse response = HttpRequests.execute(
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(taskWorkerStateFuture);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertSame(1, published.size());
 
@@ -130,7 +133,7 @@ public class TaskWorkerMetricsTest {
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(taskWorkerStateFuture);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertSame(1, published.size());
 

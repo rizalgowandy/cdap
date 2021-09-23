@@ -26,13 +26,18 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Common TaskWorker test utility functions
  */
-public class TaskWorkerTestUtil {
+public final class TaskWorkerTestUtil {
+
+  private TaskWorkerTestUtil() {
+
+  }
 
   /**
-   * Waits for the given task worker to finish
+   * Creates a listener for the task worker service that updates a {@link CompletableFuture<Service.State>}
+   *
    * @param taskWorker {@link TaskWorkerService}
    */
-  static void waitForTaskWorkerToFinish(TaskWorkerService taskWorker) {
+  static CompletableFuture<Service.State> getServiceCompletionFuture(TaskWorkerService taskWorker) {
     CompletableFuture<Service.State> future = new CompletableFuture<>();
     taskWorker.addListener(new ServiceListenerAdapter() {
       @Override
@@ -45,9 +50,19 @@ public class TaskWorkerTestUtil {
         future.completeExceptionally(failure);
       }
     }, Threads.SAME_THREAD_EXECUTOR);
+    return future;
+  }
+
+  /**
+   * Waits for the future to be completed
+   *
+   * @param future {@link CompletableFuture<Service.State>}
+   */
+  static void waitForServiceCompletion(CompletableFuture<Service.State> future) {
     try {
       Uninterruptibles.getUninterruptibly(future);
     } catch (Exception e) {
+      //ignore
     }
   }
 }

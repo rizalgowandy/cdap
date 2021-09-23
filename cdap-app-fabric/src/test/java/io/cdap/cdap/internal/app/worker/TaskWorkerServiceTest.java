@@ -49,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
@@ -63,6 +64,7 @@ public class TaskWorkerServiceTest {
   private static final Gson GSON = new Gson();
 
   private TaskWorkerService taskWorkerService;
+  private CompletableFuture<Service.State> serviceCompletionFuture;
 
   private CConfiguration createCConf() {
     CConfiguration cConf = CConfiguration.create();
@@ -86,6 +88,7 @@ public class TaskWorkerServiceTest {
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
                                                                 (namespaceId, retryStrategy) -> null,
                                                                 new NoOpMetricsCollectionService());
+    serviceCompletionFuture = TaskWorkerTestUtil.getServiceCompletionFuture(taskWorkerService);
     // start the service
     taskWorkerService.startAndWait();
     this.taskWorkerService = taskWorkerService;
@@ -109,10 +112,11 @@ public class TaskWorkerServiceTest {
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
                                                                 (namespaceId, retryStrategy) -> null,
                                                                 new NoOpMetricsCollectionService());
+    serviceCompletionFuture = TaskWorkerTestUtil.getServiceCompletionFuture(taskWorkerService);
     // start the service
     taskWorkerService.startAndWait();
 
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(serviceCompletionFuture);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
   }
 
@@ -126,6 +130,7 @@ public class TaskWorkerServiceTest {
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
                                                                 (namespaceId, retryStrategy) -> null,
                                                                 new NoOpMetricsCollectionService());
+    serviceCompletionFuture = TaskWorkerTestUtil.getServiceCompletionFuture(taskWorkerService);
     // start the service
     taskWorkerService.startAndWait();
 
@@ -144,7 +149,7 @@ public class TaskWorkerServiceTest {
 
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertEquals(want, response.getResponseBodyAsString());
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(serviceCompletionFuture);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
   }
 
@@ -158,6 +163,7 @@ public class TaskWorkerServiceTest {
     TaskWorkerService taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
                                                                 (namespaceId, retryStrategy) -> null,
                                                                 new NoOpMetricsCollectionService());
+    serviceCompletionFuture = TaskWorkerTestUtil.getServiceCompletionFuture(taskWorkerService);
     // start the service
     taskWorkerService.startAndWait();
 
@@ -179,7 +185,7 @@ public class TaskWorkerServiceTest {
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
 
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(serviceCompletionFuture);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
   }
 
@@ -197,7 +203,7 @@ public class TaskWorkerServiceTest {
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
         .withBody(reqBody).build(),
       new DefaultHttpRequestConfig(false));
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(serviceCompletionFuture);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Assert.assertEquals(want, response.getResponseBodyAsString());
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());
@@ -255,7 +261,7 @@ public class TaskWorkerServiceTest {
         conflictResponse++;
       }
     }
-    TaskWorkerTestUtil.waitForTaskWorkerToFinish(taskWorkerService);
+    TaskWorkerTestUtil.waitForServiceCompletion(serviceCompletionFuture);
     Assert.assertEquals(1, okResponse);
     Assert.assertEquals(concurrentRequests, okResponse + conflictResponse);
     Assert.assertEquals(Service.State.TERMINATED, taskWorkerService.state());

@@ -69,8 +69,8 @@ public final class Retries {
    * @param <V> the type of return value
    * @param <T> the type of throwable
    */
-  public interface CallableWithAttempt<V, T extends Throwable> {
-    V call(int attempt) throws T;
+  public interface CallableWithContext<V, T extends Throwable> {
+    V call(RetryContext retryContext) throws T;
   }
 
   /**
@@ -167,7 +167,7 @@ public final class Retries {
   }
 
   /**
-   * Same as calling {@link #callWithRetries(CallableWithAttempt, RetryStrategy, Predicate)} with attempt count ignored
+   * Same as calling {@link #callWithRetries(CallableWithContext, RetryStrategy, Predicate)} with attempt count ignored
    *
    * @param callable the callable to run
    * @param retryStrategy the retry strategy to use if the callable fails in a retryable way
@@ -187,7 +187,7 @@ public final class Retries {
   }
 
   /**
-   * Executes a {@link CallableWithAttempt}, retrying the call if it throws something retryable.
+   * Executes a {@link CallableWithContext}, retrying the call if it throws something retryable.
    * Passes the attempt count to the function being called.
    *
    * @param callable the callable to run, that takes an integer attempt count
@@ -201,7 +201,7 @@ public final class Retries {
    *   If the call was interrupted while waiting between retries, the {@link InterruptedException} will be added
    *   as a suppressed exception
    */
-  public static <V, T extends Throwable> V callWithRetries(CallableWithAttempt<V, T> callable,
+  public static <V, T extends Throwable> V callWithRetries(CallableWithContext<V, T> callable,
                                                            RetryStrategy retryStrategy,
                                                            Predicate<Throwable> isRetryable) throws T {
 
@@ -215,7 +215,7 @@ public final class Retries {
     long startTime = System.currentTimeMillis();
     while (true) {
       try {
-        V v = callable.call(failures + 1);
+        V v = callable.call(new RetryContext.Builder().withRetryAttempt(failures + 1).build());
         if (failures > 0) {
           LOG.trace("Retry succeeded after {} retries and {} ms.", failures, System.currentTimeMillis() - startTime);
         }
