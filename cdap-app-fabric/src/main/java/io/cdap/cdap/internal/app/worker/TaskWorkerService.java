@@ -103,7 +103,6 @@ public class TaskWorkerService extends AbstractIdleService {
     preloadArtifacts();
 
     LOG.debug("Starting TaskWorkerService");
-    metricsCollectionService.startAndWait();
     httpService.start();
     bindAddress = httpService.getBindAddress();
     cancelDiscovery = discoveryService.register(

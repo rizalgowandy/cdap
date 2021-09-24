@@ -81,6 +81,7 @@ public class TaskWorkerMetricsTest {
         Iterators.addAll(published, metrics);
       }
     };
+    mockMetricsCollector.startAndWait();
     taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
                                                                 (namespaceId, retryStrategy) -> null,
                                                                 mockMetricsCollector);
