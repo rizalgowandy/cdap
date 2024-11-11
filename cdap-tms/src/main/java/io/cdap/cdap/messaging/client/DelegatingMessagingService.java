@@ -23,6 +23,7 @@ import io.cdap.cdap.api.messaging.TopicNotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants.MessagingSystem;
 import io.cdap.cdap.messaging.spi.MessageFetchRequest;
+import io.cdap.cdap.messaging.spi.MessagingServiceContext;
 import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.spi.RawMessage;
 import io.cdap.cdap.messaging.spi.RollbackDetail;
@@ -38,7 +39,9 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Delegates {@link io.cdap.cdap.messaging.spi.MessagingService} based on configured extension */
+/**
+ * Delegates {@link io.cdap.cdap.messaging.spi.MessagingService} based on configured extension
+ */
 public class DelegatingMessagingService implements MessagingService {
 
   private static final Logger LOG = LoggerFactory.getLogger(DelegatingMessagingService.class);
@@ -69,6 +72,10 @@ public class DelegatingMessagingService implements MessagingService {
   public void deleteTopic(TopicId topicId)
       throws TopicNotFoundException, IOException, UnauthorizedException {
     getDelegate().deleteTopic(topicId);
+  }
+
+  @Override
+  public void initialize(MessagingServiceContext context) throws IOException {
   }
 
   @Override
@@ -130,6 +137,12 @@ public class DelegatingMessagingService implements MessagingService {
             "Unsupported messaging service implementation " + getName());
       }
       LOG.info("Messaging service {} is loaded", messagingService.getName());
+      try {
+        messagingService.initialize(new DefaultMessagingServiceContext(this.cConf));
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+      LOG.info("Messaging service {} is initialized", messagingService.getName());
 
       this.delegate = messagingService;
       return messagingService;
