@@ -192,6 +192,28 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
     ctx.fireChannelInactive();
   }
 
+  /**
+   * [CDAP-21071] Handles the case by stopping the outbound channel of Service -> Router
+   * when the response from Service -> Router is faster than the response from Router to the Client.
+   */
+  @Override
+  public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+    if (inflightRequests > 0 && currentMessageSender != null && currentMessageSender.outboundChannel != null) {
+      final Channel inboundChannel = ctx.channel();
+      ctx.executor().execute(() -> {
+        // If inboundChannel is not saturated anymore, continue accepting
+        // the incoming traffic from the outbound channel for service<>router.
+        if (inboundChannel.isWritable()) {
+          currentMessageSender.setAutoRead(true);
+        } else {
+          // If inboundChannel is saturated, do not read inboundChannel
+          currentMessageSender.setAutoRead(false);
+        }
+      });
+    }
+    ctx.fireChannelWritabilityChanged();
+  }
+
   private ChannelFutureListener getFailureResponseListener(final Channel inboundChannel) {
     if (failureResponseListener == null) {
       failureResponseListener = new ChannelFutureListener() {
@@ -450,6 +472,14 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
       } else {
         message.writeCompletedListener.operationComplete(channelFuture);
       }
+    }
+
+    /**
+     * Setting the reading capability (ChannelHandlerContext. read())of a channel.
+     */
+    private void setAutoRead(Boolean isAutoRead) {
+      LOG.trace("Message sender's outboundChannel readable is set to {}.", isAutoRead);
+      this.outboundChannel.config().setAutoRead(isAutoRead);
     }
   }
 
