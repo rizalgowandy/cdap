@@ -25,7 +25,6 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.data2.metadata.lineage.LineageTable;
 import io.cdap.cdap.data2.metadata.lineage.field.FieldLineageTable;
 import io.cdap.cdap.internal.app.store.AppMetadataStore;
-import io.cdap.cdap.reporting.ProgramHeartbeatTable;
 import io.cdap.cdap.spi.data.transaction.TransactionException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import java.time.Clock;
@@ -83,8 +82,7 @@ public final class RunDataTimeToLiveService extends AbstractIdleService {
     this.cleanupServiceList = ImmutableList.of(
         new RunRecordsCleanupService(),
         new LineageCleanupService(),
-        new FieldLineageCleanupService(),
-        new ProgramHeartbeatCleanupService());
+        new FieldLineageCleanupService());
   }
 
   @Override
@@ -185,25 +183,6 @@ public final class RunDataTimeToLiveService extends AbstractIdleService {
 
               fieldLineageTable.deleteFieldRecordsBefore(endDate);
             });
-      } catch (TransactionException e) {
-        LOG.error("Failed to clean up old field lineage records", e);
-      }
-    }
-  }
-
-  private class ProgramHeartbeatCleanupService implements CleanupService {
-
-    @Override
-    public void doCleanup(Instant endDate) {
-      LOG.info("Doing scheduled cleanup, deleting all ProgramHeartbeat records before {}", endDate);
-
-      try {
-        transactionRunner.run(
-          context -> {
-            ProgramHeartbeatTable programHeartbeatTable = new ProgramHeartbeatTable(context);
-
-            programHeartbeatTable.deleteRecordsBefore(endDate);
-          });
       } catch (TransactionException e) {
         LOG.error("Failed to clean up old field lineage records", e);
       }
