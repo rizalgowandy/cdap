@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
-/** A extension loader for {@link MessagingService}. */
+/**
+ * A extension loader for {@link MessagingService}.
+ */
 final class MessagingServiceExtensionLoader
     extends AbstractExtensionLoader<String, MessagingService> {
 

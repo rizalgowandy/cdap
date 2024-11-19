@@ -38,6 +38,7 @@ import io.cdap.cdap.common.internal.remote.RemoteClient;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.internal.io.ExposedByteArrayOutputStream;
 import io.cdap.cdap.messaging.spi.MessageFetchRequest;
+import io.cdap.cdap.messaging.spi.MessagingServiceContext;
 import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.spi.RollbackDetail;
 import io.cdap.cdap.messaging.Schemas;
@@ -115,6 +116,10 @@ public final class ClientMessagingService implements MessagingService {
     this.remoteClient = remoteClientFactory.createRemoteClient(
         Constants.Service.MESSAGING_SERVICE, HTTP_REQUEST_CONFIG, "/v1/namespaces/");
     this.compressPayload = compressPayload;
+  }
+
+  @Override
+  public void initialize(MessagingServiceContext context) throws IOException {
   }
 
   @Override
