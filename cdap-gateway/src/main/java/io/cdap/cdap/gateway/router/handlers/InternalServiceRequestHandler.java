@@ -34,22 +34,22 @@ import org.slf4j.LoggerFactory;
  * A {@link ChannelDuplexHandler} for forwarding requests/responses between the router and the
  * internal service. It also handle idle state event for closing idled internal connections.
  */
-public class OutboundHandler extends ChannelDuplexHandler {
+public class InternalServiceRequestHandler extends ChannelDuplexHandler {
 
-  private static final Logger LOG = LoggerFactory.getLogger(OutboundHandler.class);
+  private static final Logger LOG = LoggerFactory.getLogger(InternalServiceRequestHandler.class);
 
-  private final Channel inboundChannel;
+  private final Channel httpRequestChannel;
   private boolean requestInProgress;
   private boolean keepAlive;
 
-  public OutboundHandler(Channel inboundChannel) {
-    this.inboundChannel = inboundChannel;
+  public InternalServiceRequestHandler(Channel httpRequestChannel) {
+    this.httpRequestChannel = httpRequestChannel;
   }
 
   @Override
   public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-    // One receiving messages from the internal service, forward it to the inbound channel
-    inboundChannel.write(msg);
+    // One receiving messages from the internal service, forward it to the httpRequestChannel
+    httpRequestChannel.write(msg);
 
     if (msg instanceof HttpResponse) {
       keepAlive = HttpUtil.isKeepAlive((HttpResponse) msg);
@@ -63,7 +63,7 @@ public class OutboundHandler extends ChannelDuplexHandler {
 
   @Override
   public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-    inboundChannel.flush();
+    httpRequestChannel.flush();
   }
 
   @Override
@@ -80,17 +80,17 @@ public class OutboundHandler extends ChannelDuplexHandler {
   @Override
   public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
     if (requestInProgress) {
-      final Channel channel = ctx.channel();
+      final Channel internalServiceChannel = ctx.channel();
       ctx.executor().execute(() -> {
-        // If outboundChannel is not saturated anymore, continue accepting
-        // the incoming traffic from the inboundChannel.
-        if (channel.isWritable()) {
-          LOG.trace("Setting inboundChannel readable.");
-          inboundChannel.config().setAutoRead(true);
+        // If internalServiceChannel is not saturated anymore, continue accepting
+        // the incoming traffic from the httpRequestChannel.
+        if (internalServiceChannel.isWritable()) {
+          LOG.trace("Setting httpRequestChannel readable.");
+          httpRequestChannel.config().setAutoRead(true);
         } else {
-          // If outboundChannel is saturated, do not read inboundChannel
-          LOG.trace("Setting inboundChannel non-readable.");
-          inboundChannel.config().setAutoRead(false);
+          // If internalServiceChannel is saturated, do not read httpRequestChannel
+          LOG.trace("Setting httpRequestChannel non-readable.");
+          httpRequestChannel.config().setAutoRead(false);
         }
       });
     }
@@ -99,9 +99,10 @@ public class OutboundHandler extends ChannelDuplexHandler {
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-    // Close the inbound channel if there is request in progress, or the last request/response has keep-alive == false
+    // Close the httpRequestChannel if there is request in progress, or the last request/response has
+    // keep-alive == false
     if (requestInProgress || !keepAlive) {
-      Channels.closeOnFlush(inboundChannel);
+      Channels.closeOnFlush(httpRequestChannel);
     }
     ctx.fireChannelInactive();
   }

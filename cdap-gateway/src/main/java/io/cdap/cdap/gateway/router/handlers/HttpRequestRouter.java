@@ -93,8 +93,8 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
   @Override
   public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
     try {
-      final Channel inboundChannel = ctx.channel();
-      ChannelFutureListener writeCompletedListener = getFailureResponseListener(inboundChannel);
+      final Channel httpRequestChannel = ctx.channel();
+      ChannelFutureListener writeCompletedListener = getFailureResponseListener(httpRequestChannel);
 
       if (msg instanceof HttpRequest) {
         HttpRequest request = (HttpRequest) msg;
@@ -104,7 +104,7 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
           HttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(),
               HttpResponseStatus.OK);
           HttpUtil.setContentLength(response, 0L);
-          inboundChannel.writeAndFlush(response);
+          httpRequestChannel.writeAndFlush(response);
           return;
         }
 
@@ -118,20 +118,20 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
 
         // Disable read until sending of this request object is completed successfully
         // This is for handling the initial connection delay
-        inboundChannel.config().setAutoRead(false);
+        httpRequestChannel.config().setAutoRead(false);
         writeCompletedListener = new ChannelFutureListener() {
           @Override
           public void operationComplete(ChannelFuture future) throws Exception {
             if (future.isSuccess()) {
-              inboundChannel.config().setAutoRead(true);
+              httpRequestChannel.config().setAutoRead(true);
             } else {
-              getFailureResponseListener(inboundChannel).operationComplete(future);
+              getFailureResponseListener(httpRequestChannel).operationComplete(future);
             }
           }
         };
 
         currentMessageSender = getMessageSender(
-            inboundChannel, getDiscoverable(request)
+            httpRequestChannel, getDiscoverable(request)
         );
       }
 
@@ -193,20 +193,20 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
   }
 
   /**
-   * [CDAP-21071] Handles the case by stopping the outbound channel of Service -> Router
+   * [CDAP-21071] Handles the case by stopping the internalServiceChannel of Service -> Router
    * when the response from Service -> Router is faster than the response from Router to the Client.
    */
   @Override
   public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
-    if (inflightRequests > 0 && currentMessageSender != null && currentMessageSender.outboundChannel != null) {
-      final Channel inboundChannel = ctx.channel();
+    if (inflightRequests > 0 && currentMessageSender != null && currentMessageSender.internalServiceChannel != null) {
+      final Channel httpRequestChannel = ctx.channel();
       ctx.executor().execute(() -> {
-        // If inboundChannel is not saturated anymore, continue accepting
-        // the incoming traffic from the outbound channel for service<>router.
-        if (inboundChannel.isWritable()) {
+        // If httpRequestChannel is not saturated anymore, continue accepting
+        // the incoming traffic from the internalServiceChannel for service<>router.
+        if (httpRequestChannel.isWritable()) {
           currentMessageSender.setAutoRead(true);
         } else {
-          // If inboundChannel is saturated, do not read inboundChannel
+          // If httpRequestChannel is saturated, do not read internalServiceChannel
           currentMessageSender.setAutoRead(false);
         }
       });
@@ -214,7 +214,7 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
     ctx.fireChannelWritabilityChanged();
   }
 
-  private ChannelFutureListener getFailureResponseListener(final Channel inboundChannel) {
+  private ChannelFutureListener getFailureResponseListener(final Channel httpRequestChannel) {
     if (failureResponseListener == null) {
       failureResponseListener = new ChannelFutureListener() {
         @Override
@@ -222,7 +222,7 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
           if (!future.isSuccess()) {
             HttpResponse response = createErrorResponse(future.cause());
             HttpUtil.setKeepAlive(response, false);
-            inboundChannel.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+            httpRequestChannel.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
           }
         }
       };
@@ -260,7 +260,7 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
    * Returns the {@link MessageSender} for writing messages to the endpoint represented by the given
    * {@link Discoverable}.
    */
-  private MessageSender getMessageSender(Channel inboundChannel,
+  private MessageSender getMessageSender(Channel httpRequestChannel,
       Discoverable discoverable) {
     Queue<MessageSender> senders = messageSenders.computeIfAbsent(discoverable,
         k -> new LinkedList<>());
@@ -274,7 +274,7 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
     }
 
     // Create new MessageSender
-    sender = new MessageSender(cConf, inboundChannel, discoverable);
+    sender = new MessageSender(cConf, httpRequestChannel, discoverable);
     LOG.trace("Create new message sender for {}", discoverable);
     return sender;
   }
@@ -303,7 +303,7 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
   }
 
   /**
-   * For sending messages to outbound channel while maintaining the order of messages according to
+   * For sending messages to internalServiceChannel while maintaining the order of messages according to
    * the order that {@link #send(Object, ChannelFutureListener)} method is called.
    */
   private static final class MessageSender implements Flushable, Closeable {
@@ -312,29 +312,29 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
     private final Queue<OutboundMessage> pendingMessages;
     private final Bootstrap clientBootstrap;
     private volatile SslContext sslContext;
-    private Channel outboundChannel;
+    private Channel internalServiceChannel;
     private boolean closed;
     private boolean connecting;
 
-    private MessageSender(final CConfiguration cConf, final Channel inboundChannel,
+    private MessageSender(final CConfiguration cConf, final Channel httpRequestChannel,
         final Discoverable discoverable) {
       this.discoverable = discoverable;
       this.pendingMessages = new LinkedList<>();
 
-      // A channel listener for resetting the state of this message sender on closing of outbound channel
+      // A channel listener for resetting the state of this message sender on closing of internalServiceChannel
       final ChannelFutureListener onCloseResetListener = new ChannelFutureListener() {
         @Override
         public void operationComplete(ChannelFuture future) {
-          outboundChannel = null;
+          internalServiceChannel = null;
           connecting = false;
         }
       };
 
       // Create a client Bootstrap for connecting to internal services
       // It must be create using the same EventLoopGroup as the inbound channel to make
-      // sure thread safety between the inbound and outbound channels callbacks.
+      // sure thread safety between the httpRequestChannel and internalServiceChannel callbacks.
       this.clientBootstrap = new Bootstrap()
-          .group(inboundChannel.eventLoop())
+          .group(httpRequestChannel.eventLoop())
           .channel(NioSocketChannel.class)
           .option(ChannelOption.SO_KEEPALIVE, true)
           .handler(new ChannelInitializer<SocketChannel>() {
@@ -351,21 +351,21 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
                   new IdleStateHandler(0, 0,
                       cConf.getInt(Constants.Router.CONNECTION_TIMEOUT_SECS)));
               pipeline.addLast("codec", new HttpClientCodec());
-              pipeline.addLast("forwarder", new OutboundHandler(inboundChannel));
+              pipeline.addLast("forwarder", new InternalServiceRequestHandler(httpRequestChannel));
             }
           });
     }
 
     /**
-     * Sends a message to the outbound channel.
+     * Sends a message to the internalServiceChannel.
      *
      * @param msg the message to be sent
      * @param writeCompletedListener a {@link ChannelFutureListener} to be notified when the
      *     write completed
      */
     void send(Object msg, ChannelFutureListener writeCompletedListener) {
-      if (outboundChannel != null) {
-        outboundChannel.write(msg).addListener(writeCompletedListener);
+      if (internalServiceChannel != null) {
+        internalServiceChannel.write(msg).addListener(writeCompletedListener);
         return;
       }
 
@@ -382,15 +382,15 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
       connectFuture.addListener(new ChannelFutureListener() {
         @Override
         public void operationComplete(ChannelFuture future) throws Exception {
-          // Always remember the outbound channel even if the connection fail.
+          // Always remember the internalServiceChannel even if the connection fail.
           // This make sure any message received before the inbound channel is closed will not get forwarded
-          outboundChannel = future.channel();
+          internalServiceChannel = future.channel();
           connecting = false;
 
           if (future.isSuccess()) {
-            // If this sender is closed (because inbound channel is closed), just close the outbound channel
+            // If this sender is closed (because inbound channel is closed), just close the internalServiceChannel
             if (closed) {
-              Channels.closeOnFlush(outboundChannel);
+              Channels.closeOnFlush(internalServiceChannel);
             }
           }
           OutboundMessage message = pendingMessages.poll();
@@ -409,8 +409,8 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
 
     @Override
     public void flush() {
-      if (outboundChannel != null && !closed) {
-        outboundChannel.flush();
+      if (internalServiceChannel != null && !closed) {
+        internalServiceChannel.flush();
       }
     }
 
@@ -418,8 +418,8 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
     public void close() {
       if (!closed) {
         closed = true;
-        if (outboundChannel != null) {
-          Channels.closeOnFlush(outboundChannel);
+        if (internalServiceChannel != null) {
+          Channels.closeOnFlush(internalServiceChannel);
         }
       }
     }
@@ -478,8 +478,8 @@ public class HttpRequestRouter extends ChannelDuplexHandler {
      * Setting the reading capability (ChannelHandlerContext. read())of a channel.
      */
     private void setAutoRead(Boolean isAutoRead) {
-      LOG.trace("Message sender's outboundChannel readable is set to {}.", isAutoRead);
-      this.outboundChannel.config().setAutoRead(isAutoRead);
+      LOG.trace("Message sender's internalServiceChannel readable is set to {}.", isAutoRead);
+      this.internalServiceChannel.config().setAutoRead(isAutoRead);
     }
   }
 
