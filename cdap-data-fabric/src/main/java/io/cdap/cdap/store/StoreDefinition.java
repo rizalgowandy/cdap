@@ -22,6 +22,8 @@ import io.cdap.cdap.spi.data.table.StructuredTableId;
 import io.cdap.cdap.spi.data.table.StructuredTableSpecification;
 import io.cdap.cdap.spi.data.table.field.Fields;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +36,8 @@ public final class StoreDefinition {
 
   private static final Logger LOG = LoggerFactory.getLogger(StoreDefinition.class);
 
+  private static List<StructuredTableSpecification> tableSpecifications;
+
   private StoreDefinition() {
     // prevent instantiation
   }
@@ -45,48 +49,63 @@ public final class StoreDefinition {
    * @param tableAdmin the table admin to create the table
    */
   public static void createAllTables(StructuredTableAdmin tableAdmin) throws IOException {
-    ArtifactStore.create(tableAdmin);
-    OwnerStore.create(tableAdmin);
-    NamespaceStore.create(tableAdmin);
-    SecretStore.create(tableAdmin);
-    WorkflowStore.create(tableAdmin);
-    ConfigStore.create(tableAdmin);
-    PreferencesStore.create(tableAdmin);
-    ProvisionerStore.create(tableAdmin);
-    AppMetadataStore.create(tableAdmin);
-    ProfileStore.create(tableAdmin);
-    ProgramScheduleStore.create(tableAdmin);
-    DatasetInstanceStore.create(tableAdmin);
-    DatasetTypeStore.create(tableAdmin);
-    LineageStore.create(tableAdmin);
-    JobQueueStore.create(tableAdmin);
-    TimeScheduleStore.create(tableAdmin);
-    RemoteRuntimeStore.create(tableAdmin);
-    ProgramHeartbeatStore.create(tableAdmin);
-    LogCheckpointStore.create(tableAdmin);
-    UsageStore.create(tableAdmin);
-    FieldLineageStore.create(tableAdmin);
-    LogFileMetaStore.create(tableAdmin);
-    CapabilitiesStore.create(tableAdmin);
-    TetheringStore.create(tableAdmin);
-    AppStateStore.create(tableAdmin);
-    CredentialProviderStore.create(tableAdmin);
-    OperationRunsStore.create(tableAdmin);
+    // Please use register() in case of multiple table creation calls.
+    // Some structured table admin implementations batch these table creation calls for better performance.
+    ArtifactStore.register();
+    OwnerStore.register();
+    NamespaceStore.register();
+    SecretStore.register();
+    WorkflowStore.register();
+    ConfigStore.register();
+    PreferencesStore.register();
+    ProvisionerStore.register();
+    AppMetadataStore.register();
+    ProfileStore.register();
+    ProgramScheduleStore.register();
+    DatasetInstanceStore.register();
+    DatasetTypeStore.register();
+    LineageStore.register();
+    JobQueueStore.register();
+    TimeScheduleStore.register();
+    RemoteRuntimeStore.register();
+    ProgramHeartbeatStore.register();
+    LogCheckpointStore.register();
+    UsageStore.register();
+    FieldLineageStore.register();
+    LogFileMetaStore.register();
+    CapabilitiesStore.register();
+    TetheringStore.register();
+    AppStateStore.register();
+    CredentialProviderStore.register();
+    OperationRunsStore.register();
+
+    // Please ensure createRegisteredTables() is not followed by any other register calls.
+    createRegisteredTables(tableAdmin);
   }
 
   /**
-   * Creates a table if it doesn't exists.
+   * Performs store operations required for table creation.
    */
-  private static void createIfNotExists(StructuredTableAdmin admin,
-      StructuredTableSpecification spec) throws IOException {
-
-    StructuredTableId tableId = spec.getTableId();
-    try {
-      admin.createOrUpdate(spec);
-    } catch (TableSchemaIncompatibleException e) {
-      throw new IllegalStateException(
-          "Table " + tableId + " already exists with an incompatible schema", e);
+  private static void createRegisteredTables(StructuredTableAdmin admin) throws IOException {
+    if (!tableSpecifications.isEmpty()) {
+      try {
+        admin.createOrUpdate(tableSpecifications);
+      } catch (TableSchemaIncompatibleException e) {
+        throw new IllegalStateException(
+            "Table already exists with an incompatible schema", e);
+      }
+      tableSpecifications.clear();
     }
+  }
+
+  /**
+   * Adds table to list of tables to be created.
+   */
+  private static void registerTable(StructuredTableSpecification spec) {
+    if (tableSpecifications == null) {
+      tableSpecifications = new ArrayList<>();
+    }
+    tableSpecifications.add(spec);
   }
 
   /**
@@ -120,8 +139,13 @@ public final class StoreDefinition {
             .build();
 
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, NAMESPACE_TABLE_SPEC);
-      createIfNotExists(tableAdmin, REPOSITORY_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
+    }
+
+    public static void register() {
+      registerTable(NAMESPACE_TABLE_SPEC);
+      registerTable(REPOSITORY_TABLE_SPEC);
     }
   }
 
@@ -147,7 +171,12 @@ public final class StoreDefinition {
         .build();
 
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, CONFIG_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
+    }
+
+    public static void register() {
+      registerTable(CONFIG_TABLE_SPEC);
     }
   }
 
@@ -174,8 +203,13 @@ public final class StoreDefinition {
         .withPrimaryKeys(NAMESPACE_FIELD, TYPE_FIELD, NAME_FIELD)
         .build();
 
+    public static void register() {
+      registerTable(PREFERENCES_TABLE_SPEC);
+    }
+
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, PREFERENCES_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -210,8 +244,13 @@ public final class StoreDefinition {
             START_TIME_FIELD)
         .build();
 
+    public static void register() {
+      registerTable(WORKFLOW_TABLE_SPEC);
+    }
+
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, WORKFLOW_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -297,6 +336,13 @@ public final class StoreDefinition {
                 ARTIFACT_NAMESPACE_FIELD, ARTIFACT_NAME_FIELD, ARTIFACT_VER_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(ARTIFACT_DATA_SPEC);
+      registerTable(APP_DATA_SPEC);
+      registerTable(PLUGIN_DATA_SPEC);
+      registerTable(UNIV_PLUGIN_DATA_SPEC);
+    }
+
     /**
      * Creates artifact store tables.
      *
@@ -304,10 +350,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, ARTIFACT_DATA_SPEC);
-      createIfNotExists(tableAdmin, APP_DATA_SPEC);
-      createIfNotExists(tableAdmin, PLUGIN_DATA_SPEC);
-      createIfNotExists(tableAdmin, UNIV_PLUGIN_DATA_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -327,6 +371,10 @@ public final class StoreDefinition {
                 Fields.bytesType(KEYTAB_FIELD))
             .withPrimaryKeys(PRINCIPAL_FIELD).build();
 
+    public static void register() {
+      registerTable(OWNER_TABLE_SPEC);
+    }
+
     /**
      * Creates owner store tables.
      *
@@ -334,7 +382,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, OWNER_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -357,6 +406,10 @@ public final class StoreDefinition {
         .withPrimaryKeys(NAMESPACE_FIELD, SECRET_NAME_FIELD)
         .build();
 
+    public static void register() {
+      registerTable(SECRET_STORE_SPEC);
+    }
+
     /**
      * Creates secret store tables.
      *
@@ -364,7 +417,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, SECRET_STORE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -398,6 +452,10 @@ public final class StoreDefinition {
             PROGRAM_TYPE_FIELD, PROGRAM_FIELD, RUN_FIELD, KEY_TYPE)
         .build();
 
+    public static void register() {
+      registerTable(PROVISIONER_STORE_SPEC);
+    }
+
     /**
      * Creates provisioner store tables.
      *
@@ -405,7 +463,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, PROVISIONER_STORE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -553,6 +612,16 @@ public final class StoreDefinition {
             .withPrimaryKeys(SUBSCRIBER_TOPIC, SUBSCRIBER)
             .build();
 
+    public static void register() {
+      registerTable(APPLICATION_SPECIFICATIONS_TABLE_SPEC);
+      registerTable(APPLICATION_EDIT_TABLE_SPEC);
+      registerTable(WORKFLOW_NODE_STATES_SPEC);
+      registerTable(RUN_RECORDS_SPEC);
+      registerTable(WORKFLOWS_SPEC);
+      registerTable(PROGRAM_COUNTS_SPEC);
+      registerTable(SUBSCRIBER_STATE_SPEC);
+    }
+
     /**
      * Creates app metadata store tables.
      *
@@ -560,13 +629,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, APPLICATION_SPECIFICATIONS_TABLE_SPEC);
-      createIfNotExists(tableAdmin, APPLICATION_EDIT_TABLE_SPEC);
-      createIfNotExists(tableAdmin, WORKFLOW_NODE_STATES_SPEC);
-      createIfNotExists(tableAdmin, RUN_RECORDS_SPEC);
-      createIfNotExists(tableAdmin, WORKFLOWS_SPEC);
-      createIfNotExists(tableAdmin, PROGRAM_COUNTS_SPEC);
-      createIfNotExists(tableAdmin, SUBSCRIBER_STATE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -591,6 +655,10 @@ public final class StoreDefinition {
             .withPrimaryKeys(NAMESPACE_FIELD, DATASET_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(DATASET_INSTANCES_SPEC);
+    }
+
     /**
      * Creates dataset instance store tables.
      *
@@ -598,7 +666,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, DATASET_INSTANCES_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -637,6 +706,11 @@ public final class StoreDefinition {
             .withPrimaryKeys(NAMESPACE_FIELD, PROFILE_ID_FIELD, ENTITY_ID_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(PROFILE_STORE_SPEC);
+      registerTable(PROFILE_ENTITY_STORE_SPEC);
+    }
+
     /**
      * Creates profile store tables.
      *
@@ -644,8 +718,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, PROFILE_STORE_SPEC);
-      createIfNotExists(tableAdmin, PROFILE_ENTITY_STORE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -697,9 +771,14 @@ public final class StoreDefinition {
             .withIndexes(TRIGGER_KEY)
             .build();
 
+    public static void register() {
+      registerTable(PROGRAM_SCHEDULE_STORE_SPEC);
+      registerTable(PROGRAM_TRIGGER_STORE_SPEC);
+    }
+
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, PROGRAM_SCHEDULE_STORE_SPEC);
-      createIfNotExists(tableAdmin, PROGRAM_TRIGGER_STORE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -733,6 +812,11 @@ public final class StoreDefinition {
             .withPrimaryKeys(NAMESPACE_FIELD, MODULE_NAME_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(DATASET_TYPES_SPEC);
+      registerTable(MODULE_TYPES_SPEC);
+    }
+
     /**
      * Creates dataset type store tables.
      *
@@ -740,8 +824,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, DATASET_TYPES_SPEC);
-      createIfNotExists(tableAdmin, MODULE_TYPES_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -799,6 +883,11 @@ public final class StoreDefinition {
             START_TIME_FIELD, NAMESPACE_FIELD, DATASET_FIELD, RUN_FIELD, ACCESS_TYPE_FIELD)
         .build();
 
+    public static void register() {
+      registerTable(DATASET_LINEAGE_SPEC);
+      registerTable(PROGRAM_LINEAGE_SPEC);
+    }
+
     /**
      * Creates lineage tables.
      *
@@ -806,8 +895,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, DATASET_LINEAGE_SPEC);
-      createIfNotExists(tableAdmin, PROGRAM_LINEAGE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -849,6 +938,10 @@ public final class StoreDefinition {
             .withPrimaryKeys(PARTITION_ID, SCHEDULE_ID, GENERATION_ID, ROW_TYPE)
             .build();
 
+    public static void register() {
+      registerTable(JOB_QUEUE_STORE_SPEC);
+    }
+
     /**
      * Creates job queue store tables.
      *
@@ -856,7 +949,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, JOB_QUEUE_STORE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -880,6 +974,10 @@ public final class StoreDefinition {
             .withPrimaryKeys(TYPE_FIELD, NAME_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(SCHEDULES_SPEC);
+    }
+
     /**
      * Creates time schedule store tables.
      *
@@ -887,7 +985,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, SCHEDULES_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -919,6 +1018,10 @@ public final class StoreDefinition {
             PROGRAM_FIELD, RUN_FIELD)
         .build();
 
+    public static void register() {
+      registerTable(RUNTIMES_SPEC);
+    }
+
     /**
      * Creates remote runtime store tables.
      *
@@ -926,7 +1029,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, RUNTIMES_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -961,6 +1065,10 @@ public final class StoreDefinition {
                 PROGRAM_FIELD, RUN_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(PROGRAM_HEARTBEATS_SPEC);
+    }
+
     /**
      * Creates program heartbeat store tables.
      *
@@ -968,7 +1076,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, PROGRAM_HEARTBEATS_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -992,6 +1101,10 @@ public final class StoreDefinition {
             .withPrimaryKeys(ROW_PREFIX_FIELD, PARTITION_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(LOG_CHECKPOINT_TABLE_SPEC);
+    }
+
     /**
      * Creates log checkpoint store tables.
      *
@@ -999,7 +1112,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, LOG_CHECKPOINT_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1030,6 +1144,10 @@ public final class StoreDefinition {
         .withIndexes(INDEX_FIELD)
         .build();
 
+    public static void register() {
+      registerTable(USAGES_SPEC);
+    }
+
     /**
      * Creates usage store tables.
      *
@@ -1037,7 +1155,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, USAGES_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1115,6 +1234,13 @@ public final class StoreDefinition {
                 ENDPOINT_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(ENDPOINT_CHECKSUM_SPEC);
+      registerTable(OPERATIONS_SPEC);
+      registerTable(DESTINATION_FIELDS_SPEC);
+      registerTable(SUMMARY_FIELDS_SPEC);
+    }
+
     /**
      * Creates field lineage store tables.
      *
@@ -1122,10 +1248,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, ENDPOINT_CHECKSUM_SPEC);
-      createIfNotExists(tableAdmin, OPERATIONS_SPEC);
-      createIfNotExists(tableAdmin, DESTINATION_FIELDS_SPEC);
-      createIfNotExists(tableAdmin, SUMMARY_FIELDS_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1150,6 +1274,10 @@ public final class StoreDefinition {
                 Fields.stringType(FILE_FIELD))
             .withPrimaryKeys(LOGGING_CONTEXT_FIELD, EVENT_TIME_FIELD, CREATION_TIME_FIELD).build();
 
+    public static void register() {
+      registerTable(LOG_FILE_META_SPEC);
+    }
+
     /**
      * Creates logfile meta store tables.
      *
@@ -1157,7 +1285,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, LOG_FILE_META_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1195,6 +1324,11 @@ public final class StoreDefinition {
             .withPrimaryKeys(NAME_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(CAPABILITIES_TABLE_SPEC);
+      registerTable(CAPABILITY_OPERATIONS_TABLE_SPEC);
+    }
+
     /**
      * Creates capabilities store tables.
      *
@@ -1202,8 +1336,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, CAPABILITIES_TABLE_SPEC);
-      createIfNotExists(tableAdmin, CAPABILITY_OPERATIONS_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1233,6 +1367,10 @@ public final class StoreDefinition {
             .withPrimaryKeys(PEER_NAME_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(TETHERING_TABLE_SPEC);
+    }
+
     /**
      * Creates tethering store tables.
      *
@@ -1240,7 +1378,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, TETHERING_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1266,6 +1405,10 @@ public final class StoreDefinition {
             .withPrimaryKeys(NAMESPACE_FIELD, APP_NAME_FIELD, STATE_KEY_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(STATE_TABLE_SPEC);
+    }
+
     /**
      * Creates app state store tables.
      *
@@ -1273,7 +1416,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, STATE_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1281,6 +1425,7 @@ public final class StoreDefinition {
    * Schemas for credential providers.
    */
   public static final class CredentialProviderStore {
+
     public static final StructuredTableId CREDENTIAL_PROFILES =
         new StructuredTableId("credential_profiles");
     public static final StructuredTableId CREDENTIAL_IDENTITIES =
@@ -1313,6 +1458,11 @@ public final class StoreDefinition {
             .withIndexes(IDENTITY_PROFILE_INDEX_FIELD)
             .build();
 
+    public static void register() {
+      registerTable(PROFILE_TABLE_SPEC);
+      registerTable(IDENTITY_TABLE_SPEC);
+    }
+
     /**
      * Creates credential provider store tables.
      *
@@ -1320,8 +1470,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, PROFILE_TABLE_SPEC);
-      createIfNotExists(tableAdmin, IDENTITY_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 
@@ -1329,6 +1479,7 @@ public final class StoreDefinition {
    * Schemas for operation runs.
    */
   public static final class OperationRunsStore {
+
     public static final StructuredTableId OPERATION_RUNS =
         new StructuredTableId("operation_runs");
 
@@ -1351,10 +1502,14 @@ public final class StoreDefinition {
                 Fields.longType(START_TIME_FIELD),
                 Fields.longType(UPDATE_TIME_FIELD),
                 Fields.stringType(DETAILS_FIELD)
-                )
+            )
             .withPrimaryKeys(NAMESPACE_FIELD, ID_FIELD)
             .withIndexes(TYPE_FIELD, STATUS_FIELD, START_TIME_FIELD)
             .build();
+
+    public static void register() {
+      registerTable(OPERATION_RUNS_TABLE_SPEC);
+    }
 
     /**
      * Creates operation store tables.
@@ -1363,7 +1518,8 @@ public final class StoreDefinition {
      * @throws IOException If table creation fails.
      */
     public static void create(StructuredTableAdmin tableAdmin) throws IOException {
-      createIfNotExists(tableAdmin, OPERATION_RUNS_TABLE_SPEC);
+      register();
+      createRegisteredTables(tableAdmin);
     }
   }
 }

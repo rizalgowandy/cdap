@@ -73,7 +73,7 @@ public class SpannerStructuredTableAdmin implements StructuredTableAdmin {
   /**
    * Constructor for {@code SpannerStructuredTableAdmin}.
    *
-   * @param spanner the gcp Spanner service.
+   * @param spanner    the gcp Spanner service.
    * @param databaseId the ID of the Spanner instance database.
    */
   public SpannerStructuredTableAdmin(Spanner spanner, DatabaseId databaseId) {
@@ -106,6 +106,31 @@ public class SpannerStructuredTableAdmin implements StructuredTableAdmin {
     } else {
       createTable(spec);
     }
+  }
+
+  @Override
+  public void createOrUpdate(List<StructuredTableSpecification> specs)
+      throws IOException, TableSchemaIncompatibleException {
+    List<String> createDDLStatements = new ArrayList<>();
+    for (StructuredTableSpecification spec : specs) {
+      if (exists(spec.getTableId())) {
+        tryUpdatingTable(spec);
+      } else {
+        createDDLStatements.addAll(getCreateTableStatements(spec));
+      }
+    }
+    executeDdlStatements(createDDLStatements);
+  }
+
+  private List<String> getCreateTableStatements(StructuredTableSpecification spec) {
+    List<String> statements = new ArrayList<>();
+    statements.add(getCreateTableStatement(spec));
+
+    StructuredTableSchema schema = new StructuredTableSchema(spec);
+    spec.getIndexes()
+        .forEach(idxColumn -> statements.add(getCreateIndexStatement(idxColumn, schema)));
+
+    return statements;
   }
 
   @Override
@@ -350,24 +375,30 @@ public class SpannerStructuredTableAdmin implements StructuredTableAdmin {
   }
 
   private void createTable(StructuredTableSpecification spec) throws IOException {
-    List<String> statements = new ArrayList<>();
-    statements.add(getCreateTableStatement(spec));
-
+    List<String> ddlStatements = new ArrayList<>();
+    ddlStatements.add(getCreateTableStatement(spec));
     StructuredTableSchema schema = new StructuredTableSchema(spec);
     spec.getIndexes()
-        .forEach(idxColumn -> statements.add(getCreateIndexStatement(idxColumn, schema)));
+        .forEach(idxColumn -> ddlStatements.add(getCreateIndexStatement(idxColumn, schema)));
+    executeDdlStatements(ddlStatements);
+  }
 
+  private void executeDdlStatements(List<String> ddlStatements) throws IOException {
+    if (ddlStatements.isEmpty()) {
+      LOG.debug("No ddl statements to execute");
+      return;
+    }
     try {
       Uninterruptibles.getUninterruptibly(
           adminClient.updateDatabaseDdl(databaseId.getInstanceId().getInstance(),
-              databaseId.getDatabase(), statements, null));
+              databaseId.getDatabase(), ddlStatements, null));
     } catch (ExecutionException e) {
       Throwable cause = e.getCause();
       if (cause instanceof SpannerException
           && ((SpannerException) cause).getErrorCode() == ErrorCode.FAILED_PRECONDITION) {
-        LOG.debug("Concurrent table creation error: ", e);
+        LOG.debug("Concurrent statement execution error: ", e);
       } else {
-        throw new IOException("Failed to create table in Spanner", cause);
+        throw new IOException(e);
       }
     }
   }
