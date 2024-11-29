@@ -2604,6 +2604,7 @@
         <module>cdap-system-app-unit-test</module>
         <module>cdap-tms</module>
         <module>cdap-messaging-spi</module>
+        <module>cdap-messaging-ext-spanner</module>
         <module>cdap-gateway</module>
         <module>cdap-unit-test</module>
         <module>cdap-unit-test-spark3_2.12</module>

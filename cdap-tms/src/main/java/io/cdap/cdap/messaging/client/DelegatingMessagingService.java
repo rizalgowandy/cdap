@@ -23,8 +23,8 @@ import io.cdap.cdap.api.messaging.TopicNotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants.MessagingSystem;
 import io.cdap.cdap.messaging.spi.MessageFetchRequest;
-import io.cdap.cdap.messaging.spi.MessagingServiceContext;
 import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingServiceContext;
 import io.cdap.cdap.messaging.spi.RawMessage;
 import io.cdap.cdap.messaging.spi.RollbackDetail;
 import io.cdap.cdap.messaging.spi.StoreRequest;
@@ -50,8 +50,8 @@ public class DelegatingMessagingService implements MessagingService {
   private final MessagingServiceExtensionLoader extensionLoader;
 
   @Inject
-  public DelegatingMessagingService(
-      CConfiguration cConf, MessagingServiceExtensionLoader extensionLoader) {
+  public DelegatingMessagingService(CConfiguration cConf,
+      MessagingServiceExtensionLoader extensionLoader) {
     this.cConf = cConf;
     this.extensionLoader = extensionLoader;
   }
@@ -75,7 +75,8 @@ public class DelegatingMessagingService implements MessagingService {
   }
 
   @Override
-  public void initialize(MessagingServiceContext context) throws IOException {
+  public void initialize(MessagingServiceContext context)
+      throws IOException {
   }
 
   @Override
@@ -142,7 +143,7 @@ public class DelegatingMessagingService implements MessagingService {
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
-      LOG.info("Messaging service {} is initialized", messagingService.getName());
+      LOG.info("Messaging service {} is initialized.", messagingService.getName());
 
       this.delegate = messagingService;
       return messagingService;

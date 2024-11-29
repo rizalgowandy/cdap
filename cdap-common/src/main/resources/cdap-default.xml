@@ -2662,6 +2662,30 @@
   </property>
 
   <property>
+    <name>messaging.spanner.properties.publish.batch.size</name>
+    <value>50</value>
+    <description>
+      The default max number of messages in each publish batch for spanner messaging service.
+    </description>
+  </property>
+
+  <property>
+    <name>messaging.spanner.properties.publish.batch.timeout.millis</name>
+    <value>50</value>
+    <description>
+      The default maximum waiting time before a batch is published by spanner messaging service.
+    </description>
+  </property>
+
+  <property>
+    <name>messaging.spanner.properties.publish.batch.poll.millis</name>
+    <value>5</value>
+    <description>
+      The default polling frequency while either max batch size or batch timeout criterion is met.
+    </description>
+  </property>
+
+  <property>
     <!-- Use lower heap memory ratio for the messaging service, since it uses non-heap memory for the connections -->
     <name>messaging.twill.java.heap.memory.ratio</name>
     <value>0.6</value>
@@ -5384,7 +5408,8 @@
     <value>true</value>
     <description>
       Whether user code isolation is enabled in task worker. When enabled, task workers will ensure
-      only 1 request is accepted at max and later after the task worker is restarted it can take next request.
+      only 1 request is accepted at max and later after the task worker is restarted it can take
+      next request.
     </description>
   </property>
 
@@ -6515,7 +6540,8 @@
     <name>auditlog.messaging.fetch.size</name>
     <value>20</value>
     <description>
-      Number of messages to fetch from messaging system for each batch to consume by Audit log consumer.
+      Number of messages to fetch from messaging system for each batch to consume by Audit log
+      consumer.
     </description>
   </property>
 

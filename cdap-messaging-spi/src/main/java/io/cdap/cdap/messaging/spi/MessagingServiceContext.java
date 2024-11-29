@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.messaging.spi;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,5 +31,13 @@ public interface MessagingServiceContext {
    * @return unmodifiable system properties for the messaging service.
    */
   Map<String, String> getProperties();
+
+  /**
+   * Returns a list of system topics {@link TopicMetadata} as configured by the
+   * {@link Constants.MessagingSystem#SYSTEM_TOPICS} property.
+   *
+   * @return list of system topics {@link TopicMetadata}
+   */
+  List<TopicMetadata> getSystemTopics();
 
 }
