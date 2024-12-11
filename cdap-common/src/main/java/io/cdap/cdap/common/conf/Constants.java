@@ -1529,6 +1529,10 @@ public final class Constants {
 
     public static final String EVENT_TYPE_TAG = "MDC:eventType";
     public static final String USER_LOG_TAG_VALUE = "userLog";
+    public static final String TAG_FAILED_STAGE = "failedStage";
+    public static final String TAG_ERROR_CATEGORY = "errorCategory";
+    public static final String TAG_ERROR_REASON = "errorReason";
+    public static final String TAG_ERROR_TYPE = "errorType";
   }
 
   /**
