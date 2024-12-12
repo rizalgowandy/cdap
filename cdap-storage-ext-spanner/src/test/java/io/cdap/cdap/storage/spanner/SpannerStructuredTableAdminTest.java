@@ -35,8 +35,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
- * Unit tests for GCP spanner implementation of the {@link StructuredTableAdmin}. This test needs the following
- * Java properties to run. If they are not provided, tests will be ignored.
+ * Unit tests for GCP spanner implementation of the {@link StructuredTableAdmin}. This test needs
+ * the following Java properties to run. If they are not provided, tests will be ignored.
  *
  * <ul>
  *   <li>gcp.project - GCP project name</li>
@@ -127,7 +127,7 @@ public class SpannerStructuredTableAdminTest extends StructuredTableAdminTest {
     Assert.assertFalse(admin.exists(SIMPLE_TABLE));
 
     // Calling to createOrUpdate the same SIMPLE_TABLE spec twice to mimic the scenario of
-    // connecting to an exsting DB and make sure the second time passes the equality check after
+    // connecting to an existing DB and make sure the second time passes the equality check after
     // schema compatibility conversion
     admin.createOrUpdate(SIMPLE_TABLE_SPEC);
     admin.createOrUpdate(SIMPLE_TABLE_SPEC);
@@ -136,6 +136,44 @@ public class SpannerStructuredTableAdminTest extends StructuredTableAdminTest {
     // Assert SIMPLE_TABLE schema
     StructuredTableSchema simpleTableSchema = admin.getSchema(SIMPLE_TABLE);
     Assert.assertEquals(simpleTableSchema, convertSpecToCompatibleSchema(SIMPLE_TABLE_SPEC));
+  }
+
+  @Test
+  public void testCreateOrUpdateWithListOfSpecs() throws Exception {
+    StructuredTableAdmin admin = getStructuredTableAdmin();
+
+    // Assert SIMPLE_TABLE Empty
+    Assert.assertFalse(admin.exists(SIMPLE_TABLE));
+
+    admin.createOrUpdate(Collections.singletonList(SIMPLE_TABLE_SPEC));
+    Assert.assertTrue(admin.exists(SIMPLE_TABLE));
+
+    // Assert SIMPLE_TABLE schema
+    StructuredTableSchema simpleTableSchema = admin.getSchema(SIMPLE_TABLE);
+    Assert.assertEquals(simpleTableSchema, convertSpecToCompatibleSchema(SIMPLE_TABLE_SPEC));
+  }
+
+  @Test
+  public void testCreateOrUpdateWithListOfSpecsTwice() throws Exception {
+    StructuredTableAdmin admin = getStructuredTableAdmin();
+
+    // Assert SIMPLE_TABLE Empty
+    Assert.assertFalse(admin.exists(SIMPLE_TABLE));
+
+    admin.createOrUpdate(Collections.singletonList(SIMPLE_TABLE_SPEC));
+    // Assert SIMPLE_TABLE schema: checking equality after compatible conversion because of INT/LONG
+    // to INT64 conversion in Spanner
+    Assert.assertTrue(admin.exists(SIMPLE_TABLE));
+    StructuredTableSchema simpleTableSchema = admin.getSchema(SIMPLE_TABLE);
+    Assert.assertEquals(simpleTableSchema, convertSpecToCompatibleSchema(SIMPLE_TABLE_SPEC));
+
+    admin.createOrUpdate(Collections.singletonList(SIMPLE_TABLE_SPEC));
+
+    // Assert UPDATED_SIMPLE_TABLE_SPEC schema
+    StructuredTableSchema updateSimpleTableSchema = admin.getSchema(SIMPLE_TABLE);
+    Assert.assertEquals(
+        updateSimpleTableSchema, convertSpecToCompatibleSchema(UPDATED_SIMPLE_TABLE_SPEC));
+
   }
 
   @Test
