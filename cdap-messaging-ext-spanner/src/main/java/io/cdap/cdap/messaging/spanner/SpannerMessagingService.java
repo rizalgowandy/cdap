@@ -28,10 +28,13 @@ import com.google.cloud.spanner.Spanner;
 import com.google.cloud.spanner.SpannerException;
 import com.google.cloud.spanner.Statement;
 import com.google.cloud.spanner.Value;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata;
+import io.cdap.cdap.api.common.Bytes;
+import io.cdap.cdap.api.dataset.lib.AbstractCloseableIterator;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.messaging.TopicAlreadyExistsException;
 import io.cdap.cdap.api.messaging.TopicNotFoundException;
@@ -61,7 +64,8 @@ public class SpannerMessagingService implements MessagingService {
   private static final Logger LOG = LoggerFactory.getLogger(SpannerMessagingService.class);
   public static final String PAYLOAD_FIELD = "payload";
   public static final String PUBLISH_TS_FIELD = "publish_ts";
-  public static final String PAYLOAD_SEQUENCE_ID = "payload_sequence_id";
+  public static final String PUBLISH_TS_MICROS_FIELD = "publish_ts_micros";
+  public static final String PAYLOAD_SEQUENCE_ID_FIELD = "payload_sequence_id";
   public static final String SEQUENCE_ID_FIELD = "sequence_id";
   public static final String TOPIC_METADATA_TABLE = "topic_metadata";
   public static final String TOPIC_ID_FIELD = "topic_id";
@@ -96,7 +100,7 @@ public class SpannerMessagingService implements MessagingService {
     this.publishBatchSize = Integer.parseInt(cConf.get(SpannerUtil.PUBLISH_BATCH_SIZE));
     this.publishBatchTimeoutMillis = Integer.parseInt(
         cConf.get(SpannerUtil.PUBLISH_BATCH_TIMEOUT_MILLIS));
-    this.publishDelayMillis = Integer.parseInt(cConf.get(SpannerUtil.PUBLISH_BATCH_POLL_MILLIS));
+    this.publishDelayMillis = Integer.parseInt(cConf.get(SpannerUtil.PUBLISH_DELAY_MILLIS));
 
     Spanner spanner = SpannerUtil.getSpannerService(projectID, credentials);
     this.client = SpannerUtil.getSpannerDbClient(projectID, instanceId, databaseId, spanner);
@@ -166,8 +170,9 @@ public class SpannerMessagingService implements MessagingService {
     return String.format("CREATE TABLE IF NOT EXISTS %s ( %s INT64, %s INT64, %s"
             + " TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true), %s BYTES(MAX) )"
             + " PRIMARY KEY (%s, %s, %s), ROW DELETION POLICY" + " (OLDER_THAN(%s, INTERVAL 7 DAY))",
-        getTableName(topicId), SEQUENCE_ID_FIELD, PAYLOAD_SEQUENCE_ID, PUBLISH_TS_FIELD,
-        PAYLOAD_FIELD, SEQUENCE_ID_FIELD, PAYLOAD_SEQUENCE_ID, PUBLISH_TS_FIELD, PUBLISH_TS_FIELD);
+        getTableName(topicId), SEQUENCE_ID_FIELD, PAYLOAD_SEQUENCE_ID_FIELD, PUBLISH_TS_FIELD,
+        PAYLOAD_FIELD, SEQUENCE_ID_FIELD, PAYLOAD_SEQUENCE_ID_FIELD, PUBLISH_TS_FIELD,
+        PUBLISH_TS_FIELD);
   }
 
   private void updateTopicMetadataTable(List<TopicMetadata> topics) throws IOException {
@@ -296,10 +301,9 @@ public class SpannerMessagingService implements MessagingService {
         for (byte[] payload : headRequest) {
           //TODO: [CDAP-21094] Breakdown messages with larger payload into parts.
           Mutation mutation = Mutation.newInsertBuilder(getTableName(headRequest.getTopicId()))
-              .set(SEQUENCE_ID_FIELD).to(sequenceId++).set(PAYLOAD_SEQUENCE_ID).to(0)
-              .set(PUBLISH_TS_FIELD)
-              .to("spanner.commit_timestamp()").set(PAYLOAD_FIELD).to(ByteArray.copyFrom(payload))
-              .build();
+              .set(SEQUENCE_ID_FIELD).to(sequenceId++).set(PAYLOAD_SEQUENCE_ID_FIELD).to(0)
+              .set(PUBLISH_TS_FIELD).to("spanner.commit_timestamp()").set(PAYLOAD_FIELD)
+              .to(ByteArray.copyFrom(payload)).build();
           batchCopy.add(mutation);
         }
 
@@ -336,9 +340,115 @@ public class SpannerMessagingService implements MessagingService {
     throw new IOException("NOT IMPLEMENTED");
   }
 
+  /**
+   * Fetches messages from the specified topic.
+   *
+   * <p>The fetch operation utilizes the following protocol:
+   *     <ul>
+   *         <li>**MessageId Construction:**
+   *             MessageId is constructed as the concatenation of `sequence_id` and `publish_ts`.
+   *             This guarantees the following: If the `publish_ts` of message A is less than the
+   *            `publish_ts` of message B, then message A is delivered before message B.
+   *         </li>
+   *         <li>**Fetch Logic:**
+   *             - If the provided `messageId` exists in-memory, the iterator pointing to the next message is returned.
+   *             - Otherwise, a Spanner read operation is issued to fetch messages
+   *               with `publish_ts` greater than the `publish_ts` in the provided `messageId`.
+   *             - Upon reading rows, chunked messages are reconstructed as a single message and are held in memory.
+   *         </li>
+   *     </ul>
+   * </p>
+   */
   @Override
   public CloseableIterator<RawMessage> fetch(MessageFetchRequest messageFetchRequest)
       throws TopicNotFoundException, IOException {
-    throw new IOException("NOT IMPLEMENTED");
+    // If the client is fetching for the first time ever,
+    // they should fetch data for publish_ts > 0 and sequence_id > -1.
+    Long startTime = 0L;
+    if (messageFetchRequest.getStartTime() != null) {
+      startTime = messageFetchRequest.getStartTime();
+    }
+    short sequenceId = -1;
+    // MessageId is constructed as the concatenation of PublishTs and SequenceNo columns.
+    // These fields are set in the offset field of the message fetch request.
+    byte[] id = messageFetchRequest.getStartOffset();
+    if (id != null) {
+      int offset = 0;
+      startTime = Bytes.toLong(id, offset);
+      offset += Bytes.SIZEOF_LONG;
+      sequenceId = Bytes.toShort(id, offset);
+    }
+
+    LOG.trace("Fetching message from topic : {} with start time : {} sequenceId : {}",
+        messageFetchRequest.getTopicId().getTopic(), startTime, sequenceId);
+    // publish_ts > TIMESTAMP_MICROS(startTime)
+    // or
+    // publish_ts = TIMESTAMP_MICROS(startTime) and sequence_id > sequenceId
+    // order by
+    // publish_ts, sequence_id
+    String sqlStatement = String.format(
+        "SELECT %s, %s, UNIX_MICROS(%s) %s, %s FROM %s where (%s > TIMESTAMP_MICROS(%s)) or"
+            + " (%s = TIMESTAMP_MICROS(%s) and %s > %s) order by" + " %s, %s LIMIT %s",
+        SpannerMessagingService.SEQUENCE_ID_FIELD,
+        SpannerMessagingService.PAYLOAD_SEQUENCE_ID_FIELD,
+        SpannerMessagingService.PUBLISH_TS_FIELD, SpannerMessagingService.PUBLISH_TS_MICROS_FIELD,
+        SpannerMessagingService.PAYLOAD_FIELD,
+        SpannerMessagingService.getTableName(messageFetchRequest.getTopicId()),
+        PUBLISH_TS_FIELD, startTime, PUBLISH_TS_FIELD, startTime,
+        SEQUENCE_ID_FIELD, sequenceId, PUBLISH_TS_FIELD, SEQUENCE_ID_FIELD,
+        messageFetchRequest.getLimit());
+
+    try {
+      ResultSet resultSet = client.singleUse().executeQuery(Statement.of(sqlStatement));
+      return new SpannerResultSetClosableIterator<>(resultSet);
+    } catch (Exception ex) {
+      throw new IOException(ex);
+    }
+  }
+
+  public static class SpannerResultSetClosableIterator<RawMessage> extends
+      AbstractCloseableIterator<io.cdap.cdap.messaging.spi.RawMessage> {
+
+    private final ResultSet resultSet;
+
+    public SpannerResultSetClosableIterator(ResultSet resultSet) {
+      this.resultSet = resultSet;
+    }
+
+    @Override
+    protected io.cdap.cdap.messaging.spi.RawMessage computeNext() {
+      if (!resultSet.next()) {
+        return endOfData();
+      }
+
+      byte[] id = getMessageId(resultSet.getLong(SEQUENCE_ID_FIELD),
+          resultSet.getLong(PAYLOAD_SEQUENCE_ID_FIELD), resultSet.getLong(PUBLISH_TS_MICROS_FIELD));
+      byte[] payload = resultSet.getBytes(PAYLOAD_FIELD).toByteArray();
+
+      return new io.cdap.cdap.messaging.spi.RawMessage.Builder().setId(id).setPayload(payload)
+          .build();
+    }
+
+    @Override
+    public void close() {
+      resultSet.close();
+    }
+  }
+
+  @VisibleForTesting
+  static byte[] getMessageId(long sequenceId, long payloadSequenceId, long timestamp) {
+    LOG.trace("sequenceId {} payloadSequenceId {} timestamp {}", sequenceId, payloadSequenceId,
+        timestamp);
+    byte[] result = new byte[Bytes.SIZEOF_LONG + Bytes.SIZEOF_SHORT + Bytes.SIZEOF_LONG
+        + Bytes.SIZEOF_SHORT];
+    int offset = 0;
+    // Implementation copied from MessageId.
+    offset = Bytes.putLong(result, offset, timestamp);
+    offset = Bytes.putShort(result, offset, (short) sequenceId);
+    // This 0 corresponds to the write timestamp which we do not maintain in case of spanner messaging service.
+    offset = Bytes.putLong(result, offset, 0);
+    //TODO: [CDAP-21094] Handle messages with larger payload which were broken into parts during publish.
+    Bytes.putShort(result, offset, (short) payloadSequenceId);
+    return result;
   }
 }

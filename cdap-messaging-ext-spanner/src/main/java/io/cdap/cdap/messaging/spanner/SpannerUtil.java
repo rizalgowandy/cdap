@@ -40,7 +40,7 @@ class SpannerUtil {
   static final String CREDENTIALS_PATH = "credentials.path";
   static final String PUBLISH_BATCH_SIZE = "publish.batch.size";
   static final String PUBLISH_BATCH_TIMEOUT_MILLIS = "publish.batch.timeout.millis";
-  static final String PUBLISH_BATCH_POLL_MILLIS = "publish.batch.poll.millis";
+  static final String PUBLISH_DELAY_MILLIS = "publish.batch.poll.millis";
 
   static DatabaseClient getSpannerDbClient(String projectID, String instanceID,
       String databaseID, Spanner spanner) {
