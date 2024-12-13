@@ -23,6 +23,10 @@ import ch.qos.logback.core.AppenderBase;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import io.cdap.cdap.api.exception.ProgramFailureException;
+import io.cdap.cdap.api.exception.WrappedStageException;
+import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.conf.Constants.Logging;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.error.api.ErrorTagProvider;
@@ -117,6 +121,29 @@ public abstract class LogAppender extends AppenderBase<ILoggingEvent> {
     }
   }
 
+  private void addErrorClassificationTags(ILoggingEvent event, Map<String, String> modifiableMDC) {
+    if (event.getThrowableProxy() == null
+        || !(event.getThrowableProxy() instanceof ThrowableProxy)) {
+      return;
+    }
+    Throwable throwable = ((ThrowableProxy) (event.getThrowableProxy())).getThrowable();
+    while(throwable != null) {
+      if (throwable instanceof WrappedStageException) {
+        modifiableMDC.put(Logging.TAG_FAILED_STAGE,
+            ((WrappedStageException) throwable).getStageName());
+      }
+      if (throwable instanceof ProgramFailureException) {
+        modifiableMDC.put(Constants.Logging.TAG_ERROR_CATEGORY,
+            ((ProgramFailureException) throwable).getErrorCategory());
+        modifiableMDC.put(Constants.Logging.TAG_ERROR_REASON,
+            ((ProgramFailureException) throwable).getErrorReason());
+        modifiableMDC.put(Constants.Logging.TAG_ERROR_TYPE,
+            ((ProgramFailureException) throwable).getErrorType().name());
+      }
+      throwable = throwable.getCause();
+    }
+  }
+
   /**
    * Adds extra MDC tags to the given event.
    */
@@ -124,6 +151,7 @@ public abstract class LogAppender extends AppenderBase<ILoggingEvent> {
       Map<String, String> modifiableMDC) {
 
     addErrorCodeTags(event, modifiableMDC);
+    addErrorClassificationTags(event, modifiableMDC);
 
     // For error logs, if the logging context is in application scope, tag it as program logs.
     if (loggingContext.getSystemTagsMap().containsKey(ApplicationLoggingContext.TAG_APPLICATION_ID)
