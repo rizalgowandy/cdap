@@ -17,10 +17,17 @@ package io.cdap.cdap.messaging.client;
 
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
+import io.cdap.cdap.messaging.MessagingServiceUtils;
 import io.cdap.cdap.messaging.spi.MessagingServiceContext;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
+import io.cdap.cdap.proto.id.TopicId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Default implementation for {@link MessagingServiceContext}.
@@ -37,12 +44,24 @@ public class DefaultMessagingServiceContext implements MessagingServiceContext {
 
   @Override
   public Map<String, String> getProperties() {
-    // TODO: cdap-tms module refactoring will remove this dependency on spanner.
-    String spannerPropertiesPrefix =
+    // TODO: [CDAP-21090] cdap-tms module refactoring will remove this dependency on spanner.
+    String spannerStoragePropertiesPrefix =
         Constants.Dataset.STORAGE_EXTENSION_PROPERTY_PREFIX + storageImpl + ".";
-    Map<String, String> propertiesMap = new HashMap<>(
-        cConf.getPropsWithPrefix(spannerPropertiesPrefix));
+    String spannerMessagingPropertiesPrefix = Constants.MessagingSystem.SPANNER_EXTENSION_PROPERTY_PREFIX;
+    Map<String, String> propertiesMap = new HashMap<>();
+    propertiesMap.putAll(cConf.getPropsWithPrefix(spannerStoragePropertiesPrefix));
+    propertiesMap.putAll(cConf.getPropsWithPrefix(spannerMessagingPropertiesPrefix));
     return Collections.unmodifiableMap(propertiesMap);
+  }
+
+  @Override
+  public List<TopicMetadata> getSystemTopics() {
+    List<TopicMetadata> topics = new ArrayList<>();
+    Set<TopicId> systemTopics = MessagingServiceUtils.getSystemTopics(cConf, true);
+    for (TopicId topic : systemTopics) {
+      topics.add(new DefaultTopicMetadata(topic));
+    }
+    return topics;
   }
 }
 
