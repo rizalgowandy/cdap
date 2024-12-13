@@ -43,15 +43,21 @@ public class ProgramFailureException extends RuntimeException {
   private final String errorReason;
   private final ErrorType errorType;
   private final boolean dependency;
+  private final ErrorCodeType errorCodeType;
+  private final String errorCode;
+  private final String supportedDocumentationUrl;
 
-  // Private constructor to prevent direct instantiation
   private ProgramFailureException(ErrorCategory errorCategory, String errorMessage,
-      String errorReason, ErrorType errorType, Throwable cause, boolean dependency) {
+      String errorReason, ErrorType errorType, Throwable cause, boolean dependency,
+      ErrorCodeType errorCodeType, String errorCode, String supportedDocumentationUrl) {
     super(errorMessage, cause);
     this.errorCategory = errorCategory;
     this.errorReason = errorReason;
     this.errorType = errorType;
     this.dependency = dependency;
+    this.errorCodeType = errorCodeType;
+    this.errorCode = errorCode;
+    this.supportedDocumentationUrl = supportedDocumentationUrl;
   }
 
   /**
@@ -101,6 +107,33 @@ public class ProgramFailureException extends RuntimeException {
   }
 
   /**
+   * Returns the type of error code.
+   *
+   * @return the type of error code.
+   */
+  public ErrorCodeType getErrorCodeType() {
+    return errorCodeType;
+  }
+
+  /**
+   * Returns the error code.
+   *
+   * @return the error code.
+   */
+  public String getErrorCode() {
+    return errorCode;
+  }
+
+  /**
+   * Returns the URL to the documentation.
+   *
+   * @return the URL to the documentation.
+   */
+  public String getSupportedDocumentationUrl() {
+    return supportedDocumentationUrl;
+  }
+
+  /**
    * Builder class for ProgramFailureException.
    */
   public static class Builder {
@@ -109,7 +142,10 @@ public class ProgramFailureException extends RuntimeException {
     private String errorReason;
     private ErrorType errorType;
     private Throwable cause;
+    private ErrorCodeType errorCodeType;
+    private String errorCode;
     private boolean dependency;
+    private String supportedDocumentationUrl;
 
     /**
      * Sets the error category for the ProgramFailureException.
@@ -178,13 +214,47 @@ public class ProgramFailureException extends RuntimeException {
     }
 
     /**
+     * Sets the error code type for the ProgramFailureException.
+     *
+     * @param errorCodeType The type of error code.
+     * @return The current Builder instance.
+     */
+    public Builder withErrorCodeType(ErrorCodeType errorCodeType) {
+      this.errorCodeType = errorCodeType;
+      return this;
+    }
+
+    /**
+     * Sets the error code for the ProgramFailureException.
+     *
+     * @param errorCode The error code.
+     * @return The current Builder instance.
+     */
+    public Builder withErrorCode(String errorCode) {
+      this.errorCode = errorCode;
+      return this;
+    }
+
+    /**
+     * Sets the supported documentation URL for the ProgramFailureException.
+     *
+     * @param supportedDocumentationUrl The URL to the documentation.
+     * @return The current Builder instance.
+     */
+    public Builder withSupportedDocumentationUrl(String supportedDocumentationUrl) {
+      this.supportedDocumentationUrl = supportedDocumentationUrl;
+      return this;
+    }
+
+    /**
      * Builds and returns a new instance of ProgramFailureException.
      *
      * @return A new ProgramFailureException instance.
      */
     public ProgramFailureException build() {
       return new ProgramFailureException(errorCategory, errorMessage,
-          errorReason, errorType, cause, dependency);
+          errorReason, errorType, cause, dependency,
+          errorCodeType, errorCode, supportedDocumentationUrl);
     }
   }
 }

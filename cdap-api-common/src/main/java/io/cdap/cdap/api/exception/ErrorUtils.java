@@ -160,4 +160,41 @@ public final class ErrorUtils {
       .withDependency(dependency)
       .build();
   }
+
+  /**
+   * Get a ProgramFailureException with the given error information.
+   *
+   * @param errorCategory The category of the error.
+   * @param errorReason The reason for the error.
+   * @param errorMessage The error message.
+   * @param errorType The type of error.
+   * @param dependency The bool representing whether the error is coming from a dependent service.
+   * @param errorCodeType The string representing
+   * @param errorCode The int representing error code.
+   * @param supportedDocumentationUrl The URL to the supported documentation.
+   * @param cause The cause of the error.
+   * @return A ProgramFailureException with the given error information.
+   */
+  public static ProgramFailureException getProgramFailureException(ErrorCategory errorCategory,
+      String errorReason, String errorMessage, ErrorType errorType, boolean dependency,
+      @Nullable ErrorCodeType errorCodeType, @Nullable String errorCode,
+      @Nullable String supportedDocumentationUrl, @Nullable Throwable cause) {
+
+    ProgramFailureException.Builder builder = new ProgramFailureException.Builder();
+
+    if (cause != null) {
+      builder = builder.withCause(cause);
+    }
+
+    return builder
+        .withErrorCategory(errorCategory)
+        .withErrorReason(errorReason)
+        .withErrorMessage(errorMessage)
+        .withErrorType(errorType)
+        .withDependency(dependency)
+        .withErrorCodeType(errorCodeType)
+        .withErrorCode(errorCode)
+        .withSupportedDocumentationUrl(supportedDocumentationUrl)
+        .build();
+  }
 }
