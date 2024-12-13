@@ -21,8 +21,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxy;
 import ch.qos.logback.core.AppenderBase;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import io.cdap.cdap.api.exception.ErrorCodeType;
 import io.cdap.cdap.api.exception.ProgramFailureException;
 import io.cdap.cdap.api.exception.WrappedStageException;
 import io.cdap.cdap.common.conf.Constants;
@@ -139,6 +141,19 @@ public abstract class LogAppender extends AppenderBase<ILoggingEvent> {
             ((ProgramFailureException) throwable).getErrorReason());
         modifiableMDC.put(Constants.Logging.TAG_ERROR_TYPE,
             ((ProgramFailureException) throwable).getErrorType().name());
+        ErrorCodeType errorCodeType = ((ProgramFailureException) throwable).getErrorCodeType();
+        String errorCode = ((ProgramFailureException) throwable).getErrorCode();
+        String supportedDocURL =
+            ((ProgramFailureException) throwable).getSupportedDocumentationUrl();
+        if (errorCodeType != null) {
+          modifiableMDC.put(Constants.Logging.TAG_ERROR_CODE_TYPE, errorCodeType.name());
+        }
+        if (!Strings.isNullOrEmpty(errorCode)) {
+          modifiableMDC.put(Constants.Logging.TAG_ERROR_CODE, errorCode);
+        }
+        if(!Strings.isNullOrEmpty(supportedDocURL)) {
+          modifiableMDC.put(Constants.Logging.TAG_SUPPORTED_DOC_URL, supportedDocURL);
+        }
       }
       throwable = throwable.getCause();
     }
