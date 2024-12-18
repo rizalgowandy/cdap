@@ -1533,6 +1533,7 @@ public final class Constants {
     public static final String TAG_ERROR_CATEGORY = "errorCategory";
     public static final String TAG_ERROR_REASON = "errorReason";
     public static final String TAG_ERROR_TYPE = "errorType";
+    public static final String TAG_DEPENDENCY = "dependency";
     public static final String TAG_ERROR_CODE_TYPE = "errorCodeType";
     public static final String TAG_ERROR_CODE = "errorCode";
     public static final String TAG_SUPPORTED_DOC_URL = "supportDocUrl";

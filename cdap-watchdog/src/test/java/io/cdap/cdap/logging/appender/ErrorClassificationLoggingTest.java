@@ -77,6 +77,7 @@ public class ErrorClassificationLoggingTest {
             .withErrorCategory(new ErrorCategory(ErrorCategory.ErrorCategoryEnum.PLUGIN))
             .withErrorReason("error Reason")
             .withErrorType(ErrorType.USER)
+            .withDependency(true)
             .withErrorCodeType(ErrorCodeType.HTTP)
             .withErrorCode("403")
             .withSupportedDocumentationUrl("http://www.example.com")
@@ -97,6 +98,7 @@ public class ErrorClassificationLoggingTest {
     String errorCategory = mdc.get(Logging.TAG_ERROR_CATEGORY);
     String errorReason = mdc.get(Logging.TAG_ERROR_REASON);
     String errorType = mdc.get(Logging.TAG_ERROR_TYPE);
+    String dependency = mdc.get(Logging.TAG_DEPENDENCY);
     String errorCodeType = mdc.get(Logging.TAG_ERROR_CODE_TYPE);
     String errorCode = mdc.get(Logging.TAG_ERROR_CODE);
     String supportedDocumentationUrl = mdc.get(Logging.TAG_SUPPORTED_DOC_URL);
@@ -104,6 +106,7 @@ public class ErrorClassificationLoggingTest {
     Assert.assertEquals("Plugin", errorCategory);
     Assert.assertEquals("error Reason", errorReason);
     Assert.assertEquals("USER", errorType);
+    Assert.assertEquals(Boolean.TRUE.toString(), dependency);
     Assert.assertEquals("HTTP", errorCodeType);
     Assert.assertEquals("403", errorCode);
     Assert.assertEquals("http://www.example.com", supportedDocumentationUrl);

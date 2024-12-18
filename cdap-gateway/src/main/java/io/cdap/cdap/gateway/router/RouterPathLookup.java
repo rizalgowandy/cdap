@@ -162,11 +162,12 @@ public final class RouterPathLookup extends AbstractHttpHandler {
         || beginsWith(uriParts, "v3", "credentials")) {
       return APP_FABRIC_HTTP;
     } else if ((uriParts.length >= 8 && uriParts[7].equals("logs"))
-        || (uriParts.length >= 10 && uriParts[9].equals("logs"))
+        || (uriParts.length >= 10 && (uriParts[9].equals("logs") || uriParts[9].equals("classify")))
         || (uriParts.length >= 6 && uriParts[5].equals("logs"))) {
       //Log Handler Paths:
       // /v3/namespaces/<namespaceid>/apps/<appid>/<programid-type>/<programid>/logs
       // /v3/namespaces/{namespace-id}/apps/{app-id}/{program-type}/{program-id}/runs/{run-id}/logs
+      // /v3/namespaces/{namespace-id}/apps/{app-id}/{program-type}/{program-id}/runs/{run-id}/classify
       return LOG_QUERY;
     } else if (uriParts.length >= 2 && uriParts[1].equals("metrics")) {
       //Metrics Search Handler Path /v3/metrics
