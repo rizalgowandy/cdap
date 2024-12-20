@@ -204,7 +204,7 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
    * If readRange is outside runRecord's range, then the readRange is adjusted to fall within
    * runRecords range.
    */
-  private ReadRange adjustReadRange(ReadRange readRange, @Nullable RunRecordDetail runRecord,
+  protected ReadRange adjustReadRange(ReadRange readRange, @Nullable RunRecordDetail runRecord,
       boolean fromTimeSpecified) {
     if (runRecord == null) {
       return readRange;

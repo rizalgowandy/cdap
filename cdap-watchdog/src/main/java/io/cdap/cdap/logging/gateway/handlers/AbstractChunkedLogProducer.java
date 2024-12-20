@@ -96,5 +96,4 @@ public abstract class AbstractChunkedLogProducer extends BodyProducer {
     LOG.error("Received error while chunking logs.", throwable);
     close();
   }
-
 }

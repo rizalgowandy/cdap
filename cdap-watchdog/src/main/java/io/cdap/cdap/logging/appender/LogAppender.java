@@ -141,6 +141,8 @@ public abstract class LogAppender extends AppenderBase<ILoggingEvent> {
             ((ProgramFailureException) throwable).getErrorReason());
         modifiableMDC.put(Constants.Logging.TAG_ERROR_TYPE,
             ((ProgramFailureException) throwable).getErrorType().name());
+        modifiableMDC.put(Constants.Logging.TAG_DEPENDENCY,
+            String.valueOf(((ProgramFailureException) throwable).isDependency()));
         ErrorCodeType errorCodeType = ((ProgramFailureException) throwable).getErrorCodeType();
         String errorCode = ((ProgramFailureException) throwable).getErrorCode();
         String supportedDocURL =
