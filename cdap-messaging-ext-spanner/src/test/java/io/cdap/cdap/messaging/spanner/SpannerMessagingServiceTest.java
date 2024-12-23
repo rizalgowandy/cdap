@@ -15,14 +15,26 @@
  */
 package io.cdap.cdap.messaging.spanner;
 
-import com.google.common.collect.ImmutableMap;
+import static io.cdap.cdap.messaging.spanner.SpannerMessagingService.getMessageId;
+import static java.lang.Thread.sleep;
+
+import io.cdap.cdap.api.common.Bytes;
+import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.messaging.TopicNotFoundException;
+import io.cdap.cdap.messaging.spanner.SpannerMessagingServiceTestUtil.MockMessagingServiceContext;
+import io.cdap.cdap.messaging.spanner.SpannerMessagingServiceTestUtil.SpannerMessageFetchRequest;
+import io.cdap.cdap.messaging.spanner.SpannerMessagingServiceTestUtil.SpannerStoreRequest;
+import io.cdap.cdap.messaging.spanner.SpannerMessagingServiceTestUtil.SpannerTopicMetadata;
 import io.cdap.cdap.messaging.spi.MessagingServiceContext;
+import io.cdap.cdap.messaging.spi.RawMessage;
+import io.cdap.cdap.messaging.spi.RawMessage.Builder;
 import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,15 +56,15 @@ import org.junit.Test;
  *   <li>(optional) gcp.credentials.path - Local file path to the service account
  *   json that has the "Cloud Spanner Database User" role</li>
  * </ul>
+ * TODO [CDAP-21101] : These tests should be part of the continuous build & test runs.
  */
 public class SpannerMessagingServiceTest {
 
   private static SpannerMessagingService service;
 
-  private static final List<TopicMetadata> SYSTEM_TOPICS = Arrays.asList(new SpannerTopicMetadata(
-          new TopicId("system", "t1"), new HashMap<>()),
-      new SpannerTopicMetadata(
-          new TopicId("system", "t2"), new HashMap<>()));
+  static final List<TopicMetadata> SYSTEM_TOPICS = Arrays.asList(
+      new SpannerTopicMetadata(new TopicId("system", "t1"), new HashMap<>()),
+      new SpannerTopicMetadata(new TopicId("system", "t2"), new HashMap<>()));
 
   private static final SpannerTopicMetadata SIMPLE_TOPIC = new SpannerTopicMetadata(
       new TopicId("system", "topic1"), new HashMap<>());
@@ -84,9 +96,9 @@ public class SpannerMessagingServiceTest {
       configs.put(SpannerUtil.CREDENTIALS_PATH, credentialsPath);
     }
 
-    configs.put(SpannerUtil.PUBLISH_BATCH_POLL_MILLIS, "5");
-    configs.put(SpannerUtil.PUBLISH_BATCH_SIZE, "10");
-    configs.put(SpannerUtil.PUBLISH_BATCH_TIMEOUT_MILLIS, "10");
+    configs.put(SpannerUtil.PUBLISH_DELAY_MILLIS, "2");
+    configs.put(SpannerUtil.PUBLISH_BATCH_SIZE, "2");
+    configs.put(SpannerUtil.PUBLISH_BATCH_TIMEOUT_MILLIS, "5");
     MessagingServiceContext context = new MockMessagingServiceContext(configs);
 
     service = new SpannerMessagingService();
@@ -138,12 +150,13 @@ public class SpannerMessagingServiceTest {
     service.createTopic(SIMPLE_TOPIC);
     service.createTopic(TOPIC_WITH_PROPERTIES);
     List<TopicId> topics = service.listTopics(new NamespaceId("system"));
-    Assert.assertEquals(new ArrayList<>(Arrays.asList(
-        new TopicId("system", SpannerMessagingService.getTableName(SYSTEM_TOPICS.get(0).getTopicId())),
-        new TopicId("system", SpannerMessagingService.getTableName(SYSTEM_TOPICS.get(1).getTopicId())),
+    Assert.assertEquals(Arrays.asList(new TopicId("system",
+            SpannerMessagingService.getTableName(SYSTEM_TOPICS.get(0).getTopicId())),
+        new TopicId("system",
+            SpannerMessagingService.getTableName(SYSTEM_TOPICS.get(1).getTopicId())),
         new TopicId("system", SpannerMessagingService.getTableName(SIMPLE_TOPIC.getTopicId())),
         new TopicId("system",
-            SpannerMessagingService.getTableName(TOPIC_WITH_PROPERTIES.getTopicId())))), topics);
+            SpannerMessagingService.getTableName(TOPIC_WITH_PROPERTIES.getTopicId()))), topics);
   }
 
   @Test
@@ -152,59 +165,102 @@ public class SpannerMessagingServiceTest {
     Assert.assertEquals(new ArrayList<>(), topics);
   }
 
-  private static final class MockMessagingServiceContext implements MessagingServiceContext {
+  @Test
+  public void testService() throws Exception {
+    service.createTopic(SIMPLE_TOPIC);
 
-    private final Map<String, String> config;
+    List<String> messagesBatch = Arrays.asList("message_0", "message_1", "message_2");
+    service.publish(new SpannerStoreRequest(SIMPLE_TOPIC.getTopicId(),
+        Collections.singletonList(messagesBatch.get(0))));
+    sleep(1);
+    service.publish(new SpannerStoreRequest(SIMPLE_TOPIC.getTopicId(),
+        Collections.singletonList(messagesBatch.get(1))));
+    sleep(1);
+    service.publish(new SpannerStoreRequest(SIMPLE_TOPIC.getTopicId(),
+        Collections.singletonList(messagesBatch.get(2))));
 
-    MockMessagingServiceContext(Map<String, String> config) {
-      this.config = config;
-    }
+    List<RawMessage> expectedMessages = Arrays.asList(new Builder().setId(getMessageId(0, 0, 0))
+            .setPayload(messagesBatch.get(0).getBytes(StandardCharsets.UTF_8)).build(),
+        new RawMessage.Builder().setId(getMessageId(0, 0, 1))
+            .setPayload(messagesBatch.get(1).getBytes(StandardCharsets.UTF_8)).build(),
+        new RawMessage.Builder().setId(getMessageId(0, 0, 2))
+            .setPayload(messagesBatch.get(2).getBytes(StandardCharsets.UTF_8)).build());
 
-    @Override
-    public Map<String, String> getProperties() {
-      return config;
-    }
-
-    @Override
-    public List<TopicMetadata> getSystemTopics() {
-      return SYSTEM_TOPICS;
-    }
-  }
-
-  private static final class SpannerTopicMetadata implements TopicMetadata {
-
-    private final TopicId topicId;
-    private final Map<String, String> properties;
-
-    public SpannerTopicMetadata(TopicId topicId, Map<String, String> properties) {
-      this.topicId = topicId;
-      this.properties = ImmutableMap.copyOf(properties);
-    }
-
-    @Override
-    public TopicId getTopicId() {
-      return topicId;
-    }
-
-    @Override
-    public Map<String, String> getProperties() {
-      return properties;
-    }
-
-    @Override
-    public int getGeneration() {
-      return 0;
-    }
-
-    @Override
-    public boolean exists() {
-      return false;
-    }
-
-    @Override
-    public long getTTL() {
-      return 0;
+    try (CloseableIterator<RawMessage> messageIterator = service.fetch(
+        new SpannerMessageFetchRequest(SIMPLE_TOPIC.getTopicId(), null))) {
+      assertMessages(expectedMessages, messageIterator);
     }
   }
 
+  @Test
+  public void testFetch_FromCertainTimestamp() throws Exception {
+    service.createTopic(SIMPLE_TOPIC);
+
+    List<String> messagesBatch = Arrays.asList("message_0", "message_1", "message_2");
+    service.publish(new SpannerStoreRequest(SIMPLE_TOPIC.getTopicId(),
+        Collections.singletonList(messagesBatch.get(0))));
+    long firstMsgTimestampMicros = System.currentTimeMillis() * 1000 + 4;
+    sleep(5);
+    service.publish(new SpannerStoreRequest(SIMPLE_TOPIC.getTopicId(),
+        Collections.singletonList(messagesBatch.get(1))));
+    service.publish(new SpannerStoreRequest(SIMPLE_TOPIC.getTopicId(),
+        Collections.singletonList(messagesBatch.get(2))));
+
+    List<RawMessage> expectedMessages = Arrays.asList(
+        new RawMessage.Builder().setId(getMessageId(0, 0, 0))
+            .setPayload(messagesBatch.get(1).getBytes(StandardCharsets.UTF_8)).build(),
+        new RawMessage.Builder().setId(getMessageId(0, 0, 1))
+            .setPayload(messagesBatch.get(2).getBytes(StandardCharsets.UTF_8)).build());
+
+    byte[] startOffset = getMessageId(0, 0, firstMsgTimestampMicros);
+    try (CloseableIterator<RawMessage> messageIterator = service.fetch(
+        new SpannerMessageFetchRequest(SIMPLE_TOPIC.getTopicId(), startOffset))) {
+      assertMessages(expectedMessages, messageIterator);
+    }
+  }
+
+  /**
+   * This method iterates through the fetched messages and verifies that they match the expected
+   * messages in terms of message count, message ID, and message payload. Since message timestamps
+   * cannot be directly compared due to potential clock skew, this method converts timestamps in the
+   * message IDs to comparable integers for comparison purposes.
+   */
+  private void assertMessages(List<RawMessage> expectedMessages,
+      CloseableIterator<RawMessage> messageIterator) {
+    List<RawMessage> fetchedMessages = new ArrayList<>();
+    long currTimestamp = -1;
+    long publishTimestamp = -1;
+    while (messageIterator.hasNext()) {
+      RawMessage message = messageIterator.next();
+      byte[] id = message.getId();
+      if (id != null) {
+        int offset = 0;
+        long startTime = Bytes.toLong(id, offset);
+        if (currTimestamp != startTime) {
+          publishTimestamp++;
+          currTimestamp = startTime;
+        }
+
+        offset += Bytes.SIZEOF_LONG;
+        long seqID = Bytes.toShort(id, offset);
+        offset += Bytes.SIZEOF_SHORT;
+        long payloadSeqID = Bytes.toShort(id, offset);
+        fetchedMessages.add(
+            new RawMessage.Builder().setId(getMessageId(seqID, payloadSeqID, publishTimestamp))
+                .setPayload(message.getPayload()).build());
+      }
+    }
+
+    Assert.assertEquals("Message count do not match", expectedMessages.size(),
+        fetchedMessages.size());
+    for (int i = 0; i < expectedMessages.size(); i++) {
+      RawMessage expected = expectedMessages.get(i);
+      RawMessage actual = fetchedMessages.get(i);
+
+      Assert.assertArrayEquals("Message IDs do not match at index " + i, expected.getId(),
+          actual.getId());
+      Assert.assertArrayEquals("Message payloads do not match at index " + i, expected.getPayload(),
+          actual.getPayload());
+    }
+  }
 }
