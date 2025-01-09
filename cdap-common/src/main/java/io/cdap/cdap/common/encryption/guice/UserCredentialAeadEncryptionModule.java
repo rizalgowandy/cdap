@@ -14,12 +14,12 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption.guice;
+package io.cdap.cdap.common.encryption.guice;
 
 import com.google.inject.PrivateModule;
 import com.google.inject.Scopes;
 import com.google.inject.name.Names;
-import io.cdap.cdap.security.encryption.AeadCipher;
+import io.cdap.cdap.common.encryption.AeadCipher;
 
 /**
  * Guice module for encryption bindings for user credential encryption.

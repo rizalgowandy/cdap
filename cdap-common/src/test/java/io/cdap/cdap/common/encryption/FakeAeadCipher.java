@@ -14,7 +14,7 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption;
+package io.cdap.cdap.common.encryption;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;

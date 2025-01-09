@@ -14,26 +14,26 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption;
+package io.cdap.cdap.common.encryption;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.name.Names;
+import io.cdap.cdap.common.encryption.guice.UserCredentialAeadEncryptionModule;
 import io.cdap.cdap.common.guice.ConfigModule;
-import io.cdap.cdap.security.encryption.guice.DataStorageAeadEncryptionModule;
 import org.junit.Test;
 
 /**
- * Tests for {@link DataStorageAeadEncryptionModule}.
+ * Tests for {@link UserCredentialAeadEncryptionModule}.
  */
-public class DataStorageAeadEncryptionModuleTest {
+public class UserCredentialAeadEncryptionModuleTest {
 
   @Test
   public void testBinding() {
     Injector injector = Guice
-        .createInjector(new ConfigModule(), new DataStorageAeadEncryptionModule());
+        .createInjector(new ConfigModule(), new UserCredentialAeadEncryptionModule());
     injector.getInstance(Key.get(AeadCipher.class,
-        Names.named(DataStorageAeadEncryptionModule.DATA_STORAGE_ENCRYPTION)));
+        Names.named(UserCredentialAeadEncryptionModule.USER_CREDENTIAL_ENCRYPTION)));
   }
 }

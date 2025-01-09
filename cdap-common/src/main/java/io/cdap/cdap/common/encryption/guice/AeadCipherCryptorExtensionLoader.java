@@ -14,7 +14,7 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption.guice;
+package io.cdap.cdap.common.encryption.guice;
 
 import com.google.inject.Inject;
 import io.cdap.cdap.common.conf.CConfiguration;

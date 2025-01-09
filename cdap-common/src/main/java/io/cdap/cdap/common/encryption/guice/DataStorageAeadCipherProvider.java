@@ -14,12 +14,12 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption.guice;
+package io.cdap.cdap.common.encryption.guice;
 
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants.Security.Encryption;
 import io.cdap.cdap.common.conf.SConfiguration;
-import io.cdap.cdap.security.encryption.AeadCipher;
+import io.cdap.cdap.common.encryption.AeadCipher;
 import java.util.Map;
 import javax.inject.Inject;
 
