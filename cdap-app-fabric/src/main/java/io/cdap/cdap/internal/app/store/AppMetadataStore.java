@@ -3030,7 +3030,7 @@ public class AppMetadataStore {
     if (!CONTROL_FLOW_PROGRAM_TYPES.contains(programRunId.getType())) {
       return TYPE_FLOW_CONTROL_NONE;
     }
-    if (programRunId.getParent().getNamespace() == NamespaceId.SYSTEM.getNamespace()) {
+    if (NamespaceId.SYSTEM.getNamespace().equals(programRunId.getParent().getNamespace())) {
       return TYPE_FLOW_CONTROL_NONE;
     }
     if (systemArgs.containsKey(ProgramOptionConstants.WORKFLOW_NAME)) {
