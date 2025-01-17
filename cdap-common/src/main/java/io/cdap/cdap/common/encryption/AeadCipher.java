@@ -14,7 +14,7 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption;
+package io.cdap.cdap.common.encryption;
 
 import io.cdap.cdap.security.spi.encryption.CipherException;
 import io.cdap.cdap.security.spi.encryption.CipherOperationException;

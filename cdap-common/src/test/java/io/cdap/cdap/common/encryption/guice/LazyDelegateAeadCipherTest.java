@@ -14,7 +14,7 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption.guice;
+package io.cdap.cdap.common.encryption.guice;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;

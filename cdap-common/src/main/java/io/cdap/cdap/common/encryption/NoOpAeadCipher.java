@@ -14,7 +14,7 @@
  * the License.
  */
 
-package io.cdap.cdap.security.encryption;
+package io.cdap.cdap.common.encryption;
 
 /**
  * Performs no encryption.

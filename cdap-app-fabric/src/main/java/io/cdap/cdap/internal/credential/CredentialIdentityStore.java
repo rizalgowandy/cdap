@@ -18,11 +18,11 @@ package io.cdap.cdap.internal.credential;
 
 import com.google.gson.Gson;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
+import io.cdap.cdap.common.encryption.AeadCipher;
+import io.cdap.cdap.common.encryption.guice.DataStorageAeadEncryptionModule;
 import io.cdap.cdap.proto.credential.CredentialIdentity;
 import io.cdap.cdap.proto.id.CredentialIdentityId;
 import io.cdap.cdap.proto.id.CredentialProfileId;
-import io.cdap.cdap.security.encryption.AeadCipher;
-import io.cdap.cdap.security.encryption.guice.DataStorageAeadEncryptionModule;
 import io.cdap.cdap.security.spi.encryption.CipherException;
 import io.cdap.cdap.spi.data.StructuredRow;
 import io.cdap.cdap.spi.data.StructuredTable;
