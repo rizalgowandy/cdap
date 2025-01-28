@@ -2045,7 +2045,7 @@
             <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-antrun-plugin</artifactId>
-              <version>1.7</version>
+              <version>3.1.0</version>
               <executions>
                 <!--This is for workaround a bug in resource-plugin that it doesn't preserve file permission-->
                 <!--http://jira.codehaus.org/browse/MRESOURCES-132-->
@@ -2212,7 +2212,7 @@
             <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-antrun-plugin</artifactId>
-              <version>1.7</version>
+              <version>3.1.0</version>
               <executions>
                 <execution>
                   <id>rename-rpm-service</id>
@@ -2315,7 +2315,7 @@
             <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-antrun-plugin</artifactId>
-              <version>1.7</version>
+              <version>3.1.0</version>
               <executions>
                 <execution>
                   <id>rename-deb-service</id>
