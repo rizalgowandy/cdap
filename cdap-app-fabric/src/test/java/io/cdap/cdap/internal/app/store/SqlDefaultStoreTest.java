@@ -24,6 +24,7 @@ import io.cdap.cdap.internal.AppFabricTestHelper;
 import io.cdap.cdap.internal.app.namespace.DefaultNamespaceAdmin;
 import io.cdap.cdap.internal.app.namespace.NamespaceResourceDeleter;
 import io.cdap.cdap.internal.app.namespace.StorageProviderNamespaceAdmin;
+import io.cdap.cdap.internal.tethering.TetheringStore;
 import io.cdap.cdap.security.impersonation.Impersonator;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
@@ -33,12 +34,11 @@ import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.store.DefaultNamespaceStore;
 import io.cdap.cdap.store.StoreDefinition;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import java.io.IOException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
 
 public class SqlDefaultStoreTest extends DefaultStoreTest {
 
@@ -65,7 +65,7 @@ public class SqlDefaultStoreTest extends DefaultStoreTest {
       injector.getInstance(MetricsCollectionService.class), injector.getProvider(NamespaceResourceDeleter.class),
       injector.getProvider(StorageProviderNamespaceAdmin.class), injector.getInstance(CConfiguration.class),
       injector.getInstance(Impersonator.class), injector.getInstance(AccessEnforcer.class),
-      injector.getInstance(AuthenticationContext.class));
+      injector.getInstance(AuthenticationContext.class), injector.getInstance(TetheringStore.class));
   }
 
   @AfterClass

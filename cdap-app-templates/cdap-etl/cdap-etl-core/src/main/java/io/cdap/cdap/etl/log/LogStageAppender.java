@@ -23,16 +23,16 @@ import ch.qos.logback.classic.spi.LoggerContextVO;
 import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.AppenderBase;
 import io.cdap.cdap.etl.common.Constants;
-import org.slf4j.Marker;
-
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Marker;
 
 /**
- * Inserts the stage name as the start of the log message, then delegates to other appenders.
- * Uses {@link org.slf4j.MDC} to look up the current stage name.
+ * Inserts the stage name as the start of the log message, then delegates to other appenders. Uses
+ * {@link org.slf4j.MDC} to look up the current stage name.
  */
 public class LogStageAppender extends AppenderBase<ILoggingEvent> {
+
   private final List<Appender<ILoggingEvent>> appenders;
 
   public LogStageAppender(List<Appender<ILoggingEvent>> appenders) {
@@ -71,6 +71,7 @@ public class LogStageAppender extends AppenderBase<ILoggingEvent> {
    * Wrapper around ILoggingEvent that prefixes messages with the stage name if it exists.
    */
   private static class StageEvent implements ILoggingEvent {
+
     private final ILoggingEvent event;
     private final String eventMessage;
     private final String formattedMessage;
@@ -80,7 +81,8 @@ public class LogStageAppender extends AppenderBase<ILoggingEvent> {
       Map<String, String> mdcMap = event.getMDCPropertyMap();
       String stage = mdcMap.get(Constants.MDC_STAGE_KEY);
       this.eventMessage = stage == null ? event.getMessage() : stage + " - " + event.getMessage();
-      this.formattedMessage = stage == null ? event.getFormattedMessage() : stage + " - " + event.getFormattedMessage();
+      this.formattedMessage =
+          stage == null ? event.getFormattedMessage() : stage + " - " + event.getFormattedMessage();
     }
 
     @Override

@@ -21,16 +21,18 @@ import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.artifact.ApplicationClass;
 import io.cdap.cdap.api.metadata.Metadata;
 import io.cdap.cdap.api.metadata.MetadataScope;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
+import io.cdap.cdap.proto.sourcecontrol.SourceControlMeta;
+import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.spi.data.table.StructuredTableSpecification;
-import org.apache.twill.filesystem.Location;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
 
 /**
  * Represents information of an application that is undergoing deployment.
@@ -50,25 +52,34 @@ public class ApplicationDeployable {
   private final KerberosPrincipalId ownerPrincipal;
   @SerializedName("update-schedules")
   private final boolean updateSchedules;
+  @Nullable
+  private final ChangeDetail changeDetail;
+  @Nullable
+  private final SourceControlMeta sourceControlMeta;
+  private final boolean isUpgrade;
+  private final boolean skipMarkingLatest;
 
   public ApplicationDeployable(ArtifactId artifactId, Location artifactLocation,
-                               ApplicationId applicationId, ApplicationSpecification specification,
-                               @Nullable ApplicationSpecification existingAppSpec,
-                               ApplicationDeployScope applicationDeployScope,
-                               ApplicationClass applicationClass) {
-    this(artifactId, artifactLocation, applicationId, specification, existingAppSpec, applicationDeployScope,
-         applicationClass, null, true, Collections.emptyList(), Collections.emptyMap());
+      ApplicationId applicationId, ApplicationSpecification specification,
+      @Nullable ApplicationSpecification existingAppSpec,
+      ApplicationDeployScope applicationDeployScope,
+      ApplicationClass applicationClass) {
+    this(artifactId, artifactLocation, applicationId, specification, existingAppSpec,
+        applicationDeployScope,
+        applicationClass, null, true, Collections.emptyList(), Collections.emptyMap(),
+        null, null, false, false);
   }
 
   public ApplicationDeployable(ArtifactId artifactId, Location artifactLocation,
-                               ApplicationId applicationId, ApplicationSpecification specification,
-                               @Nullable ApplicationSpecification existingAppSpec,
-                               ApplicationDeployScope applicationDeployScope,
-                               ApplicationClass applicationClass,
-                               @Nullable KerberosPrincipalId ownerPrincipal,
-                               boolean updateSchedules,
-                               Collection<StructuredTableSpecification> systemTables,
-                               Map<MetadataScope, Metadata> metadata) {
+      ApplicationId applicationId, ApplicationSpecification specification,
+      @Nullable ApplicationSpecification existingAppSpec,
+      ApplicationDeployScope applicationDeployScope,
+      ApplicationClass applicationClass,
+      @Nullable KerberosPrincipalId ownerPrincipal,
+      boolean updateSchedules,
+      Collection<StructuredTableSpecification> systemTables,
+      Map<MetadataScope, Metadata> metadata, @Nullable ChangeDetail changeDetail,
+      @Nullable SourceControlMeta sourceControlMeta, boolean isUpgrade, boolean skipMarkingLatest) {
     this.artifactId = artifactId;
     this.artifactLocation = artifactLocation;
     this.applicationId = applicationId;
@@ -80,6 +91,10 @@ public class ApplicationDeployable {
     this.systemTables = systemTables;
     this.applicationClass = applicationClass;
     this.metadata = metadata;
+    this.changeDetail = changeDetail;
+    this.sourceControlMeta = sourceControlMeta;
+    this.isUpgrade = isUpgrade;
+    this.skipMarkingLatest = skipMarkingLatest;
   }
 
   /**
@@ -104,7 +119,6 @@ public class ApplicationDeployable {
   }
 
   /**
-   *
    * @return {@link ApplicationClass} of the Application
    */
   public ApplicationClass getApplicationClass() {
@@ -119,8 +133,8 @@ public class ApplicationDeployable {
   }
 
   /**
-   * Returns the {@link ApplicationSpecification} of the older version of the application or {@code null} if
-   * it doesn't exist.
+   * Returns the {@link ApplicationSpecification} of the older version of the application or {@code
+   * null} if it doesn't exist.
    */
   @Nullable
   public ApplicationSpecification getExistingAppSpec() {
@@ -158,5 +172,35 @@ public class ApplicationDeployable {
    */
   public Map<MetadataScope, Metadata> getMetadata() {
     return metadata;
+  }
+
+  /**
+   * Returns the change details of the application
+   */
+  @Nullable
+  public ChangeDetail getChangeDetail() {
+    return changeDetail;
+  }
+
+  /**
+   * Returns true if the deploy event type is an upgrade.
+   */
+  public boolean isUpgrade() {
+    return isUpgrade;
+  }
+
+  /**
+   * Returns true if the application is not to be marked as latest.
+   */
+  public boolean isSkipMarkingLatest() {
+    return skipMarkingLatest;
+  }
+
+  /**
+   * Returns the source control metadata
+   */
+  @Nullable
+  public SourceControlMeta getSourceControlMeta() {
+    return sourceControlMeta;
   }
 }

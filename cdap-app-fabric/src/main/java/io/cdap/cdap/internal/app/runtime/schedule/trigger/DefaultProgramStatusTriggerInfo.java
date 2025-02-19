@@ -16,17 +16,11 @@
 
 package io.cdap.cdap.internal.app.runtime.schedule.trigger;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import io.cdap.cdap.api.ProgramStatus;
-import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.app.ProgramType;
 import io.cdap.cdap.api.schedule.ProgramStatusTriggerInfo;
 import io.cdap.cdap.api.workflow.WorkflowToken;
 import io.cdap.cdap.common.app.RunIds;
-import io.cdap.cdap.internal.app.ApplicationSpecificationAdapter;
-import org.apache.twill.api.RunId;
-
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -35,12 +29,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.twill.api.RunId;
 
 /**
  * The program status trigger information to be passed to the triggered program.
  */
 public class DefaultProgramStatusTriggerInfo extends AbstractTriggerInfo
-  implements ProgramStatusTriggerInfo, Externalizable {
+    implements ProgramStatusTriggerInfo, Externalizable {
 
   private static final long serialVersionUID = 1L;
 
@@ -62,10 +57,10 @@ public class DefaultProgramStatusTriggerInfo extends AbstractTriggerInfo
   }
 
   public DefaultProgramStatusTriggerInfo(String namespace, String applicationName,
-                                         ProgramType programType, String program,
-                                         RunId runId, ProgramStatus programStatus,
-                                         @Nullable WorkflowToken workflowToken,
-                                         Map<String, String> runtimeArguments) {
+      ProgramType programType, String program,
+      RunId runId, ProgramStatus programStatus,
+      @Nullable WorkflowToken workflowToken,
+      Map<String, String> runtimeArguments) {
     super(Type.PROGRAM_STATUS);
     this.namespace = namespace;
     this.applicationName = applicationName;

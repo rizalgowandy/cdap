@@ -20,16 +20,16 @@ import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
 import io.cdap.cdap.common.io.Codec;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.security.InvalidKeyException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Provides a simple interface to generate and validate {@link AccessToken}s.
  */
 public class TokenManager extends AbstractIdleService {
+
   private static final Logger LOG = LoggerFactory.getLogger(TokenManager.class);
 
   protected final KeyManager keyManager;
@@ -55,6 +55,7 @@ public class TokenManager extends AbstractIdleService {
 
   /**
    * Generates a signature for the given token value, using the currently active secret key.
+   *
    * @param identifier Verified identity for which a token should be generated.
    * @return A token containing the verified identify and a digest of its contents.
    */
@@ -70,12 +71,13 @@ public class TokenManager extends AbstractIdleService {
   }
 
   /**
-   * Given an {@link AccessToken} instance, checks that the token has not yet expired and that the digest matches
-   * the expected value. To validate the token digest, we recompute the digest value, based on the asserted identity
-   * and our own view of the secret keys.
+   * Given an {@link AccessToken} instance, checks that the token has not yet expired and that the
+   * digest matches the expected value. To validate the token digest, we recompute the digest value,
+   * based on the asserted identity and our own view of the secret keys.
+   *
    * @param token The token instance to validate.
-   * @throws InvalidTokenException If the provided token instance is expired or the digest does not match the
-   * recomputed value.
+   * @throws InvalidTokenException If the provided token instance is expired or the digest does
+   *     not match the recomputed value.
    */
   public void validateSecret(AccessToken token) throws InvalidTokenException {
     long now = System.currentTimeMillis();

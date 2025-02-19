@@ -36,12 +36,6 @@ import io.cdap.cdap.proto.security.StandardPermission;
 import io.cdap.cdap.runtime.spi.profile.ProfileStatus;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerSpecification;
 import io.cdap.cdap.security.spi.authorization.PermissionManager;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,6 +44,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Unit tests for profile http handler
@@ -82,7 +81,8 @@ public class ProfileHttpHandlerTest extends AppFabricTestBase {
 
   @BeforeClass
   public static void beforeClass() throws Exception {
-    CConfiguration cConf = AppFabricTestHelper.enableAuthorization(createBasicCConf(), TEMPORARY_FOLDER);
+    CConfiguration cConf = AppFabricTestHelper.enableAuthorization(
+        createBasicCconf(), TEMPORARY_FOLDER);
     initializeAndStartServices(cConf);
     PermissionManager permissionManager = getInjector().getInstance(PermissionManager.class);
     permissionManager.grant(Authorizable.fromEntityId(NamespaceId.SYSTEM, EntityType.PROFILE), READ_WRITE_USER,

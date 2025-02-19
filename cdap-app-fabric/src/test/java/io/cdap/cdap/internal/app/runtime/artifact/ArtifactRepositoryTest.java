@@ -74,17 +74,6 @@ import io.cdap.cdap.proto.id.PluginId;
 import io.cdap.cdap.spi.metadata.Metadata;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.spi.metadata.Read;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -99,6 +88,16 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Unit-tests for app template plugin support.
@@ -375,13 +374,15 @@ public class ArtifactRepositoryTest {
     PluginClass pluginClass = plugins.values().iterator().next().iterator().next();
     NestedConfigPlugin.Config expected =
       new NestedConfigPlugin.Config(1, new NestedConfigPlugin.NestedConfig("nested val1", "nested val2"));
+    Set<String> nestedFields = ImmutableSet.of("Nested1", "Nested2");
 
     // test flat structure, all pre 6.5 plugins look like this
     instantiateAndValidate(pluginDir, new Plugin(Collections.emptyList(), artifact, pluginClass,
                                                  PluginProperties.builder()
                                                    .add("X", "1")
                                                    .add("Nested1", "nested val1")
-                                                   .add("Nested2", "nested val2").build()), expected, false);
+                                                   .add("Nested2", "nested val2").build()), expected,
+                           Collections.emptySet(), nestedFields);
 
     // test nested
     instantiateAndValidate(pluginDir, new Plugin(Collections.emptyList(), artifact, pluginClass,
@@ -390,7 +391,7 @@ public class ArtifactRepositoryTest {
                                                    .add("Nested",
                                                         gson.toJson(ImmutableMap.of("Nested1", "nested val1",
                                                                                     "Nested2", "nested val2")))
-                                                   .build()), expected, false);
+                                                   .build()), expected, Collections.emptySet(), nestedFields);
 
     // test macro gets correct default value, and macro fields get set correctly
     expected = new NestedConfigPlugin.Config(1, new NestedConfigPlugin.NestedConfig(null, null));
@@ -398,16 +399,27 @@ public class ArtifactRepositoryTest {
                                                  PluginProperties.builder()
                                                    .add("X", "1")
                                                    .add("Nested1", "${macro1}")
-                                                   .add("Nested2", "${macro2}").build()), expected, true);
+                                                   .add("Nested2", "${macro2}").build()), expected,
+                           nestedFields, Collections.emptySet());
     instantiateAndValidate(pluginDir, new Plugin(Collections.emptyList(), artifact, pluginClass,
                                                  PluginProperties.builder()
                                                    .add("X", "1")
                                                    .add("Nested", "${I am macro}")
-                                                   .build()), expected, true);
+                                                   .build()), expected, nestedFields, Collections.emptySet());
+
+    // test partial macros inside the nested field
+    Map<String, String> childMap = ImmutableMap.of("Nested1", "${macro1}", "Nested2", "myActualVal");
+    expected = new NestedConfigPlugin.Config(1, new NestedConfigPlugin.NestedConfig(null, "myActualVal"));
+    instantiateAndValidate(pluginDir, new Plugin(Collections.emptyList(), artifact, pluginClass,
+                                                 PluginProperties.builder()
+                                                   .add("X", "1")
+                                                   .add("Nested", new Gson().toJson(childMap)).build()),
+                           expected, Collections.singleton("Nested1"), Collections.singleton("Nested2"));
   }
 
   private void instantiateAndValidate(File pluginDir, Plugin pluginInfo,
-                                      NestedConfigPlugin.Config expected, boolean containMacro) throws Exception {
+                                      NestedConfigPlugin.Config expected, Set<String> macroFields,
+                                      Set<String> notMacroFields) throws Exception {
     Gson gson = new Gson();
     try (PluginInstantiator instantiator = new PluginInstantiator(cConf, appClassLoader, pluginDir)) {
 
@@ -416,13 +428,12 @@ public class ArtifactRepositoryTest {
       Callable<String> plugin = instantiator.newInstance(pluginInfo);
       NestedConfigPlugin.Config actual = gson.fromJson(plugin.call(), NestedConfigPlugin.Config.class);
       Assert.assertEquals(expected, actual);
-      if (containMacro) {
-        Assert.assertTrue(actual.nested.containsMacro("Nested1"));
-        Assert.assertTrue(actual.nested.containsMacro("Nested2"));
-      } else {
-        Assert.assertFalse(actual.nested.containsMacro("Nested1"));
-        Assert.assertFalse(actual.nested.containsMacro("Nested2"));
-      }
+      macroFields.forEach(field -> {
+        Assert.assertTrue(actual.nested.containsMacro(field));
+      });
+      notMacroFields.forEach(field -> {
+        Assert.assertFalse(actual.nested.containsMacro(field));
+      });
     }
   }
 

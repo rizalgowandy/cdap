@@ -35,27 +35,26 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.id.WorkflowId;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for {@link ConcurrencyConstraint}.
  */
 public class ConcurrencyConstraintTest {
   private static final NamespaceId TEST_NS = new NamespaceId("ConcurrencyConstraintTest");
-  private static final ApplicationId APP_ID = TEST_NS.app("app1");
+  private static final ApplicationId APP_ID = TEST_NS.app("app1", "non-default-test-version");
   private static final ArtifactId ARTIFACT_ID = TEST_NS.artifact("test", "1.0").toApiArtifactId();
   private static final WorkflowId WORKFLOW_ID = APP_ID.workflow("wf1");
   private static final DatasetId DATASET_ID = TEST_NS.dataset("pfs1");
 
   private static final Map<String, String> EMPTY_MAP = ImmutableMap.of();
-  
+
   private int sourceId;
-  
+
   private void setStartAndRunning(Store store, ProgramRunId id) {
     setStartAndRunning(store, id, EMPTY_MAP, EMPTY_MAP);
 

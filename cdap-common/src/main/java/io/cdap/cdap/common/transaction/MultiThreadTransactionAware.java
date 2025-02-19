@@ -20,32 +20,32 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
+import java.util.Collection;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionAware;
-
-import java.util.Collection;
 
 /**
  * An abstract base class for implementing {@link TransactionAware} that is thread aware.
  *
  * @param <T> type of {@link TransactionAware} used in each thread.
  */
-public abstract class MultiThreadTransactionAware<T extends TransactionAware> implements TransactionAware {
+public abstract class MultiThreadTransactionAware<T extends TransactionAware> implements
+    TransactionAware {
 
   private final LoadingCache<Thread, T> perThreadTransactionAwares =
-    CacheBuilder.newBuilder().weakKeys()
-      .removalListener((RemovalListener<Thread, T>) notification -> {
-        T value = notification.getValue();
-        if (value != null) {
-          MultiThreadTransactionAware.this.onRemoval(value);
-        }
-      })
-      .build(new CacheLoader<Thread, T>() {
-        @Override
-        public T load(Thread thread) throws Exception {
-          return createTransactionAwareForCurrentThread();
-        }
-      });
+      CacheBuilder.newBuilder().weakKeys()
+          .removalListener((RemovalListener<Thread, T>) notification -> {
+            T value = notification.getValue();
+            if (value != null) {
+              MultiThreadTransactionAware.this.onRemoval(value);
+            }
+          })
+          .build(new CacheLoader<Thread, T>() {
+            @Override
+            public T load(Thread thread) throws Exception {
+              return createTransactionAwareForCurrentThread();
+            }
+          });
 
   protected abstract T createTransactionAwareForCurrentThread();
 

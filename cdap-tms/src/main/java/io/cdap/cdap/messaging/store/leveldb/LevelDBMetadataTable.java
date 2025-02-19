@@ -23,15 +23,12 @@ import io.cdap.cdap.api.dataset.lib.AbstractCloseableIterator;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.messaging.TopicAlreadyExistsException;
 import io.cdap.cdap.api.messaging.TopicNotFoundException;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
 import io.cdap.cdap.messaging.MessagingUtils;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.store.MetadataTable;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.DBException;
-import org.iq80.leveldb.WriteOptions;
-
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -39,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import javax.annotation.Nullable;
+import org.iq80.leveldb.DB;
+import org.iq80.leveldb.DBException;
+import org.iq80.leveldb.WriteOptions;
 
 /**
  * LevelDB implementation of {@link MetadataTable}.
@@ -46,7 +46,8 @@ import javax.annotation.Nullable;
 final class LevelDBMetadataTable implements MetadataTable {
 
   private static final Gson GSON = new Gson();
-  private static final Type MAP_TYPE = new TypeToken<Map<String, String>>() { }.getType();
+  private static final Type MAP_TYPE = new TypeToken<Map<String, String>>() {
+  }.getType();
   private static final WriteOptions WRITE_OPTIONS = new WriteOptions().sync(true);
 
   private final DB levelDB;
@@ -68,7 +69,7 @@ final class LevelDBMetadataTable implements MetadataTable {
       }
 
       Map<String, String> properties = GSON.fromJson(Bytes.toString(value), MAP_TYPE);
-      TopicMetadata topicMetadata = new TopicMetadata(topicId, properties);
+      TopicMetadata topicMetadata = new DefaultTopicMetadata(topicId, properties);
       if (!topicMetadata.exists()) {
         throw new TopicNotFoundException(topicId.getNamespace(), topicId.getTopic());
       }
@@ -80,24 +81,25 @@ final class LevelDBMetadataTable implements MetadataTable {
   }
 
   @Override
-  public void createTopic(TopicMetadata topicMetadata) throws TopicAlreadyExistsException, IOException {
+  public void createTopic(TopicMetadata topicMetadata)
+      throws TopicAlreadyExistsException, IOException {
     try {
       TopicId topicId = topicMetadata.getTopicId();
       byte[] key = MessagingUtils.toMetadataRowKey(topicId);
       TreeMap<String, String> properties = new TreeMap<>(topicMetadata.getProperties());
-      properties.put(TopicMetadata.GENERATION_KEY, MessagingUtils.Constants.DEFAULT_GENERATION);
+      properties.put(DefaultTopicMetadata.GENERATION_KEY, MessagingUtils.Constants.DEFAULT_GENERATION);
 
       synchronized (this) {
         byte[] tableValue = levelDB.get(key);
         if (tableValue != null) {
           Map<String, String> oldProperties = GSON.fromJson(Bytes.toString(tableValue), MAP_TYPE);
-          TopicMetadata metadata = new TopicMetadata(topicId, oldProperties);
+          TopicMetadata metadata = new DefaultTopicMetadata(topicId, oldProperties);
           if (metadata.exists()) {
             throw new TopicAlreadyExistsException(topicId.getNamespace(), topicId.getTopic());
           }
 
           int newGenerationId = (metadata.getGeneration() * -1) + 1;
-          properties.put(TopicMetadata.GENERATION_KEY, Integer.toString(newGenerationId));
+          properties.put(DefaultTopicMetadata.GENERATION_KEY, Integer.toString(newGenerationId));
         }
         byte[] value = Bytes.toBytes(GSON.toJson(properties, MAP_TYPE));
         levelDB.put(key, value, WRITE_OPTIONS);
@@ -119,13 +121,14 @@ final class LevelDBMetadataTable implements MetadataTable {
         }
 
         Map<String, String> oldProperties = GSON.fromJson(Bytes.toString(tableValue), MAP_TYPE);
-        TopicMetadata oldMetadata = new TopicMetadata(topicId, oldProperties);
+        TopicMetadata oldMetadata = new DefaultTopicMetadata(topicId, oldProperties);
         if (!oldMetadata.exists()) {
           throw new TopicNotFoundException(topicId.getNamespace(), topicId.getTopic());
         }
 
         TreeMap<String, String> newProperties = new TreeMap<>(topicMetadata.getProperties());
-        newProperties.put(TopicMetadata.GENERATION_KEY, Integer.toString(oldMetadata.getGeneration()));
+        newProperties.put(DefaultTopicMetadata.GENERATION_KEY,
+            Integer.toString(oldMetadata.getGeneration()));
         levelDB.put(key, Bytes.toBytes(GSON.toJson(newProperties, MAP_TYPE)), WRITE_OPTIONS);
       }
     } catch (DBException e) {
@@ -144,14 +147,15 @@ final class LevelDBMetadataTable implements MetadataTable {
         }
 
         Map<String, String> oldProperties = GSON.fromJson(Bytes.toString(tableValue), MAP_TYPE);
-        TopicMetadata metadata = new TopicMetadata(topicId, oldProperties);
+        TopicMetadata metadata = new DefaultTopicMetadata(topicId, oldProperties);
         if (!metadata.exists()) {
           throw new TopicNotFoundException(topicId.getNamespace(), topicId.getTopic());
         }
 
         // Mark the topic as deleted
         TreeMap<String, String> newProperties = new TreeMap<>(metadata.getProperties());
-        newProperties.put(TopicMetadata.GENERATION_KEY, Integer.toString(-1 * metadata.getGeneration()));
+        newProperties.put(DefaultTopicMetadata.GENERATION_KEY,
+            Integer.toString(-1 * metadata.getGeneration()));
         levelDB.put(rowKey, Bytes.toBytes(GSON.toJson(newProperties, MAP_TYPE)), WRITE_OPTIONS);
       }
     } catch (DBException e) {
@@ -172,7 +176,8 @@ final class LevelDBMetadataTable implements MetadataTable {
   }
 
   /**
-   * Returns an iterator of {@link TopicMetadata} of all the topics including the ones that were deleted.
+   * Returns an iterator of {@link TopicMetadata} of all the topics including the ones that were
+   * deleted.
    *
    * @return {@link CloseableIterator} of {@link TopicMetadata}
    * @throws IOException if failed to scan topics
@@ -181,7 +186,8 @@ final class LevelDBMetadataTable implements MetadataTable {
     return scanTopics(null, null);
   }
 
-  private List<TopicId> listTopics(@Nullable byte[] startKey, @Nullable byte[] stopKey) throws IOException {
+  private List<TopicId> listTopics(@Nullable byte[] startKey, @Nullable byte[] stopKey)
+      throws IOException {
     List<TopicId> topicList = new ArrayList<>();
     try (CloseableIterator<TopicMetadata> iterator = scanTopics(startKey, stopKey)) {
       while (iterator.hasNext()) {
@@ -195,10 +201,11 @@ final class LevelDBMetadataTable implements MetadataTable {
   }
 
   private CloseableIterator<TopicMetadata> scanTopics(@Nullable byte[] startKey,
-                                                     @Nullable byte[] stopKey) throws IOException {
-    final CloseableIterator<Map.Entry<byte[], byte[]>> iterator = new DBScanIterator(levelDB, startKey, stopKey);
+      @Nullable byte[] stopKey) throws IOException {
+    final CloseableIterator<Map.Entry<byte[], byte[]>> iterator = new DBScanIterator(levelDB,
+        startKey, stopKey);
     return new AbstractCloseableIterator<TopicMetadata>() {
-      private boolean closed = false;
+      private boolean closed;
 
       @Override
       protected TopicMetadata computeNext() {
@@ -209,7 +216,7 @@ final class LevelDBMetadataTable implements MetadataTable {
         Map.Entry<byte[], byte[]> entry = iterator.next();
         TopicId topicId = MessagingUtils.toTopicId(entry.getKey());
         Map<String, String> properties = GSON.fromJson(Bytes.toString(entry.getValue()), MAP_TYPE);
-        return new TopicMetadata(topicId, properties);
+        return new DefaultTopicMetadata(topicId, properties);
       }
 
       @Override

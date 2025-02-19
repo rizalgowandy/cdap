@@ -23,7 +23,6 @@ import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import io.cdap.cdap.api.workflow.ConditionSpecification;
 import io.cdap.cdap.internal.workflow.condition.DefaultConditionSpecification;
-
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Set;
@@ -31,23 +30,28 @@ import java.util.Set;
 /**
  * Codec to serialize and deserialize {@link ConditionSpecification}.
  */
-public class ConditionSpecificationCodec extends AbstractSpecificationCodec<ConditionSpecification> {
+public class ConditionSpecificationCodec extends
+    AbstractSpecificationCodec<ConditionSpecification> {
+
   @Override
-  public ConditionSpecification deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+  public ConditionSpecification deserialize(JsonElement json, Type typeOfT,
+      JsonDeserializationContext context)
+      throws JsonParseException {
     JsonObject jsonObj = json.getAsJsonObject();
 
     String className = jsonObj.get("className").getAsString();
     String name = jsonObj.get("name").getAsString();
     String description = jsonObj.get("description").getAsString();
     Set<String> datasets = deserializeSet(jsonObj.get("datasets"), context, String.class);
-    Map<String, String> properties = deserializeMap(jsonObj.get("properties"), context, String.class);
+    Map<String, String> properties = deserializeMap(jsonObj.get("properties"), context,
+        String.class);
     return new DefaultConditionSpecification(className, name, description, properties, datasets);
 
   }
 
   @Override
-  public JsonElement serialize(ConditionSpecification src, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(ConditionSpecification src, Type typeOfSrc,
+      JsonSerializationContext context) {
     JsonObject jsonObj = new JsonObject();
 
     jsonObj.add("className", new JsonPrimitive(src.getClassName()));

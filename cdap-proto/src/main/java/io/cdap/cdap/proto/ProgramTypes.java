@@ -22,7 +22,6 @@ import io.cdap.cdap.api.service.ServiceSpecification;
 import io.cdap.cdap.api.spark.SparkSpecification;
 import io.cdap.cdap.api.worker.WorkerSpecification;
 import io.cdap.cdap.api.workflow.WorkflowSpecification;
-
 import java.util.IdentityHashMap;
 import java.util.Map;
 
@@ -32,7 +31,8 @@ import java.util.Map;
 public class ProgramTypes {
 
   private static final Map<Class<? extends ProgramSpecification>, ProgramType> specClassToProgramType =
-    new IdentityHashMap<>();
+      new IdentityHashMap<>();
+
   static {
     specClassToProgramType.put(MapReduceSpecification.class, ProgramType.MAPREDUCE);
     specClassToProgramType.put(SparkSpecification.class, ProgramType.SPARK);

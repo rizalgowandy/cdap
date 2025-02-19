@@ -30,10 +30,6 @@ import io.cdap.cdap.api.service.AbstractService;
 import io.cdap.cdap.api.service.http.AbstractHttpServiceHandler;
 import io.cdap.cdap.api.service.http.HttpServiceRequest;
 import io.cdap.cdap.api.service.http.HttpServiceResponder;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
-import org.apache.twill.filesystem.Location;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -42,6 +38,9 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.twill.filesystem.Location;
 
 /**
  * App to test partition creation/deletion from programs
@@ -53,7 +52,7 @@ public class PartitionTestApp extends AbstractApplication {
   @Override
   public void configure() {
     addService(new PartitionService());
-    // Create a partitioned file set, configure it to work with MapReduce and with Explore
+    // Create a partitioned file set, configure it to work with MapReduce
     createDataset("pfs", PartitionedFileSet.class, PartitionedFileSetProperties.builder()
       // Properties for partitioning
       .setPartitioning(Partitioning.builder().addStringField("partition").addIntField("sub-partition").build())
@@ -61,10 +60,6 @@ public class PartitionTestApp extends AbstractApplication {
       .setInputFormat(TextInputFormat.class)
       .setOutputFormat(TextOutputFormat.class)
       .setOutputProperty(TextOutputFormat.SEPERATOR, ",")
-      // Properties for Explore (to create a partitioned Hive table)
-      .setEnableExploreOnCreate(true)
-      .setExploreFormat("csv")
-      .setExploreSchema("f1 STRING, f2 INT")
       .setDescription("App for testing authorization in partitioned filesets.")
       .build());
   }
@@ -154,8 +149,6 @@ public class PartitionTestApp extends AbstractApplication {
           responder.sendString(404, "Partition not found.", Charsets.UTF_8);
           return;
         }
-
-        pfs.dropPartition(key);
 
         responder.sendString(200, "Successfully dropped partition", Charsets.UTF_8);
       }

@@ -26,7 +26,6 @@ import io.cdap.cdap.proto.ScheduleDetail;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ScheduleId;
 import io.cdap.cdap.scheduler.ProgramScheduleService;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -34,10 +33,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Implementation for {@link ScheduleFetcher} that fetches {@link ScheduleDetail} directly from local store
- * via {@link ProgramScheduleService}
+ * Implementation for {@link ScheduleFetcher} that fetches {@link ScheduleDetail} directly from
+ * local store via {@link ProgramScheduleService}
  */
 public class LocalScheduleFetcher implements ScheduleFetcher {
+
   private final ProgramScheduleService programScheduleService;
 
   @Inject
@@ -47,28 +47,32 @@ public class LocalScheduleFetcher implements ScheduleFetcher {
 
   @Override
   public ScheduleDetail get(ScheduleId scheduleId) throws IOException, ScheduleNotFoundException {
-    ProgramScheduleRecord record =  null;
+    ProgramScheduleRecord record = null;
     try {
       record = programScheduleService.getRecord(scheduleId);
     } catch (NotFoundException e) {
       throw new ScheduleNotFoundException(scheduleId, e);
     } catch (Exception e) {
-      Throwables.propagateIfPossible(e.getCause(), IOException.class, ScheduleNotFoundException.class);
+      Throwables.propagateIfPossible(e.getCause(), IOException.class,
+          ScheduleNotFoundException.class);
       throw new IOException(e);
     }
     return record.toScheduleDetail();
   }
 
-    @Override
-    public List<ScheduleDetail> list(ProgramId programId) throws IOException, ProgramNotFoundException {
-      Predicate<ProgramScheduleRecord> predicate  = (record) -> true;
-      Collection<ProgramScheduleRecord> schedules = null;
-      try {
-        schedules = programScheduleService.list(programId, predicate);
-      } catch (Exception e) {
-        Throwables.propagateIfPossible(e.getCause(), IOException.class, ProgramNotFoundException.class);
-        throw new IOException(e);
-      }
-      return schedules.stream().map(ProgramScheduleRecord::toScheduleDetail).collect(Collectors.toList());
+  @Override
+  public List<ScheduleDetail> list(ProgramId programId)
+      throws IOException, ProgramNotFoundException {
+    Predicate<ProgramScheduleRecord> predicate = (record) -> true;
+    Collection<ProgramScheduleRecord> schedules = null;
+    try {
+      schedules = programScheduleService.list(programId, predicate);
+    } catch (Exception e) {
+      Throwables.propagateIfPossible(e.getCause(), IOException.class,
+          ProgramNotFoundException.class);
+      throw new IOException(e);
+    }
+    return schedules.stream().map(ProgramScheduleRecord::toScheduleDetail)
+        .collect(Collectors.toList());
   }
 }

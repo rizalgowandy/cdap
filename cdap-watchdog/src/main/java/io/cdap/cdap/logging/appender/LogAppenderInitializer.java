@@ -25,9 +25,6 @@ import ch.qos.logback.core.status.StatusManager;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import com.google.inject.Inject;
-import org.slf4j.ILoggerFactory;
-import org.slf4j.LoggerFactory;
-
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.HashSet;
@@ -35,11 +32,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.LoggerFactory;
 
 /**
  * Creates and sets the logback log appender.
  */
 public class LogAppenderInitializer implements Closeable {
+
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(LogAppenderInitializer.class);
   private final Set<String> loggerNames = Collections.newSetFromMap(new ConcurrentHashMap<>());
   private final LogAppender logAppender;
@@ -149,14 +149,16 @@ public class LogAppenderInitializer implements Closeable {
 
   /**
    * Helper function to get the {@link LoggerContext}
-   * @return the {@link LoggerContext} or null if {@link LoggerFactory} is not a logback LoggerContext.
+   *
+   * @return the {@link LoggerContext} or null if {@link LoggerFactory} is not a logback
+   *     LoggerContext.
    */
   @Nullable
   private LoggerContext getLoggerContext() {
     ILoggerFactory loggerFactory = LoggerFactory.getILoggerFactory();
     if (!(loggerFactory instanceof LoggerContext)) {
-      LOG.warn("LoggerFactory is not a logback LoggerContext. No log appender is added. " +
-                 "Logback might not be in the classpath");
+      LOG.warn("LoggerFactory is not a logback LoggerContext. No log appender is added. "
+          + "Logback might not be in the classpath");
       return null;
     }
     return (LoggerContext) loggerFactory;

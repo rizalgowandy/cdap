@@ -24,7 +24,6 @@ import io.cdap.cdap.spi.data.StructuredTableContext;
 import io.cdap.cdap.spi.data.TableNotFoundException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -40,7 +39,8 @@ public class DefaultNamespaceStore implements NamespaceStore {
     this.transactionRunner = transactionRunner;
   }
 
-  private NamespaceTable getNamespaceTable(StructuredTableContext context) throws TableNotFoundException {
+  private NamespaceTable getNamespaceTable(StructuredTableContext context)
+      throws TableNotFoundException {
     return new NamespaceTable(context);
   }
 

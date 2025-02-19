@@ -19,23 +19,23 @@ package io.cdap.cdap.api.dataset.lib;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.dataset.metrics.MeteredDataset;
 import io.cdap.cdap.api.metrics.MetricsCollector;
-import org.apache.tephra.Transaction;
-import org.apache.tephra.TransactionAware;
-import org.apache.tephra.TransactionAwares;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.tephra.Transaction;
+import org.apache.tephra.TransactionAware;
+import org.apache.tephra.TransactionAwares;
 
 /**
  * Handy abstract implementation of {@link Dataset} that acts on a list of underlying datasets and
- * implements {@link TransactionAware} and {@link MeteredDataset} interfaces by propagating corresponded
- * logic to each dataset in a list when possible.
+ * implements {@link TransactionAware} and {@link MeteredDataset} interfaces by propagating
+ * corresponded logic to each dataset in a list when possible.
  */
 public abstract class AbstractDataset implements Dataset, MeteredDataset, TransactionAware {
+
   private final String instanceName;
   private final Collection<Dataset> underlying;
   private final TransactionAware txAwares;
@@ -47,9 +47,9 @@ public abstract class AbstractDataset implements Dataset, MeteredDataset, Transa
     Collections.addAll(this.underlying, otherEmbedded);
 
     List<TransactionAware> txAwares = underlying.stream()
-      .filter(dataset -> dataset instanceof TransactionAware)
-      .map(dataset -> (TransactionAware) dataset)
-      .collect(Collectors.toList());
+        .filter(dataset -> dataset instanceof TransactionAware)
+        .map(dataset -> (TransactionAware) dataset)
+        .collect(Collectors.toList());
     this.txAwares = TransactionAwares.of(txAwares);
   }
 

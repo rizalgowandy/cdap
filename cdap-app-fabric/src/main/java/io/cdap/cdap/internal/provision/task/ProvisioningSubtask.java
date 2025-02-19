@@ -23,7 +23,6 @@ import io.cdap.cdap.runtime.spi.provisioner.Cluster;
 import io.cdap.cdap.runtime.spi.provisioner.Provisioner;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerContext;
 import io.cdap.cdap.runtime.spi.provisioner.RetryableProvisionException;
-
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -31,12 +30,13 @@ import java.util.function.Function;
  * A subtask that is performed as part of a provisioning operation.
  */
 public abstract class ProvisioningSubtask {
+
   private final Function<Cluster, Optional<ProvisioningOp.Status>> transition;
   protected final Provisioner provisioner;
   protected final ProvisionerContext provisionerContext;
 
   protected ProvisioningSubtask(Provisioner provisioner, ProvisionerContext provisionerContext,
-                                Function<Cluster, Optional<ProvisioningOp.Status>> transition) {
+      Function<Cluster, Optional<ProvisioningOp.Status>> transition) {
     this.provisioner = provisioner;
     this.provisionerContext = provisionerContext;
     this.transition = transition;
@@ -45,7 +45,8 @@ public abstract class ProvisioningSubtask {
   /**
    * Executes the subtask and returns the next subtask that should be executed if there is one.
    *
-   * @param taskInfo information about the task being executed, including the current cluster state
+   * @param taskInfo information about the task being executed, including the current cluster
+   *     state
    * @return task info to be sent to the next subtask if there is one
    * @throws Exception if there was an error executing the subtask
    */
@@ -59,8 +60,8 @@ public abstract class ProvisioningSubtask {
   }
 
   /**
-   * Execute the subtask and return the cluster that results from the subtask.
-   * This method must be implemented in an idempotent fashion as it may be retried.
+   * Execute the subtask and return the cluster that results from the subtask. This method must be
+   * implemented in an idempotent fashion as it may be retried.
    *
    * @param cluster the cluster before executing the subtask
    * @return the cluster after successful completion of the subtask

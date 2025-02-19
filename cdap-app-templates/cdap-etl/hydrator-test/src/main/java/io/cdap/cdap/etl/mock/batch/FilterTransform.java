@@ -29,7 +29,6 @@ import io.cdap.cdap.etl.api.Emitter;
 import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.api.TransformContext;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -43,6 +42,7 @@ import java.util.Map;
 @Plugin(type = Transform.PLUGIN_TYPE)
 @Name("FilterTransform")
 public class FilterTransform extends Transform<StructuredRecord, StructuredRecord> {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   private final Config config;
   private URL url;
@@ -58,7 +58,8 @@ public class FilterTransform extends Transform<StructuredRecord, StructuredRecor
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     StructuredRecord.Builder outputBuilder = getOutputBuilder(input);
 
     String name = input.get(config.name);
@@ -96,6 +97,7 @@ public class FilterTransform extends Transform<StructuredRecord, StructuredRecor
    * Config for FilterTransform
    */
   public static class Config extends PluginConfig {
+
     private String name;
   }
 
@@ -110,7 +112,7 @@ public class FilterTransform extends Transform<StructuredRecord, StructuredRecor
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("name", new PluginPropertyField("name", "", "string", true, false));
     return PluginClass.builder().setName("FilterTransform").setType(Transform.PLUGIN_TYPE)
-             .setDescription("").setClassName(FilterTransform.class.getName()).setProperties(properties)
-             .setConfigFieldName("config").build();
+        .setDescription("").setClassName(FilterTransform.class.getName()).setProperties(properties)
+        .setConfigFieldName("config").build();
   }
 }

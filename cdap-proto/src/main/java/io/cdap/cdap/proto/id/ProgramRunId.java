@@ -18,7 +18,7 @@ package io.cdap.cdap.proto.id;
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.element.EntityType;
-
+import io.cdap.cdap.runtime.spi.ProgramRunInfo;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -28,6 +28,7 @@ import java.util.Objects;
  * Uniquely identifies a program run.
  */
 public class ProgramRunId extends NamespacedEntityId implements ParentedId<ProgramId> {
+
   private final String application;
   private final String version;
   private final ProgramType type;
@@ -35,7 +36,8 @@ public class ProgramRunId extends NamespacedEntityId implements ParentedId<Progr
   private final String run;
   private transient Integer hashCode;
 
-  public ProgramRunId(String namespace, String application, ProgramType type, String program, String run) {
+  public ProgramRunId(String namespace, String application, ProgramType type, String program,
+      String run) {
     this(new ApplicationId(namespace, application), type, program, run);
   }
 
@@ -55,6 +57,14 @@ public class ProgramRunId extends NamespacedEntityId implements ParentedId<Progr
     this.type = type;
     this.program = program;
     this.run = run;
+  }
+
+  public ProgramRunId(ProgramRunInfo programRunInfo) {
+    this(new ApplicationId(programRunInfo.getNamespace(), programRunInfo.getApplication(),
+            programRunInfo.getVersion()),
+        ProgramType.valueOf(programRunInfo.getProgramType()),
+        programRunInfo.getProgram(),
+        programRunInfo.getRun());
   }
 
   public String getApplication() {
@@ -84,7 +94,8 @@ public class ProgramRunId extends NamespacedEntityId implements ParentedId<Progr
 
   @Override
   public ProgramId getParent() {
-    return new ProgramId(new ApplicationId(getNamespace(), getApplication(), getVersion()), getType(), getProgram());
+    return new ProgramId(new ApplicationId(getNamespace(), getApplication(), getVersion()),
+        getType(), getProgram());
   }
 
   @Override
@@ -93,16 +104,17 @@ public class ProgramRunId extends NamespacedEntityId implements ParentedId<Progr
       return false;
     }
     ProgramRunId that = (ProgramRunId) o;
-    return Objects.equals(getParent(), that.getParent()) &&
-      Objects.equals(run, that.run);
+    return Objects.equals(getParent(), that.getParent())
+        && Objects.equals(run, that.run);
   }
 
   @Override
   public int hashCode() {
     Integer hashCode = this.hashCode;
     if (hashCode == null) {
-      this.hashCode = hashCode = Objects.hash(super.hashCode(), getNamespace(), getApplication(), getVersion(),
-                                              getType(), getProgram(), run);
+      this.hashCode = hashCode = Objects.hash(super.hashCode(), getNamespace(), getApplication(),
+          getVersion(),
+          getType(), getProgram(), run);
     }
     return hashCode;
   }
@@ -111,26 +123,28 @@ public class ProgramRunId extends NamespacedEntityId implements ParentedId<Progr
   public static ProgramRunId fromIdParts(Iterable<String> idString) {
     Iterator<String> iterator = idString.iterator();
     return new ProgramRunId(
-      new ApplicationId(next(iterator, "namespace"), next(iterator, "application"), next(iterator, "version")),
-      ProgramType.valueOfPrettyName(next(iterator, "type")),
-      next(iterator, "program"), nextAndEnd(iterator, "run"));
+        new ApplicationId(next(iterator, "namespace"), next(iterator, "application"),
+            next(iterator, "version")),
+        ProgramType.valueOfPrettyName(next(iterator, "type")),
+        next(iterator, "program"), nextAndEnd(iterator, "run"));
   }
 
   @Override
   public MetadataEntity toMetadataEntity() {
     return MetadataEntity.builder().append(MetadataEntity.NAMESPACE, namespace)
-      .append(MetadataEntity.APPLICATION, application)
-      .append(MetadataEntity.VERSION, version).append(MetadataEntity.TYPE, type.getPrettyName())
-      .append(MetadataEntity.PROGRAM, program)
-      .appendAsType(MetadataEntity.PROGRAM_RUN, run)
-      .build();
+        .append(MetadataEntity.APPLICATION, application)
+        .append(MetadataEntity.VERSION, version).append(MetadataEntity.TYPE, type.getPrettyName())
+        .append(MetadataEntity.PROGRAM, program)
+        .appendAsType(MetadataEntity.PROGRAM_RUN, run)
+        .build();
   }
 
   @Override
   public Iterable<String> toIdParts() {
     return Collections.unmodifiableList(
-      Arrays.asList(getNamespace(), getApplication(), getVersion(), getType().getPrettyName().toLowerCase(),
-                    getProgram(), run)
+        Arrays.asList(getNamespace(), getApplication(), getVersion(),
+            getType().getPrettyName().toLowerCase(),
+            getProgram(), run)
     );
   }
 

@@ -23,7 +23,6 @@ import io.cdap.cdap.api.dataset.DatasetSpecification;
 import io.cdap.cdap.api.dataset.table.Table;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.data2.dataset2.lib.table.AbstractTableDefinition;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -42,13 +41,13 @@ public class LevelDBTableDefinition extends AbstractTableDefinition<Table, Level
 
   @Override
   public Table getDataset(DatasetContext datasetContext, DatasetSpecification spec,
-                          Map<String, String> arguments, ClassLoader classLoader) throws IOException {
+      Map<String, String> arguments, ClassLoader classLoader) throws IOException {
     return new LevelDBTable(datasetContext, spec.getName(), service, cConf, spec);
   }
 
   @Override
   public LevelDBTableAdmin getAdmin(DatasetContext datasetContext, DatasetSpecification spec,
-                                    ClassLoader classLoader) throws IOException {
+      ClassLoader classLoader) throws IOException {
     return new LevelDBTableAdmin(datasetContext, spec, service, cConf);
   }
 }

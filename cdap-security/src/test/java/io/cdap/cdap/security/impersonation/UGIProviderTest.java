@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2019 Cask Data, Inc.
+ * Copyright © 2016-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -36,6 +36,13 @@ import io.cdap.http.HttpResponder;
 import io.cdap.http.NettyHttpService;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.io.Text;
@@ -55,14 +62,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
 
 /**
  * Unit tests for {@link UGIProvider}.
@@ -125,6 +124,8 @@ public class UGIProviderTest {
     hConf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, TEMP_FOLDER.newFolder().getAbsolutePath());
     hConf.setBoolean("ipc.client.fallback-to-simple-auth-allowed", true);
     hConf.setBoolean("ignore.secure.ports.for.testing", true);
+    hConf.setInt("dfs.namenode.metrics.logger.period.seconds", -1);
+    hConf.setInt("dfs.datanode.metrics.logger.period.seconds", -1);
 
     miniDFSCluster = new MiniDFSCluster.Builder(hConf).numDataNodes(1).build();
     miniDFSCluster.waitClusterUp();
@@ -211,8 +212,8 @@ public class UGIProviderTest {
   }
 
   private void setKeytabDir(String keytabDirPath) {
-    cConf.set(Constants.Security.KEYTAB_PATH, keytabDirPath + "/" +
-      Constants.USER_NAME_SPECIFIER + ".keytab");
+    cConf.set(Constants.Security.KEYTAB_PATH, keytabDirPath + "/"
+        + Constants.USER_NAME_SPECIFIER + ".keytab");
   }
 
   private static String getPrincipal(String name) {

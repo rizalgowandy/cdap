@@ -16,12 +16,11 @@
 
 package io.cdap.cdap.api.metadata;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Test for  {@link MetadataEntity}
@@ -169,7 +168,7 @@ public class MetadataEntityTest {
     MetadataEntity.builder().append(MetadataEntity.NAMESPACE, "ns").appendAsType(MetadataEntity.APPLICATION, "myApp")
       .appendAsType(MetadataEntity.SCHEDULE, "sched").build();
     MetadataEntity.builder().append(MetadataEntity.NAMESPACE, "ns").appendAsType(MetadataEntity.APPLICATION, "myApp")
-      .append(MetadataEntity.VERSION, "1").appendAsType(MetadataEntity.SCHEDULE, "sched").build();
+      .appendAsType(MetadataEntity.SCHEDULE, "sched").build();
     try {
       MetadataEntity.builder().append(MetadataEntity.NAMESPACE, "ns")
         .appendAsType(MetadataEntity.SCHEDULE, "sched").build();

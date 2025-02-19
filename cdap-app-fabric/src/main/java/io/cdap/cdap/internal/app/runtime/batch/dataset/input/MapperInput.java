@@ -17,15 +17,15 @@
 package io.cdap.cdap.internal.app.runtime.batch.dataset.input;
 
 import io.cdap.cdap.api.data.batch.InputFormatProvider;
-import org.apache.hadoop.mapreduce.Mapper;
-
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.hadoop.mapreduce.Mapper;
 
 /**
  * Encapsulates {@link InputFormatProvider} and a {@link Mapper} to use for that input.
  */
 public class MapperInput {
+
   private final String alias;
   private final InputFormatProvider inputFormatProvider;
   private final String inputFormatClassName;
@@ -33,9 +33,11 @@ public class MapperInput {
   private final Class<? extends Mapper> mapper;
 
   /**
-   * Creates an instance of MapperInput with the given InputFormatProvider and specified Mapper class.
+   * Creates an instance of MapperInput with the given InputFormatProvider and specified Mapper
+   * class.
    */
-  public MapperInput(String alias, InputFormatProvider inputFormatProvider, @Nullable Class<? extends Mapper> mapper) {
+  public MapperInput(String alias, InputFormatProvider inputFormatProvider,
+      @Nullable Class<? extends Mapper> mapper) {
     this.alias = alias;
     this.inputFormatProvider = inputFormatProvider;
     this.inputFormatClassName = inputFormatProvider.getInputFormatClassName();
@@ -43,11 +45,11 @@ public class MapperInput {
     this.mapper = mapper;
     if (inputFormatClassName == null) {
       throw new IllegalArgumentException(
-        "Input '" + alias + "' provided null as the input format");
+          "Input '" + alias + "' provided null as the input format");
     }
     if (inputFormatConfiguration == null) {
       throw new IllegalArgumentException(
-        "Input '" + alias + "' provided null as the input format configuration");
+          "Input '" + alias + "' provided null as the input format configuration");
     }
   }
 

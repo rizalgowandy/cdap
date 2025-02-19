@@ -25,26 +25,25 @@ import com.google.inject.Module;
 import io.cdap.cdap.app.guice.RuntimeServerModule;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.conf.Constants.InternalRouter;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
 import io.cdap.cdap.data.runtime.SystemDatasetRuntimeModule;
+import io.cdap.cdap.internal.app.runtime.monitor.InternalRouterService;
 import io.cdap.cdap.internal.app.runtime.monitor.RuntimeProgramStatusSubscriberService;
 import io.cdap.cdap.internal.app.runtime.monitor.RuntimeServer;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
-import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.twill.zookeeper.ZKClientService;
-
 import java.util.Arrays;
 import java.util.List;
 import javax.annotation.Nullable;
+import org.apache.twill.zookeeper.ZKClientService;
 
 /**
  * The main class to run the runtime service for program runtime monitoring.
@@ -52,7 +51,7 @@ import javax.annotation.Nullable;
 public class RuntimeServiceMain extends AbstractServiceMain<EnvironmentOptions> {
 
   /**
-   * Main entry point
+   * Main entry point.
    */
   public static void main(String[] args) throws Exception {
     main(RuntimeServiceMain.class, args);
@@ -60,14 +59,14 @@ public class RuntimeServiceMain extends AbstractServiceMain<EnvironmentOptions> 
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options, CConfiguration cConf) {
+      EnvironmentOptions options, CConfiguration cConf) {
     return Arrays.asList(
-      new DFSLocationModule(),
-      new MessagingClientModule(),
-      new SystemDatasetRuntimeModule().getStandaloneModules(),
-      getDataFabricModule(),
-      new RuntimeServerModule(),
-      new AuthorizationEnforcementModule().getDistributedModules()
+        new DFSLocationModule(),
+        new MessagingServiceModule(cConf),
+        new SystemDatasetRuntimeModule().getStandaloneModules(),
+        getDataFabricModule(),
+        new RuntimeServerModule(),
+        new AuthorizationEnforcementModule().getDistributedModules()
     );
   }
 
@@ -80,13 +79,14 @@ public class RuntimeServiceMain extends AbstractServiceMain<EnvironmentOptions> 
 
   @Override
   protected void addServices(Injector injector, List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources,
-                             MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
-                             EnvironmentOptions options) {
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
+      EnvironmentOptions options) {
     services.add(new AbstractIdleService() {
       @Override
       protected void startUp() throws Exception {
-        StoreDefinition.createAllTables(injector.getInstance(StructuredTableAdmin.class));
+        StoreDefinition.createAllTables(
+            injector.getInstance(StructuredTableAdmin.class));
       }
 
       @Override
@@ -96,13 +96,14 @@ public class RuntimeServiceMain extends AbstractServiceMain<EnvironmentOptions> 
     });
     services.add(injector.getInstance(RuntimeProgramStatusSubscriberService.class));
     services.add(injector.getInstance(RuntimeServer.class));
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+    if (injector.getInstance(CConfiguration.class)
+        .getBoolean(InternalRouter.SERVER_ENABLED)) {
+      services.add(injector.getInstance(InternalRouterService.class));
+    }
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
-    }
-    CConfiguration cConf = injector.getInstance(CConfiguration.class);
-    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
-      services.add(injector.getInstance(TokenManager.class));
     }
   }
 
@@ -110,7 +111,7 @@ public class RuntimeServiceMain extends AbstractServiceMain<EnvironmentOptions> 
   @Override
   protected LoggingContext getLoggingContext(EnvironmentOptions options) {
     return new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                     Constants.Logging.COMPONENT_NAME,
-                                     Constants.Service.RUNTIME);
+        Constants.Logging.COMPONENT_NAME,
+        Constants.Service.RUNTIME);
   }
 }

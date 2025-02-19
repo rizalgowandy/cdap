@@ -16,11 +16,6 @@
 
 package io.cdap.cdap.common.io;
 
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +29,10 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link Location} implementation that caches data read locally to allow efficient re-reading.
@@ -46,7 +45,8 @@ final class CachingLocation implements LinkableLocation {
   private final Location delegate;
   private final CachingPathProvider cachingPathProvider;
 
-  CachingLocation(LocationFactory locationFactory, Location delegate, CachingPathProvider cachingPathProvider) {
+  CachingLocation(LocationFactory locationFactory, Location delegate,
+      CachingPathProvider cachingPathProvider) {
     this.locationFactory = locationFactory;
     this.delegate = delegate;
     this.cachingPathProvider = cachingPathProvider;
@@ -127,9 +127,10 @@ final class CachingLocation implements LinkableLocation {
 
     try (InputStream input = delegate.getInputStream()) {
       Files.createDirectories(cachePath.getParent());
-      Path tmpPath = Files.createTempFile(cachePath.getParent(), cachePath.getFileName().toString(), ".tmp",
-                                          PosixFilePermissions.asFileAttribute(
-                                            PosixFilePermissions.fromString("rw-------")));
+      Path tmpPath = Files.createTempFile(cachePath.getParent(), cachePath.getFileName().toString(),
+          ".tmp",
+          PosixFilePermissions.asFileAttribute(
+              PosixFilePermissions.fromString("rw-------")));
       Files.copy(input, tmpPath, StandardCopyOption.REPLACE_EXISTING);
       try {
         Files.move(tmpPath, cachePath, StandardCopyOption.ATOMIC_MOVE);
@@ -137,7 +138,7 @@ final class CachingLocation implements LinkableLocation {
         // Ignore because the target cache path is already exist. This can happen when there is concurrent fetches.
         LOG.trace("Cache file already exists", e);
       }
-      LOG.debug("Cached location {} to {}", delegate, cachePath);
+      LOG.trace("Cached location {} to {}", delegate, cachePath);
       return new FileInputStream(cachePath.toFile());
     } catch (IOException e) {
       LOG.warn("Failed to cache location {}", delegate, e);
@@ -184,7 +185,8 @@ final class CachingLocation implements LinkableLocation {
   @Nullable
   public Location renameTo(Location destination) throws IOException {
     Location result = this.delegate.renameTo(destination);
-    return result == null ? null : new CachingLocation(locationFactory, result, cachingPathProvider);
+    return result == null ? null
+        : new CachingLocation(locationFactory, result, cachingPathProvider);
   }
 
   @Override

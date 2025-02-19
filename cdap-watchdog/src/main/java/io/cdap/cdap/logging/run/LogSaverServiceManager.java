@@ -29,13 +29,14 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 public class LogSaverServiceManager extends AbstractMasterServiceManager {
 
   @Inject
-  LogSaverServiceManager(CConfiguration cConf, TwillRunner twillRunner, DiscoveryServiceClient discoveryClient) {
+  LogSaverServiceManager(CConfiguration cConf, TwillRunner twillRunner,
+      DiscoveryServiceClient discoveryClient) {
     super(cConf, discoveryClient, Constants.Service.LOGSAVER, twillRunner);
   }
 
   @Override
   public int getMaxInstances() {
-    return getCConf().getInt(Constants.LogSaver.MAX_INSTANCES);
+    return getCconf().getInt(Constants.LogSaver.MAX_INSTANCES);
   }
 
   @Override

@@ -24,17 +24,18 @@ import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramRunId;
-import org.apache.twill.common.Threads;
-
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.common.Threads;
 
 /**
- * A service which will emit metrics periodically about a profile, by default it will emit per 60 seconds
+ * A service which will emit metrics periodically about a profile, by default it will emit per 60
+ * seconds
  */
 public class ProfileMetricService extends AbstractScheduledService {
+
   private static final long DEFAULT_INTERVAL_MINUTES = 1L;
 
   private final MetricsContext metricsContext;
@@ -43,15 +44,17 @@ public class ProfileMetricService extends AbstractScheduledService {
   private ScheduledExecutorService executor;
   private long startUpTime;
 
-  public ProfileMetricService(MetricsCollectionService metricsCollectionService, ProgramRunId programRunId,
-                              ProfileId profileId, int numNodes) {
+  public ProfileMetricService(MetricsCollectionService metricsCollectionService,
+      ProgramRunId programRunId,
+      ProfileId profileId, int numNodes) {
     this(metricsCollectionService, programRunId, profileId, numNodes, DEFAULT_INTERVAL_MINUTES);
   }
 
   @VisibleForTesting
   ProfileMetricService(MetricsCollectionService metricsCollectionService, ProgramRunId programRunId,
-                       ProfileId profileId, int numNodes, long intervalMinutes) {
-    this.metricsContext = getMetricsContextForProfile(metricsCollectionService, programRunId, profileId);
+      ProfileId profileId, int numNodes, long intervalMinutes) {
+    this.metricsContext = getMetricsContextForProfile(metricsCollectionService, programRunId,
+        profileId);
     this.numNodes = numNodes;
     this.intervalMinutes = intervalMinutes;
   }
@@ -91,13 +94,15 @@ public class ProfileMetricService extends AbstractScheduledService {
     if (executor != null) {
       return executor;
     }
-    executor = Executors.newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("profile-metrics"));
+    executor = Executors.newSingleThreadScheduledExecutor(
+        Threads.createDaemonThreadFactory("profile-metrics"));
     return executor;
   }
 
   @VisibleForTesting
   void emitMetric() {
-    metricsContext.increment(Constants.Metrics.Program.PROGRAM_NODE_MINUTES, intervalMinutes * numNodes);
+    metricsContext.increment(Constants.Metrics.Program.PROGRAM_NODE_MINUTES,
+        intervalMinutes * numNodes);
   }
 
   @VisibleForTesting
@@ -109,17 +114,18 @@ public class ProfileMetricService extends AbstractScheduledService {
    * Get the metrics context for the program, the tags are constructed with the program run id and
    * the profile id
    */
-  private MetricsContext getMetricsContextForProfile(MetricsCollectionService metricsCollectionService,
-                                                     ProgramRunId programRunId, ProfileId profileId) {
+  private MetricsContext getMetricsContextForProfile(
+      MetricsCollectionService metricsCollectionService,
+      ProgramRunId programRunId, ProfileId profileId) {
     Map<String, String> tags = ImmutableMap.<String, String>builder()
-      .put(Constants.Metrics.Tag.PROFILE_SCOPE, profileId.getScope().name())
-      .put(Constants.Metrics.Tag.PROFILE, profileId.getProfile())
-      .put(Constants.Metrics.Tag.NAMESPACE, programRunId.getNamespace())
-      .put(Constants.Metrics.Tag.PROGRAM_TYPE, programRunId.getType().getPrettyName())
-      .put(Constants.Metrics.Tag.APP, programRunId.getApplication())
-      .put(Constants.Metrics.Tag.PROGRAM, programRunId.getProgram())
-      .put(Constants.Metrics.Tag.RUN_ID, programRunId.getRun())
-      .build();
+        .put(Constants.Metrics.Tag.PROFILE_SCOPE, profileId.getScope().name())
+        .put(Constants.Metrics.Tag.PROFILE, profileId.getProfile())
+        .put(Constants.Metrics.Tag.NAMESPACE, programRunId.getNamespace())
+        .put(Constants.Metrics.Tag.PROGRAM_TYPE, programRunId.getType().getPrettyName())
+        .put(Constants.Metrics.Tag.APP, programRunId.getApplication())
+        .put(Constants.Metrics.Tag.PROGRAM, programRunId.getProgram())
+        .put(Constants.Metrics.Tag.RUN_ID, programRunId.getRun())
+        .build();
 
     return metricsCollectionService.getContext(tags);
   }

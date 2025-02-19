@@ -21,16 +21,16 @@ import io.cdap.cdap.api.Resources;
 import io.cdap.cdap.api.annotation.TransactionControl;
 import io.cdap.cdap.api.annotation.TransactionPolicy;
 import io.cdap.cdap.internal.api.AbstractPluginConfigurable;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-
 /**
- * This abstract class provides a default implementation of {@link MapReduce} methods for easy extension.
+ * This abstract class provides a default implementation of {@link MapReduce} methods for easy
+ * extension.
  */
 public abstract class AbstractMapReduce extends AbstractPluginConfigurable<MapReduceConfigurer>
-  implements MapReduce, ProgramLifecycle<MapReduceContext> {
+    implements MapReduce, ProgramLifecycle<MapReduceContext> {
 
   private static final Logger LOG = LoggerFactory.getLogger(AbstractMapReduce.class);
   private MapReduceConfigurer configurer;
@@ -72,8 +72,8 @@ public abstract class AbstractMapReduce extends AbstractPluginConfigurable<MapRe
   }
 
   /**
-   * Sets a set of properties that will be available through the {@link MapReduceSpecification#getProperties()}
-   * at runtime.
+   * Sets a set of properties that will be available through the {@link
+   * MapReduceSpecification#getProperties()} at runtime.
    *
    * @param properties the properties to set
    */
@@ -110,8 +110,10 @@ public abstract class AbstractMapReduce extends AbstractPluginConfigurable<MapRe
   }
 
   /**
-   * Classes derived from {@link AbstractMapReduce} can override this method to initialize the {@link MapReduce}.
-   * {@link MapReduceContext} will be available in this method using {@link AbstractMapReduce#getContext}.
+   * Classes derived from {@link AbstractMapReduce} can override this method to initialize the
+   * {@link MapReduce}. {@link MapReduceContext} will be available in this method using {@link
+   * AbstractMapReduce#getContext}.
+   *
    * @throws Exception if there is any error in initializing the MapReduce
    */
   @TransactionPolicy(TransactionControl.IMPLICIT)
@@ -120,7 +122,8 @@ public abstract class AbstractMapReduce extends AbstractPluginConfigurable<MapRe
   }
 
   /**
-   * Classes derived from {@link AbstractMapReduce} can override this method to destroy the {@link MapReduce}.
+   * Classes derived from {@link AbstractMapReduce} can override this method to destroy the {@link
+   * MapReduce}.
    */
   @Override
   @TransactionPolicy(TransactionControl.IMPLICIT)

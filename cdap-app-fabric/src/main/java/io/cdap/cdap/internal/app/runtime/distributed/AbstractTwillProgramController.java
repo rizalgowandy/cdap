@@ -20,6 +20,11 @@ import io.cdap.cdap.app.runtime.LogLevelUpdater;
 import io.cdap.cdap.app.runtime.ProgramController;
 import io.cdap.cdap.internal.app.runtime.AbstractProgramController;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.twill.api.RunId;
 import org.apache.twill.api.ServiceController;
 import org.apache.twill.api.TwillController;
@@ -28,28 +33,26 @@ import org.apache.twill.common.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.Set;
-import javax.annotation.Nullable;
-
 /**
  * A {@link ProgramController} that control program through twill.
  */
 public abstract class AbstractTwillProgramController extends AbstractProgramController
-  implements ProgramController, LogLevelUpdater {
+    implements ProgramController, LogLevelUpdater {
 
   private static final Logger LOG = LoggerFactory.getLogger(AbstractTwillProgramController.class);
 
   private final TwillController twillController;
   private volatile boolean stopRequested;
 
-  protected AbstractTwillProgramController(ProgramRunId programRunId, TwillController twillController) {
+  protected AbstractTwillProgramController(ProgramRunId programRunId,
+      TwillController twillController) {
     super(programRunId);
     this.twillController = twillController;
   }
 
   /**
    * Get the RunId associated with the Twill controller.
+   *
    * @return the Twill RunId
    */
   public RunId getTwillRunId() {
@@ -57,21 +60,22 @@ public abstract class AbstractTwillProgramController extends AbstractProgramCont
   }
 
   /**
-   * Starts listening to TwillController state changes. For internal use only.
-   * The listener cannot be binded in constructor to avoid reference leak.
+   * Starts listening to TwillController state changes. For internal use only. The listener cannot
+   * be binded in constructor to avoid reference leak.
    *
    * @return this instance.
    */
   public ProgramController startListen() {
     twillController.onRunning(() -> {
-      LOG.info("Twill program running: {}, twill runId: {}", getProgramRunId(), twillController.getRunId());
+      LOG.info("Twill program running: {}, twill runId: {}", getProgramRunId(),
+          twillController.getRunId());
       started();
     }, Threads.SAME_THREAD_EXECUTOR);
 
     twillController.onTerminated(() -> {
       ServiceController.TerminationStatus terminationStatus = twillController.getTerminationStatus();
       LOG.info("Twill program terminated: {}, twill runId: {}, status: {}",
-               getProgramRunId(), twillController.getRunId(), terminationStatus);
+          getProgramRunId(), twillController.getRunId(), terminationStatus);
       if (stopRequested) {
         // Service was killed
         stop();
@@ -108,7 +112,8 @@ public abstract class AbstractTwillProgramController extends AbstractProgramCont
   }
 
   @Override
-  public void updateLogLevels(Map<String, LogEntry.Level> logLevels, @Nullable String componentName) throws Exception {
+  public void updateLogLevels(Map<String, LogEntry.Level> logLevels, @Nullable String componentName)
+      throws Exception {
     if (componentName == null) {
       twillController.updateLogLevels(logLevels).get();
     } else {
@@ -117,11 +122,13 @@ public abstract class AbstractTwillProgramController extends AbstractProgramCont
   }
 
   @Override
-  public void resetLogLevels(Set<String> loggerNames, @Nullable String componentName) throws Exception {
+  public void resetLogLevels(Set<String> loggerNames, @Nullable String componentName)
+      throws Exception {
     if (componentName == null) {
-      twillController.resetLogLevels(loggerNames.toArray(new String[loggerNames.size()])).get();
+      twillController.resetLogLevels(loggerNames.toArray(new String[0])).get();
     } else {
-      twillController.resetRunnableLogLevels(componentName, loggerNames.toArray(new String[loggerNames.size()])).get();
+      twillController.resetRunnableLogLevels(componentName, loggerNames.toArray(new String[0]))
+          .get();
     }
   }
 
@@ -138,7 +145,22 @@ public abstract class AbstractTwillProgramController extends AbstractProgramCont
   @Override
   protected final void doStop() throws Exception {
     stopRequested = true;
-    Futures.getUnchecked(twillController.terminate());
+    long gracefulTimeoutMillis = getGracefulTimeoutMillis();
+
+    Future<? extends ServiceController> terminateFuture;
+
+    if (gracefulTimeoutMillis >= 0) {
+      terminateFuture = twillController.terminate(gracefulTimeoutMillis, TimeUnit.MILLISECONDS);
+    } else {
+      terminateFuture = twillController.terminate();
+    }
+    Futures.getUnchecked(terminateFuture);
+  }
+
+  @Override
+  public void kill() {
+    stopRequested = true;
+    twillController.kill();
   }
 
   protected final TwillController getTwillController() {

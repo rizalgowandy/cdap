@@ -27,7 +27,6 @@ import io.cdap.cdap.cli.util.AbstractAuthCommand;
 import io.cdap.cdap.cli.util.FilePathResolver;
 import io.cdap.cdap.client.DatasetModuleClient;
 import io.cdap.common.cli.Arguments;
-
 import java.io.File;
 import java.io.PrintStream;
 
@@ -40,8 +39,9 @@ public class DeployDatasetModuleCommand extends AbstractAuthCommand {
   private final FilePathResolver resolver;
 
   @Inject
-  public DeployDatasetModuleCommand(DatasetModuleClient datasetModuleClient, FilePathResolver resolver,
-                                    CLIConfig cliConfig) {
+  public DeployDatasetModuleCommand(DatasetModuleClient datasetModuleClient,
+      FilePathResolver resolver,
+      CLIConfig cliConfig) {
     super(cliConfig);
     this.datasetModuleClient = datasetModuleClient;
     this.resolver = resolver;
@@ -49,28 +49,30 @@ public class DeployDatasetModuleCommand extends AbstractAuthCommand {
 
   @Override
   public void perform(Arguments arguments, PrintStream output) throws Exception {
-    File moduleJarFile = resolver.resolvePathToFile(arguments.get(ArgumentName.DATASET_MODULE_JAR_FILE.toString()));
+    File moduleJarFile = resolver.resolvePathToFile(
+        arguments.get(ArgumentName.DATASET_MODULE_JAR_FILE.toString()));
     Preconditions.checkArgument(moduleJarFile.exists(),
-                                "Module jar file '" + moduleJarFile.getAbsolutePath() + "' does not exist");
+        "Module jar file '" + moduleJarFile.getAbsolutePath() + "' does not exist");
     Preconditions.checkArgument(moduleJarFile.canRead());
     String moduleName = arguments.get(ArgumentName.NEW_DATASET_MODULE.toString());
     String moduleJarClassname = arguments.get(ArgumentName.DATASET_MODULE_JAR_CLASSNAME.toString());
 
     datasetModuleClient.add(cliConfig.getCurrentNamespace().datasetModule(moduleName),
-                            moduleJarClassname, moduleJarFile);
+        moduleJarClassname, moduleJarFile);
     output.printf("Successfully deployed dataset module '%s'\n", moduleName);
   }
 
   @Override
   public String getPattern() {
     return String.format("deploy dataset module <%s> <%s> <%s>",
-                         ArgumentName.NEW_DATASET_MODULE,
-                         ArgumentName.DATASET_MODULE_JAR_FILE,
-                         ArgumentName.DATASET_MODULE_JAR_CLASSNAME);
+        ArgumentName.NEW_DATASET_MODULE,
+        ArgumentName.DATASET_MODULE_JAR_FILE,
+        ArgumentName.DATASET_MODULE_JAR_CLASSNAME);
   }
 
   @Override
   public String getDescription() {
-    return String.format("Deploys %s", Fragment.of(Article.A, ElementType.DATASET_MODULE.getName()));
+    return String.format("Deploys %s",
+        Fragment.of(Article.A, ElementType.DATASET_MODULE.getName()));
   }
 }

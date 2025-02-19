@@ -28,10 +28,6 @@ import io.cdap.cdap.proto.codec.AuditMessageTypeAdapter;
 import io.cdap.cdap.proto.codec.EntityIdTypeAdapter;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.proto.id.SystemServiceId;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.lang.reflect.Type;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,6 +35,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  *
@@ -54,10 +52,10 @@ public class AuditMessageTest {
   @Test
   public void testCreateMessage() throws Exception {
     String dsCreateJson =
-      "{\"version\":2,\"time\":1000,\"metadataEntity\":{\"details\":{\"namespace\":\"ns1\",\"dataset\":\"ds1\"}," +
-        "\"type\":\"dataset\"},\"user\":\"user1\",\"type\":\"CREATE\",\"payload\":{}}";
+        "{\"version\":2,\"time\":1000,\"metadataEntity\":{\"details\":{\"namespace\":\"ns1\",\"dataset\":\"ds1\"},"
+            + "\"type\":\"dataset\"},\"user\":\"user1\",\"type\":\"CREATE\",\"payload\":{}}";
     AuditMessage dsCreate = new AuditMessage(1000L, new NamespaceId("ns1").dataset("ds1"), "user1",
-                                             AuditType.CREATE, AuditPayload.EMPTY_PAYLOAD);
+        AuditType.CREATE, AuditPayload.EMPTY_PAYLOAD);
     Assert.assertEquals(jsonToMap(dsCreateJson), jsonToMap(GSON.toJson(dsCreate)));
     Assert.assertEquals(dsCreate, GSON.fromJson(dsCreateJson, AuditMessage.class));
   }
@@ -65,38 +63,30 @@ public class AuditMessageTest {
   @Test
   public void testAccessMessage() throws Exception {
     String workerAccessJson =
-      "{\"version\":2,\"time\":2000,\"metadataEntity\":{\"details\":{\"namespace\":\"ns1\",\"dataset\":\"ds1\"}," +
-        "\"type\":\"dataset\"},\"user\":\"user1\",\"type\":\"ACCESS\",\"payload\":{\"accessType\":\"WRITE\"," +
-        "\"accessor\":{\"namespace\":\"ns1\",\"application\":\"app1\",\"version\":\"v1\",\"type\":\"Worker\"," +
-        "\"program\":\"worker1\",\"run\":\"run1\",\"entity\":\"PROGRAM_RUN\"}}}";
+        "{\"version\":2,\"time\":2000,\"metadataEntity\":{\"details\":{\"namespace\":\"ns1\",\"dataset\":\"ds1\"},"
+            + "\"type\":\"dataset\"},\"user\":\"user1\",\"type\":\"ACCESS\",\"payload\":{\"accessType\":\"WRITE\","
+            + "\"accessor\":{\"namespace\":\"ns1\",\"application\":\"app1\",\"version\":\"v1\",\"type\":\"Worker\","
+            + "\"program\":\"worker1\",\"run\":\"run1\",\"entity\":\"PROGRAM_RUN\"}}}";
     AuditMessage workerAccess =
-      new AuditMessage(2000L, new NamespaceId("ns1").dataset("ds1"), "user1", AuditType.ACCESS,
-                       new AccessPayload(AccessType.WRITE, new NamespaceId("ns1").app("app1", "v1").worker("worker1")
-                         .run("run1")));
+        new AuditMessage(2000L, new NamespaceId("ns1").dataset("ds1"), "user1", AuditType.ACCESS,
+            new AccessPayload(AccessType.WRITE,
+                new NamespaceId("ns1").app("app1", "v1").worker("worker1")
+                    .run("run1")));
     Assert.assertEquals(jsonToMap(workerAccessJson), jsonToMap(GSON.toJson(workerAccess)));
     Assert.assertEquals(workerAccess, GSON.fromJson(workerAccessJson, AuditMessage.class));
 
-    String exploreAccessJson =
-      "{\"version\":2,\"time\":2500,\"metadataEntity\":{\"details\":{\"namespace\":\"ns1\",\"dataset\":\"ds1\"}," +
-        "\"type\":\"dataset\"},\"user\":\"user1\",\"type\":\"ACCESS\",\"payload\":{\"accessType\":\"UNKNOWN\"," +
-        "\"accessor\":{\"service\":\"explore\",\"entity\":\"SYSTEM_SERVICE\"}}}";
-    AuditMessage exploreAccess =
-      new AuditMessage(2500L, new NamespaceId("ns1").dataset("ds1"), "user1", AuditType.ACCESS,
-                       new AccessPayload(AccessType.UNKNOWN, new SystemServiceId("explore")));
-    Assert.assertEquals(jsonToMap(exploreAccessJson), jsonToMap(GSON.toJson(exploreAccess)));
-    Assert.assertEquals(exploreAccess, GSON.fromJson(exploreAccessJson, AuditMessage.class));
   }
 
   @Test
   public void testMetadataChange() throws Exception {
     String metadataJson =
-      "{\"version\":2,\"time\":3000,\"metadataEntity\": { \"details\": { \"namespace\": \"ns1\", \"application\": " +
-        "\"app1\", \"version\": \"v1\" }, \"type\": \"application\" },\"user\":\"user1\",\"type\":" +
-        "\"METADATA_CHANGE\",\"payload\":{" +
-        "\"previous\":{\"USER\":{\"properties\":{\"uk\":\"uv\",\"uk1\":\"uv2\"},\"tags\":[\"ut1\",\"ut2\"]}," +
-        "\"SYSTEM\":{\"properties\":{\"sk\":\"sv\"},\"tags\":[]}}," +
-        "\"additions\":{\"SYSTEM\":{\"properties\":{\"sk\":\"sv\"},\"tags\":[\"t1\",\"t2\"]}}," +
-        "\"deletions\":{\"USER\":{\"properties\":{\"uk\":\"uv\"},\"tags\":[\"ut1\"]}}}}";
+        "{\"version\":2,\"time\":3000,\"metadataEntity\": { \"details\": { \"namespace\": \"ns1\", \"application\": "
+            + "\"app1\", \"version\": \"v1\" }, \"type\": \"application\" },\"user\":\"user1\",\"type\":"
+            + "\"METADATA_CHANGE\",\"payload\":{"
+            + "\"previous\":{\"USER\":{\"properties\":{\"uk\":\"uv\",\"uk1\":\"uv2\"},\"tags\":[\"ut1\",\"ut2\"]},"
+            + "\"SYSTEM\":{\"properties\":{\"sk\":\"sv\"},\"tags\":[]}},"
+            + "\"additions\":{\"SYSTEM\":{\"properties\":{\"sk\":\"sv\"},\"tags\":[\"t1\",\"t2\"]}},"
+            + "\"deletions\":{\"USER\":{\"properties\":{\"uk\":\"uv\"},\"tags\":[\"ut1\"]}}}}";
     Map<String, String> userProperties = new HashMap<>();
     userProperties.put("uk", "uv");
     userProperties.put("uk1", "uv2");

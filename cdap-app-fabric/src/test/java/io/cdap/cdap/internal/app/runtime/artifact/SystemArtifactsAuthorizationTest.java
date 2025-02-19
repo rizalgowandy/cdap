@@ -35,13 +35,24 @@ import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.security.Authorizable;
 import io.cdap.cdap.proto.security.GrantedPermission;
+import io.cdap.cdap.proto.security.NamespacePermission;
+import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.StandardPermission;
 import io.cdap.cdap.security.authorization.AccessControllerInstantiator;
-import io.cdap.cdap.security.authorization.InMemoryAccessController;
+import io.cdap.cdap.security.authorization.InMemoryAccessControllerV2;
 import io.cdap.cdap.security.spi.authentication.SecurityRequestContext;
-import io.cdap.cdap.security.spi.authorization.AccessController;
+import io.cdap.cdap.security.spi.authorization.AccessControllerSpi;
+import io.cdap.cdap.security.spi.authorization.PermissionManager;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
+import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.jar.Manifest;
 import org.apache.twill.filesystem.LocalLocationFactory;
 import org.apache.twill.filesystem.Location;
 import org.junit.AfterClass;
@@ -50,13 +61,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.jar.Manifest;
 
 /**
  * Tests for authorization for system artifacts. These tests are not in AuthorizationTest, because we do not want to
@@ -72,7 +76,8 @@ public class SystemArtifactsAuthorizationTest {
   private static final ArtifactId SYSTEM_ARTIFACT = NamespaceId.SYSTEM.artifact("system-artifact", "1.0.0");
 
   private static ArtifactRepository artifactRepository;
-  private static AccessController accessController;
+  private static AccessControllerSpi accessControllerSpi;
+  private static PermissionManager permissionManager;
   private static NamespaceAdmin namespaceAdmin;
 
   @BeforeClass
@@ -84,7 +89,7 @@ public class SystemArtifactsAuthorizationTest {
     cConf.setBoolean(Constants.Security.Authorization.ENABLED, true);
     cConf.setInt(Constants.Security.Authorization.CACHE_MAX_ENTRIES, 0);
     Location deploymentJar = AppJarHelper.createDeploymentJar(new LocalLocationFactory(TMP_FOLDER.newFolder()),
-                                                              InMemoryAccessController.class);
+                                                              InMemoryAccessControllerV2.class);
     cConf.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, deploymentJar.toURI().getPath());
 
     // Add a system artifact
@@ -94,7 +99,8 @@ public class SystemArtifactsAuthorizationTest {
     Injector injector = AppFabricTestHelper.getInjector(cConf);
     artifactRepository = injector.getInstance(ArtifactRepository.class);
     AccessControllerInstantiator instantiatorService = injector.getInstance(AccessControllerInstantiator.class);
-    accessController = instantiatorService.get();
+    accessControllerSpi = instantiatorService.get();
+    permissionManager = injector.getInstance(PermissionManager.class);
     namespaceAdmin = injector.getInstance(NamespaceAdmin.class);
   }
 
@@ -106,26 +112,28 @@ public class SystemArtifactsAuthorizationTest {
     SecurityRequestContext.setUserId(ALICE.getName());
     try {
       artifactRepository.addSystemArtifacts();
-      Assert.fail("Adding system artifacts should have failed because alice does not have admin privileges on " +
-                    "the namespace system.");
+      Assert.fail(
+          "Adding system artifacts should have failed because alice does not have admin privileges on "
+              + "the namespace system.");
     } catch (UnauthorizedException expected) {
       // expected
     }
     // grant alice admin privileges on the CDAP system namespace
     Authorizable authorizable = Authorizable.fromEntityId(NamespaceId.SYSTEM, EntityType.ARTIFACT);
-    accessController.grant(authorizable, ALICE,
-                           Collections.singleton(StandardPermission.CREATE));
+    permissionManager.grant(authorizable, ALICE,
+                            Collections.singleton(StandardPermission.CREATE));
     Assert.assertEquals(
       Collections.singleton(new GrantedPermission(authorizable, StandardPermission.CREATE)),
-      accessController.listGrants(ALICE));
+      permissionManager.listGrants(ALICE));
     // refreshing system artifacts should succeed now
     artifactRepository.addSystemArtifacts();
     SecurityRequestContext.setUserId("bob");
     // deleting a system artifact should fail because bob does not have admin privileges on the artifact
     try {
       artifactRepository.deleteArtifact(Id.Artifact.fromEntityId(SYSTEM_ARTIFACT));
-      Assert.fail("Deleting a system artifact should have failed because alice does not have admin privileges on " +
-                    "the artifact.");
+      Assert.fail(
+          "Deleting a system artifact should have failed because alice does not have admin privileges on "
+              + "the artifact.");
     } catch (UnauthorizedException expected) {
       // expected
     }
@@ -133,10 +141,13 @@ public class SystemArtifactsAuthorizationTest {
     // grant alice admin privileges on test namespace
     SecurityRequestContext.setUserId(ALICE.getName());
     NamespaceId namespaceId = new NamespaceId("test");
-    accessController.grant(Authorizable.fromEntityId(namespaceId), ALICE,
-                           EnumSet.allOf(StandardPermission.class));
-    accessController.grant(Authorizable.fromEntityId(namespaceId, EntityType.ARTIFACT), ALICE,
-                           EnumSet.of(StandardPermission.LIST));
+    Set<Permission> namespaceAdminPermissions = new HashSet<>();
+    namespaceAdminPermissions.addAll(EnumSet.allOf(StandardPermission.class));
+    namespaceAdminPermissions.addAll(EnumSet.allOf(NamespacePermission.class));
+
+    permissionManager.grant(Authorizable.fromEntityId(namespaceId), ALICE, namespaceAdminPermissions);
+    permissionManager.grant(Authorizable.fromEntityId(namespaceId, EntityType.ARTIFACT), ALICE,
+                            EnumSet.of(StandardPermission.LIST));
     namespaceAdmin.create(new NamespaceMeta.Builder().setName(namespaceId.getNamespace()).build());
 
     // test that system artifacts are available to everyone
@@ -157,7 +168,7 @@ public class SystemArtifactsAuthorizationTest {
     namespaceAdmin.delete(namespaceId);
     // enforce on the system artifact should fail in unit test, since we do not have auto-grant now
     try {
-      accessController.enforce(SYSTEM_ARTIFACT, ALICE, EnumSet.allOf(StandardPermission.class));
+      accessControllerSpi.enforce(SYSTEM_ARTIFACT, ALICE, EnumSet.allOf(StandardPermission.class));
       Assert.fail();
     } catch (UnauthorizedException e) {
       // expected
@@ -170,20 +181,20 @@ public class SystemArtifactsAuthorizationTest {
       // expected
     }
     // deleting system artifact should succeed if alice has DELETE on the artifact
-    accessController.grant(Authorizable.fromEntityId(SYSTEM_ARTIFACT), ALICE, EnumSet.of(StandardPermission.DELETE));
+    permissionManager.grant(Authorizable.fromEntityId(SYSTEM_ARTIFACT), ALICE, EnumSet.of(StandardPermission.DELETE));
     artifactRepository.deleteArtifact(Id.Artifact.fromEntityId(SYSTEM_ARTIFACT));
 
     // clean up privilege
-    accessController.revoke(Authorizable.fromEntityId(SYSTEM_ARTIFACT));
-    accessController.revoke(Authorizable.fromEntityId(NamespaceId.SYSTEM, EntityType.ARTIFACT));
-    accessController.revoke(Authorizable.fromEntityId(namespaceId, EntityType.ARTIFACT));
-    accessController.revoke(Authorizable.fromEntityId(namespaceId));
+    permissionManager.revoke(Authorizable.fromEntityId(SYSTEM_ARTIFACT));
+    permissionManager.revoke(Authorizable.fromEntityId(NamespaceId.SYSTEM, EntityType.ARTIFACT));
+    permissionManager.revoke(Authorizable.fromEntityId(namespaceId, EntityType.ARTIFACT));
+    permissionManager.revoke(Authorizable.fromEntityId(namespaceId));
   }
 
   @AfterClass
   public static void cleanup() throws Exception {
-    accessController.revoke(Authorizable.fromEntityId(NamespaceId.SYSTEM));
-    Assert.assertEquals(Collections.emptySet(), accessController.listGrants(ALICE));
+    permissionManager.revoke(Authorizable.fromEntityId(NamespaceId.SYSTEM));
+    Assert.assertEquals(Collections.emptySet(), permissionManager.listGrants(ALICE));
     SecurityRequestContext.setUserId(OLD_USER_ID);
     AppFabricTestHelper.shutdown();
   }

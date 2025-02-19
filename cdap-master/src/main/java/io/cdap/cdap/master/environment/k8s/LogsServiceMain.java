@@ -41,30 +41,28 @@ import io.cdap.cdap.gateway.handlers.CommonHandlers;
 import io.cdap.cdap.logging.appender.LogAppender;
 import io.cdap.cdap.logging.appender.LogMessage;
 import io.cdap.cdap.logging.framework.distributed.DistributedAppenderContext;
-import io.cdap.cdap.logging.guice.LogQueryRuntimeModule;
+import io.cdap.cdap.logging.gateway.handlers.ErrorClassificationHttpHandler;
+import io.cdap.cdap.logging.gateway.handlers.LogHttpHandler;
+import io.cdap.cdap.logging.gateway.handlers.ProgramRunRecordFetcher;
+import io.cdap.cdap.logging.gateway.handlers.RemoteProgramRunRecordFetcher;
 import io.cdap.cdap.logging.logbuffer.LogBufferService;
 import io.cdap.cdap.logging.read.FileLogReader;
 import io.cdap.cdap.logging.read.LogReader;
-import io.cdap.cdap.logging.service.LogQueryService;
-import io.cdap.cdap.logging.service.LogSaverStatusService;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.impersonation.CurrentUGIProvider;
-import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.http.HttpHandler;
-import org.apache.twill.zookeeper.ZKClientService;
-import org.slf4j.ILoggerFactory;
-import org.slf4j.LoggerFactory;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import javax.annotation.Nullable;
+import org.apache.twill.zookeeper.ZKClientService;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.LoggerFactory;
 
 /**
  * Main class for running log saver and log query service in Kubernetes.
@@ -80,65 +78,56 @@ public class LogsServiceMain extends AbstractServiceMain<EnvironmentOptions> {
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options, CConfiguration cConf) {
+      EnvironmentOptions options, CConfiguration cConf) {
     return Arrays.asList(
-      new AuthorizationEnforcementModule().getDistributedModules(),
-      new MessagingClientModule(),
-      getDataFabricModule(),
-      // Always use local table implementations, which use LevelDB.
-      // In K8s, there won't be HBase and the cdap-site should be set to use SQL store for StructuredTable.
-      new SystemDatasetRuntimeModule().getStandaloneModules(),
-      new DataSetsModules().getStandaloneModules(),
-      new LocalLocationModule(),
-      // log handler is co-located with log saver
-      new LogQueryRuntimeModule().getDistributedModules(),
-      new PrivateModule() {
-        @Override
-        protected void configure() {
-          // Current impersonation is not supported
-          bind(UGIProvider.class).to(CurrentUGIProvider.class).in(Scopes.SINGLETON);
-          bind(LogReader.class).to(FileLogReader.class);
-          expose(LogReader.class);
+        new AuthorizationEnforcementModule().getDistributedModules(),
+        new MessagingServiceModule(cConf),
+        getDataFabricModule(),
+        // Always use local table implementations, which use LevelDB.
+        // In K8s, there won't be HBase and the cdap-site should be set to use SQL store for StructuredTable.
+        new SystemDatasetRuntimeModule().getStandaloneModules(),
+        new DataSetsModules().getStandaloneModules(),
+        new LocalLocationModule(),
+        new PrivateModule() {
+          @Override
+          protected void configure() {
+            // Current impersonation is not supported
+            bind(UGIProvider.class).to(CurrentUGIProvider.class).in(Scopes.SINGLETON);
+            bind(LogReader.class).to(FileLogReader.class);
+            expose(LogReader.class);
 
-          bind(Integer.class).annotatedWith(Names.named(Constants.LogSaver.LOG_SAVER_INSTANCE_ID))
-            .toInstance(0);
-          bind(Integer.class).annotatedWith(Names.named(Constants.LogSaver.LOG_SAVER_INSTANCE_COUNT))
-            .toInstance(1);
-          bind(AppenderContext.class).to(DistributedAppenderContext.class);
+            bind(Integer.class).annotatedWith(Names.named(Constants.LogSaver.LOG_SAVER_INSTANCE_ID))
+                .toInstance(0);
+            bind(Integer.class).annotatedWith(
+                    Names.named(Constants.LogSaver.LOG_SAVER_INSTANCE_COUNT))
+                .toInstance(1);
+            bind(AppenderContext.class).to(DistributedAppenderContext.class);
 
-          bind(LogBufferService.class).in(Scopes.SINGLETON);
-          expose(LogBufferService.class);
+            // Bind the log buffer as the log saver service
+            Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder
+                (binder(), HttpHandler.class, Names.named(Constants.LogSaver.LOG_SAVER_HANDLER));
+            handlerBinder.addBinding().to(LogHttpHandler.class);
+            handlerBinder.addBinding().to(ErrorClassificationHttpHandler.class);
+            CommonHandlers.add(handlerBinder);
+            bind(ProgramRunRecordFetcher.class).to(RemoteProgramRunRecordFetcher.class);
 
-          // Bind the status service
-          Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder
-            (binder(), HttpHandler.class, Names.named(Constants.LogSaver.LOG_SAVER_STATUS_HANDLER));
-          CommonHandlers.add(handlerBinder);
-          bind(LogSaverStatusService.class).in(Scopes.SINGLETON);
-          expose(LogSaverStatusService.class);
+            bind(LogBufferService.class).in(Scopes.SINGLETON);
+            expose(LogBufferService.class);
+          }
         }
-      }
     );
   }
 
   @Override
   protected void addServices(Injector injector, List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources, MasterEnvironment masterEnv,
-                             MasterEnvironmentContext masterEnvContext, EnvironmentOptions options) {
-    // log saver
+      List<? super AutoCloseable> closeableResources, MasterEnvironment masterEnv,
+      MasterEnvironmentContext masterEnvContext, EnvironmentOptions options) {
     services.add(injector.getInstance(LogBufferService.class));
-    // log handler
-    services.add(injector.getInstance(LogQueryService.class));
-    // log saver status service
-    services.add(injector.getInstance(LogSaverStatusService.class));
     // ZK client service
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
-    }
-    // internal identity generation
-    CConfiguration cConf = injector.getInstance(CConfiguration.class);
-    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
-      services.add(injector.getInstance(TokenManager.class));
     }
   }
 
@@ -146,8 +135,8 @@ public class LogsServiceMain extends AbstractServiceMain<EnvironmentOptions> {
   @Override
   protected LoggingContext getLoggingContext(EnvironmentOptions options) {
     return new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                     Constants.Logging.COMPONENT_NAME,
-                                     Constants.Service.LOGSAVER);
+        Constants.Logging.COMPONENT_NAME,
+        Constants.Service.LOGSAVER);
   }
 
   @Override
@@ -169,7 +158,8 @@ public class LogsServiceMain extends AbstractServiceMain<EnvironmentOptions> {
     protected void appendEvent(LogMessage logMessage) {
       ILoggerFactory loggerFactory = LoggerFactory.getILoggerFactory();
       if (loggerFactory instanceof LoggerContext) {
-        ch.qos.logback.classic.Logger logger = ((LoggerContext) loggerFactory).getLogger(logMessage.getLoggerName());
+        ch.qos.logback.classic.Logger logger = ((LoggerContext) loggerFactory).getLogger(
+            logMessage.getLoggerName());
         Iterator<Appender<ILoggingEvent>> iterator = logger.iteratorForAppenders();
         while (iterator.hasNext()) {
           Appender<ILoggingEvent> appender = iterator.next();

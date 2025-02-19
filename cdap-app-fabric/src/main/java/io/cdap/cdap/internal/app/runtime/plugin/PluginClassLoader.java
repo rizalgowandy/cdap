@@ -18,12 +18,12 @@ package io.cdap.cdap.internal.app.runtime.plugin;
 
 import com.google.common.base.Preconditions;
 import io.cdap.cdap.api.artifact.ArtifactId;
+import io.cdap.cdap.api.artifact.CloseableClassLoader;
 import io.cdap.cdap.app.program.ManifestFields;
 import io.cdap.cdap.common.lang.CombineClassLoader;
 import io.cdap.cdap.common.lang.DirectoryClassLoader;
 import io.cdap.cdap.common.lang.PackageFilterClassLoader;
 import io.cdap.cdap.internal.app.runtime.ProgramClassLoader;
-
 import java.io.File;
 import java.util.Set;
 import java.util.jar.Manifest;
@@ -47,8 +47,8 @@ import java.util.jar.Manifest;
  * }</pre>
  *
  * <p/>
- * The Plugin ClassLoader is then a URLClassLoader created by expanding the plugin bundle jar, with the parent
- * ClassLoader as the Combine ClassLoader.
+ * The Plugin ClassLoader is then a URLClassLoader created by expanding the plugin bundle jar, with
+ * the parent ClassLoader as the Combine ClassLoader.
  */
 public class PluginClassLoader extends DirectoryClassLoader {
 
@@ -59,23 +59,31 @@ public class PluginClassLoader extends DirectoryClassLoader {
   static ClassLoader createParent(ClassLoader templateClassLoader) {
     // Find the ProgramClassLoader from the template ClassLoader
     ClassLoader programClassLoader = templateClassLoader;
-    while (programClassLoader != null && !(programClassLoader instanceof ProgramClassLoader)) {
+    while (programClassLoader != null
+           && !(programClassLoader instanceof ProgramClassLoader)) {
       programClassLoader = programClassLoader.getParent();
     }
     // This shouldn't happen
-    Preconditions.checkArgument(programClassLoader != null, "Cannot find ProgramClassLoader");
+    Preconditions.checkArgument(programClassLoader != null,
+        "Cannot find ProgramClassLoader");
 
     // Package filtered classloader of the template classloader, which only classes in "Export-Packages" are loadable.
     Manifest manifest = ((ProgramClassLoader) programClassLoader).getManifest();
     Set<String> exportPackages = ManifestFields.getExportPackages(manifest);
-    ClassLoader filteredTemplateClassLoader = new PackageFilterClassLoader(templateClassLoader,
-                                                                           exportPackages::contains);
+    PackageFilterClassLoader filteredTemplateClassLoader =
+        new PackageFilterClassLoader(templateClassLoader,
+            exportPackages::contains);
 
     // The lib Classloader needs to be able to see all cdap api classes as well.
-    // In this way, parent ClassLoader of the plugin ClassLoader will load class from the parent of the
-    // template program class loader (which is a filtered CDAP classloader),
-    // followed by template export-packages, then by a plugin lib jars.
-    return new CombineClassLoader(programClassLoader.getParent(), filteredTemplateClassLoader);
+    // In this way, parent ClassLoader of the plugin ClassLoader will load class
+    // from the parent of the template program class loader (which is a filtered
+    // CDAP classloader), followed by template export-packages, then by a plugin
+    // lib jars.
+    CombineClassLoader classLoader = new CombineClassLoader(
+        programClassLoader.getParent(), filteredTemplateClassLoader);
+    // Creating a CloseableClassLoader ensures that the caller can close the
+    // PackageFilterClassLoader that is held by the CombineClassLoader.
+    return new CloseableClassLoader(classLoader, filteredTemplateClassLoader);
   }
 
   PluginClassLoader(ArtifactId artifactId, File directory, String topLevelJar, ClassLoader parent) {
@@ -93,15 +101,14 @@ public class PluginClassLoader extends DirectoryClassLoader {
   }
 
   /**
-   * Creates a new {@link ClassLoader} that only exposes classes in packages declared by "Export-Package"
-   * in the manifest.
+   * Creates a new {@link ClassLoader} that only exposes classes in packages declared by
+   * "Export-Package" in the manifest.
    */
   public ClassLoader getExportPackagesClassLoader() {
     return new PackageFilterClassLoader(this, exportPackages::contains);
   }
 
   /**
-   *
    * @return a file name of top level plugin jar. Main plugin class should reside in this jar.
    */
   public String getTopLevelJar() {

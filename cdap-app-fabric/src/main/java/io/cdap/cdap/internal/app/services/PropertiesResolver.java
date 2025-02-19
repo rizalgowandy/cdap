@@ -23,15 +23,18 @@ import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
+import io.cdap.cdap.internal.app.runtime.SystemArguments;
 import io.cdap.cdap.metadata.PreferencesFetcher;
+import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.PreferencesDetail;
+import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.impersonation.ImpersonationInfo;
 import io.cdap.cdap.security.impersonation.OwnerAdmin;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,40 +43,62 @@ import java.util.Map;
  * Used to provide default user and system properties that can be used while starting a Program.
  */
 public class PropertiesResolver {
+
   private final PreferencesFetcher preferencesFetcher;
   private final CConfiguration cConf;
   private final OwnerAdmin ownerAdmin;
   private final SchedulerQueueResolver queueResolver;
+  private final NamespaceQueryAdmin namespaceQueryAdmin;
 
   @Inject
   PropertiesResolver(PreferencesFetcher preferencesFetcher, CConfiguration cConf,
-                     OwnerAdmin ownerAdmin,
-                     SchedulerQueueResolver schedulerQueueResolver) {
+      OwnerAdmin ownerAdmin,
+      SchedulerQueueResolver schedulerQueueResolver,
+      NamespaceQueryAdmin namespaceQueryAdmin) {
     this.preferencesFetcher = preferencesFetcher;
     this.cConf = cConf;
     this.ownerAdmin = ownerAdmin;
     this.queueResolver = schedulerQueueResolver;
+    this.namespaceQueryAdmin = namespaceQueryAdmin;
   }
 
   public Map<String, String> getUserProperties(ProgramId id)
-    throws IOException, NotFoundException, UnauthorizedException {
+      throws IOException, NotFoundException, UnauthorizedException {
     PreferencesDetail preferencesDetail = preferencesFetcher.get(id, true);
     Map<String, String> userArgs = new HashMap<>(preferencesDetail.getProperties());
-    userArgs.put(ProgramOptionConstants.LOGICAL_START_TIME, Long.toString(System.currentTimeMillis()));
+    userArgs.put(ProgramOptionConstants.LOGICAL_START_TIME,
+        Long.toString(System.currentTimeMillis()));
     return userArgs;
   }
 
   public Map<String, String> getSystemProperties(ProgramId id)
-    throws IOException, NamespaceNotFoundException, AccessException {
+      throws IOException, NamespaceNotFoundException, AccessException {
     Map<String, String> systemArgs = new HashMap<>();
     systemArgs.put(Constants.CLUSTER_NAME, cConf.get(Constants.CLUSTER_NAME, ""));
-    systemArgs.put(Constants.AppFabric.APP_SCHEDULER_QUEUE, queueResolver.getQueue(id.getNamespaceId()));
+    addNamespaceConfigs(systemArgs, id.getNamespaceId());
     if (SecurityUtil.isKerberosEnabled(cConf)) {
-      ImpersonationInfo impersonationInfo = SecurityUtil.createImpersonationInfo(ownerAdmin, cConf, id);
+      ImpersonationInfo impersonationInfo = SecurityUtil.createImpersonationInfo(ownerAdmin, cConf,
+          id);
       systemArgs.put(ProgramOptionConstants.PRINCIPAL, impersonationInfo.getPrincipal());
       systemArgs.put(ProgramOptionConstants.APP_PRINCIPAL_EXISTS,
-                     String.valueOf(ownerAdmin.exists(id.getParent())));
+          String.valueOf(ownerAdmin.exists(id.getParent())));
     }
     return systemArgs;
+  }
+
+  private void addNamespaceConfigs(Map<String, String> args,
+      NamespaceId namespaceId) throws NamespaceNotFoundException, IOException {
+    if (NamespaceId.isReserved(namespaceId.getNamespace())) {
+      return;
+    }
+    try {
+      NamespaceMeta namespaceMeta = namespaceQueryAdmin.get(namespaceId);
+      SystemArguments.addNamespaceConfigs(args, namespaceMeta.getConfig());
+      args.put(Constants.AppFabric.APP_SCHEDULER_QUEUE, queueResolver.getQueue(namespaceMeta));
+    } catch (NamespaceNotFoundException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
   }
 }

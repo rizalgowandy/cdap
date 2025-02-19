@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015-2019 Cask Data, Inc.
+ * Copyright © 2015-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,10 +13,14 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package io.cdap.cdap.proto.element;
 
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.ArtifactId;
+import io.cdap.cdap.proto.id.CredentialIdentityId;
+import io.cdap.cdap.proto.id.CredentialProfileId;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.DatasetModuleId;
 import io.cdap.cdap.proto.id.DatasetTypeId;
@@ -24,17 +28,19 @@ import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.InstanceId;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
 import io.cdap.cdap.proto.id.NamespaceId;
+import io.cdap.cdap.proto.id.OperationRunId;
 import io.cdap.cdap.proto.id.PluginId;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.id.QueryId;
 import io.cdap.cdap.proto.id.ScheduleId;
 import io.cdap.cdap.proto.id.SecureKeyId;
+import io.cdap.cdap.proto.id.SupportBundleEntityId;
 import io.cdap.cdap.proto.id.SystemAppEntityId;
 import io.cdap.cdap.proto.id.SystemServiceId;
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -50,7 +56,9 @@ public enum EntityType {
   INSTANCE(InstanceId.class),
   KERBEROSPRINCIPAL(KerberosPrincipalId.class),
   NAMESPACE(NamespaceId.class),
+  APPLICATIONREFERENCE(ApplicationReference.class),
   APPLICATION(ApplicationId.class),
+  PROGRAMREFERENCE(ProgramReference.class),
   PROGRAM(ProgramId.class),
   PROGRAM_RUN(ProgramRunId.class),
 
@@ -66,9 +74,13 @@ public enum EntityType {
   PROFILE(ProfileId.class),
 
   QUERY(QueryId.class),
+  SUPPORT_BUNDLE(SupportBundleEntityId.class),
   SYSTEM_SERVICE(SystemServiceId.class),
-  SYSTEM_APP_ENTITY(SystemAppEntityId.class);
-  ;
+  SYSTEM_APP_ENTITY(SystemAppEntityId.class),
+
+  CREDENTIAL_PROFILE(CredentialProfileId.class),
+  CREDENTIAL_IDENTITY(CredentialIdentityId.class),
+  OPERATION_RUN(OperationRunId.class);
 
   private final Class<? extends EntityId> idClass;
   @Nullable
@@ -78,7 +90,7 @@ public enum EntityType {
     this.idClass = idClass;
     try {
       this.fromIdParts = MethodHandles.lookup()
-        .findStatic(idClass, "fromIdParts", MethodType.methodType(idClass, Iterable.class));
+          .findStatic(idClass, "fromIdParts", MethodType.methodType(idClass, Iterable.class));
     } catch (NoSuchMethodException | IllegalAccessException e) {
       throw new RuntimeException("Failed to initialize EntityType", e);
     }
@@ -88,6 +100,13 @@ public enum EntityType {
     return idClass;
   }
 
+  /**
+   * Constructs the entity ID from an ID parts iterable.
+   *
+   * @param idParts The components of the ID.
+   * @param <T> The entity type.
+   * @return An instance of the entity ID.
+   */
   public <T extends EntityId> T fromIdParts(Iterable<String> idParts) {
     try {
       return (T) fromIdParts.invoke(idParts);

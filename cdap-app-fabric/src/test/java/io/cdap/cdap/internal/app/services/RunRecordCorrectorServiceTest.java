@@ -51,11 +51,6 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
-import org.apache.twill.api.RunId;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,6 +59,10 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.twill.api.RunId;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 
 /**
@@ -135,7 +134,12 @@ public class RunRecordCorrectorServiceTest extends AppFabricTestBase {
     };
 
     ProgramRuntimeService noOpRuntimeSerivce = new AbstractProgramRuntimeService(
-      cConf, null, null, new NoOpProgramStateWriter(), null) {
+      cConf, null, new NoOpProgramStateWriter(), null) {
+
+      @Override
+      protected boolean isDistributed() {
+        return false;
+      }
 
       @Override
       public ProgramLiveInfo getLiveInfo(ProgramId programId) {
@@ -237,7 +241,12 @@ public class RunRecordCorrectorServiceTest extends AppFabricTestBase {
     // Use a ProgramRuntimeService that only reports running state based on a set of know ids
     final Map<ProgramId, RunId> runningSet = new HashMap<>();
     ProgramRuntimeService programRuntimeService = new AbstractProgramRuntimeService(
-      cConf, null, null, new NoOpProgramStateWriter(), null) {
+      cConf, null, new NoOpProgramStateWriter(), null) {
+
+      @Override
+      protected boolean isDistributed() {
+        return false;
+      }
 
       @Override
       public ProgramLiveInfo getLiveInfo(ProgramId programId) {

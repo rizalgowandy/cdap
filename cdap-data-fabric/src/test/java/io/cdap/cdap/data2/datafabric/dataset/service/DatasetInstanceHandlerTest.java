@@ -26,7 +26,6 @@ import io.cdap.cdap.api.dataset.table.Get;
 import io.cdap.cdap.api.dataset.table.Put;
 import io.cdap.cdap.api.dataset.table.Table;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.data2.dataset2.lib.table.CoreDatasetsModule;
 import io.cdap.cdap.data2.dataset2.module.lib.inmemory.InMemoryTableModule;
 import io.cdap.cdap.proto.DatasetInstanceConfiguration;
@@ -36,19 +35,9 @@ import io.cdap.cdap.proto.DatasetSpecificationSummary;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.common.http.HttpRequest;
-import io.cdap.common.http.HttpRequestConfig;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
 import io.cdap.common.http.ObjectResponse;
-import org.apache.http.HttpStatus;
-import org.apache.tephra.DefaultTransactionExecutor;
-import org.apache.tephra.TransactionAware;
-import org.apache.tephra.TransactionExecutor;
-import org.apache.tephra.inmemory.InMemoryTxSystemClient;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
@@ -57,6 +46,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.http.HttpStatus;
+import org.apache.tephra.DefaultTransactionExecutor;
+import org.apache.tephra.TransactionAware;
+import org.apache.tephra.TransactionExecutor;
+import org.apache.tephra.inmemory.InMemoryTxSystemClient;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Unit-test for {@link DatasetInstanceHandler}

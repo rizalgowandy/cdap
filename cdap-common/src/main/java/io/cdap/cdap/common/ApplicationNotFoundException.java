@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -17,20 +17,26 @@
 package io.cdap.cdap.common;
 
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 
 /**
  * Thrown when an application is not found.
  */
 public class ApplicationNotFoundException extends NotFoundException {
 
-  private final ApplicationId id;
+  private final ApplicationReference applicationReference;
 
-  public ApplicationNotFoundException(ApplicationId id) {
-    super(id);
-    this.id = id;
+  public ApplicationNotFoundException(ApplicationId appId) {
+    super(appId);
+    this.applicationReference = appId.getAppReference();
   }
 
-  public ApplicationId getId() {
-    return id;
+  public ApplicationNotFoundException(ApplicationReference appReference) {
+    super(appReference);
+    this.applicationReference = appReference;
+  }
+
+  public ApplicationReference getApplicationReference() {
+    return applicationReference;
   }
 }

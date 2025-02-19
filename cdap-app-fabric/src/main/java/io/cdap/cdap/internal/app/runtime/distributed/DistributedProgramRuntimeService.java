@@ -16,13 +16,12 @@
 
 package io.cdap.cdap.internal.app.runtime.distributed;
 
-import com.google.common.base.Throwables;
+import static io.cdap.cdap.proto.Containers.ContainerInfo;
+
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Table;
 import com.google.inject.Inject;
-import com.google.inject.name.Named;
-import io.cdap.cdap.app.guice.AppFabricServiceRuntimeModule;
 import io.cdap.cdap.app.runtime.AbstractProgramRuntimeService;
 import io.cdap.cdap.app.runtime.ProgramController;
 import io.cdap.cdap.app.runtime.ProgramRunnerFactory;
@@ -30,13 +29,10 @@ import io.cdap.cdap.app.runtime.ProgramStateWriter;
 import io.cdap.cdap.app.store.Store;
 import io.cdap.cdap.common.app.RunIds;
 import io.cdap.cdap.common.conf.CConfiguration;
-import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.lang.Delegator;
 import io.cdap.cdap.common.twill.TwillAppNames;
-import io.cdap.cdap.internal.app.deploy.ConfiguratorFactory;
+import io.cdap.cdap.internal.app.deploy.ProgramRunDispatcherFactory;
 import io.cdap.cdap.internal.app.runtime.AbstractListener;
-import io.cdap.cdap.internal.app.runtime.artifact.ArtifactDetail;
-import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.runtime.service.SimpleRuntimeInfo;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.proto.Containers;
@@ -44,10 +40,15 @@ import io.cdap.cdap.proto.DistributedProgramLiveInfo;
 import io.cdap.cdap.proto.ProgramLiveInfo;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramType;
-import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
-import io.cdap.cdap.security.impersonation.Impersonator;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.Nullable;
 import org.apache.twill.api.ResourceReport;
 import org.apache.twill.api.RunId;
 import org.apache.twill.api.TwillController;
@@ -56,19 +57,6 @@ import org.apache.twill.api.TwillRunner;
 import org.apache.twill.common.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.annotation.Nullable;
-
-import static io.cdap.cdap.proto.Containers.ContainerInfo;
 
 /**
  *
@@ -79,29 +67,27 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
 
   private final TwillRunner twillRunner;
   private final Store store;
-  private final Impersonator impersonator;
   private final ProgramStateWriter programStateWriter;
 
   @Inject
-  DistributedProgramRuntimeService(CConfiguration cConf,
-                                   ProgramRunnerFactory programRunnerFactory,
-                                   TwillRunner twillRunner, Store store,
-                                   // for running a program, we only need EXECUTE on the program, there should be no
-                                   // privileges needed for artifacts
-                                   @Named(AppFabricServiceRuntimeModule.NOAUTH_ARTIFACT_REPO)
-                                     ArtifactRepository noAuthArtifactRepository,
-                                   Impersonator impersonator, ProgramStateWriter programStateWriter,
-                                   ConfiguratorFactory configuratorFactory) {
-    super(cConf, programRunnerFactory, noAuthArtifactRepository, programStateWriter, configuratorFactory);
+  DistributedProgramRuntimeService(CConfiguration cConf, ProgramRunnerFactory programRunnerFactory,
+      TwillRunner twillRunner, Store store, ProgramStateWriter programStateWriter,
+      ProgramRunDispatcherFactory programRunDispatcherFactory) {
+    super(cConf, programRunnerFactory, programStateWriter, programRunDispatcherFactory);
     this.twillRunner = twillRunner;
     this.store = store;
-    this.impersonator = impersonator;
     this.programStateWriter = programStateWriter;
   }
 
   @Override
-  protected RuntimeInfo createRuntimeInfo(final ProgramController controller, final ProgramId programId,
-                                          final Runnable cleanUpTask) {
+  protected boolean isDistributed() {
+    return true;
+  }
+
+  @Override
+  protected RuntimeInfo createRuntimeInfo(final ProgramController controller,
+      final ProgramId programId,
+      final Runnable cleanUpTask) {
     SimpleRuntimeInfo runtimeInfo = new SimpleRuntimeInfo(controller, programId, cleanUpTask);
 
     // Add a listener that publishes KILLED status notification when the YARN application is killed in case that
@@ -119,7 +105,8 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
           actualController = ((Delegator<ProgramController>) actualController).getDelegate();
         }
         if (actualController instanceof AbstractTwillProgramController) {
-          runtimeInfo.setTwillRunId(((AbstractTwillProgramController) actualController).getTwillRunId());
+          runtimeInfo.setTwillRunId(
+              ((AbstractTwillProgramController) actualController).getTwillRunId());
         }
         if (currentState == ProgramController.State.ALIVE) {
           alive();
@@ -139,23 +126,6 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
       }
     }, Threads.SAME_THREAD_EXECUTOR);
     return runtimeInfo;
-  }
-
-  @Override
-  protected void copyArtifact(ArtifactId artifactId,
-                              final ArtifactDetail artifactDetail, final File targetFile) throws IOException {
-    try {
-      impersonator.doAs(artifactId, () -> {
-        Locations.linkOrCopy(artifactDetail.getDescriptor().getLocation(), targetFile);
-        return null;
-      });
-    } catch (FileAlreadyExistsException ex) {
-      LOG.warn("Artifact file {} already exists.", targetFile.getAbsolutePath());
-    } catch (Exception e) {
-      Throwables.propagateIfPossible(e, IOException.class);
-      // should not happen
-      throw Throwables.propagate(e);
-    }
   }
 
   @Override
@@ -179,7 +149,8 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
       return null;
     }
 
-    RunId twillRunIdFromRecord = org.apache.twill.internal.RunIds.fromString(record.getTwillRunId());
+    RunId twillRunIdFromRecord = org.apache.twill.internal.RunIds.fromString(
+        record.getTwillRunId());
     return lookupFromTwillRunner(twillRunner, programRunId, twillRunIdFromRecord);
   }
 
@@ -194,8 +165,8 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
 
     // Goes through all live application and fill the twillProgramInfo table
     for (TwillRunner.LiveInfo liveInfo : twillRunner.lookupLive()) {
-      String appName = liveInfo.getApplicationName();
-      ProgramId programId = TwillAppNames.fromTwillAppName(appName, false);
+      ProgramId programId = TwillAppNames.fromTwillAppName(liveInfo.getApplicationName(),
+          false, liveInfo.getApplicationVersion());
       if (programId == null) {
         continue;
       }
@@ -223,8 +194,9 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
     Collection<RunRecordDetail> activeRunRecords;
     synchronized (this) {
       activeRunRecords = store.getRuns(ProgramRunStatus.RUNNING, record ->
-        record.getTwillRunId() != null
-          && twillRunIds.contains(org.apache.twill.internal.RunIds.fromString(record.getTwillRunId()))).values();
+          record.getTwillRunId() != null
+              && twillRunIds.contains(
+              org.apache.twill.internal.RunIds.fromString(record.getTwillRunId()))).values();
     }
 
     for (RunRecordDetail record : activeRunRecords) {
@@ -239,12 +211,15 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
       // Get the CDAP RunId from RunRecord
       RunId runId = RunIds.fromString(record.getPid());
       // Get the Program and TwillController for the current twillRunId
-      Map<ProgramId, TwillController> mapForTwillId = twillProgramInfo.columnMap().get(twillRunIdFromRecord);
+      Map<ProgramId, TwillController> mapForTwillId = twillProgramInfo.columnMap()
+          .get(twillRunIdFromRecord);
       Map.Entry<ProgramId, TwillController> entry = mapForTwillId.entrySet().iterator().next();
 
       // Create RuntimeInfo for the current Twill RunId
-      if (result.computeIfAbsent(runId, rid -> createRuntimeInfo(entry.getKey(), rid, entry.getValue())) == null) {
-        LOG.warn("Unable to create runtime info for program {} with run id {}", entry.getKey(), runId);
+      if (result.computeIfAbsent(runId,
+          rid -> createRuntimeInfo(entry.getKey(), rid, entry.getValue())) == null) {
+        LOG.warn("Unable to create runtime info for program {} with run id {}", entry.getKey(),
+            runId);
       }
     }
 
@@ -259,24 +234,28 @@ public final class DistributedProgramRuntimeService extends AbstractProgramRunti
     if (controllers.hasNext()) {
       TwillController controller = controllers.next();
       if (controllers.hasNext()) {
-        LOG.warn("Expected at most one live instance of Twill app {} but found at least two.", twillAppName);
+        LOG.warn("Expected at most one live instance of Twill app {} but found at least two.",
+            twillAppName);
       }
       ResourceReport report = controller.getResourceReport();
       if (report != null) {
-        DistributedProgramLiveInfo liveInfo = new DistributedProgramLiveInfo(program, report.getApplicationId());
+        DistributedProgramLiveInfo liveInfo = new DistributedProgramLiveInfo(program,
+            report.getApplicationId());
 
-        Containers.ContainerType containerType = Containers.ContainerType.valueOf(program.getType().name());
+        Containers.ContainerType containerType = Containers.ContainerType.valueOf(
+            program.getType().name());
 
-        for (Map.Entry<String, Collection<TwillRunResources>> entry : report.getResources().entrySet()) {
+        for (Map.Entry<String, Collection<TwillRunResources>> entry : report.getResources()
+            .entrySet()) {
           for (TwillRunResources resources : entry.getValue()) {
             liveInfo.addContainer(new ContainerInfo(containerType,
-                                                    entry.getKey(),
-                                                    resources.getInstanceId(),
-                                                    resources.getContainerId(),
-                                                    resources.getHost(),
-                                                    resources.getMemoryMB(),
-                                                    resources.getVirtualCores(),
-                                                    resources.getDebugPort()));
+                entry.getKey(),
+                resources.getInstanceId(),
+                resources.getContainerId(),
+                resources.getHost(),
+                resources.getMemoryMB(),
+                resources.getVirtualCores(),
+                resources.getDebugPort()));
           }
         }
 

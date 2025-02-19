@@ -33,25 +33,26 @@ import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.security.spi.authorization.PermissionManager;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.discovery.DiscoveryServiceClient;
+import java.lang.reflect.Type;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Type;
-import java.util.Set;
-
 /**
- * Class that modifies privileges on {@link EntityId entities} by making HTTP Requests to the Master. This is required
- * because some authorization backends (e.g. Apache Sentry) do not support proxy authentication. Hence system
- * containers like stream and explore service cannot interact with them directly.
+ * Class that modifies privileges on {@link EntityId entities} by making HTTP Requests to the
+ * Master. This is required because some authorization backends (e.g. Apache Sentry) do not support
+ * proxy authentication. Hence system containers like stream and explore service cannot interact
+ * with them directly.
  */
 public class RemotePermissionManager extends RemoteOpsClient implements PermissionManager {
+
   private static final Logger LOG = LoggerFactory.getLogger(RemotePermissionManager.class);
   private static final Gson GSON = new GsonBuilder()
-    .registerTypeAdapter(EntityId.class, new EntityIdTypeAdapter())
-    .registerTypeAdapterFactory(new PermissionAdapterFactory())
-    .create();
-  private static final Type SET_GRANTED_PERMISSIONS_TYPE = new TypeToken<Set<GrantedPermission>>() { }.getType();
+      .registerTypeAdapter(EntityId.class, new EntityIdTypeAdapter())
+      .registerTypeAdapterFactory(new PermissionAdapterFactory())
+      .create();
+  private static final Type SET_GRANTED_PERMISSIONS_TYPE = new TypeToken<Set<GrantedPermission>>() {
+  }.getType();
 
   @Inject
   RemotePermissionManager(RemoteClientFactory remoteClientFactory) {
@@ -59,16 +60,18 @@ public class RemotePermissionManager extends RemoteOpsClient implements Permissi
   }
 
   @Override
-  public void grant(Authorizable authorizable, Principal principal, Set<? extends Permission> permissions)
-    throws UnauthorizedException {
+  public void grant(Authorizable authorizable, Principal principal,
+      Set<? extends Permission> permissions)
+      throws UnauthorizedException {
     LOG.trace("Making request to grant {} on {} to {}", permissions, authorizable, principal);
     executeRequest("grant", authorizable, principal, permissions);
     LOG.debug("Granted {} on {} to {} successfully", permissions, authorizable, principal);
   }
 
   @Override
-  public void revoke(Authorizable authorizable, Principal principal, Set<? extends Permission> permissions)
-    throws UnauthorizedException {
+  public void revoke(Authorizable authorizable, Principal principal,
+      Set<? extends Permission> permissions)
+      throws UnauthorizedException {
     LOG.trace("Making request to revoke {} on {} to {}", permissions, authorizable, principal);
     executeRequest("revoke", authorizable, principal, permissions);
     LOG.debug("Revoked {} on {} to {} successfully", permissions, authorizable, principal);

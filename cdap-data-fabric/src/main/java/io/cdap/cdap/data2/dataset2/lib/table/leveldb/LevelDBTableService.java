@@ -16,6 +16,8 @@
 
 package io.cdap.cdap.data2.dataset2.lib.table.leveldb;
 
+import static org.iq80.leveldb.impl.Iq80DBFactory.factory;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableCollection;
@@ -28,19 +30,6 @@ import com.google.inject.Singleton;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.data2.util.TableId;
-import org.apache.twill.common.Threads;
-import org.iq80.leveldb.CompressionType;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.DBComparator;
-import org.iq80.leveldb.Options;
-import org.iq80.leveldb.WriteOptions;
-import org.iq80.leveldb.impl.DbImpl;
-import org.iq80.leveldb.impl.FileMetaData;
-import org.iq80.leveldb.impl.SnapshotImpl;
-import org.iq80.leveldb.util.Slice;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -55,8 +44,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-
-import static org.iq80.leveldb.impl.Iq80DBFactory.factory;
+import org.apache.twill.common.Threads;
+import org.iq80.leveldb.CompressionType;
+import org.iq80.leveldb.DB;
+import org.iq80.leveldb.DBComparator;
+import org.iq80.leveldb.Options;
+import org.iq80.leveldb.WriteOptions;
+import org.iq80.leveldb.impl.DbImpl;
+import org.iq80.leveldb.impl.FileMetaData;
+import org.iq80.leveldb.impl.SnapshotImpl;
+import org.iq80.leveldb.util.Slice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Service maintaining all LevelDB tables.
@@ -69,6 +68,7 @@ public class LevelDBTableService implements AutoCloseable {
   private boolean compressionEnabled;
   private int blockSize;
   private long cacheSize;
+  private int cacheSizeFiles;
   private Duration compactionInterval;
   private int compactionLevelMin;
   private int compactionLevelMax;
@@ -82,8 +82,8 @@ public class LevelDBTableService implements AutoCloseable {
   private ScheduledFuture<?> scheduledFuture;
 
   /**
-   * To avoid database locking issues make sure that the single LevelDBTableService instance
-   * is created for handling one database.
+   * To avoid database locking issues make sure that the single LevelDBTableService instance is
+   * created for handling one database.
    */
   @VisibleForTesting
   public static LevelDBTableService getInstance() {
@@ -91,12 +91,13 @@ public class LevelDBTableService implements AutoCloseable {
   }
 
   /**
-   * Protect the constructor as this class needs to be singleton, but keep it package visible for testing.
+   * Protect the constructor as this class needs to be singleton, but keep it package visible for
+   * testing.
    */
   @VisibleForTesting
   public LevelDBTableService() {
     executor = Executors.newSingleThreadScheduledExecutor(
-      Threads.createDaemonThreadFactory("leveldb-periodic-compaction"));
+        Threads.createDaemonThreadFactory("leveldb-periodic-compaction"));
   }
 
   /**
@@ -107,23 +108,28 @@ public class LevelDBTableService implements AutoCloseable {
     basePath = config.get(Constants.CFG_DATA_LEVELDB_DIR);
     Preconditions.checkNotNull(basePath, "No base directory configured for LevelDB.");
     compressionEnabled = config.getBoolean(Constants.CFG_DATA_LEVELDB_COMPRESSION_ENABLED);
-    blockSize = config.getInt(Constants.CFG_DATA_LEVELDB_BLOCKSIZE, Constants.DEFAULT_DATA_LEVELDB_BLOCKSIZE);
-    cacheSize = config.getLong(Constants.CFG_DATA_LEVELDB_CACHESIZE, Constants.DEFAULT_DATA_LEVELDB_CACHESIZE);
+    blockSize = config.getInt(Constants.CFG_DATA_LEVELDB_BLOCKSIZE,
+        Constants.DEFAULT_DATA_LEVELDB_BLOCKSIZE);
+    cacheSize = config.getLong(Constants.CFG_DATA_LEVELDB_CACHESIZE,
+        Constants.DEFAULT_DATA_LEVELDB_CACHESIZE);
+    cacheSizeFiles = config.getInt(Constants.CFG_DATA_LEVELDB_CACHESIZE_FILES);
     writeOptions = new WriteOptions().sync(config.getBoolean(Constants.CFG_DATA_LEVELDB_FSYNC,
-                                                             Constants.DEFAULT_DATA_LEVELDB_FSYNC));
-    compactionInterval = Duration.ofSeconds(config.getLong(Constants.CFG_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS,
-                                                           Constants.DEFAULT_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS));
+        Constants.DEFAULT_DATA_LEVELDB_FSYNC));
+    compactionInterval = Duration.ofSeconds(
+        config.getLong(Constants.CFG_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS,
+            Constants.DEFAULT_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS));
     compactionLevelMin = config.getInt(Constants.CFG_DATA_LEVELDB_COMPACTION_LEVEL_MIN,
-                                       Constants.DEFAULT_DATA_LEVELDB_COMPACTION_LEVEL_MIN);
+        Constants.DEFAULT_DATA_LEVELDB_COMPACTION_LEVEL_MIN);
     compactionLevelMax = config.getInt(Constants.CFG_DATA_LEVELDB_COMPACTION_LEVEL_MAX,
-                                       Constants.DEFAULT_DATA_LEVELDB_COMPACTION_LEVEL_MAX);
+        Constants.DEFAULT_DATA_LEVELDB_COMPACTION_LEVEL_MAX);
     if (scheduledFuture != null) {
       scheduledFuture.cancel(true);
       scheduledFuture = null;
     }
     if (compactionInterval.getSeconds() > 0) {
-      scheduledFuture = executor.scheduleAtFixedRate(this::compactAll, compactionInterval.getSeconds(),
-                                                     compactionInterval.getSeconds(), TimeUnit.SECONDS);
+      scheduledFuture = executor.scheduleAtFixedRate(this::compactAll,
+          compactionInterval.getSeconds(),
+          compactionInterval.getSeconds(), TimeUnit.SECONDS);
     }
   }
 
@@ -132,14 +138,14 @@ public class LevelDBTableService implements AutoCloseable {
     // TODO CDAP-18546: deprecate compaction in favor of using sharding for efficient recycling range deleted rows.
     for (Map.Entry<String, DB> entry : tables.entrySet()) {
       executor.schedule(
-        new Runnable() {
-          @Override
-          public void run() {
-            compact(entry.getKey());
-          }
-        },
-        (long) (ThreadLocalRandom.current().nextDouble() * compactionInterval.getSeconds()),
-        TimeUnit.SECONDS);
+          new Runnable() {
+            @Override
+            public void run() {
+              compact(entry.getKey());
+            }
+          },
+          (long) (ThreadLocalRandom.current().nextDouble() * compactionInterval.getSeconds()),
+          TimeUnit.SECONDS);
     }
   }
 
@@ -189,12 +195,15 @@ public class LevelDBTableService implements AutoCloseable {
         }
       }
       long endMillis = System.currentTimeMillis();
-      LOG.debug("LevelDBTableService background periodic compaction on table {} completed in {} millis",
-                tableName, endMillis - startMillis);
+      LOG.debug(
+          "LevelDBTableService background periodic compaction on table {} completed in {} millis",
+          tableName, endMillis - startMillis);
     } catch (Exception e) {
       long failedMillis = System.currentTimeMillis();
-      LOG.debug("LevelDBTableService background periodic compaction on table {} failed after {} millis. " +
-                  "Ignore and try again later: ", failedMillis - startMillis, e);
+      LOG.debug(
+          "LevelDBTableService background periodic compaction on table {} failed after {} millis. "
+
+              + "Ignore and try again later: ", failedMillis - startMillis, e);
     }
   }
 
@@ -237,7 +246,6 @@ public class LevelDBTableService implements AutoCloseable {
    * Gets tables stats.
    *
    * @return map of table name -> table stats entries
-   * @throws Exception
    */
   public Map<TableId, TableStats> getTableStats() throws Exception {
     ensureOpen();
@@ -317,6 +325,7 @@ public class LevelDBTableService implements AutoCloseable {
     options.compressionType(compressionEnabled ? CompressionType.SNAPPY : CompressionType.NONE);
     options.blockSize(blockSize);
     options.cacheSize(cacheSize);
+    options.maxOpenFiles(cacheSizeFiles + Constants.DATA_LEVELDB_CACHESIZE_MAXFILES_OFFSET);
 
     // unfortunately, with the java version of leveldb, with createIfMissing set to false, factory.open will
     // see that there is no table and throw an exception, but it wont clean up after itself and will leave a
@@ -324,7 +333,8 @@ public class LevelDBTableService implements AutoCloseable {
     // throw the exception ourselves.
     File dbDir = new File(dbPath);
     if (!dbDir.exists()) {
-      throw new IOException("Database " + dbPath + " does not exist and the create if missing option is disabled");
+      throw new IOException(
+          "Database " + dbPath + " does not exist and the create if missing option is disabled");
     }
     DB db = factory.open(dbDir, options);
     tables.put(tableName, db);
@@ -341,6 +351,7 @@ public class LevelDBTableService implements AutoCloseable {
     options.compressionType(compressionEnabled ? CompressionType.SNAPPY : CompressionType.NONE);
     options.blockSize(blockSize);
     options.cacheSize(cacheSize);
+    options.maxOpenFiles(cacheSizeFiles + Constants.DATA_LEVELDB_CACHESIZE_MAXFILES_OFFSET);
 
     DB db = factory.open(new File(dbPath), options);
     tables.put(name, db);
@@ -376,6 +387,7 @@ public class LevelDBTableService implements AutoCloseable {
    * A comparator for the keys of key/value pairs.
    */
   public static class KeyValueDBComparator implements DBComparator {
+
     @Override
     public int compare(byte[] left, byte[] right) {
       return KeyValue.KEY_COMPARATOR.compare(left, right);
@@ -401,6 +413,7 @@ public class LevelDBTableService implements AutoCloseable {
    * Represents LevelDB's table stats.
    */
   public static final class TableStats {
+
     private final long diskSizeBytes;
 
     public TableStats(long sizeInBytes) {

@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.internal.capability;
 
+import com.google.common.base.Throwables;
 import com.google.common.io.Files;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -29,6 +30,8 @@ import io.cdap.cdap.api.artifact.ArtifactScope;
 import io.cdap.cdap.api.artifact.ArtifactSummary;
 import io.cdap.cdap.app.program.ManifestFields;
 import io.cdap.cdap.app.program.ProgramDescriptor;
+import io.cdap.cdap.app.runtime.ProgramRuntimeService;
+import io.cdap.cdap.app.runtime.ProgramStateWriter;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.id.Id;
@@ -37,6 +40,7 @@ import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.common.test.PluginJarHelper;
 import io.cdap.cdap.internal.AppFabricTestHelper;
 import io.cdap.cdap.internal.app.deploy.pipeline.ApplicationWithPrograms;
+import io.cdap.cdap.internal.app.runtime.ProgramStartRequest;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.services.ApplicationLifecycleService;
 import io.cdap.cdap.internal.app.services.ProgramLifecycleService;
@@ -45,17 +49,10 @@ import io.cdap.cdap.proto.ApplicationDetail;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -68,6 +65,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Test for CapabilityManagementService
@@ -81,6 +85,8 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
   private static ApplicationLifecycleService applicationLifecycleService;
   private static ProgramLifecycleService programLifecycleService;
   private static CapabilityStatusStore capabilityStatusStore;
+  private static ProgramStateWriter programStateWriter;
+  private static ProgramRuntimeService runtimeService;
   private static final Gson GSON = new Gson();
 
   @BeforeClass
@@ -92,6 +98,8 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     capabilityStatusStore = new CapabilityStatusStore(getInjector().getInstance(TransactionRunner.class));
     applicationLifecycleService = getInjector().getInstance(ApplicationLifecycleService.class);
     programLifecycleService = getInjector().getInstance(ProgramLifecycleService.class);
+    programStateWriter = getInjector().getInstance(ProgramStateWriter.class);
+    runtimeService = getInjector().getInstance(ProgramRuntimeService.class);
     capabilityManagementService.stopAndWait();
   }
 
@@ -103,14 +111,26 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
   @After
   public void reset() throws Exception {
     // Reset all relevant stores.
-    for (ApplicationDetail appDetail : applicationLifecycleService.getApps(NamespaceId.SYSTEM)) {
-      programLifecycleService.stopAll(
-        new ApplicationId(NamespaceId.SYSTEM.getNamespace(), appDetail.getName(), appDetail.getAppVersion()));
-    }
-    for (ApplicationDetail appDetail : applicationLifecycleService.getApps(NamespaceId.DEFAULT)) {
-      programLifecycleService.stopAll(
-        new ApplicationId(NamespaceId.DEFAULT.getNamespace(), appDetail.getName(), appDetail.getAppVersion()));
-    }
+    applicationLifecycleService.scanApplications(NamespaceId.SYSTEM, Collections.emptyList(),
+        d -> {
+          try {
+            programLifecycleService.stopAll(
+                new ApplicationReference(NamespaceId.SYSTEM.getNamespace(), d.getName()));
+          } catch (Exception e) {
+            Throwables.propagate(e);
+          }
+        });
+
+    applicationLifecycleService.scanApplications(NamespaceId.DEFAULT, Collections.emptyList(),
+        d -> {
+          try {
+            programLifecycleService.stopAll(
+                new ApplicationReference(NamespaceId.DEFAULT.getNamespace(), d.getName()));
+          } catch (Exception e) {
+            Throwables.propagate(e);
+          }
+        });
+
     applicationLifecycleService.removeAll(NamespaceId.SYSTEM);
     applicationLifecycleService.removeAll(NamespaceId.DEFAULT);
     artifactRepository.clear(NamespaceId.SYSTEM);
@@ -127,7 +147,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     //deploy the artifact
     deployTestArtifact(namespace, appName, version, appClass);
 
-    ApplicationId applicationId = new ApplicationId(namespace, appName, version);
+    ApplicationId applicationId = new ApplicationId(namespace, appName);
     ProgramId programId = new ProgramId(applicationId, ProgramType.SERVICE, programName);
     String externalConfigPath = tmpFolder.newFolder("capability-config-test").getAbsolutePath();
     cConfiguration.set(Constants.Capability.CONFIG_DIR, externalConfigPath);
@@ -163,7 +183,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton("cap1"));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
 
     //disable from delete and see if it is applied correctly
@@ -178,7 +198,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton("cap1"));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     Assert.assertEquals(disableConfig, capabilityStatusStore.getConfigs(Collections.singleton("cap1")).get("cap1"));
 
@@ -216,7 +236,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     //deploy the artifact
     deployTestArtifact(namespace, appName, version, appClass);
 
-    ApplicationId applicationId = new ApplicationId(namespace, appName, version);
+    ApplicationId applicationId = new ApplicationId(namespace, appName);
     ProgramId programId = new ProgramId(applicationId, ProgramType.SERVICE, programName);
     //check that app is not available
     List<JsonObject> appList = getAppList(namespace);
@@ -246,7 +266,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     appList = getAppList(namespace);
     Assert.assertFalse(appList.isEmpty());
@@ -267,13 +287,12 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     String appName = AllProgramsApp.NAME;
     String programName = AllProgramsApp.NoOpService.NAME;
     Class<AllProgramsApp> appClass = AllProgramsApp.class;
-    String appVersion = "1.0.0";
     String namespace = NamespaceId.SYSTEM.getNamespace();
     //deploy the artifact with older version.
     String oldArtifactVersion = "1.0.0";
     deployTestArtifact(namespace, appName, oldArtifactVersion, appClass);
 
-    ApplicationId applicationId = new ApplicationId(namespace, appName, appVersion);
+    ApplicationId applicationId = new ApplicationId(namespace, appName);
     ProgramId programId = new ProgramId(applicationId, ProgramType.SERVICE, programName);
     //check that app is not available
     List<JsonObject> appList = getAppList(namespace);
@@ -303,7 +322,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     appList = getAppList(namespace);
     Assert.assertFalse(appList.isEmpty());
@@ -338,7 +357,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     appList = getAppList(namespace);
     Assert.assertFalse(appList.isEmpty());
@@ -359,13 +378,12 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     String appName = AllProgramsApp.NAME;
     String programName = AllProgramsApp.NoOpService.NAME;
     Class<AllProgramsApp> appClass = AllProgramsApp.class;
-    String appVersion = "1.0.0";
     String namespace = NamespaceId.SYSTEM.getNamespace();
     //deploy the artifact with older version.
     String artifactVersion = "1.0.0";
     deployTestArtifact(namespace, appName, artifactVersion, appClass);
 
-    ApplicationId applicationId = new ApplicationId(namespace, appName, appVersion);
+    ApplicationId applicationId = new ApplicationId(namespace, appName);
     ProgramId programId = new ProgramId(applicationId, ProgramType.SERVICE, programName);
     //check that app is not available
     List<JsonObject> appList = getAppList(namespace);
@@ -395,7 +413,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     appList = getAppList(namespace);
     Assert.assertFalse(appList.isEmpty());
@@ -427,7 +445,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     appList = getAppList(namespace);
     Assert.assertFalse(appList.isEmpty());
@@ -455,7 +473,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Arrays.asList(declaredAnnotation.capabilities()));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
     String appNameWithCapability = appWithWorkflowClass.getSimpleName() + UUID.randomUUID();
     deployTestArtifact(Id.Namespace.DEFAULT.getId(), appNameWithCapability, testVersion, appWithWorkflowClass);
@@ -463,7 +481,7 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       //deploy app
       Id.Artifact artifactId = Id.Artifact.from(Id.Namespace.DEFAULT, appNameWithCapability, testVersion);
       applicationLifecycleService
-        .deployApp(NamespaceId.DEFAULT, appNameWithCapability, testVersion, artifactId,
+        .deployApp(NamespaceId.DEFAULT, appNameWithCapability, artifactId,
                    null, programId -> {
           });
       Assert.fail("Expecting exception");
@@ -478,6 +496,9 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     Assert.assertNull(declaredAnnotation1);
     String appNameWithOutCapability = appWithWorkflowClass.getSimpleName() + UUID.randomUUID();
     deployArtifactAndApp(appNoCapabilityClass, appNameWithOutCapability, testVersion);
+    ApplicationDetail appWithOutCapabilityDetail =
+      applicationLifecycleService.getLatestAppDetail(
+        new ApplicationReference(NamespaceId.DEFAULT, appNameWithOutCapability));
 
     //enable the capabilities
     List<CapabilityConfig> capabilityConfigs = Arrays.stream(declaredAnnotation.capabilities())
@@ -494,12 +515,17 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     Id.Artifact artifactId = Id.Artifact
       .from(Id.Namespace.DEFAULT, appNameWithCapability, testVersion);
     applicationLifecycleService
-      .deployApp(NamespaceId.DEFAULT, appNameWithCapability, testVersion, artifactId,
+      .deployApp(NamespaceId.DEFAULT, appNameWithCapability, artifactId,
                  null, programId -> {
         });
+    ApplicationDetail appWithCapabilityDetail =
+      applicationLifecycleService.getLatestAppDetail(
+        new ApplicationReference(NamespaceId.DEFAULT, appNameWithCapability));
 
-    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.app(appNameWithCapability, testVersion));
-    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.app(appNameWithOutCapability, testVersion));
+    applicationLifecycleService.removeApplication(
+      NamespaceId.DEFAULT.appReference(appNameWithCapability));
+    applicationLifecycleService.removeApplication(
+      NamespaceId.DEFAULT.appReference(appNameWithOutCapability));
     artifactRepository.deleteArtifact(Id.Artifact
                                         .from(new Id.Namespace(NamespaceId.DEFAULT.getNamespace()),
                                               appNameWithCapability, testVersion));
@@ -538,11 +564,11 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     Id.Artifact artifactId = Id.Artifact
       .from(new Id.Namespace(namespace), appName, version);
     ApplicationWithPrograms applicationWithPrograms = applicationLifecycleService
-      .deployApp(new NamespaceId(namespace), appName, null, artifactId, null, op -> {
+      .deployApp(new NamespaceId(namespace), appName, artifactId, null, op -> {
       });
     Iterable<ProgramDescriptor> programs = applicationWithPrograms.getPrograms();
     for (ProgramDescriptor program : programs) {
-      programLifecycleService.start(program.getProgramId(), new HashMap<>(), false, false);
+      startProgram(program.getProgramId(), new HashMap<>());
     }
     ProgramId programId = new ProgramId(applicationId, ProgramType.WORKFLOW,
                                         CapabilitySleepingWorkflowApp.SleepWorkflow.class.getSimpleName());
@@ -563,13 +589,13 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
 
     //try starting programs
     for (ProgramDescriptor program : programs) {
       try {
-        programLifecycleService.start(program.getProgramId(), new HashMap<>(), false, false);
+        startProgram(program.getProgramId(), new HashMap<>());
         Assert.fail("expecting exception");
       } catch (CapabilityNotAvailableException ex) {
         //expecting exception
@@ -618,11 +644,11 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     Id.Artifact artifactId = Id.Artifact
       .from(new Id.Namespace(namespace), appName, version);
     ApplicationWithPrograms applicationWithPrograms = applicationLifecycleService
-      .deployApp(new NamespaceId(namespace), appName, null, artifactId, null, op -> {
+      .deployApp(new NamespaceId(namespace), appName, artifactId, null, op -> {
       });
     Iterable<ProgramDescriptor> programs = applicationWithPrograms.getPrograms();
     for (ProgramDescriptor program : programs) {
-      programLifecycleService.start(program.getProgramId(), new HashMap<>(), false, false);
+      startProgram(program.getProgramId(), new HashMap<>());
     }
     ProgramId programId = new ProgramId(applicationId, ProgramType.WORKFLOW,
                                         CapabilitySleepingWorkflowPluginApp.SleepWorkflow.class.getSimpleName());
@@ -643,13 +669,13 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(capability));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
-
+      // expected
     }
 
     //try starting programs
     for (ProgramDescriptor program : programs) {
       try {
-        programLifecycleService.start(program.getProgramId(), new HashMap<>(), false, false);
+        startProgram(program.getProgramId(), new HashMap<>());
         Assert.fail("expecting exception");
       } catch (CapabilityNotAvailableException ex) {
         //expecting exception
@@ -673,11 +699,13 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(testCapability2));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
+      // expected
     }
     try {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(testCapability3));
       Assert.fail("expecting exception");
     } catch (CapabilityNotAvailableException ex) {
+      // expected
     }
     try {
       capabilityStatusStore.checkAllEnabled(Collections.singleton(testCapability1));
@@ -763,14 +791,12 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
   private CapabilityConfig getTestConfig(String artifactVersion) {
     String appName = AllProgramsApp.NAME;
     String programName = AllProgramsApp.NoOpService.NAME;
-    String appVersion = "1.0.0";
     String namespace = NamespaceId.SYSTEM.getNamespace();
     String label = "Enable capability";
     String capability = "test";
     ArtifactSummary artifactSummary = new ArtifactSummary(appName, artifactVersion, ArtifactScope.SYSTEM);
-    SystemApplication application = new SystemApplication(namespace, appName, appVersion, artifactSummary, null);
-    SystemProgram program = new SystemProgram(namespace, appName, ProgramType.SERVICE.name(),
-                                              programName, appVersion, null);
+    SystemApplication application = new SystemApplication(namespace, appName, artifactSummary, null);
+    SystemProgram program = new SystemProgram(namespace, appName, ProgramType.SERVICE.name(), programName, null);
     return new CapabilityConfig(label, CapabilityStatus.ENABLED, capability,
                                 Collections.singletonList(application), Collections.singletonList(program),
                                 Collections.emptyList());
@@ -796,8 +822,16 @@ public class CapabilityManagementServiceTest extends AppFabricTestBase {
     artifactRepository.addArtifact(artifactId, appJarFile);
     //deploy app
     applicationLifecycleService
-      .deployApp(NamespaceId.DEFAULT, appName, testVersion, artifactId,
+      .deployApp(NamespaceId.DEFAULT, appName, artifactId,
                  null, programId -> {
         });
+  }
+
+  private void startProgram(ProgramId programId, Map<String, String> overrides)
+      throws Exception {
+    ProgramStartRequest startRequest = programLifecycleService.prepareStart(
+        programId, overrides, false, false);
+    runtimeService.run(startRequest.getProgramDescriptor(), startRequest.getProgramOptions(), startRequest.getRunId())
+        .getController();
   }
 }

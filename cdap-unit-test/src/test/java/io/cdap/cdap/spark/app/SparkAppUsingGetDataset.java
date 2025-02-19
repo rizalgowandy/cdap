@@ -20,16 +20,15 @@ import io.cdap.cdap.api.app.AbstractApplication;
 import io.cdap.cdap.api.dataset.lib.FileSet;
 import io.cdap.cdap.api.dataset.lib.FileSetProperties;
 import io.cdap.cdap.api.dataset.lib.KeyValueTable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
-import scala.Tuple2;
-
 import java.io.Serializable;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import scala.Tuple2;
 
 /**
  * App to test dataset access/update using getDataset() from a spark program
@@ -37,10 +36,10 @@ import javax.annotation.Nullable;
 public class SparkAppUsingGetDataset extends AbstractApplication {
 
   private static final Pattern CLF_LOG_PATTERN = Pattern.compile(
-    //   IP                    id    user      date          request     code     size    referrer
-    "^([\\d.]+|[:][:][\\d]) (\\S+) (\\S+) \\[([^\\]]+)\\] \"([^\"]+)\" (\\d{3}) ([-\"\\d]+) \"([^\"]+)\" " +
-      // user agent
-      "\"([^\"]+)\"");
+      //   IP                    id    user      date          request     code     size    referrer
+      "^([\\d.]+|[:][:][\\d]) (\\S+) (\\S+) \\[([^\\]]+)\\] \"([^\"]+)\" (\\d{3}) ([-\"\\d]+) \"([^\"]+)\" "
+          + // user agent
+          "\"([^\"]+)\"");
 
   @Override
   public void configure() {
@@ -76,10 +75,10 @@ public class SparkAppUsingGetDataset extends AbstractApplication {
 
       LogKey that = (LogKey) o;
 
-      return Objects.equals(ip, that.ip) &&
-        Objects.equals(user, that.user) &&
-        Objects.equals(request, that.request) &&
-        code == that.code;
+      return Objects.equals(ip, that.ip)
+          && Objects.equals(user, that.user)
+          && Objects.equals(request, that.request)
+          && code == that.code;
     }
 
     @Override
@@ -89,12 +88,12 @@ public class SparkAppUsingGetDataset extends AbstractApplication {
 
     @Override
     public String toString() {
-      return "LogKey{" +
-        "ip='" + ip + '\'' +
-        ", user='" + user + '\'' +
-        ", request='" + request + '\'' +
-        ", code=" + code +
-        '}';
+      return "LogKey{"
+          + "ip='" + ip + '\''
+          + ", user='" + user + '\''
+          + ", request='" + request + '\''
+          + ", code=" + code
+          + '}';
     }
   }
 
@@ -132,10 +131,10 @@ public class SparkAppUsingGetDataset extends AbstractApplication {
 
     @Override
     public String toString() {
-      return "LogStats{" +
-        "count=" + count +
-        ", size=" + size +
-        '}';
+      return "LogStats{"
+          + "count=" + count
+          + ", size=" + size
+          + '}';
     }
   }
 

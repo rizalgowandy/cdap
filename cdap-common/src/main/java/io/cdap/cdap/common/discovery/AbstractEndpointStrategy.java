@@ -17,19 +17,18 @@
 package io.cdap.cdap.common.discovery;
 
 import com.google.common.util.concurrent.SettableFuture;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.common.Threads;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.ServiceDiscovered;
 
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import javax.annotation.Nullable;
-
 /**
- * An abstract {@link EndpointStrategy} that helps implementation of any strategy.
- * It provides a default implementation for the {@link #pick(long, TimeUnit)} method.
+ * An abstract {@link EndpointStrategy} that helps implementation of any strategy. It provides a
+ * default implementation for the {@link #pick(long, TimeUnit)} method.
  */
 public abstract class AbstractEndpointStrategy implements EndpointStrategy {
 
@@ -56,8 +55,9 @@ public abstract class AbstractEndpointStrategy implements EndpointStrategy {
     }
     final SettableFuture<Discoverable> future = SettableFuture.create();
     Cancellable cancellable = serviceDiscoveredSupplier.get()
-      .watchChanges(serviceDiscovered -> Optional.ofNullable(pick(serviceDiscovered)).ifPresent(future::set),
-                    Threads.SAME_THREAD_EXECUTOR);
+        .watchChanges(serviceDiscovered -> Optional.ofNullable(pick(serviceDiscovered))
+                .ifPresent(future::set),
+            Threads.SAME_THREAD_EXECUTOR);
     try {
       return future.get(timeout, timeoutUnit);
     } catch (Exception e) {
@@ -70,8 +70,10 @@ public abstract class AbstractEndpointStrategy implements EndpointStrategy {
   /**
    * Picks a {@link Discoverable} using its strategy.
    *
-   * @param serviceDiscovered the {@link ServiceDiscovered} that contains the endpoint candidates
-   * @return A {@link Discoverable} based on the strategy or {@code null} if no endpoint can be found.
+   * @param serviceDiscovered the {@link ServiceDiscovered} that contains the endpoint
+   *     candidates
+   * @return A {@link Discoverable} based on the strategy or {@code null} if no endpoint can be
+   *     found.
    */
   @Nullable
   protected abstract Discoverable pick(ServiceDiscovered serviceDiscovered);

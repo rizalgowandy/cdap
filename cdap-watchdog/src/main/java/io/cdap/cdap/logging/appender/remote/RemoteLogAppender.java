@@ -34,12 +34,6 @@ import io.cdap.cdap.logging.serialize.LoggingEventSerializer;
 import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.io.DatumWriter;
-import org.apache.avro.io.Encoder;
-import org.apache.avro.io.EncoderFactory;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -52,11 +46,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.Encoder;
+import org.apache.avro.io.EncoderFactory;
 
 /**
  * Remote log appender to push logs to log saver.
  */
 public class RemoteLogAppender extends LogAppender {
+
   private static final String APPENDER_NAME = "RemoteLogAppender";
 
   private final CConfiguration cConf;
@@ -74,7 +74,8 @@ public class RemoteLogAppender extends LogAppender {
   @Override
   public void start() {
     RemoteLogPublisher publisher = new RemoteLogPublisher(cConf, remoteClientFactory);
-    Optional.ofNullable(this.publisher.getAndSet(publisher)).ifPresent(RemoteLogPublisher::stopAndWait);
+    Optional.ofNullable(this.publisher.getAndSet(publisher))
+        .ifPresent(RemoteLogPublisher::stopAndWait);
     publisher.startAndWait();
     addInfo("Successfully started " + APPENDER_NAME);
     super.start();
@@ -100,10 +101,11 @@ public class RemoteLogAppender extends LogAppender {
   }
 
   /**
-   * Publisher service to publish logs to log saver. The publisher can be called by multiple threads so it is thread
-   * safe.
+   * Publisher service to publish logs to log saver. The publisher can be called by multiple threads
+   * so it is thread safe.
    */
-  private final class RemoteLogPublisher extends AbstractLogPublisher<Map.Entry<Integer, ByteBuffer>> {
+  private final class RemoteLogPublisher extends
+      AbstractLogPublisher<Map.Entry<Integer, ByteBuffer>> {
 
     private final int numPartitions;
     private final ThreadLocal<LoggingEventSerializer> loggingEventSerializer;
@@ -113,17 +115,19 @@ public class RemoteLogAppender extends LogAppender {
 
     private RemoteLogPublisher(CConfiguration cConf, RemoteClientFactory remoteClientFactory) {
       super(cConf.getInt(Constants.Logging.APPENDER_QUEUE_SIZE, 512),
-            RetryStrategies.fromConfiguration(cConf, "system.log.process."));
+          RetryStrategies.fromConfiguration(cConf, "system.log.process."));
       this.numPartitions = cConf.getInt(Constants.Logging.NUM_PARTITIONS);
       this.loggingEventSerializer = ThreadLocal.withInitial(LoggingEventSerializer::new);
       this.logPartitionType =
-        LogPartitionType.valueOf(cConf.get(Constants.Logging.LOG_PUBLISH_PARTITION_KEY).toUpperCase());
+          LogPartitionType.valueOf(
+              cConf.get(Constants.Logging.LOG_PUBLISH_PARTITION_KEY).toUpperCase());
       // DatumWriter stores schema in non final variable. However, this schem will not change per thread. So we are
       // not using ThreadLocal for datumWriter
-      this.datumWriter = new GenericDatumWriter<>(Schema.createArray(Schema.create(Schema.Type.BYTES)));
-      this.remoteClient = remoteClientFactory.createRemoteClient(Constants.Service.LOG_BUFFER_SERVICE,
-                                                                 new DefaultHttpRequestConfig(false),
-                                                                 "/v1/logs");
+      this.datumWriter = new GenericDatumWriter<>(
+          Schema.createArray(Schema.create(Schema.Type.BYTES)));
+      this.remoteClient = remoteClientFactory.createRemoteClient(Constants.Service.LOGSAVER,
+          new DefaultHttpRequestConfig(false),
+          "/v1/logs");
     }
 
     @Override
@@ -131,7 +135,7 @@ public class RemoteLogAppender extends LogAppender {
       String partitionKey = logPartitionType.getPartitionKey(logMessage.getLoggingContext());
       int partition = partition(partitionKey, numPartitions);
       return new AbstractMap.SimpleEntry<>(partition,
-                                           ByteBuffer.wrap(loggingEventSerializer.get().toBytes(logMessage)));
+          ByteBuffer.wrap(loggingEventSerializer.get().toBytes(logMessage)));
     }
 
     @Override
@@ -139,7 +143,8 @@ public class RemoteLogAppender extends LogAppender {
       // Group the log messages by partition and then publish all messages to their respective partitions
       Map<Integer, List<ByteBuffer>> partitionedMessages = new HashMap<>();
       for (Map.Entry<Integer, ByteBuffer> logMessage : logMessages) {
-        List<ByteBuffer> messages = partitionedMessages.computeIfAbsent(logMessage.getKey(), k -> new ArrayList<>());
+        List<ByteBuffer> messages = partitionedMessages.computeIfAbsent(logMessage.getKey(),
+            k -> new ArrayList<>());
         messages.add(logMessage.getValue());
       }
 
@@ -147,13 +152,14 @@ public class RemoteLogAppender extends LogAppender {
         for (Map.Entry<Integer, List<ByteBuffer>> partition : partitionedMessages.entrySet()) {
           encodeEvents(os, datumWriter, partition.getValue());
           HttpRequest request = remoteClient.requestBuilder(HttpMethod.POST,
-                                                            "/partitions/" + partition.getKey() + "/publish")
-            .addHeader(HttpHeaders.CONTENT_TYPE, "avro/binary")
-            .withBody(ByteBuffer.wrap(os.toByteArray())).build();
+                  "/partitions/" + partition.getKey() + "/publish")
+              .addHeader(HttpHeaders.CONTENT_TYPE, "avro/binary")
+              .withBody(ByteBuffer.wrap(os.toByteArray())).build();
           HttpResponse response = remoteClient.execute(request);
           // if something went wrong, throw exception to retry
           if (response.getResponseCode() != HttpURLConnection.HTTP_OK) {
-            throw new IOException(String.format("Could not append logs for partition %s", partition));
+            throw new IOException(
+                String.format("Could not append logs for partition %s", partition));
           }
           os.reset();
         }
@@ -168,15 +174,15 @@ public class RemoteLogAppender extends LogAppender {
   }
 
   /**
-   * Similar to StringPartitioner, but StringPartitioner class implements kafka Partitioner. As we do not want kafka
-   * dependencies in this class, this method is added here.
+   * Similar to StringPartitioner, but StringPartitioner class implements kafka Partitioner. As we
+   * do not want kafka dependencies in this class, this method is added here.
    */
   private static int partition(String key, int numPartitions) {
     return Math.abs(Hashing.md5().hashString(key).asInt()) % numPartitions;
   }
 
   private void encodeEvents(OutputStream os, DatumWriter<List<ByteBuffer>> datumWriter,
-                            List<ByteBuffer> events) throws IOException {
+      List<ByteBuffer> events) throws IOException {
     Encoder encoder = EncoderFactory.get().directBinaryEncoder(os, null);
     datumWriter.write(events, encoder);
   }

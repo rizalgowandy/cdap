@@ -22,7 +22,6 @@ import io.cdap.cdap.api.data.schema.SchemaWalker;
 import io.cdap.cdap.data2.metadata.dataset.MetadataEntry;
 import io.cdap.cdap.data2.metadata.dataset.SortInfo;
 import io.cdap.cdap.spi.metadata.MetadataConstants;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -89,7 +88,8 @@ public class SchemaIndexer extends DefaultValueIndexer {
     for (String index : indexes) {
       indexesWithKeyValue.add(key + MetadataConstants.KEYVALUE_SEPARATOR + index);
     }
-    indexesWithKeyValue.add(MetadataConstants.PROPERTIES_KEY + MetadataConstants.KEYVALUE_SEPARATOR + key);
+    indexesWithKeyValue.add(
+        MetadataConstants.PROPERTIES_KEY + MetadataConstants.KEYVALUE_SEPARATOR + key);
     return indexesWithKeyValue;
   }
 }

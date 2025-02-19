@@ -19,6 +19,11 @@ package io.cdap.cdap.runtime.spi.runtimejob;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Resources;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import joptsimple.OptionSpec;
 import org.apache.twill.api.ClassAcceptor;
 import org.apache.twill.api.LocalFile;
@@ -31,16 +36,10 @@ import org.apache.twill.internal.appmaster.ApplicationMasterMain;
 import org.apache.twill.internal.container.TwillContainerMain;
 import org.apache.twill.internal.utils.Dependencies;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
-
 /**
  * Util class to build jar files needed by {@code DataprocRuntimeJobManager}.
  */
-final class DataprocJarUtil {
+public final class DataprocJarUtil {
 
   /**
    * Returns twill bundle jar.
@@ -49,17 +48,27 @@ final class DataprocJarUtil {
    * @return a runtime jar file
    * @throws IOException any error while building the jar
    */
-  static LocalFile getTwillJar(LocationFactory locationFactory) throws IOException {
+  public static synchronized LocalFile getTwillJar(LocationFactory locationFactory)
+      throws IOException {
+    Location location = locationFactory.create(Constants.Files.TWILL_JAR);
+    if (location.exists()) {
+      return getLocalFile(location, true);
+    }
+
+    // scala gets bundled in the twill jar because it's a Kafka dependency,
+    // but Kafka is not used in Dataproc jobs at all. Exclude it to make sure it doesn't
+    // clash with the scala on the cluster.
+    // For example, Dataproc 1.5 uses scala-libary 2.12.10, which is incompatible with 2.12.15
     ApplicationBundler bundler = new ApplicationBundler(new ClassAcceptor() {
       @Override
       public boolean accept(String className, URL classUrl, URL classPathUrl) {
-        return !className.startsWith("org.apache.hadoop") && !classPathUrl.toString().contains("spark-assembly");
+        return !className.startsWith("org.apache.hadoop") && !classPathUrl.toString()
+            .contains("spark-assembly") && !classPathUrl.toString().contains("scala-library");
       }
     });
-    Location location = locationFactory.create(Constants.Files.TWILL_JAR);
     bundler.createBundle(location, ImmutableList.of(ApplicationMasterMain.class,
-                                                    TwillContainerMain.class, OptionSpec.class));
-    return createLocalFile(location, true);
+        TwillContainerMain.class, OptionSpec.class));
+    return getLocalFile(location, true);
   }
 
   /**
@@ -69,8 +78,13 @@ final class DataprocJarUtil {
    * @return a runtime jar file
    * @throws IOException any error while building the jar
    */
-  static LocalFile getLauncherJar(LocationFactory locationFactory) throws IOException {
-    Location location = locationFactory.create("launcher.jar");
+  public static synchronized LocalFile getLauncherJar(LocationFactory locationFactory)
+      throws IOException {
+    Location location = locationFactory.create(Constants.Files.LAUNCHER_JAR);
+    if (location.exists()) {
+      return getLocalFile(location, false);
+    }
+
     try (JarOutputStream jarOut = new JarOutputStream(location.getOutputStream())) {
       ClassLoader classLoader = DataprocJobMain.class.getClassLoader();
       Dependencies.findClassDependencies(classLoader, new ClassAcceptor() {
@@ -92,18 +106,18 @@ final class DataprocJarUtil {
       }, DataprocJobMain.class.getName());
 
       // Add the logback-console.xml from resources
-      URL logbackURL = classLoader.getResource("logback-console.xml");
-      if (logbackURL != null) {
+      URL logbackUrl = classLoader.getResource("logback-console.xml");
+      if (logbackUrl != null) {
         jarOut.putNextEntry(new JarEntry("logback-console.xml"));
-        Resources.copy(logbackURL, jarOut);
+        Resources.copy(logbackUrl, jarOut);
       }
     }
-    return createLocalFile(location, false);
+    return getLocalFile(location, false);
   }
 
-  private static LocalFile createLocalFile(Location location, boolean archive) throws IOException {
+  static LocalFile getLocalFile(Location location, boolean archive) throws IOException {
     return new DefaultLocalFile(location.getName(), location.toURI(),
-                                location.lastModified(), location.length(), archive, null);
+        location.lastModified(), location.length(), archive, null);
   }
 
   private DataprocJarUtil() {

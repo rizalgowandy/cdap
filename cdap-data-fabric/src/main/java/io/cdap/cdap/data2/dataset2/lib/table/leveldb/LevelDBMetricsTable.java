@@ -25,8 +25,8 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.data2.dataset2.lib.table.FuzzyRowFilter;
 import io.cdap.cdap.data2.dataset2.lib.table.MetricsTable;
 import io.cdap.cdap.data2.dataset2.lib.table.inmemory.PrefixedNamespaces;
-
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.SortedMap;
@@ -41,15 +41,17 @@ public class LevelDBMetricsTable implements MetricsTable {
   private final LevelDBTableCore core;
 
   public LevelDBMetricsTable(String namespace, String tableName,
-                             LevelDBTableService service, CConfiguration cConf) {
-    this.core = new LevelDBTableCore(PrefixedNamespaces.namespace(cConf, namespace, tableName), service);
+      LevelDBTableService service, CConfiguration cConf) {
+    this.core = new LevelDBTableCore(PrefixedNamespaces.namespace(cConf, namespace, tableName),
+        service);
     this.tableName = tableName;
   }
 
   @Override
   public byte[] get(byte[] row, byte[] column) {
     try {
-      NavigableMap<byte[], byte[]> result = core.getRow(row, new byte[][]{column}, null, null, -1, null);
+      NavigableMap<byte[], byte[]> result = core.getRow(row, new byte[][]{column}, null, null, -1,
+          null);
       if (!result.isEmpty()) {
         return result.get(column);
       }
@@ -62,7 +64,7 @@ public class LevelDBMetricsTable implements MetricsTable {
   @Override
   public void put(SortedMap<byte[], ? extends SortedMap<byte[], Long>> updates) {
     SortedMap<byte[], ? extends SortedMap<byte[], byte[]>> convertedUpdates =
-      Maps.transformValues(updates, input -> Maps.transformValues(input, Bytes::toBytes));
+        Maps.transformValues(updates, input -> Maps.transformValues(input, Bytes::toBytes));
     try {
       core.persist(convertedUpdates, Long.MAX_VALUE);
     } catch (IOException e) {
@@ -116,6 +118,19 @@ public class LevelDBMetricsTable implements MetricsTable {
   }
 
   @Override
+  public void delete(byte[] row, byte[][] columns, boolean fullRow) {
+    if (fullRow) {
+      try {
+        core.deleteRows(Collections.singleton(row));
+      } catch (IOException e) {
+        throw new DataSetException("Delete failed on table " + tableName, e);
+      }
+    } else {
+      delete(row, columns);
+    }
+  }
+
+  @Override
   public void delete(byte[] row, byte[][] columns) {
     try {
       for (byte[] column : columns) {
@@ -128,7 +143,7 @@ public class LevelDBMetricsTable implements MetricsTable {
 
   @Override
   public Scanner scan(@Nullable byte[] start, @Nullable byte[] stop,
-                      @Nullable FuzzyRowFilter filter) {
+      @Nullable FuzzyRowFilter filter) {
     try {
       return core.scan(start, stop, filter, null, null);
     } catch (IOException e) {

@@ -18,7 +18,6 @@ package io.cdap.cdap.api.dataset.table;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.common.Bytes;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +28,7 @@ import javax.annotation.Nullable;
  */
 @Beta
 public class Scan {
+
   @Nullable
   private final byte[] startRow;
   @Nullable
@@ -40,8 +40,10 @@ public class Scan {
 
   /**
    * Creates {@link Scan} for a given start and stop row keys.
+   *
    * @param startRow start row inclusive; {@code null} means start from first row of the table
-   * @param stopRow stop row exclusive; {@code null} means scan all rows to the end of the table
+   * @param stopRow stop row exclusive; {@code null} means scan all rows to the end of the
+   *     table
    */
   public Scan(@Nullable byte[] startRow, @Nullable byte[] stopRow) {
     this(startRow, stopRow, null);
@@ -49,8 +51,10 @@ public class Scan {
 
   /**
    * Creates {@link Scan} for a given start and stop row keys and filter.
+   *
    * @param startRow start row inclusive; {@code null} means start from first row of the table
-   * @param stopRow stop row exclusive; {@code null} means scan all rows to the end of the table
+   * @param stopRow stop row exclusive; {@code null} means scan all rows to the end of the
+   *     table
    * @param filter filter to be used on scan
    */
   public Scan(@Nullable byte[] startRow, @Nullable byte[] stopRow, @Nullable Filter filter) {
@@ -60,9 +64,9 @@ public class Scan {
   }
 
   /**
-   * Set a property for the Scan. Properties may be used to optimize performance,
-   * and may not apply in all environments.
-   * 
+   * Set a property for the Scan. Properties may be used to optimize performance, and may not apply
+   * in all environments.
+   *
    * @param property the name of the property
    * @param value the value of the property
    */
@@ -91,11 +95,11 @@ public class Scan {
 
   @Override
   public String toString() {
-    return "Scan{" +
-      "startRow=" + Bytes.toStringBinary(startRow) +
-      ", stopRow=" + Bytes.toStringBinary(stopRow) +
-      ", filter=" + filter +
-      ", properties=" + properties +
-      '}';
+    return "Scan{"
+        + "startRow=" + Bytes.toStringBinary(startRow)
+        + ", stopRow=" + Bytes.toStringBinary(stopRow)
+        + ", filter=" + filter
+        + ", properties=" + properties
+        + '}';
   }
 }

@@ -27,11 +27,10 @@ import io.cdap.cdap.spi.metadata.MetadataKind;
 import io.cdap.cdap.spi.metadata.MetadataMutation;
 import io.cdap.cdap.spi.metadata.ScopedName;
 import io.cdap.cdap.spi.metadata.ScopedNameOfKind;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.Map;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class DefaultMetadataServiceClientTest extends AppFabricTestBase {
   // - keep description if new metadata does not contain it
@@ -78,6 +77,23 @@ public class DefaultMetadataServiceClientTest extends AppFabricTestBase {
     Assert.assertEquals(testMetadata.getProperties(MetadataScope.USER),
                         getMetadataProperties(createEntity, MetadataScope.USER));
     Assert.assertEquals(testMetadata.getTags(MetadataScope.USER),
+                        getMetadataTags(createEntity, MetadataScope.USER));
+
+    // confirm that recreating a metadata will generate brand-new tags and properties
+    final Metadata overwrite = new Metadata(
+      ImmutableSet.of(new ScopedName(MetadataScope.SYSTEM, "tag0"),
+                      new ScopedName(MetadataScope.USER, "c")),
+      ImmutableMap.of(new ScopedName(MetadataScope.SYSTEM, "key0"), "val0",
+                      new ScopedName(MetadataScope.SYSTEM, "key1"), "val1",
+                      new ScopedName(MetadataScope.USER, "z"), "4"));
+    createMetadataMutation(new MetadataMutation.Create(createEntity, overwrite, CREATE_DIRECTIVES));
+    Assert.assertEquals(overwrite.getProperties(MetadataScope.SYSTEM),
+                        getMetadataProperties(createEntity, MetadataScope.SYSTEM));
+    Assert.assertEquals(overwrite.getTags(MetadataScope.SYSTEM),
+                        getMetadataTags(createEntity, MetadataScope.SYSTEM));
+    Assert.assertEquals(overwrite.getProperties(MetadataScope.USER),
+                        getMetadataProperties(createEntity, MetadataScope.USER));
+    Assert.assertEquals(overwrite.getTags(MetadataScope.USER),
                         getMetadataTags(createEntity, MetadataScope.USER));
   }
 

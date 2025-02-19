@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.common.guice;
 
 import com.google.common.collect.Sets;
-
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -62,8 +61,8 @@ abstract class TypeVisitor {
   private final Set<Type> visited = Sets.newHashSet();
 
   /**
-   * Visits the given types. Null types are ignored. This allows subclasses to call
-   * {@code visit(parameterizedType.getOwnerType())} safely without having to check nulls.
+   * Visits the given types. Null types are ignored. This allows subclasses to call {@code
+   * visit(parameterizedType.getOwnerType())} safely without having to check nulls.
    */
   public final void visit(Type... types) {
     for (Type type : types) {
@@ -95,9 +94,18 @@ abstract class TypeVisitor {
     }
   }
 
-  void visitClass(Class<?> t) {}
-  void visitGenericArrayType(GenericArrayType t) {}
-  void visitParameterizedType(ParameterizedType t) {}
-  void visitTypeVariable(TypeVariable<?> t) {}
-  void visitWildcardType(WildcardType t) {}
+  void visitClass(Class<?> t) {
+  }
+
+  void visitGenericArrayType(GenericArrayType t) {
+  }
+
+  void visitParameterizedType(ParameterizedType t) {
+  }
+
+  void visitTypeVariable(TypeVariable<?> t) {
+  }
+
+  void visitWildcardType(WildcardType t) {
+  }
 }

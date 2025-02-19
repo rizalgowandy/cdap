@@ -18,10 +18,9 @@ package io.cdap.cdap.common.http;
 
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.common.http.HttpRequestConfig;
+import java.net.HttpURLConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.net.HttpURLConnection;
 
 /**
  * Class to uniformly configure CDAP HTTP requests with a user-configured timeout
@@ -35,29 +34,29 @@ public class DefaultHttpRequestConfig extends HttpRequestConfig {
 
   // System property names
   public static final String CONNECTION_TIMEOUT_PROPERTY_NAME =
-    SYSTEM_PROPERTY_PREFIX + Constants.HTTP_CLIENT_CONNECTION_TIMEOUT_MS;
-  public static final String  READ_TIMEOUT_PROPERTY_NAME =
-    SYSTEM_PROPERTY_PREFIX + Constants.HTTP_CLIENT_READ_TIMEOUT_MS;
+      SYSTEM_PROPERTY_PREFIX + Constants.HTTP_CLIENT_CONNECTION_TIMEOUT_MS;
+  public static final String READ_TIMEOUT_PROPERTY_NAME =
+      SYSTEM_PROPERTY_PREFIX + Constants.HTTP_CLIENT_READ_TIMEOUT_MS;
 
   /**
-   * @param verifySSLCert false, to disable certificate verifying in SSL connections. By default SSL certificate is
-   *                      verified.
+   * @param verifySSLCert false, to disable certificate verifying in SSL connections. By default
+   *     SSL certificate is verified.
    */
   public DefaultHttpRequestConfig(boolean verifySSLCert) {
     super(getTimeoutFromSystemProperties(CONNECTION_TIMEOUT_PROPERTY_NAME),
-          getTimeoutFromSystemProperties(READ_TIMEOUT_PROPERTY_NAME), verifySSLCert);
+        getTimeoutFromSystemProperties(READ_TIMEOUT_PROPERTY_NAME), verifySSLCert);
   }
 
   /**
-   * @param verifySSLCert false, to disable certificate verifying in SSL connections. By default SSL certificate is
-   *                      verified.
-   * @param fixedLengthStreamingThreshold number of bytes in the request body to use fix length request mode. See
-   *                                  {@link HttpURLConnection#setFixedLengthStreamingMode(int)}.
+   * @param verifySSLCert false, to disable certificate verifying in SSL connections. By default
+   *     SSL certificate is verified.
+   * @param fixedLengthStreamingThreshold number of bytes in the request body to use fix length
+   *     request mode. See {@link HttpURLConnection#setFixedLengthStreamingMode(int)}.
    */
   public DefaultHttpRequestConfig(boolean verifySSLCert, int fixedLengthStreamingThreshold) {
     super(getTimeoutFromSystemProperties(CONNECTION_TIMEOUT_PROPERTY_NAME),
-          getTimeoutFromSystemProperties(READ_TIMEOUT_PROPERTY_NAME),
-          verifySSLCert, fixedLengthStreamingThreshold);
+        getTimeoutFromSystemProperties(READ_TIMEOUT_PROPERTY_NAME),
+        verifySSLCert, fixedLengthStreamingThreshold);
   }
 
   private static int getTimeoutFromSystemProperties(String propertyName) {

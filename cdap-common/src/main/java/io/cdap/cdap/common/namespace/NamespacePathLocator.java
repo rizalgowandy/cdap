@@ -19,9 +19,8 @@ package io.cdap.cdap.common.namespace;
 import com.google.inject.ImplementedBy;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.apache.twill.filesystem.Location;
-
 import java.io.IOException;
+import org.apache.twill.filesystem.Location;
 
 /**
  * Interface for retrieving namespace {@link Location} based on namespace metadata.
@@ -40,7 +39,8 @@ public interface NamespacePathLocator {
   /**
    * Returns the base {@link Location} for the specified namespace on the filesystem
    *
-   * @param namespaceMeta the {@link NamespaceMeta metadata} of the namespace for which base location is desired
+   * @param namespaceMeta the {@link NamespaceMeta metadata} of the namespace for which base
+   *     location is desired
    * @return {@link Location} for the specified namespace on the filesystem
    */
   Location get(NamespaceMeta namespaceMeta) throws IOException;

@@ -24,7 +24,6 @@ import io.cdap.cdap.etl.api.batch.BatchSink;
 import io.cdap.cdap.etl.api.batch.BatchSinkContext;
 import io.cdap.cdap.etl.api.engine.sql.SQLEngineOutput;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,9 +46,9 @@ public class MockSinkWithWriteCapability extends AbstractMockSink {
   public void prepareRun(BatchSinkContext context) throws Exception {
     super.prepareRun(context);
     context.addOutput(new SQLEngineOutput(NAME,
-                                          NAME,
-                                          MockSQLEngineWithCapabilities.class.getName(),
-                                          Collections.emptyMap()));
+        context.getStageName(),
+        MockSQLEngineWithCapabilities.class.getName(),
+        Collections.emptyMap()));
   }
 
   /**
@@ -79,10 +78,12 @@ public class MockSinkWithWriteCapability extends AbstractMockSink {
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("tableName", new PluginPropertyField("tableName", "", "string", true, true));
-    properties.put("connectionConfig", new PluginPropertyField("connectionConfig", "", "connectionconfig", true, true,
-                                                               false, Collections.singleton("tableName")));
+    properties.put("connectionConfig",
+        new PluginPropertyField("connectionConfig", "", "connectionconfig", true, true,
+            false, Collections.singleton("tableName")));
     return PluginClass.builder().setName(NAME).setType(BatchSink.PLUGIN_TYPE)
-      .setDescription("").setClassName(MockSinkWithWriteCapability.class.getName()).setProperties(properties)
-      .setConfigFieldName("config").build();
+        .setDescription("").setClassName(MockSinkWithWriteCapability.class.getName())
+        .setProperties(properties)
+        .setConfigFieldName("config").build();
   }
 }

@@ -18,12 +18,17 @@ package io.cdap.cdap.internal.app.runtime.schedule;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
+import io.cdap.cdap.api.metrics.MetricsContext;
+import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ScheduleId;
 import io.cdap.cdap.proto.id.TopicId;
+import java.util.Map;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
@@ -31,11 +36,9 @@ import org.quartz.Trigger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-
 /**
- * ScheduleJob class is used in quartz scheduler job store. Retaining the DefaultSchedulerService$ScheduleJob
- * for backwards compatibility.
+ * ScheduleJob class is used in quartz scheduler job store. Retaining the
+ * DefaultSchedulerService$ScheduleJob for backwards compatibility.
  * TODO: Refactor in 3.0.0
  */
 public class DefaultSchedulerService {
@@ -47,22 +50,25 @@ public class DefaultSchedulerService {
 
     private static final Logger LOG = LoggerFactory.getLogger(ScheduledJob.class);
     private final ScheduleTaskPublisher taskPublisher;
+    private final MetricsCollectionService metricsCollectionService;
 
-    ScheduledJob(MessagingService messagingService, TopicId topicId) {
+    ScheduledJob(MessagingService messagingService, TopicId topicId,
+        MetricsCollectionService metricsCollectionService) {
       this.taskPublisher = new ScheduleTaskPublisher(messagingService, topicId);
+      this.metricsCollectionService = metricsCollectionService;
     }
 
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
       LOG.debug("Emitting time notification for program '{}' and schedule '{}'.",
-                context.getJobDetail().getKey().toString(), context.getTrigger().getKey().toString());
+          context.getJobDetail().getKey().toString(), context.getTrigger().getKey().toString());
       Trigger trigger = context.getTrigger();
       String key = trigger.getKey().getName();
       String[] parts = key.split(":");
       // Time trigger has 6 parts but time trigger in composite trigger has 7 with an extra cron expression part
       Preconditions.checkArgument(parts.length == 6 || parts.length == 7,
-                                  String.format("Trigger's key name %s has %d parts instead of 6 or 7",
-                                                key, parts.length));
+          String.format("Trigger's key name %s has %d parts instead of 6 or 7",
+              key, parts.length));
 
       String namespaceId = parts[0];
       String applicationId = parts[1];
@@ -77,17 +83,30 @@ public class DefaultSchedulerService {
       builder.put(ProgramOptionConstants.SCHEDULE_NAME, scheduleName);
 
       Map<String, String> userOverrides = ImmutableMap.of(ProgramOptionConstants.LOGICAL_START_TIME,
-                                                          Long.toString(context.getScheduledFireTime().getTime()));
+          Long.toString(context.getScheduledFireTime().getTime()));
 
-      ScheduleId scheduleId = new ApplicationId(namespaceId, applicationId, appVersion).schedule(scheduleName);
+      ScheduleId scheduleId = new ApplicationId(namespaceId, applicationId, appVersion).schedule(
+          scheduleName);
       try {
-        taskPublisher.publishNotification(Notification.Type.TIME, scheduleId, builder.build(), userOverrides);
+        taskPublisher.publishNotification(Notification.Type.TIME, scheduleId, builder.build(),
+            userOverrides);
       } catch (Throwable t) {
         // Do not remove this log line. The exception at higher level gets caught by the quartz scheduler and is not
         // logged in cdap master logs making it hard to debug issues.
         LOG.warn("Error while publishing notification for schedule {}. {}", scheduleId, t);
+        emitScheduleJobFailureMetric(scheduleId.getApplication(), scheduleId.getSchedule());
         throw new JobExecutionException(t.getMessage(), t.getCause(), false);
       }
+    }
+
+    private void emitScheduleJobFailureMetric(String application, String schedule) {
+      Map<String, String> tags = ImmutableMap.of(
+          Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getEntityName(),
+          Constants.Metrics.Tag.COMPONENT, "quartzscheduledjob",
+          Constants.Metrics.Tag.APP, application,
+          Constants.Metrics.Tag.SCHEDULE, schedule);
+      MetricsContext metricsContext = metricsCollectionService.getContext(tags);
+      metricsContext.increment(Constants.Metrics.ScheduledJob.SCHEDULE_FAILURE, 1);
     }
   }
 }

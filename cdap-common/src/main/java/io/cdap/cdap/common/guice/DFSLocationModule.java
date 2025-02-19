@@ -25,6 +25,9 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.io.CachingLocationFactory;
 import io.cdap.cdap.common.io.DefaultCachingPathProvider;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -33,14 +36,10 @@ import org.apache.twill.filesystem.LocationFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.concurrent.TimeUnit;
-
 /**
- * A guice module to provide binding for {@link LocationFactory} that uses the {@link FileContextLocationFactory} as
- * the implementation. The actual file system being used is governed by the Hadoop {@link Configuration}, specifically
- * by the {@code fs.defaultFS} configuration.
+ * A guice module to provide binding for {@link LocationFactory} that uses the {@link
+ * FileContextLocationFactory} as the implementation. The actual file system being used is governed
+ * by the Hadoop {@link Configuration}, specifically by the {@code fs.defaultFS} configuration.
  */
 public class DFSLocationModule extends PrivateModule {
 
@@ -64,7 +63,7 @@ public class DFSLocationModule extends PrivateModule {
 
     @Inject
     private LocationFactoryProvider(CConfiguration cConf, Configuration hConf,
-                                    Provider<FileContext> staticFileContextProvider) {
+        Provider<FileContext> staticFileContextProvider) {
       this.cConf = cConf;
       this.hConf = hConf;
       this.staticFileContextProvider = staticFileContextProvider;
@@ -83,7 +82,8 @@ public class DFSLocationModule extends PrivateModule {
         lf = new FileContextLocationFactory(hConf, namespace);
       } else {
         // In non hadoop secure mode, use the static file context, which operates as single user.
-        lf = new InsecureFileContextLocationFactory(hConf, namespace, staticFileContextProvider.get());
+        lf = new InsecureFileContextLocationFactory(hConf, namespace,
+            staticFileContextProvider.get());
       }
 
       String locationCachePath = cConf.get(Constants.LOCATION_CACHE_PATH);
@@ -95,7 +95,8 @@ public class DFSLocationModule extends PrivateModule {
 
       Path cachePath = Paths.get(locationCachePath).toAbsolutePath();
       long expiry = cConf.getLong(Constants.LOCATION_CACHE_EXPIRATION_MS);
-      return new CachingLocationFactory(lf, new DefaultCachingPathProvider(cachePath, expiry, TimeUnit.MILLISECONDS));
+      return new CachingLocationFactory(lf,
+          new DefaultCachingPathProvider(cachePath, expiry, TimeUnit.MILLISECONDS));
     }
   }
 }

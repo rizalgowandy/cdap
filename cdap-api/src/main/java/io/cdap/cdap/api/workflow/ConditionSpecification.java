@@ -17,13 +17,13 @@ package io.cdap.cdap.api.workflow;
 
 import io.cdap.cdap.api.common.PropertyProvider;
 import io.cdap.cdap.api.dataset.Dataset;
-
 import java.util.Set;
 
 /**
  * Specification for the condition that will be executed as a part of {@link Workflow}.
  */
 public interface ConditionSpecification extends PropertyProvider {
+
   /**
    * @return Class name of the condition.
    */

@@ -16,12 +16,11 @@
 
 package io.cdap.cdap.common.twill;
 
+import java.net.URL;
 import org.apache.twill.api.ClassAcceptor;
 
-import java.net.URL;
-
 /**
- * Exclude hadoop classes
+ * Exclude hadoop classes.
  */
 public class HadoopClassExcluder extends ClassAcceptor {
 
@@ -35,11 +34,28 @@ public class HadoopClassExcluder extends ClassAcceptor {
         // exclude tracing dependencies of classes that have dependencies on commons-logging implementation classes
         // so that commons-logging jar is not packaged (this is required so that slf4j is used for log collection)
         return !(className.startsWith("org.apache.hadoop.hbase.http.log.LogLevel")
-          || className.startsWith("org.apache.hadoop.hbase.http.HttpRequestLog"));
+            || className.startsWith("org.apache.hadoop.hbase.http.HttpRequestLog"));
       } else {
         return false;
       }
     }
+    
+    // We don't use the log4j-api library from org.apache.logging.
+    // However, when ran in distributed mode which contains it,
+    // causes conflicts with it if we include it.
+    if (className.startsWith("org.apache.logging.log4j")) {
+      return false;
+    }
+
+    // After Hadoop upgrade to 3.3.6 , It has direct dependency on jackson-databind, which cause conflicts when we pick
+    // Hadoop from the runtime environemnt
+    // Removing classes related to `com.fasterxml.jackson.core:jackson-databind`
+    // and `com.fasterxml.jackson.core:jackson-core`
+    if (className.startsWith("com.fasterxml.jackson.databind.")
+      || className.startsWith("com.fasterxml.jackson.core.")) {
+      return false;
+    }
+
     // We don't use the snappy library from org.iq80. We use the one from org.xerial.snappy.
     // This is an optional dependency from org.iq80.leveldb, hence it is not included in CDAP
     // However, the hive-exec contains it, which can mess up other dependency if we include it.

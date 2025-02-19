@@ -16,6 +16,8 @@
 
 package io.cdap.cdap.common.logging;
 
+import java.io.File;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -31,13 +33,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
-import java.io.IOException;
-
 public class SyncTest {
 
-  MiniDFSCluster dfsCluster = null;
-  Configuration config = null;
+  MiniDFSCluster dfsCluster;
+  Configuration config;
 
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();

@@ -17,7 +17,6 @@
 package io.cdap.cdap.common.lang;
 
 import com.google.common.base.Function;
-
 import javax.annotation.Nullable;
 
 /**
@@ -29,6 +28,7 @@ import javax.annotation.Nullable;
  * @param <E> exception type
  */
 public interface FunctionWithException<F, T, E extends Exception> {
+
   @Nullable
   T apply(@Nullable F input) throws E;
 }

@@ -19,6 +19,7 @@ package io.cdap.cdap.app.runtime.spark.distributed;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.inject.Inject;
+import com.google.inject.Injector;
 import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.common.RuntimeArguments;
 import io.cdap.cdap.api.spark.Spark;
@@ -31,11 +32,12 @@ import io.cdap.cdap.app.runtime.ProgramOptions;
 import io.cdap.cdap.app.runtime.ProgramRunner;
 import io.cdap.cdap.app.runtime.spark.SparkPackageUtils;
 import io.cdap.cdap.app.runtime.spark.SparkProgramRuntimeProvider;
-import io.cdap.cdap.app.runtime.spark.SparkResourceFilters;
+import io.cdap.cdap.app.runtime.spark.SparkResourceFilter;
 import io.cdap.cdap.app.runtime.spark.SparkRuntimeContextConfig;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.lang.FilterClassLoader;
+import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
 import io.cdap.cdap.common.twill.ProgramRuntimeClassAcceptor;
 import io.cdap.cdap.internal.app.runtime.batch.distributed.MapReduceContainerHelper;
 import io.cdap.cdap.internal.app.runtime.distributed.DistributedProgramRunner;
@@ -84,10 +86,14 @@ public final class DistributedSparkProgramRunner extends DistributedProgramRunne
   public DistributedSparkProgramRunner(SparkCompat sparkComat, CConfiguration cConf, YarnConfiguration hConf,
                                        Impersonator impersonator, LocationFactory locationFactory,
                                        ClusterMode clusterMode,
-                                       @Constants.AppFabric.ProgramRunner TwillRunner twillRunner) {
-    super(cConf, hConf, impersonator, clusterMode, twillRunner);
+                                       @Constants.AppFabric.ProgramRunner TwillRunner twillRunner,
+                                       Injector injector) {
+    super(cConf, hConf, impersonator, clusterMode, twillRunner, locationFactory);
     this.sparkCompat = sparkComat;
     this.locationFactory = locationFactory;
+    if (!cConf.getBoolean(Constants.AppFabric.PROGRAM_REMOTE_RUNNER, false)) {
+      this.namespaceQueryAdmin = injector.getInstance(NamespaceQueryAdmin.class);
+    }
   }
 
   @Override
@@ -119,14 +125,12 @@ public final class DistributedSparkProgramRunner extends DistributedProgramRunne
 
     // Update the container hConf
     if (clusterMode == ClusterMode.ON_PREMISE) {
-      // Kerberos is only supported in on premise mode
-      hConf.set(Constants.Explore.HIVE_METASTORE_TOKEN_SIG, Constants.Explore.HIVE_METASTORE_TOKEN_SERVICE_NAME);
 
       if (SecurityUtil.isKerberosEnabled(cConf)) {
         // Need to divide the interval by 0.8 because Spark logic has a 0.8 discount on the interval
         // If we don't offset it, it will look for the new credentials too soon
         // Also add 5 seconds to the interval to give master time to push the changes to the Spark client container
-        long interval = (long) ((TokenSecureStoreRenewer.calculateUpdateInterval(cConf, hConf) + 5000) / 0.8);
+        long interval = (long) ((TokenSecureStoreRenewer.calculateUpdateInterval(hConf) + 5000) / 0.8);
         launchConfig.addExtraSystemArgument(SparkRuntimeContextConfig.CREDENTIALS_UPDATE_INTERVAL_MS,
                                             Long.toString(interval));
       }
@@ -194,6 +198,6 @@ public final class DistributedSparkProgramRunner extends DistributedProgramRunne
 
   @Override
   public ClassLoader createProgramClassLoaderParent() {
-    return new FilterClassLoader(getClass().getClassLoader(), SparkResourceFilters.SPARK_PROGRAM_CLASS_LOADER_FILTER);
+    return new FilterClassLoader(getClass().getClassLoader(), new SparkResourceFilter());
   }
 }

@@ -18,6 +18,7 @@ package io.cdap.cdap.etl.lineage;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
+import io.cdap.cdap.api.lineage.field.EndPoint;
 import io.cdap.cdap.api.lineage.field.InputField;
 import io.cdap.cdap.api.lineage.field.Operation;
 import io.cdap.cdap.api.lineage.field.ReadOperation;
@@ -29,7 +30,6 @@ import io.cdap.cdap.etl.api.lineage.field.FieldTransformOperation;
 import io.cdap.cdap.etl.api.lineage.field.FieldWriteOperation;
 import io.cdap.cdap.etl.planner.Dag;
 import io.cdap.cdap.etl.proto.Connection;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,21 +43,23 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 /**
- * Class responsible for processing the field lineage operations recorded by plugins and
- * converting it into the form the platform expects. This includes prefixing operation names
- * to make sure they are unique across all the plugins, adding implicit merge operations when
- * stage has more than one input etc.
- * The platform operation requires each operation to specify the previous operation name and the operation name has
- * to be unique. Therefore this class will prefix each operation name with the stage name, i.e,
- * {stage-name}.{original-name}. When a stage has multiple input stages except Joiner, implicit merge operations are
- * generated in order for future stages to look up the previous operations.
+ * Class responsible for processing the field lineage operations recorded by plugins and converting
+ * it into the form the platform expects. This includes prefixing operation names to make sure they
+ * are unique across all the plugins, adding implicit merge operations when stage has more than one
+ * input etc. The platform operation requires each operation to specify the previous operation name
+ * and the operation name has to be unique. Therefore this class will prefix each operation name
+ * with the stage name, i.e, {stage-name}.{original-name}. When a stage has multiple input stages
+ * except Joiner, implicit merge operations are generated in order for future stages to look up the
+ * previous operations.
  *
  * TODO: CDAP-16395 revisit this class to see if we can get rid of the merge operations since user will be confused
  * about it. If we cannot, should just make this class more understandable.
  */
 public class LineageOperationsProcessor {
+
   private static final String MERGE_SEPARATOR = ",";
   private static final String SEPARATOR = ".";
 
@@ -65,16 +67,16 @@ public class LineageOperationsProcessor {
   private final Dag stageDag;
   // Map of stage to list of operations recorded by that stage
   private final Map<String, List<FieldOperation>> stageOperations;
-  // Map of stage name to another map which contains the output field names to the corresponding origin
-  private final Map<String, Map<String, String>> stageOutputsWithOrigins;
+  // Map of stage name to another map which contains the output field names to their possible origins
+  private final Map<String, Map<String, List<Origin>>> stageOutputsWithOrigins;
   // Set of stages which requires no implicit merge operation, currently the only stage which does not require merge
   // operations is Joiner
   private final Set<String> noMergeRequiredStages;
   private Map<String, Operation> processedOperations;
 
   public LineageOperationsProcessor(Set<Connection> stageConnections,
-                                    Map<String, List<FieldOperation>> stageOperations,
-                                    Set<String> noMergeRequiredStages) {
+      Map<String, List<FieldOperation>> stageOperations,
+      Set<String> noMergeRequiredStages) {
     this.stageDag = new Dag(stageConnections);
     this.topologicalOrder = stageDag.getTopologicalOrder();
     this.stageOperations = stageOperations;
@@ -96,14 +98,14 @@ public class LineageOperationsProcessor {
   }
 
   /**
-   * Convert the all the stage operations to the platform operation, this method will go through the pipeline in
-   * topological order, so that the later stage will always know the origin of its operation.
-   * If a stage has multiple inputs except joiner, implicit merge operations will be generated in order to for further
-   * stages to look up the origins.
-   * For joiners, the input field name should already contains the previous stage name.
+   * Convert the all the stage operations to the platform operation, this method will go through the
+   * pipeline in topological order, so that the later stage will always know the origin of its
+   * operation. If a stage has multiple inputs except joiner, implicit merge operations will be
+   * generated in order to for further stages to look up the origins. For joiners, the input field
+   * name should already contains the previous stage name.
    *
-   * @return a {@link Map} containing the operations with key of operation name and value of the corresponding
-   * platform {@link Operation}
+   * @return a {@link Map} containing the operations with key of operation name and value of the
+   *     corresponding platform {@link Operation}
    */
   private Map<String, Operation> computeProcessedOperations() {
     Map<String, Operation> processedOperations = new HashMap<>();
@@ -118,32 +120,54 @@ public class LineageOperationsProcessor {
         Operation newOperation = null;
         String newOperationName = prefixedName(stageName, fieldOperation.getName());
         Set<String> currentOperationOutputs = new LinkedHashSet<>();
+        String marker = null;
         switch (fieldOperation.getType()) {
           case READ:
             FieldReadOperation read = (FieldReadOperation) fieldOperation;
+            Map<String, String> sourceProperties = new HashMap<>(read.getSource().getProperties());
+            sourceProperties.put("stageName", stageName);
+            EndPoint sourceEndpoint = EndPoint.of(read.getSource().getNamespace(),
+                read.getSource().getName(), sourceProperties);
+            if (sourceProperties.containsKey("marker")) {
+              marker = sourceProperties.get("marker");
+            }
             newOperation = new ReadOperation(newOperationName, read.getDescription(),
-                                              read.getSource(), read.getOutputFields());
+                sourceEndpoint, read.getOutputFields());
             currentOperationOutputs.addAll(read.getOutputFields());
             break;
           case TRANSFORM:
             FieldTransformOperation transform = (FieldTransformOperation) fieldOperation;
             List<InputField> inputFields = createInputFields(transform.getInputFields(), stageName,
-                                                             processedOperations);
-            newOperation = new TransformOperation(newOperationName, transform.getDescription(), inputFields,
-                                                  transform.getOutputFields());
+                processedOperations, null);
+            newOperation = new TransformOperation(newOperationName, transform.getDescription(),
+                inputFields,
+                transform.getOutputFields());
             currentOperationOutputs.addAll(transform.getOutputFields());
             break;
           case WRITE:
             FieldWriteOperation write = (FieldWriteOperation) fieldOperation;
-            inputFields = createInputFields(write.getInputFields(), stageName, processedOperations);
-            newOperation = new WriteOperation(newOperationName, write.getDescription(), write.getSink(), inputFields);
+            Map<String, String> sinkProperties = new HashMap<>(write.getSink().getProperties());
+            sinkProperties.put("stageName", stageName);
+            if (sinkProperties.containsKey("marker")) {
+              marker = sinkProperties.get("marker");
+            }
+            inputFields = createInputFields(write.getInputFields(), stageName, processedOperations, marker);
+            EndPoint sinkEndpoint = EndPoint.of(write.getSink().getNamespace(),
+                write.getSink().getName(), sinkProperties);
+            newOperation = new WriteOperation(newOperationName, write.getDescription(),
+                sinkEndpoint, inputFields);
             break;
         }
         for (String currentOperationOutput : currentOperationOutputs) {
-          // For all fields outputted by the current operation assign the operation name as origin
-          // If the field appears in the output again for some other operation belonging to the same stage,
-          // its origin will get updated to the new operation
-          stageOutputsWithOrigins.get(stageName).put(currentOperationOutput, newOperation.getName());
+          // For all fields outputted by the current operation assign the operation name with marker as origin
+          // If the field appears in the output again for some other operation belonging to the same stage
+          // and marker is null, its origin will get updated to the new operation to keep existing behavior
+          // if marker is not null, add the new operation with marker as possible origin
+          Map<String, List<Origin>> fieldOriginsMap = stageOutputsWithOrigins.get(stageName);
+          List<Origin> origins = (fieldOriginsMap.get(currentOperationOutput) == null || marker == null)
+            ? new ArrayList<>() : fieldOriginsMap.get(currentOperationOutput);
+          origins.add(new Origin(newOperation.getName(), marker));
+          fieldOriginsMap.put(currentOperationOutput, origins);
         }
         processedOperations.put(newOperation.getName(), newOperation);
       }
@@ -153,23 +177,21 @@ public class LineageOperationsProcessor {
 
   /**
    * Create the implicit merge operations. Each merge operation will have a prefix with
-   * {stage1-name},(stage2-name),{other-stage-name}.merge, appended with the field name.
-   * Each merge operation can be seen as an identity transform for all the fields appeared in the outputs in the
-   * parent stages.
-   * For example, if a pipeline looks like this, the stageInputs is [t1, t2]:
-   * src1[read, body] -> t1(parse, body -> a, b, c) ----------|
-   *                                                          |-> t3(not joiner) -> sink
-   * src2[read, a, b, c] -> t2(identitya, a->a, b->b, c->c) --|
-   * At stage t3, 4 merge operations are generated for each field a,b,c:
-   * 1. name: t1,t2.merge.a, input fields: t1.parse, t2.identitya, output fields: a
-   * 2. name: t1,t2.merge.b, input fields: t1.parse, t2.identityb, output fields: b
-   * 3. name: t1,t2.merge.c, input fields: t1.parse, t2.identityc, output fields: c
-   * 4. name: t1,t2.merge.body, input fields: src1.read, output fields: body
+   * {stage1-name},(stage2-name),{other-stage-name}.merge, appended with the field name. Each merge
+   * operation can be seen as an identity transform for all the fields appeared in the outputs in
+   * the parent stages. For example, if a pipeline looks like this, the stageInputs is [t1, t2]:
+   * src1[read, body] -> t1(parse, body -> a, b, c) ----------| |-> t3(not joiner) -> sink
+   * src2[read, a, b, c] -> t2(identitya, a->a, b->b, c->c) --| At stage t3, 4 merge operations are
+   * generated for each field a,b,c: 1. name: t1,t2.merge.a, input fields: t1.parse, t2.identitya,
+   * output fields: a 2. name: t1,t2.merge.b, input fields: t1.parse, t2.identityb, output fields: b
+   * 3. name: t1,t2.merge.c, input fields: t1.parse, t2.identityc, output fields: c 4. name:
+   * t1,t2.merge.body, input fields: src1.read, output fields: body
    *
    * @param stageInputs the stage inputs, the size of this set be greater than 1
    * @param processedOperations the processed operations that collect all the result
    */
-  private void addMergeOperation(Set<String> stageInputs, Map<String, Operation> processedOperations) {
+  private void addMergeOperation(Set<String> stageInputs,
+      Map<String, Operation> processedOperations) {
     Set<String> sortedInputs = new TreeSet<>(stageInputs);
     String mergeOperationNamePrefix = getMergeOperationNamePrefix(sortedInputs);
     String mergeDescription = "Merged stages: " + Joiner.on(",").join(sortedInputs);
@@ -194,14 +216,14 @@ public class LineageOperationsProcessor {
       Set<String> visitedField = new HashSet<>();
       for (String parentStage : parentStages) {
         // get the map of all the outputs to the origin map from a stage
-        Map<String, String> fieldOrigins = stageOutputsWithOrigins.get(parentStage);
-        for (Map.Entry<String, String> fieldOrigin : fieldOrigins.entrySet()) {
+        Map<String, List<Origin>> fieldOrigins = stageOutputsWithOrigins.get(parentStage);
+        for (Map.Entry<String, List<Origin>> fieldOrigin : fieldOrigins.entrySet()) {
           String fieldName = fieldOrigin.getKey();
           if (visitedField.contains(fieldName)) {
             continue;
           }
           List<String> inputFields = fieldNameMap.computeIfAbsent(fieldName, k -> new ArrayList<>());
-          inputFields.add(fieldOrigin.getValue());
+          fieldOrigin.getValue().forEach(origin -> inputFields.add(origin.getStageOperation()));
           visitedField.add(fieldName);
         }
       }
@@ -216,26 +238,30 @@ public class LineageOperationsProcessor {
       }
 
       TransformOperation merge = new TransformOperation(
-        mergeName, mergeDescription,
-        inputFields.stream().map(origin -> InputField.of(origin, fieldName)).collect(Collectors.toList()),
-        Collections.singletonList(fieldName));
+          mergeName, mergeDescription,
+          inputFields.stream().map(origin -> InputField.of(origin, fieldName))
+              .collect(Collectors.toList()),
+          Collections.singletonList(fieldName));
       processedOperations.put(merge.getName(), merge);
     });
   }
 
   /**
    * Create {@link InputField}s from field names which acts as an input to the operation. Creating
-   * InputField requires origin; the name of the operation which created the field. To figure out the
-   * origin, we traverse in the reverse direction from the current stage until we reach source. While
-   * traversing, for each stage we check if the field occurs in any of the output operations recorded
-   * by that stage, if so we have found the origin.
+   * InputField requires origin; the name of the operation which created the field. To figure out
+   * the origin, we traverse in the reverse direction from the current stage until we reach source.
+   * While traversing, for each stage we check if the field occurs in any of the output operations
+   * recorded by that stage, if so we have found the origin.
    *
-   * @param fields the List of input field names for an operation for which InputFields to be created
+   * @param fields the List of input field names for an operation for which InputFields to be
+   *     created
    * @param currentStage name of the stage which recorded the operation
+   * @param processedOperations operations processed so far
+   * @param marker may contain information about the source/sink asset
    * @return List of InputFields
    */
   private List<InputField> createInputFields(List<String> fields, String currentStage,
-                                             Map<String, Operation> processedOperations) {
+      Map<String, Operation> processedOperations, @Nullable String marker) {
     // We need to return InputFields in the same order as fields.
     // Keep them in map so we can iterate later on received fields to return InputFields.
 
@@ -263,7 +289,8 @@ public class LineageOperationsProcessor {
 
         // TODO CDAP-13298 Field names and stage names can have '.' in them.
         // Probably better to support new JOIN operation type which takes stage name and field name.
-        Iterator<String> stageFieldPairIter = Splitter.on(".").omitEmptyStrings().trimResults().split(field).iterator();
+        Iterator<String> stageFieldPairIter = Splitter.on(".").omitEmptyStrings().trimResults()
+            .split(field).iterator();
         String stageName = stageFieldPairIter.next();
         if (stageFieldPairIter.hasNext() && stageOperations.keySet().contains(stageName)) {
           actualField = stageFieldPairIter.next();
@@ -282,9 +309,22 @@ public class LineageOperationsProcessor {
         // first
         String stage = parentsIterator.previous();
         // check if the current field is output by any one of operation created by current stage
-        String origin = stageOutputsWithOrigins.get(stage).get(actualField);
-        if (origin != null) {
-          inputFields.put(field, InputField.of(origin, actualField));
+        // a field can have multiple origins only if marker is not null,
+        // otherwise the existing behavior is retained where there is only one Origin and there is no marker
+        List<Origin> possibleOrigins = stageOutputsWithOrigins.get(stage).get(actualField);
+        if (possibleOrigins != null) {
+          // if there is only one origin, update the input field. In this case, marker will be null.
+          // if there is more than one origin, marker is not null.
+          // We then need to match the marker to find the correct input.
+          if (possibleOrigins.size() == 1) {
+            inputFields.put(field, InputField.of(possibleOrigins.get(0).getStageOperation(), actualField));
+          } else {
+            for (Origin possibleOrigin: possibleOrigins) {
+              if (marker != null && marker.equals(possibleOrigin.getMarker())) {
+                inputFields.put(field, InputField.of(possibleOrigin.getStageOperation(), actualField));
+              }
+            }
+          }
           break;
         }
       }
@@ -304,7 +344,8 @@ public class LineageOperationsProcessor {
       }
     }
 
-    List<String> fieldsToIterateOn = noMergeRequiredStages.contains(currentStage) ? fieldsForJoin : fields;
+    List<String> fieldsToIterateOn =
+        noMergeRequiredStages.contains(currentStage) ? fieldsForJoin : fields;
     List<InputField> result = new ArrayList<>();
     for (String field : fieldsToIterateOn) {
       if (inputFields.containsKey(field)) {
@@ -315,8 +356,8 @@ public class LineageOperationsProcessor {
   }
 
   /**
-   * Find the parent stages of the given stage. The most recent stages will be at end of the list. It will find
-   * parents up to the source or at the node which has multiple inputs.
+   * Find the parent stages of the given stage. The most recent stages will be at end of the list.
+   * It will find parents up to the source or at the node which has multiple inputs.
    *
    * @param stageName the stage name to find parents
    * @return the list of parents

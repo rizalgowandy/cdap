@@ -19,11 +19,10 @@ package io.cdap.cdap.data2.dataset2.lib.table;
 
 import com.google.common.collect.ImmutableList;
 import io.cdap.cdap.api.common.Bytes;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.nio.BufferUnderflowException;
 import java.util.List;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class MDSKeyTest {
 
@@ -112,6 +111,23 @@ public class MDSKeyTest {
   }
 
   @Test
+  public void testSkipBoolean() {
+    MDSKey.Builder builder = new MDSKey.Builder();
+    builder.add("part1");
+    builder.add(false);
+    builder.add(false);
+    builder.add(true);
+
+    MDSKey mdsKey = builder.build();
+    MDSKey.Splitter splitter = mdsKey.split();
+
+    Assert.assertEquals("part1", splitter.getString());
+    Assert.assertEquals(false, splitter.getBoolean());
+    splitter.skipBoolean();
+    Assert.assertEquals(true, splitter.getBoolean());
+  }
+
+  @Test
   public void testGetBytesOverflow() {
     MDSKey.Builder builder = new MDSKey.Builder();
     builder.add(2000);
@@ -125,12 +141,14 @@ public class MDSKeyTest {
       splitter.getBytes();
       Assert.fail();
     } catch (BufferUnderflowException expected) {
+      // expected
     }
 
     try {
       splitter.getString();
       Assert.fail();
     } catch (BufferUnderflowException expected) {
+      // expected
     }
   }
 
@@ -158,10 +176,31 @@ public class MDSKeyTest {
   }
 
   @Test
+  public void getGetBooleanOverflow() {
+    MDSKey.Builder builder = new MDSKey.Builder();
+    builder.add(false);
+    builder.add(true);
+
+    MDSKey mdsKey = builder.build();
+    MDSKey.Splitter splitter = mdsKey.split();
+
+    Assert.assertEquals(false, splitter.getBoolean());
+    Assert.assertEquals(true, splitter.getBoolean());
+
+    // splitter.getBoolean will fail due to there only being 2 parts in the key
+    try {
+      splitter.getBoolean();
+      Assert.fail();
+    } catch (BufferUnderflowException expected) {
+      Assert.assertFalse(splitter.hasRemaining());
+    }
+  }
+
+  @Test
   public void testAppend() {
     MDSKey mdsKey1 = new MDSKey.Builder().add("ab").add(3L).add(new byte[]{'x', 'y'}).build();
     MDSKey mdsKey2 = new MDSKey.Builder().add("bd").add(5).append(mdsKey1).add(new byte[]{'z', 'z'}).build();
-    MDSKey mdsKey3 = new MDSKey.Builder().add(2).add(new byte[]{'w'}).append(mdsKey2).add(8L).build();
+    MDSKey mdsKey3 = new MDSKey.Builder().add(2).add(new byte[]{'w'}).append(mdsKey2).add(8L).add(true).build();
 
     // Assert
     MDSKey.Splitter splitter = mdsKey3.split();
@@ -174,5 +213,6 @@ public class MDSKeyTest {
     Assert.assertArrayEquals(new byte[]{'x', 'y'}, splitter.getBytes());
     Assert.assertArrayEquals(new byte[]{'z', 'z'}, splitter.getBytes());
     Assert.assertEquals(8L, splitter.getLong());
+    Assert.assertEquals(true, splitter.getBoolean());
   }
 }

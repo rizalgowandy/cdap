@@ -18,73 +18,64 @@ package io.cdap.cdap.internal.app.program;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import io.cdap.cdap.app.program.ProgramDescriptor;
 import io.cdap.cdap.app.runtime.Arguments;
 import io.cdap.cdap.app.runtime.ProgramOptions;
 import io.cdap.cdap.app.runtime.ProgramStateWriter;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.internal.app.ApplicationSpecificationAdapter;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
 import io.cdap.cdap.internal.app.runtime.codec.ArgumentsCodec;
 import io.cdap.cdap.internal.app.runtime.codec.ProgramOptionsCodec;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.Notification;
-import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramRunId;
-import org.apache.twill.common.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.apache.twill.common.Threads;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Wrapper around {@link ProgramStateWriter} with additional hook to start a
- * heartbeat thread on running or resuming program state and stop the thread on completed/error/suspend state.
+ * Wrapper around {@link ProgramStateWriter} with additional hook to start a heartbeat thread on
+ * running or resuming program state and stop the thread on completed/error/suspend state.
  */
 public class ProgramStateWriterWithHeartBeat {
+
   private static final Logger LOG = LoggerFactory.getLogger(ProgramStateWriterWithHeartBeat.class);
   private static final Gson GSON =
-    ApplicationSpecificationAdapter.addTypeAdapters(new GsonBuilder())
-      .registerTypeAdapter(Arguments.class, new ArgumentsCodec())
-      .registerTypeAdapter(ProgramOptions.class, new ProgramOptionsCodec()).create();
+      ApplicationSpecificationAdapter.addTypeAdapters(new GsonBuilder())
+          .registerTypeAdapter(Arguments.class, new ArgumentsCodec())
+          .registerTypeAdapter(ProgramOptions.class, new ProgramOptionsCodec()).create();
   private final long heartBeatIntervalSeconds;
   private final ProgramStateWriter programStateWriter;
   private final ProgramRunId programRunId;
-  private final ProgramStatePublisher messagingProgramStatePublisher;
-  private ScheduledExecutorService scheduledExecutorService;
+  private final ProgramStatePublisher programStatePublisher;
+  private ScheduledExecutorService scheduler;
 
 
   public ProgramStateWriterWithHeartBeat(ProgramRunId programRunId,
-                                         ProgramStateWriter programStateWriter,
-                                         MessagingService messagingService,
-                                         CConfiguration cConf) {
-    this(programRunId, programStateWriter, cConf.getLong(Constants.ProgramHeartbeat.HEARTBEAT_INTERVAL_SECONDS),
-         new MessagingProgramStatePublisher(messagingService,
-                                            NamespaceId.SYSTEM.topic(cConf.get(
-                                              Constants.AppFabric.PROGRAM_STATUS_EVENT_TOPIC)),
-                                            RetryStrategies.fromConfiguration(cConf, "system.program.state.")));
+      ProgramStateWriter programStateWriter,
+      MessagingService messagingService,
+      CConfiguration cConf) {
+    this(programRunId, programStateWriter,
+        cConf.getLong(Constants.ProgramHeartbeat.HEARTBEAT_INTERVAL_SECONDS),
+        new MessagingProgramStatePublisher(cConf, messagingService));
   }
 
   @VisibleForTesting
   ProgramStateWriterWithHeartBeat(ProgramRunId programRunId,
-                                  ProgramStateWriter programStateWriter,
-                                  long heartBeatIntervalSeconds,
-                                  ProgramStatePublisher messagingProgramStatePublisher) {
+      ProgramStateWriter programStateWriter,
+      long heartBeatIntervalSeconds,
+      ProgramStatePublisher programStatePublisher) {
     this.programRunId = programRunId;
     this.programStateWriter = programStateWriter;
     this.heartBeatIntervalSeconds = heartBeatIntervalSeconds;
-    this.messagingProgramStatePublisher = messagingProgramStatePublisher;
-  }
-
-  public void start(ProgramOptions programOptions, @Nullable String twillRunId, ProgramDescriptor programDescriptor) {
-    programStateWriter.start(programRunId, programOptions, twillRunId, programDescriptor);
+    this.programStatePublisher = programStatePublisher;
   }
 
   public void running(@Nullable String twillRunId) {
@@ -107,49 +98,42 @@ public class ProgramStateWriterWithHeartBeat {
     programStateWriter.error(programRunId, failureCause);
   }
 
-  public void suspend() {
-    stopHeartbeatThread();
-    programStateWriter.suspend(programRunId);
-  }
-
-  public void resume() {
-    scheduleHeartBeatThread();
-    programStateWriter.resume(programRunId);
-  }
-
   /**
-   * If executor service isn't initialized or if its shutdown
-   * create a new executor service and schedule a heartbeat thread
+   * If executor service isn't initialized or if its shutdown create a new executor service and
+   * schedule a heartbeat thread
    */
   private void scheduleHeartBeatThread() {
-    if (scheduledExecutorService == null || scheduledExecutorService.isShutdown()) {
-      scheduledExecutorService =
-        Executors.newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("program-heart-beat"));
-      scheduledExecutorService.scheduleAtFixedRate(
-        () -> {
-          Map<String, String> properties = new HashMap<>();
-          properties.put(ProgramOptionConstants.PROGRAM_RUN_ID, GSON.toJson(programRunId));
-          properties.put(ProgramOptionConstants.HEART_BEAT_TIME, String.valueOf(System.currentTimeMillis()));
-          // publish as heart_beat type, so it can be handled appropriately at receiver
-          messagingProgramStatePublisher.publish(Notification.Type.PROGRAM_HEART_BEAT, properties);
-          LOG.trace("Sent heartbeat for program {}", programRunId);
-        }, heartBeatIntervalSeconds,
-        heartBeatIntervalSeconds, TimeUnit.SECONDS);
+    if (scheduler == null) {
+      scheduler = Executors.newSingleThreadScheduledExecutor(
+          Threads.createDaemonThreadFactory("program-heart-beat"));
+      scheduler.scheduleAtFixedRate(
+          () -> {
+            Map<String, String> properties = new HashMap<>();
+            properties.put(ProgramOptionConstants.PROGRAM_RUN_ID, GSON.toJson(programRunId));
+            properties.put(ProgramOptionConstants.HEART_BEAT_TIME,
+                String.valueOf(System.currentTimeMillis()));
+            // publish as heart_beat type, so it can be handled appropriately at receiver
+            programStatePublisher.publish(Notification.Type.PROGRAM_HEART_BEAT, properties);
+            LOG.trace("Sent heartbeat for program {}", programRunId);
+          }, heartBeatIntervalSeconds,
+          heartBeatIntervalSeconds, TimeUnit.SECONDS);
     }
   }
 
   private void stopHeartbeatThread() {
-    if (scheduledExecutorService != null) {
-      scheduledExecutorService.shutdownNow();
+    if (scheduler != null) {
+      scheduler.shutdownNow();
+      scheduler = null;
     }
   }
 
   /**
    * This method is only used for testing
+   *
    * @return true if the heart beat thread is active, false otherwise
    */
   @VisibleForTesting
   boolean isHeartBeatThreadAlive() {
-    return scheduledExecutorService != null && !scheduledExecutorService.isShutdown();
+    return scheduler != null && !scheduler.isShutdown();
   }
 }

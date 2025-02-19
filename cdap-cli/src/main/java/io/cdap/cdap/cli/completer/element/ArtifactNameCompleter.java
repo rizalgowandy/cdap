@@ -22,7 +22,6 @@ import io.cdap.cdap.api.artifact.ArtifactSummary;
 import io.cdap.cdap.cli.CLIConfig;
 import io.cdap.cdap.cli.completer.StringsCompleter;
 import io.cdap.cdap.client.ArtifactClient;
-
 import java.util.Collection;
 import java.util.List;
 import javax.inject.Inject;
@@ -38,7 +37,8 @@ public class ArtifactNameCompleter extends StringsCompleter {
       @Override
       public Collection<String> get() {
         try {
-          List<ArtifactSummary> artifactSummaries = artifactClient.list(cliConfig.getCurrentNamespace());
+          List<ArtifactSummary> artifactSummaries = artifactClient.list(
+              cliConfig.getCurrentNamespace());
           List<String> names = Lists.newArrayList();
           for (ArtifactSummary summary : artifactSummaries) {
             names.add(summary.getName());

@@ -16,18 +16,17 @@
 
 package io.cdap.cdap.runtime.spi.provisioner;
 
+import io.cdap.cdap.api.exception.ErrorCategory;
 import io.cdap.cdap.runtime.spi.ProgramRunInfo;
 import io.cdap.cdap.runtime.spi.RuntimeMonitorType;
 import io.cdap.cdap.runtime.spi.SparkCompat;
 import io.cdap.cdap.runtime.spi.VersionInfo;
 import io.cdap.cdap.runtime.spi.ssh.SSHContext;
-import org.apache.twill.filesystem.LocationFactory;
-
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.locks.Lock;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.LocationFactory;
 
 /**
  * Context for provisioner operations.
@@ -47,19 +46,20 @@ public interface ProvisionerContext {
   ProgramRunInfo getProgramRunInfo();
 
   /**
-   * Get the provisioner properties for this program run. These properties will start off as the provisioner properties
-   * associated with the profile of the program run. The properties will then be overridden by any program preferences
-   * that are prefixed with 'system.profile.properties.', with the prefixed stripped. Those properties will then be
-   * overridden by any runtime arguments or schedule properties that are prefixed with 'system.profile.properties.',
-   * with the prefixed stripped.
+   * Get the provisioner properties for this program run. These properties will start off as the
+   * provisioner properties associated with the profile of the program run. The properties will then
+   * be overridden by any program preferences that are prefixed with 'system.profile.properties.',
+   * with the prefixed stripped. Those properties will then be overridden by any runtime arguments
+   * or schedule properties that are prefixed with 'system.profile.properties.', with the prefixed
+   * stripped.
    *
    * @return the provisioner properties for the program run
    */
   Map<String, String> getProperties();
 
   /**
-   * Returns the {@link SSHContext} for performing ssh operations. The context will be null if RunimeJobManager is
-   * used to submit and monitor job.
+   * Returns the {@link SSHContext} for performing ssh operations. The context will be null if
+   * RunimeJobManager is used to submit and monitor job.
    */
   @Nullable
   SSHContext getSSHContext();
@@ -83,10 +83,9 @@ public interface ProvisionerContext {
   VersionInfo getCDAPVersionInfo();
 
   /**
-   *
-   * @return version of CDAP pipeline was created or update with. Can be used to adjust default values for
-   * backwards compatibility. If pipeline was created before this field was introduced,
-   * null is returned.
+   * @return version of CDAP pipeline was created or update with. Can be used to adjust default
+   *     values for backwards compatibility. If pipeline was created before this field was
+   *     introduced, null is returned.
    */
   @Nullable
   VersionInfo getAppCDAPVersionInfo();
@@ -120,4 +119,10 @@ public interface ProvisionerContext {
    */
   @Nullable
   String getProfileName();
+
+  /**
+   * @return error category.
+   */
+  @Nullable
+  ErrorCategory getErrorCategory();
 }

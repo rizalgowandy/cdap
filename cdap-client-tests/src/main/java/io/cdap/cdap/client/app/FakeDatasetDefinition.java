@@ -24,7 +24,6 @@ import io.cdap.cdap.api.dataset.DatasetProperties;
 import io.cdap.cdap.api.dataset.DatasetSpecification;
 import io.cdap.cdap.api.dataset.lib.AbstractDatasetDefinition;
 import io.cdap.cdap.api.dataset.lib.KeyValueTable;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -35,7 +34,8 @@ public class FakeDatasetDefinition extends AbstractDatasetDefinition<FakeDataset
 
   private final DatasetDefinition<? extends KeyValueTable, ?> tableDef;
 
-  public FakeDatasetDefinition(String name, DatasetDefinition<? extends KeyValueTable, ?> keyValueDef) {
+  public FakeDatasetDefinition(String name,
+      DatasetDefinition<? extends KeyValueTable, ?> keyValueDef) {
     super(name);
     Preconditions.checkArgument(keyValueDef != null, "KeyValueTable definition is required");
     this.tableDef = keyValueDef;
@@ -44,20 +44,20 @@ public class FakeDatasetDefinition extends AbstractDatasetDefinition<FakeDataset
   @Override
   public DatasetSpecification configure(String instanceName, DatasetProperties properties) {
     return DatasetSpecification.builder(instanceName, getName())
-      .properties(properties.getProperties())
-      .datasets(tableDef.configure("objects", properties))
-      .build();
+        .properties(properties.getProperties())
+        .datasets(tableDef.configure("objects", properties))
+        .build();
   }
 
   @Override
   public DatasetAdmin getAdmin(DatasetContext datasetContext, DatasetSpecification spec,
-                               ClassLoader classLoader) throws IOException {
+      ClassLoader classLoader) throws IOException {
     return tableDef.getAdmin(datasetContext, spec.getSpecification("objects"), classLoader);
   }
 
   @Override
   public FakeDataset getDataset(DatasetContext datasetContext, DatasetSpecification spec,
-                                Map<String, String> arguments, ClassLoader classLoader) throws IOException {
+      Map<String, String> arguments, ClassLoader classLoader) throws IOException {
     DatasetSpecification kvTableSpec = spec.getSpecification("objects");
     KeyValueTable table = tableDef.getDataset(datasetContext, kvTableSpec, arguments, classLoader);
 

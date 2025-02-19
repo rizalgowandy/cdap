@@ -19,7 +19,6 @@ package io.cdap.cdap.internal.pipeline;
 import com.google.common.collect.Lists;
 import io.cdap.cdap.pipeline.Pipeline;
 import io.cdap.cdap.pipeline.Stage;
-
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -30,6 +29,7 @@ import javax.annotation.Nullable;
  * @param <T> Type of object produced by this pipeline.
  */
 public abstract class AbstractPipeline<T> implements Pipeline<T> {
+
   /**
    * List of stages in the pipeline.
    */

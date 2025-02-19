@@ -19,32 +19,35 @@ package io.cdap.cdap.metadata;
 import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.proto.ApplicationDetail;
-import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.io.IOException;
-import java.util.List;
+import java.util.function.Consumer;
 
 /**
- * Interface for fetching {@code ApplicationDetail}
+ * Interface for fetching {@code ApplicationDetail}.
  */
 public interface ApplicationDetailFetcher {
 
   /**
-   * Get the application detail for the given application id
-   * @param appId the id of the application
+   * Get the application detail for the given application reference.
+   *
+   * @param appRef the versionless ID of the application
    * @return the detail of the given application
    * @throws IOException if failed to get {@code ApplicationDetail}
-   * @throws NotFoundException if the application or namespace identified by the supplied id doesn't exist
+   * @throws NotFoundException if the application or namespace identified by the supplied id
+   *     doesn't exist
    */
-  ApplicationDetail get(ApplicationId appId) throws IOException, NotFoundException, UnauthorizedException;
+  ApplicationDetail get(ApplicationReference appRef)
+      throws IOException, NotFoundException, UnauthorizedException;
 
   /**
-   * Get details of all applications in the given namespace
-   * @param namespace the name of the namespace to get the list of applications
-   * @return a list of {@code ApplicationDetail} in the given namspace
-   * @throws IOException if failed to get the list of {@code ApplicationDetail}
-   * @throws NamespaceNotFoundException if the given namespace doesn't exist
+   * Scans all the latest version of application details in the given namespace.
+   *
+   * @param namespace the namespace to scan application details from
+   * @param consumer a {@link Consumer} to consume each ApplicationDetail being scanned
+   * @param batchSize the number of application details to be scanned in each batch
    */
-  List<ApplicationDetail> list(String namespace) throws IOException, NamespaceNotFoundException, UnauthorizedException;
+  void scan(String namespace, Consumer<ApplicationDetail> consumer, Integer batchSize)
+      throws IOException, NamespaceNotFoundException, UnauthorizedException;
 }

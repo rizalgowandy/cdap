@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto;
 
 import io.cdap.cdap.proto.codec.BasicThrowableCodec;
-
 import java.util.Arrays;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -26,6 +25,7 @@ import javax.annotation.Nullable;
  * Maintains basic information about a {@link Throwable}, for easy serialization/deserialization.
  */
 public final class BasicThrowable {
+
   private final String className;
   private final String message;
   private final StackTraceElement[] stackTraces;
@@ -40,9 +40,9 @@ public final class BasicThrowable {
    * @param cause cause associated with the Throwable
    */
   public BasicThrowable(String className,
-                        @Nullable String message,
-                        StackTraceElement[] stackTraces,
-                        @Nullable BasicThrowable cause) {
+      @Nullable String message,
+      StackTraceElement[] stackTraces,
+      @Nullable BasicThrowable cause) {
     this.className = className;
     this.message = message;
     this.stackTraces = stackTraces;
@@ -107,9 +107,9 @@ public final class BasicThrowable {
     BasicThrowable that = (BasicThrowable) o;
 
     return className.equals(that.className)
-      && Objects.equals(message, that.message)
-      && Arrays.equals(stackTraces, that.stackTraces)
-      && Objects.equals(cause, that.cause);
+        && Objects.equals(message, that.message)
+        && Arrays.equals(stackTraces, that.stackTraces)
+        && Objects.equals(cause, that.cause);
   }
 
   @Override

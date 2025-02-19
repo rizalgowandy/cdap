@@ -19,7 +19,6 @@ import io.cdap.cdap.api.annotation.UseDataSet;
 import io.cdap.cdap.api.data.DatasetContext;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.internal.lang.FieldVisitor;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 
@@ -35,7 +34,8 @@ public final class DataSetFieldSetter extends FieldVisitor {
   }
 
   @Override
-  public void visit(Object instance, Type inspectType, Type declareType, Field field) throws Exception {
+  public void visit(Object instance, Type inspectType, Type declareType, Field field)
+      throws Exception {
     if (Dataset.class.isAssignableFrom(field.getType())) {
       UseDataSet useDataSet = field.getAnnotation(UseDataSet.class);
       if (useDataSet != null && !useDataSet.value().isEmpty()) {

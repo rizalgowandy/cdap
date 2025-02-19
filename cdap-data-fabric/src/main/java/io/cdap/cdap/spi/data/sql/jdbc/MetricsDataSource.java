@@ -19,14 +19,13 @@ package io.cdap.cdap.spi.data.sql.jdbc;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.common.conf.Constants;
-import org.apache.commons.pool2.ObjectPool;
-
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
+import org.apache.commons.pool2.ObjectPool;
 
 /**
  * A metrics data source that will emit metrics about the number of connections.
@@ -38,7 +37,7 @@ public class MetricsDataSource implements DataSource, AutoCloseable {
   private final ObjectPool<?> objectPool;
 
   public MetricsDataSource(DataSource dataSource, MetricsCollectionService metricsCollectionService,
-                           ObjectPool<?> objectPool) {
+      ObjectPool<?> objectPool) {
     this.dataSource = dataSource;
     this.metricsCollectionService = metricsCollectionService;
     this.objectPool = objectPool;
@@ -46,11 +45,14 @@ public class MetricsDataSource implements DataSource, AutoCloseable {
 
   @Override
   public Connection getConnection() throws SQLException {
-    MetricsContext metricsCollector = metricsCollectionService.getContext(Constants.Metrics.STORAGE_METRICS_TAGS);
+    MetricsContext metricsCollector = metricsCollectionService.getContext(
+        Constants.Metrics.STORAGE_METRICS_TAGS);
     try {
       Connection connection = dataSource.getConnection();
-      metricsCollector.gauge(Constants.Metrics.StructuredTable.ACTIVE_CONNECTIONS, objectPool.getNumActive());
-      metricsCollector.gauge(Constants.Metrics.StructuredTable.IDLE_CONNECTIONS, objectPool.getNumIdle());
+      metricsCollector.gauge(Constants.Metrics.StructuredTable.ACTIVE_CONNECTIONS,
+          objectPool.getNumActive());
+      metricsCollector.gauge(Constants.Metrics.StructuredTable.IDLE_CONNECTIONS,
+          objectPool.getNumIdle());
       return connection;
     } catch (SQLException e) {
       metricsCollector.increment(Constants.Metrics.StructuredTable.ERROR_CONNECTIONS, 1L);
@@ -60,11 +62,14 @@ public class MetricsDataSource implements DataSource, AutoCloseable {
 
   @Override
   public Connection getConnection(String username, String password) throws SQLException {
-    MetricsContext metricsCollector = metricsCollectionService.getContext(Constants.Metrics.STORAGE_METRICS_TAGS);
+    MetricsContext metricsCollector = metricsCollectionService.getContext(
+        Constants.Metrics.STORAGE_METRICS_TAGS);
     try {
       Connection connection = dataSource.getConnection(username, password);
-      metricsCollector.gauge(Constants.Metrics.StructuredTable.ACTIVE_CONNECTIONS, objectPool.getNumActive());
-      metricsCollector.gauge(Constants.Metrics.StructuredTable.IDLE_CONNECTIONS, objectPool.getNumIdle());
+      metricsCollector.gauge(Constants.Metrics.StructuredTable.ACTIVE_CONNECTIONS,
+          objectPool.getNumActive());
+      metricsCollector.gauge(Constants.Metrics.StructuredTable.IDLE_CONNECTIONS,
+          objectPool.getNumIdle());
       return connection;
     } catch (SQLException e) {
       metricsCollector.increment(Constants.Metrics.StructuredTable.ERROR_CONNECTIONS, 1L);

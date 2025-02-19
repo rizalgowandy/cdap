@@ -20,20 +20,22 @@ import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.data2.metadata.dataset.MetadataEntry;
 import io.cdap.cdap.data2.metadata.dataset.SortInfo;
 import io.cdap.cdap.spi.metadata.MetadataConstants;
-
 import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Indexer used to index a {@link MetadataEntity} with it's type and the value associated with the type to support
- * queries like dataset:employeeRecord or field:empName where dataset and field are the types.
+ * Indexer used to index a {@link MetadataEntity} with it's type and the value associated with the
+ * type to support queries like dataset:employeeRecord or field:empName where dataset and field are
+ * the types.
  */
 public class MetadataEntityTypeIndexer implements Indexer {
+
   @Override
   public Set<String> getIndexes(MetadataEntry entry) {
     Set<String> indexes = new HashSet<>();
-    indexes.add(entry.getMetadataEntity().getType().toLowerCase() + MetadataConstants.KEYVALUE_SEPARATOR +
-                  entry.getMetadataEntity().getValue(entry.getMetadataEntity().getType()));
+    indexes.add(
+        entry.getMetadataEntity().getType().toLowerCase() + MetadataConstants.KEYVALUE_SEPARATOR
+            + entry.getMetadataEntity().getValue(entry.getMetadataEntity().getType()));
     return indexes;
   }
 

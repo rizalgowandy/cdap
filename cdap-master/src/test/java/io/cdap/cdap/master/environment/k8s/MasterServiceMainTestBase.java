@@ -23,17 +23,11 @@ import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.security.KeyStores;
 import io.cdap.cdap.common.security.KeyStoresTest;
 import io.cdap.cdap.gateway.router.NettyRouter;
+import io.cdap.cdap.internal.bootstrap.executor.DefaultNamespaceCreator;
 import io.cdap.cdap.logging.gateway.handlers.ProgramRunRecordFetcher;
 import io.cdap.cdap.logging.gateway.handlers.RemoteProgramRunRecordFetcher;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.server.ExternalAuthenticationServer;
-import org.apache.twill.common.Cancellable;
-import org.apache.twill.internal.zookeeper.InMemoryZKServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.File;
 import java.io.Writer;
 import java.net.InetAddress;
@@ -47,6 +41,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.StreamSupport;
+import org.apache.twill.common.Cancellable;
+import org.apache.twill.internal.zookeeper.InMemoryZKServer;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * A unit-test that starts all master service main classes.
@@ -58,7 +58,7 @@ public class MasterServiceMainTestBase {
 
   private static InMemoryZKServer zkServer;
   private static final Map<Class<? extends AbstractServiceMain>, ServiceMainManager<?>> SERVICE_MANAGERS =
-    new LinkedHashMap<>();
+      new LinkedHashMap<>();
   protected static String[] initArgs;
 
   protected static CConfiguration cConf = CConfiguration.create();
@@ -66,7 +66,8 @@ public class MasterServiceMainTestBase {
 
   @BeforeClass
   public static void init() throws Exception {
-    zkServer = InMemoryZKServer.builder().setAutoCleanDataDir(false).setDataDir(TEMP_FOLDER.newFolder()).build();
+    zkServer = InMemoryZKServer.builder().setAutoCleanDataDir(false)
+        .setDataDir(TEMP_FOLDER.newFolder()).build();
     zkServer.startAndWait();
 
     // Set the HDFS directory as well as we are using DFSLocationModule in the master services
@@ -77,7 +78,7 @@ public class MasterServiceMainTestBase {
     String keyPass = "testing";
     KeyStore keyStore = KeyStores.generatedCertKeyStore(1, keyPass);
     File pemFile = KeyStoresTest.writePEMFile(TEMP_FOLDER.newFile(),
-                                              keyStore, keyStore.aliases().nextElement(), keyPass);
+        keyStore, keyStore.aliases().nextElement(), keyPass);
     cConf.setBoolean(Constants.Security.SSL.INTERNAL_ENABLED, true);
     cConf.set(Constants.Security.SSL.INTERNAL_CERT_PATH, pemFile.getAbsolutePath());
     sConf.set(Constants.Security.SSL.INTERNAL_CERT_PASSWORD, keyPass);
@@ -85,7 +86,7 @@ public class MasterServiceMainTestBase {
     // Generate a self-signed cert for router SSL
     keyStore = KeyStores.generatedCertKeyStore(1, keyPass);
     pemFile = KeyStoresTest.writePEMFile(TEMP_FOLDER.newFile(), keyStore,
-                                         keyStore.aliases().nextElement(), keyPass);
+        keyStore.aliases().nextElement(), keyPass);
     cConf.setBoolean(Constants.Security.SSL.EXTERNAL_ENABLED, true);
     cConf.set(Constants.Security.Router.SSL_CERT_PATH, pemFile.getAbsolutePath());
     sConf.set(Constants.Security.Router.SSL_CERT_PASSWORD, keyPass);
@@ -93,9 +94,9 @@ public class MasterServiceMainTestBase {
     // Set all bind address to localhost
     String localhost = InetAddress.getLoopbackAddress().getHostName();
     StreamSupport.stream(CConfiguration.create().spliterator(), false)
-      .map(Map.Entry::getKey)
-      .filter(s -> s.endsWith(".bind.address"))
-      .forEach(key -> cConf.set(key, localhost));
+        .map(Map.Entry::getKey)
+        .filter(s -> s.endsWith(".bind.address"))
+        .forEach(key -> cConf.set(key, localhost));
 
     // Set router to bind to random port
     cConf.setInt(Constants.Router.ROUTER_PORT, 0);
@@ -105,20 +106,23 @@ public class MasterServiceMainTestBase {
 
     // Use remote fetcher for runtime server
     cConf.setClass(Constants.RuntimeMonitor.RUN_RECORD_FETCHER_CLASS,
-                   RemoteProgramRunRecordFetcher.class, ProgramRunRecordFetcher.class);
+        RemoteProgramRunRecordFetcher.class, ProgramRunRecordFetcher.class);
     // Set JMX server port for JMXMetricsCollector
-    cConf.setInt(Constants.JMXMetricsCollector.SERVER_PORT, 11022);
+    cConf.setInt(Constants.JmxMetricsCollector.SERVER_PORT, 11022);
     // Starting all master service mains
     List<Class<? extends AbstractServiceMain<EnvironmentOptions>>> serviceMainClasses = new ArrayList<>(
-      Arrays.asList(RouterServiceMain.class,
-                    MessagingServiceMain.class,
-                    MetricsServiceMain.class,
-                    LogsServiceMain.class,
-                    MetadataServiceMain.class,
-                    RuntimeServiceMain.class,
-                    AppFabricServiceMain.class,
-                    SupportBundleServiceMain.class,
-                    SystemMetricsExporterServiceMain.class));
+        Arrays.asList(RouterServiceMain.class,
+            MessagingServiceMain.class,
+            MetricsServiceMain.class,
+            LogsServiceMain.class,
+            MetadataServiceMain.class,
+            RuntimeServiceMain.class,
+            AppFabricServiceMain.class,
+            AppFabricProcessorServiceMain.class,
+            SupportBundleServiceMain.class,
+            SystemMetricsExporterServiceMain.class,
+            ArtifactCacheServiceMain.class,
+            TetheringAgentServiceMain.class));
 
     if (SecurityUtil.isManagedSecurity(cConf)) {
       serviceMainClasses.add(AuthenticationServiceMain.class);
@@ -126,33 +130,40 @@ public class MasterServiceMainTestBase {
     for (Class<? extends AbstractServiceMain> serviceMainClass : serviceMainClasses) {
       startService(serviceMainClass);
     }
+
+    // Creates default namespace from appfabric service required for tests.
+    getServiceMainInstance(AppFabricServiceMain.class).getInjector()
+        .getInstance(DefaultNamespaceCreator.class)
+        .execute(null);
   }
 
   @AfterClass
   public static void finish() {
     // Reverse stop services
-    Lists.reverse(new ArrayList<>(SERVICE_MANAGERS.keySet())).forEach(MasterServiceMainTestBase::stopService);
+    Lists.reverse(new ArrayList<>(SERVICE_MANAGERS.keySet()))
+        .forEach(MasterServiceMainTestBase::stopService);
     zkServer.stopAndWait();
   }
 
   /**
-   * Instantiate and start up the given service main class and add it to the map from {@link AbstractServiceMain}
-   * to {@link ServiceMainManager}
+   * Instantiate and start up the given service main class and add it to the map from {@link
+   * AbstractServiceMain} to {@link ServiceMainManager}
    *
    * @param serviceMainClass the service main class to start
-   * @param <T> the type of service main class (e.g. {@link AppFabricServiceMain})
+   * @param <T>              the type of service main class (e.g. {@link AppFabricServiceMain})
    * @throws Exception if failed to start service main
    */
-  protected static <T extends AbstractServiceMain> void startService(Class<T> serviceMainClass) throws Exception {
+  protected static <T extends AbstractServiceMain> void startService(Class<T> serviceMainClass)
+      throws Exception {
     SERVICE_MANAGERS.put(serviceMainClass, runMain(cConf, sConf, serviceMainClass));
   }
 
   /**
-   * Stop the given service main and remove it from the map from {@link AbstractServiceMain}
-   * to {@link ServiceMainManager}
+   * Stop the given service main and remove it from the map from {@link AbstractServiceMain} to
+   * {@link ServiceMainManager}
    *
    * @param serviceMainClass the service main class to stop
-   * @param <T> the type of service main class (e.g. {@link AppFabricServiceMain})
+   * @param <T>              the type of service main class (e.g. {@link AppFabricServiceMain})
    */
   protected static <T extends AbstractServiceMain> void stopService(Class<T> serviceMainClass) {
     final ServiceMainManager<?> serviceMainManager = SERVICE_MANAGERS.remove(serviceMainClass);
@@ -162,8 +173,9 @@ public class MasterServiceMainTestBase {
   /**
    * Returns the base URI for the router.
    */
-  static URI getRouterBaseURI() {
-    NettyRouter router = getServiceMainInstance(RouterServiceMain.class).getInjector().getInstance(NettyRouter.class);
+  static URI getRouterBaseUri() {
+    NettyRouter router = getServiceMainInstance(RouterServiceMain.class).getInjector()
+        .getInstance(NettyRouter.class);
     InetSocketAddress addr = router.getBoundAddress().orElseThrow(IllegalStateException::new);
     return URI.create(String.format("https://%s:%d/", addr.getHostName(), addr.getPort()));
   }
@@ -171,8 +183,9 @@ public class MasterServiceMainTestBase {
   /**
    * Returns the base URI for the authentication.
    */
-  static URI getAuthenticationBaseURI() {
-    ExternalAuthenticationServer externalAuthenticationServer = getServiceMainInstance(AuthenticationServiceMain.class)
+  static URI getAuthenticationBaseUri() {
+    ExternalAuthenticationServer externalAuthenticationServer = getServiceMainInstance(
+        AuthenticationServiceMain.class)
         .getInjector().getInstance(ExternalAuthenticationServer.class);
     InetSocketAddress addr = externalAuthenticationServer.getSocketAddress();
     return URI.create(String.format("https://%s:%d/", addr.getHostName(), addr.getPort()));
@@ -185,17 +198,19 @@ public class MasterServiceMainTestBase {
     ServiceMainManager<?> manager = SERVICE_MANAGERS.get(serviceMainClass);
     AbstractServiceMain instance = manager.getInstance();
     if (!serviceMainClass.isInstance(instance)) {
-      throw new IllegalArgumentException("Mismatch manager class." + serviceMainClass + " != " + instance);
+      throw new IllegalArgumentException(
+          "Mismatch manager class." + serviceMainClass + " != " + instance);
     }
     //noinspection unchecked
     return (T) instance;
   }
 
 
-  protected static <T extends AbstractServiceMain> ServiceMainManager<T> runMain(CConfiguration cConf,
-                                                                                 SConfiguration sConf,
-                                                                                 Class<T> serviceMainClass)
-    throws Exception {
+  protected static <T extends AbstractServiceMain> ServiceMainManager<T> runMain(
+      CConfiguration cConf,
+      SConfiguration sConf,
+      Class<T> serviceMainClass)
+      throws Exception {
     return runMain(cConf, sConf, serviceMainClass, serviceMainClass.getSimpleName());
   }
 
@@ -203,43 +218,44 @@ public class MasterServiceMainTestBase {
    * Instantiate and start the given service main class.
    *
    * @param serviceMainClass the service main class to start
-   * @param dataDir the directory to use for data.
-   * @param <T> type of the service main class
+   * @param dataDir          the directory to use for data.
+   * @param <T>              type of the service main class
    * @return A {@link ServiceMainManager} to interface with the service instance
    * @throws Exception if failed to start the service
    */
-  protected static <T extends AbstractServiceMain> ServiceMainManager<T> runMain(CConfiguration cConf,
-                                                                                 SConfiguration sConf,
-                                                                                 Class<T> serviceMainClass,
-                                                                                 String dataDir) throws Exception {
+  protected static <T extends AbstractServiceMain> ServiceMainManager<T> runMain(
+      CConfiguration cConf,
+      SConfiguration sConf,
+      Class<T> serviceMainClass,
+      String dataDir) throws Exception {
 
     // Set a unique local data directory for each service
-    CConfiguration serviceCConf = CConfiguration.copy(cConf);
+    CConfiguration serviceCconf = CConfiguration.copy(cConf);
     File dataDirFolder = new File(TEMP_FOLDER.getRoot(), dataDir);
     boolean dataAlreadyExists = true;
     if (!dataDirFolder.exists()) {
       dataDirFolder = TEMP_FOLDER.newFolder(dataDir);
       dataAlreadyExists = false;
     }
-    serviceCConf.set(Constants.CFG_LOCAL_DATA_DIR, dataDirFolder.getAbsolutePath());
+    serviceCconf.set(Constants.CFG_LOCAL_DATA_DIR, dataDirFolder.getAbsolutePath());
 
     // Create StructuredTable stores before starting the main.
     // The registry will be preserved and pick by the main class.
     // Also try to create metadata tables.
     if (!dataAlreadyExists) {
-      new StorageMain().createStorage(serviceCConf);
+      new StorageMain().createStorage(serviceCconf);
     }
 
     // Write the "cdap-site.xml" and pass the directory to the main service
     File confDir = TEMP_FOLDER.newFolder();
     try (Writer writer = Files.newBufferedWriter(new File(confDir, "cdap-site.xml").toPath())) {
-      serviceCConf.writeXml(writer);
+      serviceCconf.writeXml(writer);
     }
     try (Writer writer = Files.newBufferedWriter(new File(confDir, "cdap-security.xml").toPath())) {
       sConf.writeXml(writer);
     }
 
-    initArgs = new String[] { "--env=mock", "--conf=" + confDir.getAbsolutePath() };
+    initArgs = new String[]{"--env=mock", "--conf=" + confDir.getAbsolutePath()};
     T service = serviceMainClass.newInstance();
     service.init(initArgs);
     service.start();
@@ -264,6 +280,7 @@ public class MasterServiceMainTestBase {
    * @param <T> type of the service main class
    */
   private interface ServiceMainManager<T extends AbstractServiceMain> extends Cancellable {
+
     T getInstance();
   }
 }

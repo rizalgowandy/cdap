@@ -16,23 +16,26 @@
 
 package io.cdap.cdap.common.logging;
 
+import java.io.PrintStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.PrintStream;
 
 /**
  * Redirects standard out and standard error to logger
  */
 @SuppressWarnings("unused")
 public final class StandardOutErrorRedirector {
+
   /**
    * Redirect standard out and error to logger
+   *
    * @param loggerName Name of the logger to which stdout
    */
   public static void redirectToLogger(String loggerName) {
     Logger logger = LoggerFactory.getLogger(loggerName);
-    System.setOut(new PrintStream(RedirectedPrintStream.createRedirectedOutStream(logger, System.out), true));
-    System.setErr(new PrintStream(RedirectedPrintStream.createRedirectedErrStream(logger, System.err), true));
+    System.setOut(
+        new PrintStream(RedirectedPrintStream.createRedirectedOutStream(logger, System.out), true));
+    System.setErr(
+        new PrintStream(RedirectedPrintStream.createRedirectedErrStream(logger, System.err), true));
   }
 }

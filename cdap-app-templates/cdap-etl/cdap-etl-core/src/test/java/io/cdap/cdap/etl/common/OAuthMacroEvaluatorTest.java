@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -27,22 +27,14 @@ import io.cdap.cdap.common.service.ServiceDiscoverable;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.auth.context.AuthenticationTestContext;
-import io.cdap.http.AbstractHttpHandler;
-import io.cdap.http.HttpResponder;
 import io.cdap.http.NettyHttpService;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
+import java.util.Map;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.InMemoryDiscoveryService;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.Map;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 
 /**
  *
@@ -59,9 +51,9 @@ public class OAuthMacroEvaluatorTest {
   @BeforeClass
   public static void init() throws Exception {
     httpService = NettyHttpService.builder("OAuthTest")
-      .setHttpHandlers(new OAuthHandler(
+      .setHttpHandlers(new MockOauthHandler(
         ImmutableMap.of(
-          PROVIDER, ImmutableMap.of(CREDENTIAL_ID, new OAuthInfo("accessToken", "bearer"))
+          PROVIDER, ImmutableMap.of(CREDENTIAL_ID, new MockOauthHandler.OAuthInfo("accessToken", "bearer"))
         )))
       .build();
 
@@ -96,52 +88,9 @@ public class OAuthMacroEvaluatorTest {
     Assert.assertEquals("accessToken", oauthToken.get("accessToken"));
     Assert.assertEquals("bearer", oauthToken.get("tokenType"));
 
-    OAuthInfo oAuthInfo = GSON.fromJson(GSON.toJson(oauthToken), OAuthInfo.class);
+    MockOauthHandler.OAuthInfo oAuthInfo = GSON.fromJson(GSON.toJson(oauthToken), MockOauthHandler.OAuthInfo.class);
 
     Assert.assertEquals("accessToken", oAuthInfo.accessToken);
     Assert.assertEquals("bearer", oAuthInfo.tokenType);
-  }
-
-  /**
-   * A http handler to provide the OAuth endpoint.
-   */
-  public static final class OAuthHandler extends AbstractHttpHandler {
-
-    private final Map<String, Map<String, OAuthInfo>> credentials;
-
-    public OAuthHandler(Map<String, Map<String, OAuthInfo>> credentials) {
-      this.credentials = credentials;
-    }
-
-    @Path("/v3/namespaces/system/apps/" + Constants.PIPELINEID + "/services/" +
-      Constants.STUDIO_SERVICE_NAME + "/methods/v1/oauth/provider/{provider}/credential/{credentialId}")
-    @GET
-    public void getOAuth(HttpRequest request, HttpResponder responder,
-                         @PathParam("provider") String provider,
-                         @PathParam("credentialId") String credentialId) {
-      Map<String, OAuthInfo> providerCredentials = credentials.get(provider);
-      if (providerCredentials == null) {
-        responder.sendStatus(HttpResponseStatus.NOT_FOUND);
-        return;
-      }
-
-      OAuthInfo oAuthInfo = providerCredentials.get(credentialId);
-      if (oAuthInfo == null) {
-        responder.sendStatus(HttpResponseStatus.NOT_FOUND);
-        return;
-      }
-
-      responder.sendString(HttpResponseStatus.OK, GSON.toJson(oAuthInfo));
-    }
-  }
-
-  private static final class OAuthInfo {
-    private final String accessToken;
-    private final String tokenType;
-
-    private OAuthInfo(String accessToken, String tokenType) {
-      this.accessToken = accessToken;
-      this.tokenType = tokenType;
-    }
   }
 }

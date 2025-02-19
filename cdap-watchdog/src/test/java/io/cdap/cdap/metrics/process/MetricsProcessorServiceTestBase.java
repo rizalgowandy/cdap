@@ -36,7 +36,6 @@ import io.cdap.cdap.data.runtime.DataSetServiceModules;
 import io.cdap.cdap.data.runtime.DataSetsModules;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.metrics.MetricsTestBase;
 import io.cdap.cdap.metrics.guice.MetricsStoreModule;
@@ -48,9 +47,6 @@ import io.cdap.cdap.security.impersonation.NoOpOwnerAdmin;
 import io.cdap.cdap.security.impersonation.OwnerAdmin;
 import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.security.impersonation.UnsupportedUGIProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +54,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract class MetricsProcessorServiceTestBase extends MetricsTestBase {
   private static final Logger LOG = LoggerFactory.getLogger(MetricsProcessorServiceTestBase.class);
@@ -150,7 +148,6 @@ abstract class MetricsProcessorServiceTestBase extends MetricsTestBase {
       new NonCustomLocationUnitTestModule(),
       new DataFabricModules().getInMemoryModules(),
       new DataSetServiceModules().getInMemoryModules(),
-      new ExploreClientModule(),
       new NamespaceAdminTestModule(),
       new MetricsStoreModule(),
       new AuthorizationTestModule(),

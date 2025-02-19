@@ -18,7 +18,6 @@
 package io.cdap.cdap.etl.proto.v2;
 
 import io.cdap.cdap.etl.proto.connection.PreconfiguredConnectionCreationRequest;
-
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
@@ -27,12 +26,14 @@ import java.util.Set;
  * Config for pre configured connections
  */
 public class ConnectionConfig {
+
   private final Set<String> disabledTypes;
   private final Set<PreconfiguredConnectionCreationRequest> connections;
   private final String defaultConnection;
 
-  public ConnectionConfig(Set<String> disabledTypes, Set<PreconfiguredConnectionCreationRequest> connections,
-                          String defaultConnection) {
+  public ConnectionConfig(Set<String> disabledTypes,
+      Set<PreconfiguredConnectionCreationRequest> connections,
+      String defaultConnection) {
     this.disabledTypes = disabledTypes;
     this.connections = connections;
     this.defaultConnection = defaultConnection;
@@ -61,9 +62,9 @@ public class ConnectionConfig {
     }
 
     ConnectionConfig that = (ConnectionConfig) o;
-    return Objects.equals(disabledTypes, that.disabledTypes) &&
-             Objects.equals(connections, that.connections) &&
-             Objects.equals(defaultConnection, that.defaultConnection);
+    return Objects.equals(disabledTypes, that.disabledTypes)
+        && Objects.equals(connections, that.connections)
+        && Objects.equals(defaultConnection, that.defaultConnection);
   }
 
   @Override

@@ -18,7 +18,6 @@ package io.cdap.cdap.logging.framework;
 
 import ch.qos.logback.classic.LoggerContext;
 import io.cdap.cdap.common.conf.CConfiguration;
-
 import java.net.URL;
 
 /**
@@ -41,7 +40,8 @@ public final class LogPipelineSpecification<T extends LoggerContext> {
   }
 
   /**
-   * Returns the source URL of the log pipeline configuration that this specification was created from.
+   * Returns the source URL of the log pipeline configuration that this specification was created
+   * from.
    */
   public URL getSource() {
     return source;

@@ -27,14 +27,13 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.auth.context.AuthenticationTestContext;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AuthorizationEnforcer;
-import org.junit.Assert;
-import org.junit.Test;
-import org.objectweb.asm.Type;
-
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import org.junit.Assert;
+import org.junit.Test;
+import org.objectweb.asm.Type;
 
 /**
  * Tests {@link AuthEnforceRewriter} class rewriting for methods annotated with {@link AuthEnforce}. Uses different
@@ -197,19 +196,22 @@ public class AuthEnforceRewriterTest {
     Method[] declaredMethods = cls.getDeclaredMethods();
     for (Method declaredMethod : declaredMethods) {
       // if the method name starts with set_ then we know its an generated setter
-      if (declaredMethod.getName().startsWith(AuthEnforceRewriter.GENERATED_SETTER_METHOD_PREFIX +
-                                                      AuthEnforceRewriter.GENERATED_FIELD_PREFIX)) {
+      if (declaredMethod.getName().startsWith(AuthEnforceRewriter.GENERATED_SETTER_METHOD_PREFIX
+          + AuthEnforceRewriter.GENERATED_FIELD_PREFIX)) {
         declaredMethod.setAccessible(true); // since its setter it might be private
-        if (declaredMethod.getName().contains(AuthEnforceRewriter.AUTHENTICATION_CONTEXT_FIELD_NAME)) {
+        if (declaredMethod.getName()
+            .contains(AuthEnforceRewriter.AUTHENTICATION_CONTEXT_FIELD_NAME)) {
           declaredMethod.invoke(rewrittenObject, new AuthenticationTestContext());
-        } else if (declaredMethod.getName().contains(AuthEnforceRewriter.AUTHORIZATION_ENFORCER_FIELD_NAME)) {
+        } else if (declaredMethod.getName()
+            .contains(AuthEnforceRewriter.AUTHORIZATION_ENFORCER_FIELD_NAME)) {
           declaredMethod.invoke(rewrittenObject, new ExceptionAccessEnforcer());
         } else {
-          throw new IllegalStateException(String.format("Found an expected setter method with name %s. While trying " +
-                                                                "invoke setter for %s and %s",
-                                                        declaredMethod.getName(),
-                                                        AuthenticationContext.class.getSimpleName(),
-                                                        AuthorizationEnforcer.class.getSimpleName()));
+          throw new IllegalStateException(
+              String.format("Found an expected setter method with name %s. While trying "
+                      + "invoke setter for %s and %s",
+                  declaredMethod.getName(),
+                  AuthenticationContext.class.getSimpleName(),
+                  AuthorizationEnforcer.class.getSimpleName()));
         }
       }
     }

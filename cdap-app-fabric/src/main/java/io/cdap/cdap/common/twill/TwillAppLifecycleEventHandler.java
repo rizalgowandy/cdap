@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2018 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -16,83 +16,70 @@
 package io.cdap.cdap.common.twill;
 
 import com.google.common.base.Throwables;
+import com.google.common.io.Closeables;
 import com.google.gson.Gson;
-import com.google.inject.AbstractModule;
+import com.google.gson.GsonBuilder;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import com.google.inject.Module;
 import io.cdap.cdap.app.guice.ClusterMode;
-import io.cdap.cdap.app.guice.RemoteExecutionDiscoveryModule;
+import io.cdap.cdap.app.guice.DistributedProgramContainerModule;
+import io.cdap.cdap.app.runtime.Arguments;
+import io.cdap.cdap.app.runtime.ProgramOptions;
 import io.cdap.cdap.app.runtime.ProgramStateWriter;
 import io.cdap.cdap.common.conf.CConfiguration;
-import io.cdap.cdap.common.guice.ConfigModule;
-import io.cdap.cdap.common.guice.KafkaClientModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
-import io.cdap.cdap.internal.app.program.MessagingProgramStateWriter;
+import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.internal.app.program.ProgramStateWriterWithHeartBeat;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.internal.app.runtime.ProgramRunners;
+import io.cdap.cdap.internal.app.runtime.SystemArguments;
+import io.cdap.cdap.internal.app.runtime.codec.ArgumentsCodec;
+import io.cdap.cdap.internal.app.runtime.codec.ProgramOptionsCodec;
+import io.cdap.cdap.internal.app.runtime.distributed.DistributedProgramRunner;
+import io.cdap.cdap.logging.appender.LogAppenderInitializer;
+import io.cdap.cdap.logging.context.LoggingContextHelper;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.id.ProgramRunId;
-import io.cdap.cdap.runtime.spi.RuntimeMonitorType;
-import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
+import java.io.File;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.api.EventHandler;
 import org.apache.twill.api.EventHandlerContext;
 import org.apache.twill.api.RunId;
 import org.apache.twill.zookeeper.ZKClientService;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 /**
- * A Twill {@link EventHandler} that responds to Twill application lifecycle events and aborts the application if
- * it cannot provision container for some runnable.
+ * A Twill {@link EventHandler} that responds to Twill application lifecycle events and aborts the
+ * application if it cannot provision container for some runnable.
  */
 public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
 
-  private static final Gson GSON = new Gson();
-  private static final String HADOOP_CONF_FILE_NAME = "hConf.xml";
-  private static final String CDAP_CONF_FILE_NAME = "cConf.xml";
+  private static final Gson GSON = new GsonBuilder()
+      .registerTypeAdapter(Arguments.class, new ArgumentsCodec())
+      .registerTypeAdapter(ProgramOptions.class, new ProgramOptionsCodec())
+      .create();
 
   private RunId twillRunId;
-  private ClusterMode clusterMode;
   private ProgramRunId programRunId;
-  private RuntimeMonitorType runtimeMonitorType;
   private ProgramStateWriterWithHeartBeat programStateWriterWithHeartBeat;
   private ZKClientService zkClientService;
   private AtomicBoolean runningPublished;
   private ContainerFailure lastContainerFailure;
+  private LogAppenderInitializer logAppenderInitializer;
 
   /**
-   * Constructs an instance of TwillAppLifecycleEventHandler that abort the application if some runnable has not enough
-   * containers.
-   * @param abortTime Time in milliseconds to pass before aborting the application if no container is given to
-   *                  a runnable.
-   * @param abortIfNotFull If {@code true}, it will abort the application if any runnable doesn't meet the expected
-   *                       number of instances.
-   * @param programRunId the program run id that this event handler is handling
+   * Constructs an instance of TwillAppLifecycleEventHandler that abort the application if some
+   * runnable has not enough containers.
+   *
+   * @param abortTime Time in milliseconds to pass before aborting the application if no
+   *     container is given to a runnable.
+   * @param abortIfNotFull If {@code true}, it will abort the application if any runnable
+   *     doesn't meet the expected number of instances.
    */
-  public TwillAppLifecycleEventHandler(long abortTime, boolean abortIfNotFull, ProgramRunId programRunId,
-                                       ClusterMode clusterMode, RuntimeMonitorType runtimeMonitorType) {
+  public TwillAppLifecycleEventHandler(long abortTime, boolean abortIfNotFull) {
     super(abortTime, abortIfNotFull);
-    this.programRunId = programRunId;
-    this.clusterMode = clusterMode;
-    this.runtimeMonitorType = runtimeMonitorType;
-  }
-
-  @Override
-  protected Map<String, String> getConfigs() {
-    Map<String, String> configs = new HashMap<>(super.getConfigs());
-    configs.put("programRunId", GSON.toJson(programRunId));
-    configs.put("clusterMode", clusterMode.name());
-    configs.put("monitorType", runtimeMonitorType.name());
-    return configs;
   }
 
   @Override
@@ -102,14 +89,11 @@ public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
     this.runningPublished = new AtomicBoolean();
     this.twillRunId = context.getRunId();
 
-    Map<String, String> configs = context.getSpecification().getConfigs();
-    this.programRunId = GSON.fromJson(configs.get("programRunId"), ProgramRunId.class);
-    this.clusterMode = ClusterMode.valueOf(configs.get("clusterMode"));
-    this.runtimeMonitorType = RuntimeMonitorType.valueOf(configs.get("monitorType"));
-
     // Fetch cConf and hConf from resources jar
-    File cConfFile = new File("resources.jar/resources/" + CDAP_CONF_FILE_NAME);
-    File hConfFile = new File("resources.jar/resources/" + HADOOP_CONF_FILE_NAME);
+    File cConfFile = new File(
+        "resources.jar/resources/" + DistributedProgramRunner.CDAP_CONF_FILE_NAME);
+    File hConfFile = new File(
+        "resources.jar/resources/" + DistributedProgramRunner.HADOOP_CONF_FILE_NAME);
 
     if (!cConfFile.exists()) {
       // This shouldn't happen, unless CDAP is misconfigured
@@ -128,48 +112,34 @@ public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
         hConf.addResource(hConfFile.toURI().toURL());
       }
 
+      ProgramOptions programOpts = createProgramOptions(
+          new File(
+              "resources.jar/resources/" + DistributedProgramRunner.PROGRAM_OPTIONS_FILE_NAME));
+      ClusterMode clusterMode = ProgramRunners.getClusterMode(programOpts);
+      programRunId = programOpts.getProgramId().run(ProgramRunners.getRunId(programOpts));
+
       // Create the injector to create a program state writer
-      List<Module> modules = new ArrayList<>(Arrays.asList(
-        new ConfigModule(cConf, hConf),
-        new MessagingClientModule(),
-        new AbstractModule() {
-          @Override
-          protected void configure() {
-            bind(ProgramStateWriter.class).to(MessagingProgramStateWriter.class);
-          }
-        }
-      ));
-
-      switch (clusterMode) {
-        case ON_PREMISE:
-          modules.add(new AuthenticationContextModules().getProgramContainerModule(cConf));
-          modules.add(new ZKClientModule());
-          modules.add(new ZKDiscoveryModule());
-          modules.add(new KafkaClientModule());
-          break;
-        case ISOLATED:
-          modules.add(new AuthenticationContextModules().getProgramContainerModule(cConf));
-          modules.add(new RemoteExecutionDiscoveryModule());
-          modules.add(new AbstractModule() {
-            @Override
-            protected void configure() {
-              bind(RuntimeMonitorType.class).toInstance(runtimeMonitorType);
-            }
-          });
-          break;
-      }
-
-      Injector injector = Guice.createInjector(modules);
+      Injector injector = Guice.createInjector(new DistributedProgramContainerModule(cConf, hConf,
+          programRunId, programOpts));
 
       if (clusterMode == ClusterMode.ON_PREMISE) {
         zkClientService = injector.getInstance(ZKClientService.class);
         zkClientService.startAndWait();
       }
 
+      LoggingContextAccessor.setLoggingContext(
+          LoggingContextHelper.getLoggingContextWithRunId(programRunId,
+              programOpts.getArguments().asMap()));
+
+      logAppenderInitializer = injector.getInstance(LogAppenderInitializer.class);
+      logAppenderInitializer.initialize();
+      SystemArguments.setLogLevel(programOpts.getUserArguments(), logAppenderInitializer);
+
       ProgramStateWriter programStateWriter = injector.getInstance(ProgramStateWriter.class);
       MessagingService messagingService = injector.getInstance(MessagingService.class);
       programStateWriterWithHeartBeat =
-        new ProgramStateWriterWithHeartBeat(programRunId, programStateWriter, messagingService, cConf);
+          new ProgramStateWriterWithHeartBeat(programRunId, programStateWriter, messagingService,
+              cConf);
     } catch (Exception e) {
       throw Throwables.propagate(e);
     }
@@ -204,7 +174,8 @@ public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
   }
 
   @Override
-  public void containerStopped(String runnableName, int instanceId, String containerId, int exitStatus) {
+  public void containerStopped(String runnableName, int instanceId, String containerId,
+      int exitStatus) {
     super.containerStopped(runnableName, instanceId, containerId, exitStatus);
 
     // Let the completed() method handle when a container has completed with no error
@@ -212,14 +183,15 @@ public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
       return;
     }
 
-    switch(programRunId.getType()) {
+    switch (programRunId.getType()) {
       case WORKFLOW:
       case SPARK:
       case MAPREDUCE:
         // For workflow, MapReduce, and spark, if there is an error, the program state is failure
         // We defer the actual publish to one of the completion methods (killed, completed, aborted)
         // as we need to know under what condition the container failed.
-        lastContainerFailure = new ContainerFailure(runnableName, instanceId, containerId, exitStatus);
+        lastContainerFailure = new ContainerFailure(runnableName, instanceId, containerId,
+            exitStatus);
         break;
       default:
         // For other programs, the container will be re-launched - the program state will continue to be RUNNING
@@ -233,21 +205,30 @@ public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
   public void aborted() {
     super.aborted();
     programStateWriterWithHeartBeat.error(
-      new Exception(String.format("No containers for %s. Abort the application", programRunId)));
+        new Exception(String.format("No containers for %s. Abort the application", programRunId)));
   }
 
   @Override
   public void destroy() {
+    Closeables.closeQuietly(logAppenderInitializer);
     if (zkClientService != null) {
       zkClientService.stop();
     }
   }
 
+  private ProgramOptions createProgramOptions(File programOptionsFile) throws IOException {
+    try (Reader reader = Files.newBufferedReader(programOptionsFile.toPath(),
+        StandardCharsets.UTF_8)) {
+      return GSON.fromJson(reader, ProgramOptions.class);
+    }
+  }
+
   /**
-   * Inner class for hold failure information provided to the {@link #containerStopped(String, int, String, int)}
-   * method.
+   * Inner class for hold failure information provided to the {@link #containerStopped(String, int,
+   * String, int)} method.
    */
   private static final class ContainerFailure {
+
     private final String runnableName;
     private final int instanceId;
     private final String containerId;
@@ -261,8 +242,9 @@ public class TwillAppLifecycleEventHandler extends AbortOnTimeoutEventHandler {
     }
 
     void writeError(ProgramStateWriterWithHeartBeat writer) {
-      String errorMessage = String.format("Container %s of Runnable %s with instance %s stopped with exit status %d",
-                                          containerId, runnableName, instanceId, exitStatus);
+      String errorMessage = String.format(
+          "Container %s of Runnable %s with instance %s stopped with exit status %d",
+          containerId, runnableName, instanceId, exitStatus);
       writer.error(new Exception(errorMessage));
     }
   }

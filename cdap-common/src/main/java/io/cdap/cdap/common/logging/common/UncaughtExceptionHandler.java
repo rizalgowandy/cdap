@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
  * UncaughtExceptionHandler to log uncaught exceptions
  */
 public class UncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+
   private static final Logger LOG = LoggerFactory.getLogger(UncaughtExceptionHandler.class);
 
   @Override
@@ -36,12 +37,6 @@ public class UncaughtExceptionHandler implements Thread.UncaughtExceptionHandler
       return;
     }
 
-    StackTraceElement[] stackTrace = e.getStackTrace();
-    if (stackTrace.length > 0) {
-      Logger logger = LoggerFactory.getLogger(stackTrace[0].getClassName());
-      logger.debug("Uncaught exception in thread {}", t, e);
-    } else {
-      LOG.debug("Uncaught exception in thread {}", t, e);
-    }
+    LOG.debug("Uncaught exception in thread {}", t, e);
   }
 }

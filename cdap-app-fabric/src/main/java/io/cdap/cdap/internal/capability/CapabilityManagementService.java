@@ -24,16 +24,14 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.service.AbstractRetryableScheduledService;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.utils.DirUtils;
-import io.cdap.cdap.internal.app.services.SystemProgramManagementService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.FileReader;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Scan service for capability configurations
@@ -47,14 +45,13 @@ public class CapabilityManagementService extends AbstractRetryableScheduledServi
   private final CapabilityApplier capabilityApplier;
 
   @Inject
-  CapabilityManagementService(CConfiguration cConf, CapabilityApplier capabilityApplier,
-                              SystemProgramManagementService systemProgramManagementService) {
+  CapabilityManagementService(CConfiguration cConf, CapabilityApplier capabilityApplier) {
     super(RetryStrategies
-            .fixDelay(cConf.getLong(Constants.Capability.DIR_SCAN_INTERVAL_MINUTES), TimeUnit.MINUTES));
+        .fixDelay(cConf.getLong(Constants.Capability.DIR_SCAN_INTERVAL_MINUTES), TimeUnit.MINUTES));
     this.cConf = cConf;
     this.capabilityApplier = capabilityApplier;
     this.scheduleIntervalInMillis = TimeUnit.MINUTES
-      .toMillis(cConf.getLong(Constants.Capability.DIR_SCAN_INTERVAL_MINUTES));
+        .toMillis(cConf.getLong(Constants.Capability.DIR_SCAN_INTERVAL_MINUTES));
   }
 
   @Override

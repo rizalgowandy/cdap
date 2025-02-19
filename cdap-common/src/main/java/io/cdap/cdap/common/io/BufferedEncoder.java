@@ -17,7 +17,6 @@
 package io.cdap.cdap.common.io;
 
 import com.google.common.base.Function;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -41,8 +40,8 @@ public final class BufferedEncoder implements Encoder {
   }
 
   /**
-   * Writes all the buffered bytes into the given OutputStream. If the write completed successfully, the
-   * internal buffered will be reset.
+   * Writes all the buffered bytes into the given OutputStream. If the write completed successfully,
+   * the internal buffered will be reset.
    *
    * @param out The output stream to write to.
    */

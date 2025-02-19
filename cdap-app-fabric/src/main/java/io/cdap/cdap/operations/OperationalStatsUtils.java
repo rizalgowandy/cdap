@@ -17,15 +17,15 @@
 package io.cdap.cdap.operations;
 
 import com.google.common.base.Strings;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nullable;
 
 /**
  * Utilities for use in collection and retrieval of {@link OperationalStats}.
  */
 public final class OperationalStatsUtils {
+
   private static final Logger LOG = LoggerFactory.getLogger(OperationalStatsUtils.class);
 
   public static final String JMX_DOMAIN = "io.cdap.cdap.operations";
@@ -43,14 +43,16 @@ public final class OperationalStatsUtils {
     if (!Strings.isNullOrEmpty(serviceName)) {
       serviceName = serviceName.toLowerCase();
     } else {
-      LOG.warn("Found operational stat without service name - {}. This stat will not be discovered by service name.",
-               operationalStats.getClass().getName());
+      LOG.warn(
+          "Found operational stat without service name - {}. This stat will not be discovered by service name.",
+          operationalStats.getClass().getName());
     }
     if (!Strings.isNullOrEmpty(statType)) {
       statType = statType.toLowerCase();
     } else {
-      LOG.warn("Found operational stat without stat type - {}. This stat will not be discovered by stat type.",
-               operationalStats.getClass().getName());
+      LOG.warn(
+          "Found operational stat without stat type - {}. This stat will not be discovered by stat type.",
+          operationalStats.getClass().getName());
     }
     return new OperationalExtensionId(serviceName, statType);
   }

@@ -41,7 +41,7 @@ import io.cdap.cdap.internal.app.runtime.SimpleProgramOptions;
 import io.cdap.cdap.internal.app.runtime.SystemArguments;
 import io.cdap.cdap.internal.guice.AppFabricTestModule;
 import io.cdap.cdap.internal.pipeline.PluginRequirement;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramRunId;
@@ -54,18 +54,9 @@ import io.cdap.cdap.runtime.spi.provisioner.ClusterStatus;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerSpecification;
 import io.cdap.cdap.security.FakeSecureStore;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
-import io.cdap.cdap.spi.data.TableAlreadyExistsException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.tephra.TransactionManager;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,6 +67,13 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.apache.tephra.TransactionManager;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Test for Provisioning Service.

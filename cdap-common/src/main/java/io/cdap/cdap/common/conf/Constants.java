@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2021 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -20,7 +20,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.BindingAnnotation;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -33,19 +32,18 @@ import java.util.Map;
 public final class Constants {
 
   public static final String[] FEATURE_TOGGLE_PROPS = {
-    Security.SSL.EXTERNAL_ENABLED,
-    Security.SSL.INTERNAL_ENABLED,
-    Security.ENABLED,
-    Explore.EXPLORE_ENABLED,
+      Security.SSL.EXTERNAL_ENABLED,
+      Security.SSL.INTERNAL_ENABLED,
+      Security.ENABLED,
   };
 
   public static final String[] PORT_PROPS = {
-    Router.ROUTER_PORT,
-    Router.ROUTER_SSL_PORT,
-    Dashboard.BIND_PORT,
-    Dashboard.SSL_BIND_PORT,
-    Security.AUTH_SERVER_BIND_PORT,
-    Security.AuthenticationServer.SSL_PORT,
+      Router.ROUTER_PORT,
+      Router.ROUTER_SSL_PORT,
+      Dashboard.BIND_PORT,
+      Dashboard.SSL_BIND_PORT,
+      Security.AUTH_SERVER_BIND_PORT,
+      Security.AuthenticationServer.SSL_PORT,
   };
 
   public static final String ARCHIVE_DIR = "archive";
@@ -54,7 +52,9 @@ public final class Constants {
   public static final String COLLECT_APP_CONTAINER_LOG_LEVEL = "master.collect.app.containers.log.level";
   public static final String HTTP_CLIENT_CONNECTION_TIMEOUT_MS = "http.client.connection.timeout.ms";
   public static final String HTTP_CLIENT_READ_TIMEOUT_MS = "http.client.read.timeout.ms";
-  /** Uniquely identifies a CDAP instance */
+  /**
+   * Uniquely identifies a CDAP instance.
+   */
   public static final String INSTANCE_NAME = "instance.name";
   // Environment variable name for spark home
   public static final String SPARK_HOME = "SPARK_HOME";
@@ -69,6 +69,10 @@ public final class Constants {
   public static final String LOCATION_CACHE_EXPIRATION_MS = "location.cache.expiration.ms";
 
   public static final String CLUSTER_NAME = "cluster.name";
+
+  /* This represents the default value of pageSize during list apps call. */
+  public static final String GET_APPS_DEFAULT_PAGE_SIZE = "app.list.default.page.size";
+
   /* Used by the user to specify what part of a path should be replaced by the current user's name. */
   public static final String USER_NAME_SPECIFIER = "${name}";
 
@@ -84,7 +88,7 @@ public final class Constants {
   public static final String NETWORK_PROXY_ADDRESS = "network.proxy.address";
 
   /**
-   * Option to pass CDAP version when application was created / upgraded
+   * Option to pass CDAP version when application was created / upgraded.
    */
   public static final String APP_CDAP_VERSION = "app.cdap.version";
 
@@ -92,6 +96,7 @@ public final class Constants {
    * Configuration for Master startup.
    */
   public static final class Startup {
+
     public static final String CHECKS_ENABLED = "master.startup.checks.enabled";
     public static final String CHECK_PACKAGES = "master.startup.checks.packages";
     public static final String CHECK_CLASSES = "master.startup.checks.classes";
@@ -105,6 +110,7 @@ public final class Constants {
    * Configuration for Master.
    */
   public static final class Master {
+
     public static final String EXTENSIONS_DIR = "master.environment.extensions.dir";
     public static final String MAX_INSTANCES = "master.service.max.instances";
   }
@@ -113,7 +119,9 @@ public final class Constants {
    * Global Service names.
    */
   public static final class Service {
+
     public static final String APP_FABRIC_HTTP = "appfabric";
+    public static final String APP_FABRIC_PROCESSOR = "appfabric.processor";
     public static final String TRANSACTION = "transaction";
     public static final String TRANSACTION_HTTP = "transaction.http";
     public static final String METRICS = "metrics";
@@ -125,16 +133,20 @@ public final class Constants {
     public static final String DATASET_MANAGER = "dataset.service";
     public static final String DATASET_EXECUTOR = "dataset.executor";
     public static final String EXTERNAL_AUTHENTICATION = "external.authentication";
-    public static final String EXPLORE_HTTP_USER_SERVICE = "explore.service";
     public static final String MESSAGING_SERVICE = "messaging.service";
     public static final String RUNTIME = "runtime";
+    public static final String INTERNAL_ROUTER = "internal.router";
     public static final String AUTHENTICATION = "authentication";
     public static final String TASK_WORKER = "task.worker";
+    public static final String SYSTEM_WORKER = "system.worker";
     public static final String ARTIFACT_LOCALIZER = "artifact.localizer";
     public static final String SYSTEM_METRICS_EXPORTER = "system.metrics.exporter";
+    public static final String ARTIFACT_CACHE = "artifact.cache";
 
     public static final String SERVICE_INSTANCE_TABLE_NAME = "cdap.services.instances";
-    /** Scheduler queue name to submit the master service app. */
+    /**
+     * Scheduler queue name to submit the master service app.
+     */
     public static final String SCHEDULER_QUEUE = "master.services.scheduler.queue";
     public static final String SUPPORT_BUNDLE_SERVICE = "support.bundle.service";
     public static final String METADATA_SERVICE = "metadata.service";
@@ -144,12 +156,15 @@ public final class Constants {
     public static final String SECURE_STORE_SERVICE = "secure.store.service";
     public static final String LOG_BUFFER_SERVICE = "log.buffer.service";
     public static final String REMOTE_AGENT_SERVICE = "remote.agent.service";
+    public static final String ARTIFACT_CACHE_SERVICE = "artifact.cache.service";
+    public static final String RUNTIME_MONITOR_RETRY_PREFIX = "system.runtime.monitor.";
   }
 
   /**
    * ZooKeeper Configuration.
    */
   public static final class Zookeeper {
+
     public static final String QUORUM = "zookeeper.quorum";
     public static final String CFG_SESSION_TIMEOUT_MILLIS = "zookeeper.session.timeout.millis";
     public static final String CLIENT_STARTUP_TIMEOUT_MILLIS = "zookeeper.client.startup.timeout.millis";
@@ -161,7 +176,7 @@ public final class Constants {
     /**
      * Convenient method to get ZK quorum string from the configuration with proper default value.
      */
-    public static String getZKQuorum(CConfiguration cConf) {
+    public static String getZkQuorum(CConfiguration cConf) {
       String quorum = cConf.get(QUORUM);
       if (!Strings.isNullOrEmpty(quorum)) {
         return quorum;
@@ -175,19 +190,28 @@ public final class Constants {
   /**
    * HBase configurations.
    */
+  @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
   public static final class HBase {
+
     public static final String AUTH_KEY_UPDATE_INTERVAL = "hbase.auth.key.update.interval";
     public static final String MANAGE_COPROCESSORS = "master.manage.hbase.coprocessors";
     public static final String CLIENT_RETRIES = "hbase.client.retries.number";
     public static final String RPC_TIMEOUT = "hbase.rpc.timeout";
-    /** Determines how to behave when the HBase version is unsupported. cdap_set_hbase() method
-     * in cdap-common/bin/functions.sh must also be updated if this String is changed */
+    /**
+     * Determines how to behave when the HBase version is unsupported. cdap_set_hbase() method in
+     * cdap-common/bin/functions.sh must also be updated if this String is changed
+     */
     public static final String HBASE_VERSION_RESOLUTION_STRATEGY = "hbase.version.resolution.strategy";
-    /** Keep HBase version as it is when HBase version is unsupported. cdap_set_hbase() method
-     * in cdap-common/bin/functions.sh must also be updated if this String is changed */
+    /**
+     * Keep HBase version as it is when HBase version is unsupported. cdap_set_hbase() method in
+     * cdap-common/bin/functions.sh must also be updated if this String is changed
+     */
     public static final String HBASE_AUTO_STRICT_VERSION = "auto.strict";
-    /** Use latest HBase version available on the cluster when HBase version is unsupported. cdap_set_hbase() method
-     * in cdap-common/bin/functions.sh must also be updated if this String is changed */
+    /**
+     * Use latest HBase version available on the cluster when HBase version is unsupported.
+     * cdap_set_hbase() method in cdap-common/bin/functions.sh must also be updated if this String
+     * is changed
+     */
     public static final String HBASE_AUTO_LATEST_VERSION = "auto.latest";
   }
 
@@ -195,6 +219,7 @@ public final class Constants {
    * Dangerous Options.
    */
   public static final class Dangerous {
+
     public static final String UNRECOVERABLE_RESET = "enable.unrecoverable.reset";
     public static final boolean DEFAULT_UNRECOVERABLE_RESET = false;
   }
@@ -205,21 +230,32 @@ public final class Constants {
   public static final class AppFabric {
 
     /**
+     * App Fabric Processor.
+     */
+
+    public static final String PROCESSOR_PORT = "appfabric.processor.bind.port";
+    public static final String PROCESSOR_ANNOUNCE_PORT = "appfabric.processor.announce.port";
+
+    /**
      * App Fabric Server.
      */
-    public static final String SERVER_PORT = "app.bind.port";
-    public static final String SERVER_ANNOUNCE_PORT = "app.announce.port";
+    public static final String SERVER_PORT = "appfabric.bind.port";
+    public static final String SERVER_ANNOUNCE_PORT = "appfabric.announce.port";
     public static final String OUTPUT_DIR = "app.output.dir";
     public static final String TEMP_DIR = "app.temp.dir";
     public static final String REST_PORT = "app.rest.port";
     public static final String PROGRAM_JVM_OPTS = "app.program.jvm.opts";
+    public static final String PROGRAM_JVM_OPTS_PREFIX = "app.program.jvm.opts.";
     public static final String BACKLOG_CONNECTIONS = "app.connection.backlog";
     public static final String STREAMING_BATCH_SIZE = "app.streaming.batch.size";
     public static final String EXEC_THREADS = "app.exec.threads";
     public static final String BOSS_THREADS = "app.boss.threads";
     public static final String WORKER_THREADS = "app.worker.threads";
     public static final String APP_SCHEDULER_QUEUE = "apps.scheduler.queue";
+    public static final String PROGRAM_STATUS_EVENT_TX_SEPARATION = "app.program.status.event.tx.separation";
     public static final String STATUS_EVENT_FETCH_SIZE = "app.program.status.event.fetch.size";
+
+    public static final String STATUS_EVENT_TX_SIZE = "app.program.status.event.tx.size";
     public static final String STATUS_EVENT_POLL_DELAY_MILLIS = "app.program.status.event.poll.delay.millis";
     public static final String MAPREDUCE_JOB_CLIENT_CONNECT_MAX_RETRIES = "mapreduce.jobclient.connect.max.retries";
     public static final String MAPREDUCE_INCLUDE_CUSTOM_CLASSES = "mapreduce.include.custom.format.classes";
@@ -228,27 +264,40 @@ public final class Constants {
     public static final String PROGRAM_RUNID_CORRECTOR_TX_BATCH_SIZE = "app.program.runid.corrector.tx.batch.size";
     public static final String LOCAL_DATASET_DELETER_INTERVAL_SECONDS = "app.program.local.dataset.deleter.interval";
     public static final String LOCAL_DATASET_DELETER_INITIAL_DELAY_SECONDS
-      = "app.program.local.dataset.deleter.initial.delay";
+        = "app.program.local.dataset.deleter.initial.delay";
+    public static final String PROGRAM_TERMINATOR_INTERVAL_SECS = "app.program.terminator.interval.secs";
+    public static final String PROGRAM_TERMINATE_TIME_BUFFER_SECS = "app.program.terminate.time.buffer.secs";
+    public static final String TETHERED_PROGRAM_TERMINATE_TIME_SECS
+        = "app.program.terminate.tethered.time.buffer.secs";
+    public static final String PROGRAM_TERMINATOR_TX_BATCH_SIZE = "app.program.terminator.tx.batch.size";
+    public static final String ARTIFACTS_COMPUTE_HASH = "app.artifact.compute.hash";
+    public static final String ARTIFACTS_COMPUTE_HASH_TIME_BUCKET_DAYS = "app.artifact.compute.hash.time.bucket.days";
+    public static final String ARTIFACTS_COMPUTE_HASH_SNAPSHOT = "app.artifact.compute.hash.snapshot";
     public static final String SYSTEM_ARTIFACTS_DIR = "app.artifact.dir";
+    public static final String SYSTEM_ARTIFACTS_MAX_PARALLELISM = "app.artifact.parallelism.max";
     public static final String PROGRAM_EXTRA_CLASSPATH = "app.program.extra.classpath";
     public static final String SPARK_YARN_CLIENT_REWRITE = "app.program.spark.yarn.client.rewrite.enabled";
     public static final String SPARK_EVENT_LOGS_ENABLED = "app.program.spark.event.logs.enabled";
     public static final String SPARK_EVENT_LOGS_DIR = "app.program.spark.event.logs.dir";
     public static final String SPARK_COMPAT = "app.program.spark.compat";
     public static final String RUNTIME_EXT_DIR = "app.program.runtime.extensions.dir";
+    public static final String APP_STATE = "app.state";
     public static final String PROGRAM_MAX_START_SECONDS = "app.program.max.start.seconds";
+    public static final String TWILL_CONTROLLER_START_SECONDS = "program.twill.controller.start.seconds";
     public static final String PROGRAM_MAX_STOP_SECONDS = "app.program.max.stop.seconds";
     public static final String YARN_ATTEMPT_FAILURES_VALIDITY_INTERVAL =
-      "app.program.yarn.attempt.failures.validity.interval";
+        "app.program.yarn.attempt.failures.validity.interval";
 
     public static final String PROGRAM_TRANSACTION_CONTROL = "app.program.transaction.control";
     public static final String MAX_CONCURRENT_RUNS = "app.max.concurrent.runs";
     public static final String MAX_CONCURRENT_LAUNCHING = "app.max.concurrent.launching";
-    public static final String MONITOR_RECORD_AGE_THRESHOLD_SECONDS =
-      "run.record.monitor.record.age.threshold.seconds";
-    public static final String MONITOR_CLEANUP_INTERVAL_SECONDS =
-      "run.record.monitor.cleanup.interval.seconds";
     public static final String PROGRAM_LAUNCH_THREADS = "app.program.launch.threads";
+    public static final String PROGRAM_KILL_THREADS = "app.program.kill.threads";
+    public static final String RUN_DATA_CLEANUP_TTL_DAYS = "app.run.records.ttl.days";
+    public static final String RUN_DATA_CLEANUP_TTL_FREQUENCY_HOURS =
+        "app.run.records.ttl.frequency.hours";
+    public static final String RUN_DATA_CLEANUP_TTL_INITIAL_DELAY_MINUTES =
+        "app.run.records.ttl.initial.delay.minutes";
 
     // A boolean value cConf entry to tell whether a ProgramRunner is running remotely (i.e. not inside app-fabric)
     // This config is not present in the cdap-default.xml as it is only set internally by CDAP.
@@ -257,7 +306,8 @@ public final class Constants {
     /**
      * Guice named bindings.
      */
-    public static final String HANDLERS_BINDING = "appfabric.http.handler";
+    public static final String SERVER_HANDLERS_BINDING = "appfabric.http.handler";
+    public static final String PROCESSOR_HANDLERS_BINDING = "appfabric.processor.http.handler";
 
     /**
      * Defaults.
@@ -274,7 +324,7 @@ public final class Constants {
     public static final String QUERY_PARAM_START_TIME = "start";
 
     /**
-     * Query parameter to indicate status of a program {active, completed, failed}
+     * Query parameter to indicate status of a program {active, completed, failed}.
      */
     public static final String QUERY_PARAM_STATUS = "status";
 
@@ -288,10 +338,12 @@ public final class Constants {
      */
     public static final String QUERY_PARAM_LIMIT = "limit";
 
-    public static final String SERVICE_DESCRIPTION = "Service for managing application lifecycle.";
+    public static final String SERVICE_DESCRIPTION = "Service for managing HTTP handlers.";
+
+    public static final String PROCESSOR_DESCRIPTION = "Service for managing application lifecycle.";
 
     /**
-     * Configuration setting to set the maximum size of a workflow token in MB
+     * Configuration setting to set the maximum size of a workflow token in MB.
      */
     public static final String WORKFLOW_TOKEN_MAX_SIZE_MB = "workflow.token.max.size.mb";
 
@@ -313,51 +365,79 @@ public final class Constants {
     public static final String WORKFLOW_KEEP_LOCAL = "workflow.keep.local";
 
     /**
-     * Configuration setting to localize extra jars to every program container and to be
-     * added to classpaths of CDAP programs.
+     * Configuration setting to localize extra jars to every program container and to be added to
+     * classpaths of CDAP programs.
      */
     public static final String PROGRAM_CONTAINER_DIST_JARS = "program.container.dist.jars";
 
     public static final String APP_UPDATE_SCHEDULES = "app.deploy.update.schedules";
 
     /**
-     * Topic name for publishing status transitioning events of program runs to the messaging system
+     * Topic prefix for publishing status transitioning events of program runs to the messaging
+     * system.
      */
     public static final String PROGRAM_STATUS_EVENT_TOPIC = "program.status.event.topic";
 
     /**
-     * Topic name for publishing program status recording events to the messaging system
+     * Prefix for program status retry strategy settings.
+     */
+    public static final String PROGRAM_STATUS_RETRY_STRATEGY_PREFIX = "system.program.state.";
+
+    /**
+     * Number of topics to use for program status events. All events related to same run should
+     * always go to same topic. If this value is 1, {@link #PROGRAM_STATUS_EVENT_TOPIC} is a topic
+     * name. If it's more than 1, {@link #PROGRAM_STATUS_EVENT_TOPIC} is a prefix, but bare name
+     * should still be subscribed to ensure any pending messages / active run events are processed
+     * properly.
+     */
+    public static final String PROGRAM_STATUS_EVENT_NUM_PARTITIONS = "program.status.event.topic.num.partitions";
+
+    /**
+     * Topic name for publishing program status recording events to the messaging system.
      */
     public static final String PROGRAM_STATUS_RECORD_EVENT_TOPIC = "program.status.record.event.topic";
 
     /**
-     * Interval at which system programs are monitored
+     * Interval at which system programs are monitored.
      */
     public static final String SYSTEM_PROGRAM_SCAN_INTERVAL_SECONDS = "system.program.scan.interval.seconds";
 
-    /**
-     * Annotation for binding remote execution twill service
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD })
-    @BindingAnnotation
-    public @interface RemoteExecution { }
+    public static final String FACTORY_IMPLEMENTATION_LOCAL = "local";
+    public static final String FACTORY_IMPLEMENTATION_REMOTE = "remote";
 
     /**
-     * A special annotation used in Guice bindings for ProgramRunner implementations.
-     * It is needed so that we can have different bindings in different private modules,
-     * without affecting/affected by unannotated bindings in the public space.
+     * Disable user program launch on cdap environment.
+     */
+    public static final String USER_PROGRAM_LAUNCH_DISABLED = "user.program.launch.disabled";
+
+    /**
+     * Annotation for binding remote execution twill service.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD })
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
     @BindingAnnotation
-    public @interface ProgramRunner { }
+    public @interface RemoteExecution {
+
+    }
+
+    /**
+     * A special annotation used in Guice bindings for ProgramRunner implementations. It is needed
+     * so that we can have different bindings in different private modules, without
+     * affecting/affected by unannotated bindings in the public space.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @BindingAnnotation
+    public @interface ProgramRunner {
+
+    }
   }
 
   /**
-   * Preview Configurations
+   * Preview Configurations.
    */
   public static final class Preview {
+
     public static final String ENABLED = "enable.preview";
 
     /**
@@ -389,14 +469,17 @@ public final class Constants {
     public static final String CONTAINER_MEMORY_MULTIPLIER = "preview.runner.container.memory.multiplier";
     public static final String CONTAINER_HEAP_RESERVED_RATIO = "preview.runner.container.java.heap.memory.ratio";
     public static final String CONTAINER_PRIORITY_CLASS_NAME = "preview.runner.container.priority.class.name";
-
-    public static final String ARTIFACT_LOCALIZER_ENABLED = "preview.runner.artifact.localizer.enabled";
+    public static final String CONTAINER_JVM_OPTS = "preview.runner.container.jvm.opts";
+    public static final String GCE_METADATA_HOST_ENV_VAR = "GCE_METADATA_HOST";
+    public static final String INTERNAL_ROUTER_ENABLED = "preview.runner.internal.router.enabled";
+    public static final String HTTP_COMPRESS_PAYLOAD = "preview.http.compress.payload";
   }
 
   /**
    * Environment configurations.
    */
   public static final class Environment {
+
     /**
      * Configuration to decide if the master environment should be used for programs or not.
      */
@@ -409,35 +492,55 @@ public final class Constants {
   public static final class TaskWorker {
 
     /**
-     * Task worker pool configuration
+     * Task worker pool configuration.
      */
     public static final String CONTAINER_COUNT = "task.worker.container.count";
     public static final String POOL_CHECK_INTERVAL = "task.worker.pool.check.interval";
     public static final String POOL_ENABLE = "task.worker.pool.enable";
     public static final String COMPRESSION_ENABLED = "task.worker.compression.enabled";
-    public static final String PRELOAD_ARTIFACTS = "task.worker.preload.artifacts";
 
     /**
-     * Task worker container configurations
+     * Task worker container configurations.
      */
+    public static final String WORK_DIR = "task.worker.work.dir";
     public static final String LOCAL_DATA_DIR = "task.worker.local.data.dir";
     public static final String CONTAINER_DISK_SIZE_GB = "task.worker.container.disk.size.gb";
     public static final String CONTAINER_MEMORY_MB = "task.worker.container.memory.mb";
+    public static final String CONTAINER_WORKDIR_SIZE_MB = "task.worker.container.workdir.size.mb";
     public static final String CONTAINER_CORES = "task.worker.container.num.cores";
     public static final String CONTAINER_CPU_MULTIPLIER = "task.worker.container.cpu.multiplier";
     public static final String CONTAINER_MEMORY_MULTIPLIER = "task.worker.container.memory.multiplier";
     public static final String CONTAINER_HEAP_RESERVED_RATIO = "task.worker.container.java.heap.memory.ratio";
     public static final String CONTAINER_PRIORITY_CLASS_NAME = "task.worker.container.priority.class.name";
     public static final String CONTAINER_KILL_AFTER_REQUEST_COUNT =
-      "task.worker.container.kill.after.request.count";
+        "task.worker.container.kill.after.request.count";
     public static final String CONTAINER_KILL_AFTER_DURATION_SECOND =
-      "task.worker.container.kill.after.duration.second";
+        "task.worker.container.kill.after.duration.second";
+    public static final String REQUEST_LIMIT = "task.worker.request.limit";
+    public static final String USER_CODE_ISOLATION_ENABLED = "task.worker.request.userCodeIsolation.enabled";
+    public static final String TASK_EXECUTION_DEADLINE_SECOND =
+        "task.worker.taskExecutionDeadline.second";
     public static final String CONTAINER_RUN_AS_USER = "task.worker.container.run.as.user";
     public static final String CONTAINER_RUN_AS_GROUP = "task.worker.container.run.as.group";
     public static final String CONTAINER_DISK_READONLY = "task.worker.container.disk.readonly";
+    public static final String CONTAINER_JVM_OPTS = "task.worker.container.jvm.opts";
+
+    public static final String CONFIGURATOR_HTTP_CLIENT_READ_TIMEOUT_MS =
+        "task.worker.configurator.http.client.read.timeout.ms";
+    public static final String CONFIGURATOR_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
+        "task.worker.configurator.http.client.connection.timeout.ms";
+    public static final String SOURCE_CONTROL_HTTP_CLIENT_READ_TIMEOUT_MS =
+        "task.worker.source.control.http.client.read.timeout.ms";
+    public static final String SOURCE_CONTROL_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
+        "task.worker.source.control.http.client.connection.timeout.ms";
+    public static final String SYSTEMAPP_HTTP_CLIENT_READ_TIMEOUT_MS =
+        "task.worker.systemapp.http.client.read.timeout.ms";
+    public static final String SYSTEMAPP_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
+        "task.worker.systemapp.http.client.connection.timeout.ms";
+    public static final String INTERNAL_ROUTER_ENABLED = "task.worker.internal.router.enabled";
 
     /**
-     * Task worker http handler configuration
+     * Task worker http handler configuration.
      */
     public static final String ADDRESS = "task.worker.bind.address";
     public static final String PORT = "task.worker.bind.port";
@@ -445,6 +548,38 @@ public final class Constants {
     public static final String BOSS_THREADS = "task.worker.boss.threads";
     public static final String WORKER_THREADS = "task.worker.worker.threads";
     public static final String METADATA_SERVICE_END_POINT = "task.worker.metadata.service.endpoint";
+    public static final String METRIC_PREFIX = "task.worker.";
+    public static final String GCE_METADATA_HOST_ENV_VAR = "GCE_METADATA_HOST";
+  }
+
+
+  /**
+   * System pods.
+   */
+  public static final class SystemWorker {
+
+    public static final String POOL_ENABLE = "system.worker.pool.enable";
+    public static final String CONTAINER_MEMORY_MB = "system.worker.container.memory.mb";
+    public static final String CONTAINER_CORES = "system.worker.container.num.cores";
+    public static final String CONTAINER_COUNT = "system.worker.container.count";
+    public static final String CONTAINER_JVM_OPTS = "system.worker.container.jvm.opts";
+    public static final String LOCAL_DATA_DIR = "task.worker.local.data.dir";
+    public static final String DISPATCH_PROGRAM_TYPES = "system.worker.dispatch.program.types";
+    public static final String HTTP_CLIENT_READ_TIMEOUT_MS = "system.worker.http.client.read.timeout.ms";
+    public static final String HTTP_CLIENT_CONNECTION_TIMEOUT_MS = "system.worker.http.client.connection.timeout.ms";
+    public static final String TWILL_CONTROLLER_START_SECONDS = "system.worker.program.twill.controller.start.seconds";
+    public static final String ARTIFACT_LOCALIZER_ENABLED = "system.worker.artifact.localizer.enabled";
+    public static final String INTERNAL_ROUTER_ENABLED = "system.worker.internal.router.enabled";
+
+    /**
+     * System worker http handler configuration.
+     */
+    public static final String ADDRESS = "system.worker.bind.address";
+    public static final String PORT = "system.worker.bind.port";
+    public static final String EXEC_THREADS = "system.worker.exec.threads";
+    public static final String BOSS_THREADS = "system.worker.boss.threads";
+    public static final String WORKER_THREADS = "system.worker.worker.threads";
+    public static final String REQUEST_LIMIT = "system.worker.request.limit";
     public static final String METRIC_PREFIX = "task.worker.";
   }
 
@@ -454,32 +589,38 @@ public final class Constants {
   public static final class ArtifactLocalizer {
 
     /**
-     * Artifact localizer service clean up configurations
+     * Artifact localizer service clean up configurations.
      */
     public static final String CACHE_CLEANUP_INTERVAL_MIN = "artifact.localizer.cache.cleanup.interval.min";
 
     /**
-     * Artifact localizer sidecar container configurations
+     * Artifact localizer sidecar container configurations.
      */
     public static final String CONTAINER_MEMORY_MB = "artifact.localizer.container.memory.mb";
     public static final String CONTAINER_CORES = "artifact.localizer.container.num.cores";
+    public static final String CONTAINER_JVM_OPTS = "artifact.localizer.container.jvm.opts";
 
     /**
-     * Artifact localizer http handler configuration
+     * Artifact localizer http handler configuration.
      */
     public static final String PORT = "artifact.localizer.bind.port";
     public static final String BOSS_THREADS = "artifact.localizer.boss.threads";
     public static final String WORKER_THREADS = "artifact.localizer.worker.threads";
+    public static final String PRELOAD_LIST = "artifact.localizer.preload.list";
+    public static final String PRELOAD_VERSION_LIMIT = "artifact.localizer.preload.version.limit";
+    public static final String REMOTE_AUTHENTICATOR_NAME =
+        "artifact.localizer.remote.authenticator.name";
   }
 
   /**
    * Scheduler options.
    */
   public static final class Scheduler {
+
     public static final String CFG_SCHEDULER_MAX_THREAD_POOL_SIZE = "scheduler.max.thread.pool.size";
     public static final String CFG_SCHEDULER_MISFIRE_THRESHOLD_MS = "scheduler.misfire.threshold.ms";
     /**
-     * Topic name for publishing time events from time scheduler to the messaging system
+     * Topic name for publishing time events from time scheduler to the messaging system.
      */
     public static final String TIME_EVENT_TOPIC = "time.event.topic";
 
@@ -496,6 +637,7 @@ public final class Constants {
    * Application metadata store.
    */
   public static final class AppMetaStore {
+
     public static final String TABLE = "app.meta";
   }
 
@@ -503,6 +645,7 @@ public final class Constants {
    * Program heartbeat store.
    */
   public static final class ProgramHeartbeat {
+
     public static final String TABLE = "program.heartbeat";
     public static final String HEARTBEAT_INTERVAL_SECONDS = "program.heartbeat.interval.seconds";
     public static final String HEARTBEAT_TABLE_TTL_SECONDS = "program.heartbeat.table.ttl.seconds";
@@ -512,6 +655,7 @@ public final class Constants {
    * Plugin Artifacts constants.
    */
   public static final class Plugin {
+
     // Key to be used in hConf to store location of the plugin artifact jar
     public static final String ARCHIVE = "cdap.program.plugin.archive";
   }
@@ -520,6 +664,7 @@ public final class Constants {
    * Configuration Store.
    */
   public static final class ConfigStore {
+
     public static final Byte VERSION = 0;
   }
 
@@ -534,6 +679,7 @@ public final class Constants {
      * Twill Runnable configuration.
      */
     public static final class Container {
+
       // TODO: This is duplicated from TxConstants. Needs to be removed.
       public static final String ADDRESS = "data.tx.bind.address";
       public static final String NUM_INSTANCES = "data.tx.num.instances";
@@ -548,9 +694,10 @@ public final class Constants {
      * Configuration for the TransactionDataJanitor coprocessor.
      */
     public static final class DataJanitor {
+
       /**
-       * Whether or not the TransactionDataJanitor coprocessor should be enabled on tables.
-       * Disable for testing.
+       * Whether or not the TransactionDataJanitor coprocessor should be enabled on tables. Disable
+       * for testing.
        */
       public static final String CFG_TX_JANITOR_ENABLE = "data.tx.janitor.enable";
       public static final boolean DEFAULT_TX_JANITOR_ENABLE = true;
@@ -588,22 +735,37 @@ public final class Constants {
     public static final String DATA_STORAGE_SQL_DRIVER_DIRECTORY = "data.storage.sql.jdbc.driver.directory";
     public static final String DATA_STORAGE_SQL_JDBC_DRIVER_NAME = "data.storage.sql.jdbc.driver.name";
 
-    // the jdbc connection related properties should be from cdap-security.xml
+    // the jdbc connection related properties should be from cdap-site.xml
     public static final String DATA_STORAGE_SQL_JDBC_CONNECTION_URL = "data.storage.sql.jdbc.connection.url";
-    public static final String DATA_STORAGE_SQL_USERNAME = "data.storage.sql.jdbc.username";
-    public static final String DATA_STORAGE_SQL_PASSWORD = "data.storage.sql.jdbc.password";
     public static final String DATA_STORAGE_SQL_PROPERTY_PREFIX = "data.storage.sql.jdbc.property.";
     public static final String DATA_STORAGE_SQL_CONNECTION_SIZE = "data.storage.sql.jdbc.connection.pool.size";
+    public static final String DATA_STORAGE_SQL_CONNECTION_IDLE_SIZE =
+        "data.storage.sql.jdbc.connection.pool.idle.size";
+    public static final String DATA_STORAGE_SQL_CONNECTION_IDLE_MILLIS =
+        "data.storage.sql.jdbc.connection.pool.idle.millis";
+    public static final String DATA_STORAGE_SQL_CONNECTION_IDLE_EVICTION_MILLIS =
+        "data.storage.sql.jdbc.connection.pool.idle.eviction.millis";
     public static final String DATA_STORAGE_SQL_SCAN_FETCH_SIZE_ROWS = "data.storage.sql.scan.size.rows";
+    public static final String DATA_STORAGE_SQL_TRANSACTION_RUNNER_MAX_RETRIES =
+        "data.storage.sql.tx.runner.max.retries";
+    public static final String DATA_STORAGE_SQL_TRANSACTION_RUNNER_TRANSACTION_FAILURE_DELAY_MILLIS =
+        "data.storage.sql.tx.runner.tx.failure.delay.ms";
+    public static final String DATA_STORAGE_SQL_TRANSACTION_RUNNER_CONNECTION_FAILURE_DELAY_MILLIS =
+        "data.storage.sql.tx.runner.conn.failure.delay.ms";
+
+    // the db credentials properties should be from cdap-security.xml
+    public static final String DATA_STORAGE_SQL_USERNAME = "data.storage.sql.jdbc.username";
+    public static final String DATA_STORAGE_SQL_PASSWORD = "data.storage.sql.jdbc.password";
 
     // used for Guice named bindings
     public static final String TABLE_TYPE = "table.type";
     public static final String TABLE_TYPE_NO_TX = "table.type.no.tx";
 
     /**
-     * Constants for PartitionedFileSet's DynamicPartitioner
+     * Constants for PartitionedFileSet's DynamicPartitioner.
      */
     public static final class Partitioned {
+
       public static final String HCONF_ATTR_OUTPUT_DATASET = "output.dataset.name";
       public static final String HCONF_ATTR_OUTPUT_FORMAT_CLASS_NAME = "output.format.class.name";
     }
@@ -612,7 +774,10 @@ public final class Constants {
      * DatasetManager service configuration.
      */
     public static final class Manager {
-      /** for the address (hostname) of the dataset server. */
+
+      /**
+       * for the address (hostname) of the dataset server.
+       */
       public static final String PORT = "dataset.service.bind.port";
       public static final String ANNOUNCE_PORT = "dataset.service.announce.port";
 
@@ -623,29 +788,38 @@ public final class Constants {
       public static final String OUTPUT_DIR = "dataset.service.output.dir";
 
       /**
-       * Annotation for binding default dataset modules for the dataset service
+       * Annotation for binding default dataset modules for the dataset service.
        */
       @Retention(RetentionPolicy.RUNTIME)
-      @Target({ ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD })
+      @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
       @BindingAnnotation
-      public @interface DefaultDatasetModules { }
+      public @interface DefaultDatasetModules {
+
+      }
     }
 
     /**
      * DatasetUserService configuration.
      */
     public static final class Executor {
-      /** for the port of the dataset user service server. */
+
+      /**
+       * for the port of the dataset user service server.
+       */
       public static final String PORT = "dataset.executor.bind.port";
 
-      /** for the address (hostname) of the dataset server. */
+      /**
+       * for the address (hostname) of the dataset server.
+       */
       public static final String ADDRESS = "dataset.executor.bind.address";
 
       public static final String EXEC_THREADS = "dataset.executor.exec.threads";
       public static final String WORKER_THREADS = "dataset.executor.worker.threads";
       public static final String OUTPUT_DIR = "dataset.executor.output.dir";
 
-      /** Twill Runnable configuration **/
+      /**
+       * Twill Runnable configuration.
+       **/
       public static final String CONTAINER_VIRTUAL_CORES = "dataset.executor.container.num.cores";
       public static final String CONTAINER_MEMORY_MB = "dataset.executor.container.memory.mb";
       public static final String CONTAINER_INSTANCES = "dataset.executor.container.instances";
@@ -660,9 +834,12 @@ public final class Constants {
      * Dataset extensions.
      */
     public static final class Extensions {
+
       public static final String MODULES = "dataset.extensions.modules";
 
-      /** Over-rides for default table bindings- use with caution! **/
+      /**
+       * Over-rides for default table bindings- use with caution.
+       **/
       public static final String DISTMODE_TABLE = "dataset.extensions.distributed.mode.table";
     }
   }
@@ -680,16 +857,18 @@ public final class Constants {
     public static final String API_KEY = "X-ApiKey";
 
     /**
-     * Internal API
+     * Internal API.
      */
     public static final String INTERNAL_API_VERSION_3_TOKEN = "v3Internal";
-    public static final String INTERNAL_API_VERSION_3 = "/" + INTERNAL_API_VERSION_3_TOKEN;
+    public static final String INTERNAL_API_VERSION_3 =
+        "/" + INTERNAL_API_VERSION_3_TOKEN;
   }
 
   /**
    * Router Configuration.
    */
   public static final class Router {
+
     public static final String ADDRESS = "router.bind.address";
     public static final String ROUTER_PORT = "router.bind.port";
     public static final String ROUTER_SSL_PORT = "router.ssl.bind.port";
@@ -708,16 +887,24 @@ public final class Constants {
     public static final String DONT_ROUTE_SERVICE = "dont-route-to-service";
     public static final String AUDIT_LOGGER_NAME = "http-access";
 
-    /** Interval in minutes at which CDAP Router reloads cconf */
+    /**
+     * Interval in minutes at which CDAP Router reloads cconf.
+     */
     public static final String CCONF_RELOAD_INTERVAL_SECONDS = "router.cconf.reload.interval.seconds";
 
     // To block inbound requests through configuration,
     // Router will start responding to every inbound request with the response (status and message) declared in config
-    /** Property to start/stop blocking requests to the router. Will be blocked if enabled */
+    /**
+     * Property to start/stop blocking requests to the router. Will be blocked if enabled
+     */
     public static final String BLOCK_REQUEST_ENABLED = "router.block.request.enabled";
-    /** The config name to define the status code for the response */
+    /**
+     * The config name to define the status code for the response.
+     */
     public static final String BLOCK_REQUEST_STATUS_CODE = "router.block.request.status.code";
-    /** The config name to define the response body */
+    /**
+     * The config name to define the response body.
+     */
     public static final String BLOCK_REQUEST_MESSAGE = "router.block.request.message";
   }
 
@@ -725,6 +912,7 @@ public final class Constants {
    * Metrics constants.
    */
   public static final class Metrics {
+
     public static final String ADDRESS = "metrics.bind.address";
     public static final String PORT = "metrics.bind.port";
     public static final String CLUSTER_NAME = "metrics.cluster.name";
@@ -740,14 +928,19 @@ public final class Constants {
     public static final String SERVICE_DESCRIPTION = "Service to handle metrics requests.";
     public static final String PROCESSOR_MAX_DELAY_MS = "metrics.processor.max.delay.ms";
     public static final String QUEUE_SIZE = "metrics.processor.queue.size";
+    public static final String OFFER_TIMEOUT_MS = "metrics.processor.offer.timeout.ms";
 
     public static final String ENTITY_TABLE_NAME = "metrics.data.entity.tableName";
+    public static final String METRICS_TABLE_WRITE_PARRALELISM = "metrics.data.table.write.parallelism";
     public static final String METRICS_TABLE_PREFIX = "metrics.data.table.prefix";
     public static final String TIME_SERIES_TABLE_ROLL_TIME = "metrics.data.table.ts.rollTime";
 
+    public static final String COARSE_LAG_FACTOR = "metrics.data.coarse.lag.factor";
+    public static final String COARSE_ROUND_FACTOR = "metrics.data.coarse.round.factor";
+
     public static final String METRICS_MINIMUM_RESOLUTION_SECONDS = "metrics.minimum.resolution.seconds";
     public static final String MINIMUM_RESOLUTION_RETENTION_SECONDS =
-      "metrics.data.table.retention.minimum.resolution.seconds";
+        "metrics.data.table.retention.minimum.resolution.seconds";
     // Key prefix for retention seconds. The actual key is suffixed by the table resolution.
     public static final String RETENTION_SECONDS = "metrics.data.table.retention.resolution.";
     public static final int MINUTE_RESOLUTION = 60;
@@ -777,54 +970,72 @@ public final class Constants {
 
     public static final String METRICS_WRITER_EXTENSIONS_DIR = "metrics.writer.extensions.dir";
     public static final String METRICS_WRITER_PREFIX = "metrics.writer.";
+    public static final String METRICS_WRITER_EXTENSIONS_ENABLED_LIST = "metrics.writer.extensions.enabled.list";
 
     public static final Map<String, String> METRICS_PROCESSOR_CONTEXT =
-      ImmutableMap.of(Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace(),
-                      Constants.Metrics.Tag.COMPONENT, Constants.Service.METRICS_PROCESSOR);
+        ImmutableMap.of(Constants.Metrics.Tag.NAMESPACE,
+            NamespaceId.SYSTEM.getNamespace(),
+            Constants.Metrics.Tag.COMPONENT,
+            Constants.Service.METRICS);
 
     public static final Map<String, String> TRANSACTION_MANAGER_CONTEXT =
-      ImmutableMap.of(Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace(),
-                      Constants.Metrics.Tag.COMPONENT, Constants.Service.TRANSACTION);
+        ImmutableMap.of(Constants.Metrics.Tag.NAMESPACE,
+            NamespaceId.SYSTEM.getNamespace(),
+            Constants.Metrics.Tag.COMPONENT, Constants.Service.TRANSACTION);
     // metrics context for system storage
     public static final Map<String, String> STORAGE_METRICS_TAGS = ImmutableMap.of(
-      Tag.COMPONENT, "system.storage",
-      Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace());
+        Tag.COMPONENT, "system.storage",
+        Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace());
 
     public static final String PROGRAM_METRICS_ENABLED = "app.program.metrics.enabled";
     public static final String STRUCTURED_TABLE_TIME_METRICS_ENABLED = "structured.table.time.metrics.enabled";
 
-    /** Whether to enable metrics tracking for authorization */
+    /**
+     * Whether to enable metrics tracking for authorization.
+     */
     public static final String AUTHORIZATION_METRICS_ENABLED = "security.authorization.metrics.enabled";
-    /** Whether to enable entity tagging for metrics for aggregation purposes. */
+    /**
+     * Whether to enable entity tagging for metrics for aggregation purposes.
+     */
     public static final String AUTHORIZATION_METRICS_TAGS_ENABLED = "security.authorization.metrics.tags.enabled";
 
     /**
-     * Writer specific config for use subscriber in metadata key
+     * Writer specific config for use subscriber in metadata key.
      */
     public static final String WRITER_USE_SUBSCRIBER_METADATA_KEY = "metrics.writer.%s.use.subscriber.metadata.key";
 
     /**
-     * Writer specific config for restricting write frequency
+     * Writer specific config for restricting write frequency.
      */
     public static final String WRITER_LIMIT_WRITE_FREQ = "metrics.writer.%s.limit.write.freq";
 
     /**
-     * Writer specific config for delay between writes
+     * Writer specific config for delay between writes.
      */
     public static final String WRITER_WRITE_FREQUENCY_SECONDS = "metrics.writer.%s.write.frequency.seconds";
+
+    /**
+     * Whether to enable spark metrics collection.
+     */
+    public static final String SPARK_METRICS_ENABLED = "app.program.spark.metrics.enabled";
 
     /**
      * Metric's dataset related constants.
      */
     public static final class Dataset {
-      /** Defines reporting interval for HBase stats, in seconds */
+
+      /**
+       * Defines reporting interval for HBase stats, in seconds.
+       */
       public static final String HBASE_STATS_REPORT_INTERVAL = "metrics.dataset.hbase.stats.report.interval";
-      /** Defines reporting interval for LevelDB stats, in seconds */
+      /**
+       * Defines reporting interval for LevelDB stats, in seconds.
+       */
       public static final String LEVELDB_STATS_REPORT_INTERVAL = "metrics.dataset.leveldb.stats.report.interval";
     }
 
     /**
-     * Metrics context tags
+     * Metrics context tags.
      */
     public static final class Tag {
       // NOTES:
@@ -846,6 +1057,9 @@ public final class Constants {
       public static final String APP = "app";
 
       public static final String SERVICE = "srv";
+      //For app entity
+      public static final String APP_ENTITY_TYPE = "aet";
+      public static final String APP_ENTITY_TYPE_NAME = "tpe";
 
       public static final String WORKER = "wrk";
 
@@ -884,26 +1098,43 @@ public final class Constants {
       //For task worker
       public static final String CLASS = "clz";
       public static final String TRIES = "try";
+
+      //For scheduler
+      public static final String SCHEDULE = "sch";
+
+      public static final String METADATA_CONSUMER = "met";
+
+      // For operations
+      public static final String OPERATION_RUN = "operation";
+
+      // For error classification
+      public static final String ERROR_CATEGORY = "ectgry";
+      public static final String ERROR_TYPE = "etpe";
+      public static final String DEPENDENCY = "edep";
+      public static final String ERROR_CODE_TYPE = "ecdtpe";
+      public static final String ERROR_CODE = "ecd";
     }
 
     /**
-     * Metric names
+     * Metric names.
      */
     public static final class Name {
 
       /**
-       * Service metrics
+       * Service metrics.
        */
       public static final class Service {
+
         public static final String SERVICE_INPUT = "system.requests.count";
         public static final String SERVICE_PROCESSED = "system.response.successful.count";
         public static final String SERVICE_EXCEPTIONS = "system.response.server.error.count";
       }
 
       /**
-       * Dataset metrics
+       * Dataset metrics.
        */
       public static final class Dataset {
+
         public static final String READ_COUNT = "dataset.store.reads";
         public static final String OP_COUNT = "dataset.store.ops";
         public static final String WRITE_COUNT = "dataset.store.writes";
@@ -911,9 +1142,10 @@ public final class Constants {
       }
 
       /**
-       * Logs metrics
+       * Logs metrics.
        */
       public static final class Log {
+
         public static final String PROCESS_MIN_DELAY = "log.process.min.delay";
         public static final String PROCESS_MAX_DELAY = "log.process.max.delay";
         public static final String PROCESS_MESSAGES_COUNT = "log.process.message.count";
@@ -921,42 +1153,50 @@ public final class Constants {
     }
 
     /**
-     * Metrics query constants and defaults
+     * Metrics query constants and defaults.
      */
     public static final class Query {
+
       public static final long MAX_HOUR_RESOLUTION_QUERY_INTERVAL = 36000;
       public static final long MAX_MINUTE_RESOLUTION_QUERY_INTERVAL = 600;
     }
 
     /**
-     * Flow control metrics
+     * Flow control metrics.
      */
     public static final class FlowControl {
+
       public static final String LAUNCHING_COUNT = "flowcontrol.launching.count";
       public static final String RUNNING_COUNT = "flowcontrol.running.count";
     }
 
     /**
-     * Program metrics
+     * Program metrics.
      */
     public static final class Program {
+
       public static final String PROGRAM_COMPLETED_RUNS = "program.completed.runs";
       public static final String PROGRAM_FAILED_RUNS = "program.failed.runs";
       public static final String PROGRAM_KILLED_RUNS = "program.killed.runs";
       public static final String PROGRAM_REJECTED_RUNS = "program.rejected.runs";
+      public static final String PROGRAM_FORCE_TERMINATED_RUNS = "program.force.terminated.runs";
       public static final String PROGRAM_NODE_MINUTES = "program.node.minutes";
       public static final String PROGRAM_PROVISIONING_DELAY_SECONDS = "program.provisioning.delay.seconds";
       public static final String PROGRAM_STARTING_DELAY_SECONDS = "program.starting.delay.seconds";
       public static final String RUN_TIME_SECONDS = "program.run.seconds";
+      public static final String PROGRAM_STOPPING_DELAY_SECONDS = "program.stopping.delay.seconds";
       public static final String APPLICATION_COUNT = "application.count";
       public static final String NAMESPACE_COUNT = "namespace.count";
       public static final String APPLICATION_PLUGIN_COUNT = "application.plugin.count";
+      public static final String FAILED_RUNS_CLASSIFICATION_COUNT =
+          "program.failed.runs.classified.count";
     }
 
     /**
-     * JVM resource metrics
+     * JVM resource metrics.
      */
-    public static final class JVMResource {
+    public static final class JvmResource {
+
       public static final String HEAP_USED_MB = "jvm.resource.heap.used.mb";
       public static final String HEAP_MAX_MB = "jvm.resource.heap.max.mb";
       public static final String SYSTEM_LOAD_PER_PROCESSOR_SCALED = "jvm.resource.system.load.per.processor.scaled";
@@ -964,23 +1204,56 @@ public final class Constants {
     }
 
     /**
-     * Preview metrics
+     * Program event publish.
      */
-    public static final class Preview {
-      public static final String RUN_TIME_SECONDS = "preview.run.seconds";
-    }
+    public static final class ProgramEvent {
 
-    public static final class TaskWorker {
-      public static final String REQUEST_COUNT = Constants.TaskWorker.METRIC_PREFIX + "request.count";
-      public static final String REQUEST_LATENCY_MS = Constants.TaskWorker.METRIC_PREFIX + "request.latency.millis";
-      public static final String CLIENT_REQUEST_COUNT =
-        "client." + Constants.TaskWorker.METRIC_PREFIX + "request.count";
-      public static final String CLIENT_REQUEST_LATENCY_MS =
-        "client." + Constants.TaskWorker.METRIC_PREFIX + "request.latency.millis";
+      public static final String PUBLISHED_COUNT = "program.event.published.count";
+      public static final String SPARK_METRICS_FETCH_LATENCY_MS = "program.event.spark.metrics.fetch.latency.millis";
     }
 
     /**
-     * Structured table metrics
+     * Preview metrics.
+     */
+    public static final class Preview {
+
+      public static final String RUN_TIME_SECONDS = "preview.run.seconds";
+    }
+
+    /**
+     * Task worker configuration.
+     */
+    public static final class TaskWorker {
+
+      public static final String REQUEST_COUNT =
+          Constants.TaskWorker.METRIC_PREFIX + "request.count";
+      public static final String REQUEST_LATENCY_MS =
+          Constants.TaskWorker.METRIC_PREFIX + "request.latency.millis";
+      public static final String CLIENT_REQUEST_COUNT =
+          "client." + Constants.TaskWorker.METRIC_PREFIX + "request.count";
+      public static final String CLIENT_REQUEST_LATENCY_MS =
+          "client." + Constants.TaskWorker.METRIC_PREFIX
+              + "request.latency.millis";
+    }
+
+    /**
+     * System worker configuration.
+     */
+    public static final class SystemWorker {
+
+      public static final String REQUEST_COUNT =
+          Constants.SystemWorker.METRIC_PREFIX + "request.count";
+      public static final String REQUEST_LATENCY_MS =
+          Constants.SystemWorker.METRIC_PREFIX + "request.latency.millis";
+      public static final String CLIENT_REQUEST_COUNT =
+          "client." + Constants.SystemWorker.METRIC_PREFIX + "request.count";
+      public static final String CLIENT_REQUEST_LATENCY_MS =
+          "client." + Constants.SystemWorker.METRIC_PREFIX
+              + "request.latency.millis";
+    }
+
+    /**
+     * Structured table metrics.
      */
     public static final class StructuredTable {
 
@@ -993,26 +1266,101 @@ public final class Constants {
     }
 
     /**
-     * Metadata storage metrics
+     * Metadata storage metrics.
      */
     public static final class MetadataStorage {
+
       public static final String METRICS_PREFIX = "metadata.storage.";
     }
 
     /**
-     * Authorization metrics
+     * Authorization metrics.
      */
     public static final class Authorization {
+
       public static final String INTERNAL_CHECK_SUCCESS_COUNT = "authorization.internal.check.success.count";
       public static final String INTERNAL_CHECK_FAILURE_COUNT = "authorization.internal.check.failure.count";
+      public static final String INTERNAL_CHECK_UNAUTHORIZED_COUNT = "authorization.internal.check.unauthorized.count";
+      public static final String INTERNAL_CHECK_NOT_REQUIRED_COUNT = "authorization.internal.check.not_required.count";
       public static final String INTERNAL_VISIBILITY_CHECK_COUNT = "authorization.internal.visibility.check.count";
       public static final String EXTENSION_CHECK_SUCCESS_COUNT = "authorization.extension.check.success.count";
+      public static final String EXTENSION_CHECK_UNAUTHORIZED_COUNT =
+        "authorization.extension.check.unauthorized.count";
       public static final String EXTENSION_CHECK_FAILURE_COUNT = "authorization.extension.check.failure.count";
       public static final String EXTENSION_CHECK_BYPASS_COUNT = "authorization.extension.check.bypass.count";
       public static final String NON_INTERNAL_VISIBILITY_CHECK_COUNT =
-        "authorization.non.internal.visibility.check.count";
+          "authorization.non.internal.visibility.check.count";
       public static final String EXTENSION_CHECK_MILLIS = "authorization.extension.check.millis";
       public static final String EXTENSION_VISIBILITY_MILLIS = "authorization.extension.visibility.millis";
+    }
+
+    /**
+     * Scheduled job metrics.
+     */
+    public static final class ScheduledJob {
+
+      public static final String SCHEDULE_FAILURE = "schedulejob.failure";
+      public static final String SCHEDULE_SUCCESS = "schedulejob.success";
+      public static final String SCHEDULE_NOTIFICATION_FAILURE = "schedulejob.notification.failure";
+      public static final String SCHEDULE_LATENCY = "schedulejob.latency";
+    }
+
+    /**
+     * AppState store config.
+     */
+    public static final class AppStateStore {
+
+      public static final String STATE_STORE_GET_COUNT = "state.store.get.count";
+      public static final String STATE_STORE_SAVE_COUNT = "state.store.save.count";
+      public static final String STATE_STORE_GET_LATENCY_MS = "state.store.get.latency.millis";
+      public static final String STATE_STORE_SAVE_LATENCY_MS = "state.store.save.latency.millis";
+    }
+
+    /**
+     * Deploy event metrics.
+     */
+    public static final class AppMetadataStore {
+
+      public static final String DEPLOY_NEW_COUNT = "app.deploy.event.count.create";
+      public static final String DEPLOY_EDIT_COUNT = "app.deploy.event.count.edit";
+      public static final String DEPLOY_UPGRADE_COUNT = "app.deploy.event.count.upgrade";
+    }
+
+    /**
+     * Source Control Management metrics.
+     */
+    public static final class SourceControlManagement {
+      public static final String CLONE_REPOSITORY_SIZE_BYTES =
+          "source.control.git.repository.clone.size.bytes";
+      public static final String CLONE_LATENCY_MS =
+          "source.control.git.clone.latency.ms";
+      public static final String COMMIT_PUSH_LATENCY_MILLIS =
+          "source.control.git.commit.push.duration.ms";
+      public static final String PULL_OPERATION_COUNT =
+          "source.control.git.pull.operation.count";
+      public static final String PUSH_OPERATION_COUNT =
+          "source.control.git.push.operation.count";
+      public static final String PULL_APP_COUNT =
+          "source.control.git.pull.app.count";
+      public static final String PUSH_APP_COUNT =
+          "source.control.git.push.app.count";
+    }
+
+    /**
+     * Credential Provider Metrics.
+     */
+    public static final class Credential {
+      public static final String CREDENTIAL_IDENTITY_COUNT = "credential.identity.count";
+      public static final String CREDENTIAL_PROFILE_COUNT = "credential.profile.count";
+    }
+
+    /**
+     * Workload Identity Metrics.
+     */
+    public static final class WorkloadIdentity {
+
+      public static final String NAMESPACE_WORKLOAD_IDENTITY_COUNT =
+          "namespace.workload.identity.count";
     }
   }
 
@@ -1020,6 +1368,7 @@ public final class Constants {
    * Configurations for metrics processor.
    */
   public static final class MetricsProcessor {
+
     public static final String NUM_INSTANCES = "metrics.processor.num.instances";
     public static final String NUM_CORES = "metrics.processor.num.cores";
     public static final String MEMORY_MB = "metrics.processor.memory.mb";
@@ -1036,6 +1385,7 @@ public final class Constants {
    * Configurations for log query service.
    */
   public static final class LogQuery {
+
     public static final String ADDRESS = "log.query.server.bind.address";
     public static final String PORT = "log.query.server.bind.port";
   }
@@ -1044,13 +1394,15 @@ public final class Constants {
    * Configurations for log saver.
    */
   public static final class LogSaver {
+
     public static final String NUM_INSTANCES = "log.saver.num.instances";
     public static final String MEMORY_MB = "log.saver.container.memory.mb";
     public static final String NUM_CORES = "log.saver.container.num.cores";
     public static final String MAX_INSTANCES = "log.saver.max.instances";
 
-    public static final String LOG_SAVER_STATUS_HANDLER = "log.saver.status.handler";
+    public static final String LOG_SAVER_HANDLER = "log.saver.handler";
     public static final String ADDRESS = "log.saver.status.bind.address";
+    public static final String PORT = "log.saver.status.bind.port";
 
     public static final String SERVICE_DESCRIPTION = "Service to collect and store logs.";
 
@@ -1062,6 +1414,7 @@ public final class Constants {
    * Configurations for log buffer.
    */
   public static final class LogBuffer {
+
     // log buffer writer configs
     public static final String LOG_BUFFER_BASE_DIR = "log.buffer.base.dir";
     public static final String LOG_BUFFER_MAX_FILE_SIZE_BYTES = "log.buffer.max.file.size.bytes";
@@ -1078,6 +1431,7 @@ public final class Constants {
    * Monitor constants.
    */
   public static final class Monitor {
+
     public static final String STATUS_OK = "OK";
     public static final String STATUS_NOTOK = "NOTOK";
     public static final String DISCOVERY_TIMEOUT_SECONDS = "monitor.handler.service.discovery.timeout.seconds";
@@ -1088,6 +1442,7 @@ public final class Constants {
    * Runtime Monitor constants.
    */
   public static final class RuntimeMonitor {
+
     public static final String SERVICE_DESCRIPTION = "Service for the program runtime system.";
     public static final String POLL_TIME_MS = "app.program.runtime.monitor.polltime.ms";
     public static final String BATCH_SIZE = "app.program.runtime.monitor.batch.size";
@@ -1107,8 +1462,8 @@ public final class Constants {
     // If it is missing from the configuration, SSH tunnel will be used.
     public static final String MONITOR_URL = "app.program.runtime.monitor.url";
     public static final String MONITOR_TYPE_PREFIX = "app.program.runtime.monitor.type.";
-    public static final String MONITOR_URL_AUTHENTICATOR_CLASS_PREFIX =
-      "app.program.runtime.monitor.url.authenticator.class.";
+    public static final String MONITOR_URL_AUTHENTICATOR_NAME_PREFIX =
+        "app.program.runtime.monitor.url.authenticator.name.";
     public static final String MONITOR_AUDIT_LOG_ENABLED = "app.program.runtime.monitor.audit.log.enabled";
     public static final String MONITOR_AUDIT_LOGGER_NAME = "http-access";
 
@@ -1129,12 +1484,18 @@ public final class Constants {
     // Configuration key for the service proxy password. It is only used within a runtime cluster.
     public static final String SERVICE_PROXY_PASSWORD = "app.program.runtime.service.proxy.password";
     public static final String SERVICE_PROXY_PASSWORD_FILE = "cdap.service.proxy.secret";
+    public static final String METRICS_AGGREGATION_ENABLED = "app.program.runtime.monitor.metrics.aggregation.enabled";
+    public static final String METRICS_AGGREGATION_WINDOW_SECONDS =
+        "app.program.runtime.monitor.metrics.aggregation.window.secs";
+    public static final String METRICS_AGGREGATION_POLL_TIME_MS =
+        "app.program.runtime.monitor.metrics.aggregation.polltime.ms";
   }
 
   /**
    * Logging constants.
    */
   public static final class Logging {
+
     public static final String COMPONENT_NAME = "services";
 
     // Configuration keys
@@ -1162,6 +1523,12 @@ public final class Constants {
     public static final String LOG_APPENDER_EXT_DIR = "app.program.log.appender.extensions.dir";
     public static final String LOG_APPENDER_PROPERTY_PREFIX = "app.program.log.appender.system.properties.";
 
+    // Log publisher configs.
+    public static final String LOG_PUBLISHER_PROVIDER = "log.publisher.provider";
+    public static final String LOG_PUBLISHER_ENABLED = "log.publisher.enabled";
+    public static final String LOG_PUBLISHER_EXT_DIR = "log.publisher.extensions.dir";
+    public static final String LOG_PUBLISHER_PREFIX = "log.publisher";
+
     // Property key in the logger context to indicate it is performing pipeline validation
     public static final String PIPELINE_VALIDATION = "log.pipeline.validation";
 
@@ -1186,6 +1553,14 @@ public final class Constants {
 
     public static final String EVENT_TYPE_TAG = "MDC:eventType";
     public static final String USER_LOG_TAG_VALUE = "userLog";
+    public static final String TAG_FAILED_STAGE = "failedStage";
+    public static final String TAG_ERROR_CATEGORY = "errorCategory";
+    public static final String TAG_ERROR_REASON = "errorReason";
+    public static final String TAG_ERROR_TYPE = "errorType";
+    public static final String TAG_DEPENDENCY = "dependency";
+    public static final String TAG_ERROR_CODE_TYPE = "errorCodeType";
+    public static final String TAG_ERROR_CODE = "errorCode";
+    public static final String TAG_SUPPORTED_DOC_URL = "supportDocUrl";
   }
 
   /**
@@ -1194,74 +1569,127 @@ public final class Constants {
   public static final class Security {
 
 
-    /** Enables security. */
+    /**
+     * Enables security.
+     */
     public static final String ENABLED = "security.enabled";
-    /** Enables Kerberos authentication. */
+    /**
+     * Enables Kerberos authentication.
+     */
     public static final String KERBEROS_ENABLED = "kerberos.auth.enabled";
-    /** Kerberos keytab relogin interval. */
+    /**
+     * Kerberos keytab relogin interval.
+     */
     public static final String KERBEROS_KEYTAB_RELOGIN_INTERVAL = "kerberos.auth.relogin.interval.seconds";
-    /** Algorithm used to generate the digest for access tokens. */
+    /**
+     * Algorithm used to generate the digest for access tokens.
+     */
     public static final String TOKEN_DIGEST_ALGO = "security.token.digest.algorithm";
-    /** Key length for secret key used by token digest algorithm. */
+    /**
+     * Key length for secret key used by token digest algorithm.
+     */
     public static final String TOKEN_DIGEST_KEY_LENGTH = "security.token.digest.keylength";
-    /** Time duration in milliseconds after which an active secret key should be retired. */
+    /**
+     * Time duration in milliseconds after which an active secret key should be retired.
+     */
     public static final String TOKEN_DIGEST_KEY_EXPIRATION = "security.token.digest.key.expiration.ms";
-    /** Parent znode used for secret key distribution in ZooKeeper. */
+    /**
+     * Parent znode used for secret key distribution in ZooKeeper.
+     */
     public static final String DIST_KEY_PARENT_ZNODE = "security.token.distributed.parent.znode";
     /**
      * Comma separated URL's that clients should use to communicate with the Authentication Server.
-     * Each URL should follow the format protocol://host:port. Leave empty to use the default URL generated by
-     * the Authentication Server.
+     * Each URL should follow the format protocol://host:port. Leave empty to use the default URL
+     * generated by the Authentication Server.
      */
     public static final String AUTH_SERVER_ANNOUNCE_URLS = "security.auth.server.announce.urls";
 
-    /** Address the Authentication Server should bind to. */
+    /**
+     * Address the Authentication Server should bind to.
+     */
     public static final String AUTH_SERVER_BIND_ADDRESS = "security.auth.server.bind.address";
-    /** Configuration for External Authentication Server. */
+    /**
+     * Configuration for External Authentication Server.
+     */
     public static final String AUTH_SERVER_BIND_PORT = "security.auth.server.bind.port";
-    /** Maximum number of handler threads for the Authentication Server embedded Jetty instance. */
+    /**
+     * Maximum number of handler threads for the Authentication Server embedded Jetty instance.
+     */
     public static final String MAX_THREADS = "security.server.maxthreads";
-    /** Access token expiration time in milliseconds. */
+    /**
+     * Access token expiration time in milliseconds.
+     */
     public static final String TOKEN_EXPIRATION = "security.server.token.expiration.ms";
-    /** Long lasting Access token expiration time in milliseconds. */
+    /**
+     * Long lasting Access token expiration time in milliseconds.
+     */
     public static final String EXTENDED_TOKEN_EXPIRATION = "security.server.extended.token.expiration.ms";
     public static final String CFG_FILE_BASED_KEYFILE_PATH = "security.data.keyfile.path";
-    /** Configuration for security realm. */
+    /**
+     * Configuration for security realm.
+     */
     public static final String CFG_REALM = "security.realm";
-    /** Authentication Handler class name */
+    /**
+     * Authentication Handler class name.
+     */
     public static final String AUTH_HANDLER_CLASS = "security.authentication.handlerClassName";
-    /** Prefix for all configurable properties of an Authentication handler. */
+    /**
+     * Prefix for all configurable properties of an Authentication handler.
+     */
     public static final String AUTH_HANDLER_CONFIG_BASE = "security.authentication.handler.";
-    /** Authentication Login Module class name */
+    /**
+     * Authentication Login Module class name.
+     */
     public static final String LOGIN_MODULE_CLASS_NAME = "security.authentication.loginmodule.className";
-    /** Realm file for Basic Authentication */
+    /**
+     * Realm file for Basic Authentication.
+     */
     public static final String BASIC_REALM_FILE = "security.authentication.basic.realmfile";
-    /** Configuration for specifying keytab location. The location will contain ${name} which will be replaced
-     * by the user/owner of the entities name. */
+    /**
+     * Configuration for specifying keytab location. The location will contain ${name} which will be
+     * replaced by the user/owner of the entities name.
+     */
     public static final String KEYTAB_PATH = "security.keytab.path";
 
-    /** Key to specify the kerberos principal of the entity owner **/
+    /**
+     * Key to specify the kerberos principal of the entity owner.
+     **/
     public static final String PRINCIPAL = "principal";
 
-    /** Requires all intra-cluster communications to be authenticated. */
+    /**
+     * Requires all intra-cluster communications to be authenticated.
+     */
     public static final String INTERNAL_AUTH_ENABLED = "security.internal.auth.enabled";
 
-    /** This is a backwards compatibility measure which disables the usage of the RuntimeIdentityHandler. */
+    /**
+     * This is a backwards compatibility measure which disables the usage of the
+     * RuntimeIdentityHandler.
+     */
     public static final String RUNTIME_IDENTITY_COMPATIBILITY_ENABLED =
-      "security.runtime.identity.compatibility.enabled";
+        "security.runtime.identity.compatibility.enabled";
 
     /**
-     * App Fabric
+     * App Fabric.
      */
+    @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
     public static final class SSL {
-      /** Enables SSL for external services. */
+
+      /**
+       * Enables SSL for external services.
+       */
       @SuppressWarnings("unused")
       public static final String EXTERNAL_ENABLED = "ssl.external.enabled";
-      /** Enables SSL for internal services. */
+      /**
+       * Enables SSL for internal services.
+       */
       public static final String INTERNAL_ENABLED = "ssl.internal.enabled";
-      /** File path to certificate file in PEM format. */
+      /**
+       * File path to certificate file in PEM format.
+       */
       public static final String INTERNAL_CERT_PATH = "ssl.internal.cert.path";
-      /** Password for the SSL certificate. */
+      /**
+       * Password for the SSL certificate.
+       */
       public static final String INTERNAL_CERT_PASSWORD = "ssl.internal.cert.password";
     }
 
@@ -1269,28 +1697,45 @@ public final class Constants {
      * Authentication.
      */
     public static final class Authentication {
+
       /**
-       * Determines which authentication mode to use.
-       * Should be chosen from the {@link io.cdap.cdap.security.auth.AuthenticationMode} enum.
+       * Determines which authentication mode to use. Should be chosen from the {@link
+       * io.cdap.cdap.security.auth.AuthenticationMode} enum.
        */
       public static final String MODE = "security.authentication.mode";
-      /** The header from which CDAP should expect to receive the end user identity when using proxy auth mode. */
+      /**
+       * The header from which CDAP should expect to receive the end user identity when using proxy
+       * auth mode.
+       */
       public static final String PROXY_USER_ID_HEADER = "security.authentication.proxy.user.identity.header";
-      /** Determines whether to propagate the end user credential as part of the Principal. */
+      /**
+       * Determines whether to propagate the end user credential as part of the Principal.
+       */
       public static final String PROPAGATE_USER_CREDENTIAL = "security.authentication.propagate.user.credentials";
 
-      /** Enable encryption for user credential in http auth header. Set in cdap-security.xml */
+      /**
+       * Enable encryption for user credential in http auth header. Set in cdap-security.xml.
+       */
       public static final String USER_CREDENTIAL_ENCRYPTION_ENABLED =
-        "security.authentication.user.credential.encryption.enabled";
-      /** Keyset used for user credential encryption. Set in cdap-security.xml */
+          "security.authentication.user.credential.encryption.enabled";
+      /**
+       * Keyset used for user credential encryption. Set in cdap-security.xml.
+       */
       public static final String USER_CREDENTIAL_ENCRYPTION_KEYSET =
-        "security.authentication.user.credentials.encryption.keyset";
-      /** {@link CConfiguration} property to pass runtime token from driver to distributed jobs */
+          "security.authentication.user.credentials.encryption.keyset";
+      /**
+       * {@link CConfiguration} property to pass runtime token from driver to distributed jobs.
+       */
       public static final String RUNTIME_TOKEN =
-        "security.authentication.runtime.token";
-      /** File name to use to pass {@link Constants.Security.Headers#RUNTIME_TOKEN} to execution job */
+          "security.authentication.runtime.token";
+      /**
+       * File name to use to pass {@link Constants.Security.Headers#RUNTIME_TOKEN} to execution
+       * job.
+       */
       public static final String RUNTIME_TOKEN_FILE = "cdap.runtime.token";
-      /** Identity used for runtime monitor */
+      /**
+       * Identity used for runtime monitor.
+       */
       public static final String RUNTIME_IDENTITY = "runtime";
     }
 
@@ -1298,41 +1743,72 @@ public final class Constants {
      * Authorization.
      */
     public static final class Authorization {
-      /** Enables authorization */
+
+      /**
+       * Enables authorization.
+       */
       public static final String ENABLED = "security.authorization.enabled";
-      /** Extension jar path */
+      /**
+       * Extension jar path.
+       */
       public static final String EXTENSION_JAR_PATH = "security.authorization.extension.jar.path";
-      /** Extra classpath for security extension **/
+      /**
+       * Extra classpath for security extension.
+       **/
       public static final String EXTENSION_EXTRA_CLASSPATH = "security.authorization.extension.extra.classpath";
-      /** Prefix for extension properties */
+      /**
+       * Prefix for extension properties.
+       */
       public static final String EXTENSION_CONFIG_PREFIX =
-        "security.authorization.extension.config.";
-      /** TTL for entries in container's privilege cache */
+          "security.authorization.extension.config.";
+      /**
+       * TTL for entries in container's privilege cache.
+       */
       public static final String CACHE_TTL_SECS = "security.authorization.cache.ttl.secs";
-      /** Maximum number of entries the authorization cache will hold */
+      /**
+       * Maximum number of entries the authorization cache will hold.
+       */
       public static final String CACHE_MAX_ENTRIES = "security.authorization.cache.max.entries";
-      /** Batch size for query for the visibility of entities */
+      /**
+       * Batch size for query for the visibility of entities.
+       */
       public static final int VISIBLE_BATCH_SIZE = 500;
-      /** Upper limit on extension operation time after which the time is logged as WARN rather than TRACE */
+      /**
+       * Upper limit on extension operation time after which the time is logged as WARN rather than
+       * TRACE.
+       */
       public static final String EXTENSION_OPERATION_TIME_WARN_THRESHOLD =
-        "security.authorization.extension.operation.time.warn.threshold.ms";
+          "security.authorization.extension.operation.time.warn.threshold.ms";
     }
 
     /**
-     * Secure Store
+     * Secure Store.
      */
     public static final class Store {
-      /** Location of the secure store file. */
+
+      /**
+       * Location of the secure store file.
+       */
       public static final String FILE_PATH = "security.store.file.path";
-      /** Name of the secure store file. */
+      /**
+       * Name of the secure store file.
+       */
       public static final String FILE_NAME = "security.store.file.name";
-      /** Password to access the secure store. */
+      /**
+       * Password to access the secure store.
+       */
       public static final String FILE_PASSWORD = "security.store.file.password";
-      /** Backend provider for the secure store. e.g. file */
+      /**
+       * Backend provider for the secure store. e.g. file.
+       */
       public static final String PROVIDER = "security.store.provider";
-      /** Secure store extension dir*/
+      /**
+       * Secure store extension dir.
+       */
       public static final String EXTENSIONS_DIR = "security.store.extensions.dir";
-      /**Secure store extension property prefix*/
+      /**
+       * Secure store extension property prefix.
+       */
       public static final String PROPERTY_PREFIX = "security.store.system.properties.";
     }
 
@@ -1340,15 +1816,26 @@ public final class Constants {
      * Headers for security.
      */
     public static final class Headers {
-      /** Internal user ID header passed from Router to downstream services */
+
+      /**
+       * Internal user ID header passed from Router to downstream services.
+       */
       public static final String USER_ID = "CDAP-UserId";
-      /** User IP header passed from Router to downstream services */
+      /**
+       * User IP header passed from Router to downstream services.
+       */
       public static final String USER_IP = "CDAP-UserIP";
-      /** User principal passed from program container to cdap service containers */
+      /**
+       * User principal passed from program container to cdap service containers.
+       */
       public static final String USER_PRINCIPAL = "CDAP-User-Principal";
-      /** program id passed from program container to cdap service containers */
+      /**
+       * program id passed from program container to cdap service containers.
+       */
       public static final String PROGRAM_ID = "CDAP-Program-Id";
-      /** token to authorize runtime service calls */
+      /**
+       * token to authorize runtime service calls.
+       */
       public static final String RUNTIME_TOKEN = "X-CDAP-Runtime-Token";
     }
 
@@ -1356,18 +1843,31 @@ public final class Constants {
      * Security configuration for Router.
      */
     public static final class Router {
-      /** SSL keystore location */
+
+      /**
+       * SSL keystore location.
+       */
       public static final String SSL_KEYSTORE_PATH = "router.ssl.keystore.path";
-      /** SSL keystore key password */
+      /**
+       * SSL keystore key password.
+       */
       public static final String SSL_KEYPASSWORD = "router.ssl.keystore.keypassword";
-      /** SSL keystore password */
+      /**
+       * SSL keystore password.
+       */
       public static final String SSL_KEYSTORE_PASSWORD = "router.ssl.keystore.password";
-      /** Paths to exclude from authentication, given by a single regular expression */
+      /**
+       * Paths to exclude from authentication, given by a single regular expression.
+       */
       public static final String BYPASS_AUTHENTICATION_REGEX = "router.bypass.auth.regex";
 
-      /** File path to certificate file in PEM format. */
+      /**
+       * File path to certificate file in PEM format.
+       */
       public static final String SSL_CERT_PATH = "router.ssl.cert.path";
-      /** Password for the SSL certificate. */
+      /**
+       * Password for the SSL certificate.
+       */
       public static final String SSL_CERT_PASSWORD = "router.ssl.cert.password";
     }
 
@@ -1375,108 +1875,94 @@ public final class Constants {
      * Security configuration for ExternalAuthenticationServer.
      */
     public static final class AuthenticationServer {
-      /** SSL port */
+
+      /**
+       * SSL port.
+       */
       public static final String SSL_PORT = "security.auth.server.ssl.bind.port";
-      /** SSL keystore location */
+      /**
+       * SSL keystore location.
+       */
       public static final String SSL_KEYSTORE_PATH = "security.auth.server.ssl.keystore.path";
-      /** SSL keystore type */
+      /**
+       * SSL keystore type.
+       */
       public static final String SSL_KEYSTORE_TYPE = "security.auth.server.ssl.keystore.type";
-      /** SSL keystore key password */
+      /**
+       * SSL keystore key password.
+       */
       public static final String SSL_KEYPASSWORD = "security.auth.server.ssl.keystore.keypassword";
-      /** SSL keystore password */
+      /**
+       * SSL keystore password.
+       */
       public static final String SSL_KEYSTORE_PASSWORD = "security.auth.server.ssl.keystore.password";
 
-      /** Default SSL keystore type */
+      /**
+       * Default SSL keystore type.
+       */
       public static final String DEFAULT_SSL_KEYSTORE_TYPE = "JKS";
 
-      /** SSL truststore location */
+      /**
+       * SSL truststore location.
+       */
       public static final String SSL_TRUSTSTORE_PATH = "security.auth.server.ssl.truststore.path";
-      /** SSL truststore type */
+      /**
+       * SSL truststore type.
+       */
       public static final String SSL_TRUSTSTORE_TYPE = "security.auth.server.ssl.truststore.type";
-      /** SSL truststore password */
+      /**
+       * SSL truststore password.
+       */
       public static final String SSL_TRUSTSTORE_PASSWORD = "security.auth.server.ssl.truststore.password";
     }
 
-    /** Path to the Kerberos keytab file used by CDAP master */
+    /**
+     * Security configurations for encryption.
+     */
+    public static final class Encryption {
+
+      /**
+       * Directory for encryption extensions.
+       */
+      public static final String EXTENSIONS_DIR = "security.encryption.extensions.dir";
+      /**
+       * Encryption cipher for user credentials.
+       */
+      public static final String USER_CREDENTIAL_ENCRYPTION_CIPHER_NAME =
+          "security.encryption.user.credential.encryption.cipher.name";
+      /**
+       * Prefix for properties used for user credential encryption.
+       */
+      public static final String USER_CREDENTIAL_ENCRYPTION_PROPERTIES_PREFIX =
+          "security.encryption.user.credential.encryption.properties.";
+      /**
+       * Encryption mode for sensitive data storage.
+       */
+      public static final String DATA_STORAGE_ENCRYPTION_CIPHER_NAME =
+          "security.encryption.data.storage.encryption.cipher.name";
+      /**
+       * Prefix for properties used for sensitive data storage encryption.
+       */
+      public static final String DATA_STORAGE_ENCRYPTION_PROPERTIES_PREFIX =
+          "security.encryption.data.storage.encryption.properties.";
+
+      /**
+       * Associated Data for user credential encryption.
+       */
+      public static final String USER_CREDENTIAL_ENCRYPTION_ASSOCIATED_DATA
+          = "UserCredentialEncryptionAD";
+    }
+
+    /**
+     * Path to the Kerberos keytab file used by CDAP master.
+     */
     public static final String CFG_CDAP_MASTER_KRB_KEYTAB_PATH = "cdap.master.kerberos.keytab";
-    /** Kerberos principal used by CDAP master */
+    /**
+     * Kerberos principal used by CDAP master.
+     */
     public static final String CFG_CDAP_MASTER_KRB_PRINCIPAL = "cdap.master.kerberos.principal";
 
     public static final String UGI_CACHE_EXPIRATION_MS = "cdap.ugi.cache.expiration.ms";
-  }
-
-  /**
-   * Explore module configuration.
-   */
-  public static final class Explore {
-    public static final String CCONF_KEY = "explore.cconfiguration";
-    public static final String HCONF_KEY = "explore.hconfiguration";
-    public static final String TX_QUERY_KEY = "explore.hive.query.tx.id";
-    public static final String TX_QUERY_CLOSED = "explore.hive.query.tx.commited";
-    public static final String QUERY_ID = "explore.query.id";
-    public static final String CONTAINER_YARN_APP_CLASSPATH_FIRST = "explore.container.yarn.app.classpath.first";
-
-    public static final String START_ON_DEMAND = "explore.start.on.demand";
-    public static final String DATASET_NAME = "explore.dataset.name";
-    public static final String DATASET_NAMESPACE = "explore.dataset.namespace";
-    public static final String PREVIEWS_DIR_NAME = "explore.previews.dir";
-    public static final String CREDENTIALS_DIR_NAME = "explore.credentials.dir";
-
-    // Older hive versions don't have the following defined so we cannot use conf.getVar or conf.setVar and
-    // we need to hardcode it here so that we can use conf.get and conf.set instead.
-    public static final String HIVE_SERVER2_SPNEGO_KEYTAB = "hive.server2.authentication.spnego.keytab";
-    public static final String HIVE_SERVER2_SPNEGO_PRINCIPAL = "hive.server2.authentication.spnego.principal";
-    public static final String SUBMITLOCALTASKVIACHILD = "hive.exec.submit.local.task.via.child";
-    public static final String SUBMITVIACHILD = "hive.exec.submitviachild";
-    public static final String HIVE_AUTHORIZATION_SQL_STD_AUTH_CONFIG_WHITELIST_APPEND =
-      "hive.security.authorization.sqlstd.confwhitelist.append";
-    // Same as YarnConfiguration.TIMELINE_SERVICE_ENABLED, which isn't available on all hadoop versions
-    public static final String TIMELINE_SERVICE_ENABLED = "yarn.timeline-service.enabled";
-    // Same as YarnConfiguration.TIMELINE_DELEGATION_KEY_UPDATE_INTERVAL, which isn't available on all hadoop versions
-    public static final String TIMELINE_DELEGATION_KEY_UPDATE_INTERVAL =
-      "yarn.timeline-service.delegation.key.update-interval";
-
-    /** Determines how to behave when the Hive version is unsupported */
-    public static final String HIVE_VERSION_RESOLUTION_STRATEGY = "hive.version.resolution.strategy";
-    public static final String HIVE_AUTO_STRICT_VERSION = "auto.strict";
-    public static final String HIVE_AUTO_LATEST_VERSION = "auto.latest";
-
-    // a marker so that we know which tables are created by CDAP
-    public static final String CDAP_NAME = "cdap.name";
-    public static final String CDAP_VERSION = "cdap.version";
-
-    public static final String SERVER_ADDRESS = "explore.service.bind.address";
-    public static final String SERVER_PORT = "explore.service.bind.port";
-
-    public static final String BACKLOG_CONNECTIONS = "explore.service.connection.backlog";
-    public static final String EXEC_THREADS = "explore.service.exec.threads";
-    public static final String WORKER_THREADS = "explore.service.worker.threads";
-
-    /** Twill Runnable configuration **/
-    public static final String CONTAINER_VIRTUAL_CORES = "explore.executor.container.num.cores";
-    public static final String CONTAINER_MEMORY_MB = "explore.executor.container.memory.mb";
-
-    public static final String LOCAL_DATA_DIR = "explore.local.data.dir";
-    public static final String EXPLORE_ENABLED = "explore.enabled";
-    public static final String WRITES_ENABLED = "explore.writes.enabled";
-
-    public static final String ACTIVE_OPERATION_TIMEOUT_SECS = "explore.active.operation.timeout.secs";
-    public static final String INACTIVE_OPERATION_TIMEOUT_SECS = "explore.inactive.operation.timeout.secs";
-    public static final String CLEANUP_JOB_SCHEDULE_SECS = "explore.cleanup.job.schedule.secs";
-
-    public static final String SERVICE_DESCRIPTION = "Service to run ad-hoc queries.";
-    public static final String HTTP_TIMEOUT = "explore.http.timeout";
-
-    public static final String HIVE_SERVER_JDBC_URL = "hive.server2.jdbc.url";
-    public static final String HIVE_METASTORE_TOKEN_SIG = "hive.metastore.token.signature";
-    public static final String HIVE_METASTORE_TOKEN_SERVICE_NAME = "hive.metastore.service";
-
-    /**
-     * Explore JDBC constants.
-     */
-    public static final class Jdbc {
-      public static final String URL_PREFIX = "jdbc:cdap://";
-    }
   }
 
   public static final String CFG_LOCAL_DATA_DIR = "local.data.dir";
@@ -1495,19 +1981,23 @@ public final class Constants {
     LEVELDB,
     HSQLDB
   }
-  /** defines which persistence engine to use when running all in one JVM. **/
+
+  /**
+   * defines which persistence engine to use when running all in one JVM.
+   **/
   public static final String CFG_DATA_INMEMORY_PERSISTENCE = "data.local.inmemory.persistence.type";
   public static final String CFG_DATA_LEVELDB_DIR = "data.local.storage";
   public static final String CFG_DATA_LEVELDB_COMPRESSION_ENABLED = "data.local.storage.compression.enabled";
   public static final String CFG_DATA_LEVELDB_BLOCKSIZE = "data.local.storage.blocksize";
   public static final String CFG_DATA_LEVELDB_CACHESIZE = "data.local.storage.cachesize";
+  public static final String CFG_DATA_LEVELDB_CACHESIZE_FILES = "data.local.storage.cachesize.files";
   public static final String CFG_DATA_LEVELDB_FSYNC = "data.local.storage.fsync";
   public static final String CFG_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS =
-    "data.local.storage.compaction.interval.seconds";
+      "data.local.storage.compaction.interval.seconds";
   public static final String CFG_DATA_LEVELDB_COMPACTION_LEVEL_MIN =
-    "data.local.storage.compaction.level.min";
+      "data.local.storage.compaction.level.min";
   public static final String CFG_DATA_LEVELDB_COMPACTION_LEVEL_MAX =
-    "data.local.storage.compaction.level.max";
+      "data.local.storage.compaction.level.max";
 
   /**
    * Defaults for Data Fabric.
@@ -1516,12 +2006,21 @@ public final class Constants {
   public static final int DEFAULT_DATA_LEVELDB_BLOCKSIZE = 1024;
   public static final long DEFAULT_DATA_LEVELDB_CACHESIZE = 1024 * 1024 * 100;
   public static final boolean DEFAULT_DATA_LEVELDB_FSYNC = true;
-  public static final long DEFAULT_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS = 3600 * 24 * 7L;
+  public static final long DEFAULT_DATA_LEVELDB_COMPACTION_INTERVAL_SECONDS =
+      3600 * 24 * 7L;
   public static final int DEFAULT_DATA_LEVELDB_COMPACTION_LEVEL_MIN = 0;
   public static final int DEFAULT_DATA_LEVELDB_COMPACTION_LEVEL_MAX = 4;
 
   /**
-   * Used for upgrade and backwards compatability
+   * LevelDB substracts 10 from maxOpenFiles configuration to calculate table cache size. This
+   * constant allows us to convert it back
+   *
+   * @see org.iq80.leveldb.impl.DbImpl#DbImpl
+   */
+  public static final int DATA_LEVELDB_CACHESIZE_MAXFILES_OFFSET = 10;
+
+  /**
+   * Used for upgrade and backwards compatability.
    */
   public static final String DEVELOPER_ACCOUNT = "developer";
 
@@ -1529,10 +2028,12 @@ public final class Constants {
    * Constants related to external systems.
    */
   public static final class External {
+
     /**
      * Constants used by Java security.
      */
     public static final class JavaSecurity {
+
       public static final String ENV_AUTH_LOGIN_CONFIG = "java.security.auth.login.config";
     }
 
@@ -1540,6 +2041,7 @@ public final class Constants {
      * Constants used by ZooKeeper.
      */
     public static final class Zookeeper {
+
       public static final String ENV_AUTH_PROVIDER_1 = "zookeeper.authProvider.1";
       public static final String ENV_ALLOW_SASL_FAILED_CLIENTS = "zookeeper.allowSaslFailedClients";
     }
@@ -1549,6 +2051,7 @@ public final class Constants {
    * Constants for the dashboard/frontend.
    */
   public static final class Dashboard {
+
     /**
      * Port for the dashboard to bind to in non-SSL mode.
      */
@@ -1562,26 +2065,30 @@ public final class Constants {
   }
 
   /**
-   * Constants for endpoints
+   * Constants for endpoints.
    */
   public static final class EndPoints {
+
     /**
-    * Status endpoint
-    */
+     * Status endpoint.
+     */
     public static final String STATUS = "/status";
   }
 
   /**
-   * Constants for namespaces
+   * Constants for namespaces.
    */
   public static final class Namespace {
+
     public static final String NAMESPACES_DIR = "namespaces.dir";
+    public static final String NAMESPACE_CREATION_HOOK_ENABLED = "namespaces.creation.hook.enabled";
   }
 
   /**
-   * Constants for metadata service and metadata migrator
+   * Constants for metadata service and metadata migrator.
    */
   public static final class Metadata {
+
     public static final String SERVICE_DESCRIPTION = "Service to perform metadata operations.";
     public static final String SERVICE_BIND_ADDRESS = "metadata.service.bind.address";
     public static final String SERVICE_BIND_PORT = "metadata.service.bind.port";
@@ -1599,27 +2106,36 @@ public final class Constants {
     public static final String STORAGE_PROVIDER_IMPLEMENTATION = "metadata.storage.implementation";
     public static final String STORAGE_PROVIDER_NOSQL = "nosql";
     public static final String STORAGE_PROVIDER_ELASTICSEARCH = "elastic";
+
+    public static final String METADATA_WRITER_SUBSCRIBER = "metadata.writer";
+    public static final String METADATA_CONSUMER_WRITER_SUBSCRIBER = "metadata.consumer.writer";
   }
 
   /**
-   * Constants for publishing audit
+   * Constants for publishing audit.
    */
   public static final class Audit {
+
     public static final String ENABLED = "audit.enabled";
     public static final String TOPIC = "audit.topic";
     public static final String PUBLISH_TIMEOUT_MS = "audit.publish.timeout.ms";
   }
 
   /**
-   * Constants for the messaging system
+   * Constants for the messaging system.
    */
   public static final class MessagingSystem {
+
     public static final String SERVICE_DESCRIPTION = "Service for providing messaging system.";
 
     public static final String LOCAL_DATA_DIR = "messaging.local.data.dir";
     public static final String LOCAL_DATA_CLEANUP_FREQUENCY = "messaging.local.data.cleanup.frequency.secs";
     public static final String LOCAL_DATA_PARTITION_SECONDS = "messaging.local.data.partition.secs";
 
+    public static final String EXTENSIONS_DIR = "messaging.service.extensions.dir";
+
+    public static final String MESSAGING_SERVICE_NAME = "messaging.service.name";
+    public static final String MESSAGING_SERVICE_ENABLED = "messaging.service.enabled";
     public static final String CACHE_SIZE_MB = "messaging.cache.size.mb";
 
     public static final String HBASE_MAX_SCAN_THREADS = "messaging.hbase.max.scan.threads";
@@ -1634,7 +2150,7 @@ public final class Constants {
     public static final String TABLE_HBASE_SPLIT_POLICY = "messaging.table.hbase.split.policy";
     public static final String TOPIC_DEFAULT_TTL_SECONDS = "messaging.topic.default.ttl.seconds";
     public static final String COPROCESSOR_METADATA_CACHE_UPDATE_FREQUENCY_SECONDS =
-      "messaging.coprocessor.metadata.cache.update.frequency.seconds";
+        "messaging.coprocessor.metadata.cache.update.frequency.seconds";
 
     public static final String HTTP_SERVER_WORKER_THREADS = "messaging.http.server.worker.threads";
     public static final String HTTP_SERVER_EXECUTOR_THREADS = "messaging.http.server.executor.threads";
@@ -1672,30 +2188,45 @@ public final class Constants {
 
     // TMS HBase table attribute that indicates the number of prefix bytes used for the row key
     public static final String HBASE_MESSAGING_TABLE_PREFIX_NUM_BYTES = "cdap.messaging.table.prefix.num.bytes";
+
+    public static final String SPANNER_EXTENSION_PROPERTY_PREFIX = "messaging.spanner.properties.";
   }
 
   /**
-   * Constants for operational stats
+   * Constants for operational stats.
    */
   public static final class OperationalStats {
+
     public static final String EXTENSIONS_DIR = "operational.stats.extensions.dir";
     public static final String REFRESH_INTERVAL_SECS = "operational.stats.refresh.interval.secs";
   }
 
   /**
-   * Constants for provisioners
+   * Constants for provisioners.
    */
   public static final class Provisioner {
+
     public static final String EXTENSIONS_DIR = "runtime.extensions.dir";
     public static final String SYSTEM_PROPERTY_PREFIX = "provisioner.system.properties.";
     public static final String EXECUTOR_THREADS = "provisioner.executor.threads";
     public static final String CONTEXT_EXECUTOR_THREADS = "provisioner.context.executor.threads";
+    public static final String RELOAD_INTERVAL = "provisioner.cconf.reload.interval.ms";
   }
 
   /**
-   * Constants for Replication
+   * Constants for remote authenticators.
+   */
+  public static final class RemoteAuthenticator {
+
+    public static final String REMOTE_AUTHENTICATOR_NAME = "remote.authenticator.name";
+    public static final String EXTENSIONS_DIR = "remote.authenticator.extensions.dir";
+  }
+
+  /**
+   * Constants for Replication.
    */
   public static final class Replication {
+
     public static final String CDAP_SHUTDOWN_TIME_FILENAME = "cdap_shutdown_time";
   }
 
@@ -1703,6 +2234,7 @@ public final class Constants {
    * Constants for retry policies.
    */
   public static final class Retry {
+
     private static final String PREFIX = "retry.policy.";
     public static final String TYPE = PREFIX + "type";
     public static final String MAX_TIME_SECS = PREFIX + "max.time.secs";
@@ -1719,9 +2251,12 @@ public final class Constants {
   }
 
   /**
-   * Constants for HBase DDL executor
+   * Constants for HBase DDL executor.
    */
+
+  @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
   public static final class HBaseDDLExecutor {
+
     public static final String EXTENSIONS_DIR = "hbase.ddlexecutor.extension.dir";
   }
 
@@ -1729,27 +2264,33 @@ public final class Constants {
    * Constants for upgrade tool.
    */
   public static final class Upgrade {
+
     public static final String UPGRADE_THREAD_POOL_SIZE = "upgrade.thread.pool.size";
   }
 
   /**
-   * Constants for field lineage
+   * Constants for field lineage.
    */
   public static final class FieldLineage {
+
     /**
-     * Direction for lineage
+     * Direction for lineage.
      */
     public enum Direction {
       INCOMING,
       OUTGOING,
       BOTH
     }
+
+    public static final String FIELD_LINEAGE_EMISSION_ENABLED =
+        "metadata.messaging.field.lineage.emission.enabled";
   }
 
   /**
-   * Constants for profile
+   * Constants for profile.
    */
   public static final class Profile {
+
     private static final String PREFIX = "profile.";
     /**
      * Whether or not to allow creating new profiles.
@@ -1758,31 +2299,72 @@ public final class Constants {
   }
 
   /**
-   * Constants for capability management
+   * Constants for capability management.
    */
   public static final class Capability {
+
     /**
-     * Interval for scanning config
+     * Interval for scanning config.
      */
     public static final String DIR_SCAN_INTERVAL_MINUTES = "capability.dir.scan.interval.minutes";
     /**
-     * Capability config directory path key
+     * Capability config directory path key.
      */
     public static final String CONFIG_DIR = "capability.config.dir";
     /**
-     * Number of executor threads used to auto install resources when a capability is enabled
+     * Number of executor threads used to auto install resources when a capability is enabled.
      */
     public static final String AUTO_INSTALL_THREADS = "capability.autoinstall.threads";
+  }
+
+  /**
+   * Constants for capability management.
+   */
+  public static final class Event {
+
+    public static final String PROGRAM_STATUS_POLL_INTERVAL_SECONDS = "event.program.status.poll.interval.seconds";
+
+    public static final String PROGRAM_STATUS_FETCH_SIZE = "event.program.status.fetch.size";
+
+    public static final String INSTANCE_NAME = "event.instance.name";
+
+    public static final String PROJECT_NAME = "event.project.name";
+
+    public static final String EVENTS_WRITER_PREFIX = "event.writer";
+    public static final String EVENTS_WRITER_EXTENSIONS_DIR = "events.writer.extensions.dir";
+    public static final String EVENTS_WRITER_EXTENSIONS_ENABLED_LIST = "events.writer.extensions.enabled.list";
+
+    public static final String START_PROGRAM_EVENT_READER_POLL_DELAY = "event.reader.start.poll.delay.seconds";
+    public static final String START_PROGRAM_EVENT_FETCH_SIZE = "event.reader.start.fetch.size";
+    public static final String START_EVENTS_READER_EXTENSIONS_DIR = "events.reader.extensions.start.dir";
+    public static final String START_EVENTS_READER_EXTENSIONS_ENABLED_LIST =
+        "events.reader.extensions.start.enabled.list";
+    public static final String START_EVENT_PREFIX = "event.reader.start";
+    public static final String MINIMUM_FREE_CAPACITY_BEFORE_PULL =
+        "event.readers.capacity.before.pull";
+  }
+
+  /**
+   * Constants for Spark Metrics Provider.
+   */
+
+  public static final class Spark {
+
+    public static final String SPARK_METRICS_PROVIDER_HOST = "spark.metrics.host";
+    public static final String SPARK_METRICS_PROVIDER_MAX_TERMINATION_MINUTES = "spark.metrics.max.termination.minutes";
+    public static final String SPARK_METRICS_PROVIDER_RETRY_STRATEGY_PREFIX = "spark.metrics.strategy.";
   }
 
   /**
    * Constants for Twill.
    */
   public static final class Twill {
+
     /**
      * Constants for Twill's security-related extension methods.
      */
     public static final class Security {
+
       /**
        * User identity for Twill runnables which execute user code.
        */
@@ -1803,23 +2385,29 @@ public final class Constants {
       public static final String MASTER_SECRET_DISK_PATH = "twill.security.master.secret.disk.path";
 
       /**
-       * Whether to mount a secret disk for worker runnables
+       * Whether to mount a secret disk for worker runnables.
        */
       public static final String WORKER_MOUNT_SECRET = "twill.security.worker.mount.secret";
 
       /**
-       * The secret name for the cdap-security.xml disk mount for worker services including preview and task workers.
+       * The secret name for the cdap-security.xml disk mount for worker services including preview
+       * and task workers.
        */
       public static final String WORKER_SECRET_DISK_NAME = "twill.security.worker.secret.disk.name";
 
       /**
-       * The secret path for the cdap-security.xml disk mount for worker services including preview and task workers.
+       * The secret path for the cdap-security.xml disk mount for worker services including preview
+       * and task workers.
        */
       public static final String WORKER_SECRET_DISK_PATH = "twill.security.worker.secret.disk.path";
     }
   }
 
+  /**
+   * Support bundle config.
+   */
   public static final class SupportBundle {
+
     public static final String SERVICE_DESCRIPTION = "Service to generate support bundle operations.";
     public static final String SERVICE_BIND_ADDRESS = "support.bundle.service.bind.address";
     public static final String SERVICE_BIND_PORT = "support.bundle.service.bind.port";
@@ -1837,30 +2425,179 @@ public final class Constants {
     public static final String MAX_RETRY_TIMES = "support.bundle.max.retry.times";
     public static final String MAX_THREAD_TIMEOUT = "support.bundle.max.thread.timeout";
     public static final String SYSTEM_LOG_START_TIME = "support.bundle.system.log.start.time";
+    public static final String SUPPORT_BUNDLE_TEMP_DIR = "support.bundle.temp.dir";
   }
 
-  public static final class JMXMetricsCollector {
+  /**
+   * JMX metrics collector config.
+   */
+  public static final class JmxMetricsCollector {
+
     public static final String POLL_INTERVAL_SECS = "jmx.metrics.collector.poll.interval.secs";
     public static final String SERVER_PORT = "jmx.metrics.collector.server.port";
   }
 
+  /**
+   * Tethering config.
+   */
   public static final class Tethering {
+
     public static final String TETHERING_SERVER_ENABLED = "tethering.server.enabled";
+    public static final String PROGRAM_DIR = "tethering.program.dir";
     /**
      * Prefix of per-client TMS topic used on the tethering server.
      */
-    public static final String TOPIC_PREFIX = "tethering.topic.prefix";
+    public static final String CLIENT_TOPIC_PREFIX = "tethering.topic.prefix";
+    /**
+     * Prefix of program state TMS topic used on the tethering client.
+     */
+    public static final String PROGRAM_STATE_TOPIC_PREFIX = "tethering.program.state.topic.prefix";
     /**
      * Interval for connecting to the server.
      */
-    public static final String CONNECTION_INTERVAL = "tethering.connection.interval.secs";
+    public static final String CONNECTION_INTERVAL = "tethering.agent.connection.interval.secs";
 
     /**
-     * Tethering connection timeout.
+     * Tethering connection is deemed down if we haven't heard from the peer within this timeout.
      */
     public static final String CONNECTION_TIMEOUT_SECONDS = "tethering.connection.timeout.seconds";
     public static final int DEFAULT_CONNECTION_TIMEOUT_SECONDS = 60;
 
-    public static final String CLIENT_AUTHENTICATOR_CLASS = "tethering.client.authenticator.class";
+    /**
+     * Specifies the timeout for establishing a connection with the tethering server.
+     */
+    public static final String CLIENT_CONNECTION_TIMEOUT_MS = "tethering.client.connection.timeout.ms";
+    /**
+     * Specifies the timeout for reading data from the tethering server after the connection is
+     * established.
+     */
+    public static final String CLIENT_READ_TIMEOUT_MS = "tethering.client.read.timeout.ms";
+
+    /**
+     * Maximum number of control messages sent by tethering server on poll.
+     */
+    public static final String CONTROL_MESSAGE_BATCH_SIZE = "tethering.control.message.batch.size";
+
+    public static final String CLIENT_AUTHENTICATOR_NAME = "tethering.client.authenticator.name";
+  }
+
+  /**
+   * Artifact cache config.
+   */
+  public static final class ArtifactCache {
+
+    /**
+     * Artifact cache service clean up configurations.
+     */
+    public static final String CACHE_CLEANUP_INTERVAL_MIN = "artifact.cache.cache.cleanup.interval.min";
+    public static final String LOCAL_DATA_DIR = "artifact.cache.local.data.dir";
+
+    /**
+     * Artifact cache http handler configuration.
+     */
+    public static final String ADDRESS = "artifact.cache.bind.address";
+    public static final String PORT = "artifact.cache.bind.port";
+    public static final String BOSS_THREADS = "artifact.cache.boss.threads";
+    public static final String WORKER_THREADS = "artifact.cache.worker.threads";
+  }
+
+  /**
+   * Constants for MetadataConsumer.
+   */
+  public static final class MetadataConsumer {
+
+    public static final String METADATA_CONSUMER_PREFIX = "metadata.consumer";
+    public static final String METADATA_CONSUMER_EXTENSIONS_ENABLED_LIST = "metadata.consumer.extensions.enabled.list";
+    public static final String METADATA_CONSUMER_EXTENSIONS_DIR = "metadata.consumer.extensions.dir";
+  }
+
+  /**
+   * Constants for Source Control Management.
+   */
+  public static final class SourceControlManagement {
+
+    public static final String GIT_COMMAND_TIMEOUT_SECONDS = "source.control.git.command.timeout.seconds";
+    public static final String GIT_REPOSITORIES_CLONE_DIRECTORY_PATH =
+        "source.control.git.repositories.clone.directory.path";
+    public static final String REPOSITORY_CLEANUP_INTERVAL_SECONDS =
+        "source.control.repository.cleanup.interval.seconds";
+    public static final String REPOSITORY_TTL_SECONDS = "source.control.repository.ttl.seconds";
+  }
+
+  /**
+   * Constants for credential provisioning.
+   */
+  public static final class CredentialProvider {
+
+    public static final String EXTENSIONS_DIR = "credential.provider.extensions.dir";
+    public static final String SYSTEM_PROPERTY_PREFIX = "credential.provider.system.properties.";
+  }
+
+  /**
+   * Constants for Internal Router Service.
+   */
+  public static final class InternalRouter {
+
+    public static final String BIND_ADDRESS = "internal.router.service.bind.address";
+    public static final String BIND_PORT = "internal.router.service.bind.port";
+    public static final String CLIENT_ENABLED = "internal.router.client.enabled";
+    public static final String SERVER_ENABLED = "internal.router.server.enabled";
+  }
+
+  /**
+   * Constants for operations.
+   */
+  public static final class Operation {
+
+    /**
+     * Topic prefix for publishing status transitioning events of operation runs to the messaging
+     * system.
+     */
+    public static final String STATUS_EVENT_TOPIC = "operation.status.event.topic";
+    /**
+     * Number of topics to use for operation status events. All events related to same run should
+     * always go to same topic. If this value is 1, {@link #STATUS_EVENT_TOPIC} is a topic name. If
+     * it's more than 1, {@link #STATUS_EVENT_TOPIC} is a prefix, but bare name should still be
+     * subscribed to ensure any pending messages / active run events are processed properly.
+     */
+    public static final String STATUS_EVENT_NUM_PARTITIONS = "operation.status.event.topic.num.partitions";
+    public static final String STATUS_EVENT_FETCH_SIZE = "operation.status.event.fetch.size";
+    public static final String STATUS_EVENT_TX_SIZE = "operation.status.event.tx.size";
+    public static final String STATUS_EVENT_POLL_DELAY_MILLIS = "operation.status.event.poll.delay.millis";
+    /**
+     * Topic name for publishing program status recording events to the messaging system.
+     */
+    public static final String STATUS_RECORD_EVENT_TOPIC = "operation.status.record.event.topic";
+    public static final String INIT_BATCH_SIZE = "operation.initialize.batch.size";
+    public static final String STATUS_RETRY_STRATEGY_PREFIX = "operation.status.";
+
+    // Notification keys
+    public static final String RUN_ID_NOTIFICATION_KEY = "operation.notification.run.id";
+    public static final String STATUS_NOTIFICATION_KEY = "operation.notification.status";
+    public static final String RESOURCES_NOTIFICATION_KEY = "operation.notification.resources";
+    public static final String ENDTIME_NOTIFICATION_KEY = "operation.notification.endtime";
+    public static final String ERROR_NOTIFICATION_KEY = "operation.notification.error";
+    public static final String USER_ID_NOTIFICATION_KEY = "userId";
+  }
+
+
+  /**
+   * Constants for Data Plane Audit Logging.
+   */
+  public static final class AuditLogging {
+    public static final String AUDIT_LOG_PUBLISH_INTERVAL_SECONDS = "auditlog.publish.interval.seconds";
+
+    /**
+     * Topic prefix for publishing log events  of audited operations to the messaging system.
+     */
+    public static final String AUDIT_LOG_EVENT_TOPIC = "auditlog.event.topic";
+    public static final String AUDIT_LOG_EVENT_NUM_PARTITIONS = "auditlog.event.topic.num.partitions";
+    public static final String AUDIT_LOG_FETCH_SIZE = "auditlog.messaging.fetch.size";
+    public static final String AUDIT_LOG_POLL_DELAY_MILLIS = "auditlog.messaging.poll.delay.millis";
+    public static final String AUDIT_LOG_CONSUMER_WRITER_SUBSCRIBER = "auditlog.consumer.publisher";
+    public static final String AUDIT_LOG_WRITER_SUBSCRIBER = "auditlog.subscriber";
+
+    public static final String AUDIT_LOG_WRITER_RETRY_PREFIX = "system.auditlog.";
+
   }
 }

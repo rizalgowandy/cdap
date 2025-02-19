@@ -28,7 +28,6 @@ import io.cdap.cdap.client.MetadataClient;
 import io.cdap.cdap.proto.metadata.MetadataSearchResponse;
 import io.cdap.cdap.proto.metadata.MetadataSearchResultRecord;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.Set;
 
@@ -50,27 +49,29 @@ public class SearchMetadataCommand extends AbstractCommand {
     String searchQuery = arguments.get(ArgumentName.SEARCH_QUERY.toString());
     String type = arguments.getOptional(ArgumentName.TARGET_TYPE.toString());
     MetadataSearchResponse metadataSearchResponse =
-      metadataClient.searchMetadata(cliConfig.getCurrentNamespace(), searchQuery, parseTargetType(type),
-                                    null, 0, Integer.MAX_VALUE, 0, null, false);
+        metadataClient.searchMetadata(cliConfig.getCurrentNamespace(), searchQuery,
+            parseTargetType(type),
+            null, 0, Integer.MAX_VALUE, 0, null, false);
     Set<MetadataSearchResultRecord> searchResults = metadataSearchResponse.getResults();
     Table table = Table.builder()
-      .setHeader("Entity")
-      .setRows(Lists.newArrayList(searchResults), searchResult ->
-        Lists.newArrayList(searchResult.getEntityId().toString())).build();
+        .setHeader("Entity")
+        .setRows(Lists.newArrayList(searchResults), searchResult ->
+            Lists.newArrayList(searchResult.getEntityId().toString())).build();
     cliConfig.getTableRenderer().render(cliConfig, output, table);
   }
 
   @Override
   public String getPattern() {
-    return String.format("search metadata <%s> [filtered by target-type <%s>]", ArgumentName.SEARCH_QUERY,
-                         ArgumentName.TARGET_TYPE);
+    return String.format("search metadata <%s> [filtered by target-type <%s>]",
+        ArgumentName.SEARCH_QUERY,
+        ArgumentName.TARGET_TYPE);
   }
 
   @Override
   public String getDescription() {
-    return "Searches CDAP entities based on the metadata annotated on them. " +
-      "The search can be restricted by adding a comma-separated list of target types: " +
-      "'artifact', 'app', 'dataset', 'program', 'stream', or 'view'.";
+    return "Searches CDAP entities based on the metadata annotated on them. "
+        + "The search can be restricted by adding a comma-separated list of target types: "
+        + "'artifact', 'app', 'dataset', 'program', 'stream', or 'view'.";
   }
 
   private Set<String> parseTargetType(String typeString) {

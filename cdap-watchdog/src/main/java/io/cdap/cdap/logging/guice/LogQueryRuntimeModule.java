@@ -25,6 +25,7 @@ import com.google.inject.name.Names;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.runtime.RuntimeModule;
 import io.cdap.cdap.gateway.handlers.CommonHandlers;
+import io.cdap.cdap.logging.gateway.handlers.ErrorClassificationHttpHandler;
 import io.cdap.cdap.logging.gateway.handlers.LocalProgramRunRecordFetcher;
 import io.cdap.cdap.logging.gateway.handlers.LogHttpHandler;
 import io.cdap.cdap.logging.gateway.handlers.ProgramRunRecordFetcher;
@@ -39,8 +40,9 @@ public class LogQueryRuntimeModule extends RuntimeModule {
 
   private static void bindHandlers(Binder binder) {
     Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder(binder, HttpHandler.class,
-                                                                      Names.named(Constants.Service.LOG_QUERY));
+        Names.named(Constants.Service.LOG_QUERY));
     handlerBinder.addBinding().to(LogHttpHandler.class);
+    handlerBinder.addBinding().to(ErrorClassificationHttpHandler.class);
     CommonHandlers.add(handlerBinder);
   }
 

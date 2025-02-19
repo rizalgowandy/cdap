@@ -1,5 +1,5 @@
 /*
- * Copyright © 2020 Cask Data, Inc.
+ * Copyright © 2020-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -19,6 +19,7 @@ package io.cdap.cdap.internal.capability;
 import io.cdap.cdap.CapabilityAppWithWorkflow;
 import io.cdap.cdap.WorkflowAppWithFork;
 import io.cdap.cdap.api.annotation.Requirements;
+import io.cdap.cdap.common.ApplicationNotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
@@ -30,8 +31,13 @@ import io.cdap.cdap.internal.app.services.ApplicationLifecycleService;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
 import io.cdap.cdap.internal.entity.EntityResult;
 import io.cdap.cdap.proto.ApplicationDetail;
-import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.NamespaceId;
+import java.io.File;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.apache.twill.filesystem.Location;
 import org.apache.twill.filesystem.LocationFactory;
@@ -39,14 +45,6 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 /**
  * Tests for CapabilityApplier
@@ -93,7 +91,8 @@ import java.util.UUID;
       capabilityWriter.addOrUpdateCapability(capability, CapabilityStatus.ENABLED, capabilityConfig);
     }
     deployArtifactAndApp(appWithWorkflowClass, appNameWithCapabilities);
-
+    ApplicationDetail appDetails = getAppDetails(Id.Namespace.DEFAULT.getId(), appNameWithCapabilities);
+    String appNameWithCapabilitiesVersion = appDetails.getAppVersion();
     //Deploy application without capability
     Class<WorkflowAppWithFork> appNoCapabilityClass = WorkflowAppWithFork.class;
     Requirements declaredAnnotation1 = appNoCapabilityClass.getDeclaredAnnotation(Requirements.class);
@@ -101,31 +100,35 @@ import java.util.UUID;
     Assert.assertNull(declaredAnnotation1);
     String appNameWithoutCapability = appNoCapabilityClass.getSimpleName() + UUID.randomUUID();
     deployArtifactAndApp(appNoCapabilityClass, appNameWithoutCapability);
+    appDetails = getAppDetails(Id.Namespace.DEFAULT.getId(), appNameWithoutCapability);
+    String appNameWithoutCapabilityVersion = appDetails.getAppVersion();
 
     //verify that list applications return the application tagged with capability only
     for (String capability : declaredAnnotation.capabilities()) {
-      EntityResult<ApplicationId> appsForCapability = capabilityApplier
+      EntityResult<ApplicationReference> appsForCapability = capabilityApplier
         .getApplications(NamespaceId.DEFAULT, capability, null, 0, 10);
-      Set<ApplicationId> applicationIds = new HashSet<>(appsForCapability.getEntities());
-      List<ApplicationDetail> appsReturned = new ArrayList<>(
-        applicationLifecycleService.getAppDetails(applicationIds).values());
-      appsReturned.
-        forEach(
-          applicationDetail -> Assert
-            .assertEquals(appNameWithCapabilities, applicationDetail.getArtifact().getName()));
+      Set<ApplicationReference> appRefs = new HashSet<>(appsForCapability.getEntities());
+      for (ApplicationReference ref : appRefs) {
+        ApplicationDetail appDetail = applicationLifecycleService.getLatestAppDetail(ref);
+        Assert.assertEquals(appNameWithCapabilities, appDetail.getArtifact().getName());
+      }
     }
 
     //delete the app and verify nothing is returned.
-    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.app(appNameWithCapabilities, TEST_VERSION));
+    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.appReference(appNameWithCapabilities));
     for (String capability : declaredAnnotation.capabilities()) {
-      Set<ApplicationId> applicationIds = new HashSet<>(capabilityApplier
+      Set<ApplicationReference> appRefs = new HashSet<>(capabilityApplier
                                                           .getApplications(NamespaceId.DEFAULT, capability, null, 0, 10)
                                                           .getEntities());
-      List<ApplicationDetail> appsReturned = new ArrayList<>(
-        applicationLifecycleService.getAppDetails(applicationIds).values());
-      Assert.assertTrue(appsReturned.isEmpty());
+      for (ApplicationReference ref : appRefs) {
+        try {
+          applicationLifecycleService.getLatestAppDetail(ref);
+        } catch (ApplicationNotFoundException ex) {
+          // Do nothing
+        }
+      }
     }
-    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.app(appNameWithoutCapability, TEST_VERSION));
+    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.appReference(appNameWithoutCapability));
     artifactRepository.deleteArtifact(
       Id.Artifact.from(new Id.Namespace(NamespaceId.DEFAULT.getNamespace()), appNameWithoutCapability, TEST_VERSION));
     for (String capability : declaredAnnotation.capabilities()) {
@@ -149,24 +152,28 @@ import java.util.UUID;
                                                                   Collections.emptyList()));
     }
     deployArtifactAndApp(appWithWorkflowClass, appNameWithCapability1);
+    ApplicationDetail appDetails = getAppDetails(Id.Namespace.DEFAULT.getId(), appNameWithCapability1);
+    String appNameWithCapability1Version = appDetails.getAppVersion();
     String appNameWithCapability2 = appWithWorkflowClass.getSimpleName() + UUID.randomUUID();
     deployArtifactAndApp(appWithWorkflowClass, appNameWithCapability2);
+    appDetails = getAppDetails(Id.Namespace.DEFAULT.getId(), appNameWithCapability2);
+    String appNameWithCapability2Version = appDetails.getAppVersion();
 
     //search with offset and limit
     String capability = declaredAnnotation.capabilities()[0];
-    EntityResult<ApplicationId> appsForCapability = capabilityApplier
+    EntityResult<ApplicationReference> appsForCapability = capabilityApplier
       .getApplications(NamespaceId.DEFAULT, capability, null, 0, 1);
     Assert.assertEquals(1, appsForCapability.getEntities().size());
     //next search with pagination
-    EntityResult<ApplicationId> appsForCapabilityNext = capabilityApplier
+    EntityResult<ApplicationReference> appsForCapabilityNext = capabilityApplier
       .getApplications(NamespaceId.DEFAULT, capability, appsForCapability.getCursor(), 1, 1);
     Assert.assertEquals(1, appsForCapabilityNext.getEntities().size());
     appsForCapabilityNext = capabilityApplier
       .getApplications(NamespaceId.DEFAULT, capability, appsForCapability.getCursor(), 2, 1);
     Assert.assertEquals(0, appsForCapabilityNext.getEntities().size());
 
-    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.app(appNameWithCapability1, TEST_VERSION));
-    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.app(appNameWithCapability2, TEST_VERSION));
+    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.appReference(appNameWithCapability1));
+    applicationLifecycleService.removeApplication(NamespaceId.DEFAULT.appReference(appNameWithCapability2));
     artifactRepository.deleteArtifact(
       Id.Artifact.from(new Id.Namespace(NamespaceId.DEFAULT.getNamespace()), appNameWithCapability1, TEST_VERSION));
     artifactRepository.deleteArtifact(
@@ -187,7 +194,7 @@ import java.util.UUID;
     artifactRepository.addArtifact(artifactId, appJarFile);
     //deploy app
     applicationLifecycleService
-      .deployApp(NamespaceId.DEFAULT, appName, TEST_VERSION, artifactId,
+      .deployApp(NamespaceId.DEFAULT, appName, artifactId,
                  null, programId -> {
         });
   }

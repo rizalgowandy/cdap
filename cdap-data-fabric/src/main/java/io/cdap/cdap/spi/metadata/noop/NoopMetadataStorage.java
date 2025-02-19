@@ -24,7 +24,6 @@ import io.cdap.cdap.spi.metadata.MutationOptions;
 import io.cdap.cdap.spi.metadata.Read;
 import io.cdap.cdap.spi.metadata.SearchRequest;
 import io.cdap.cdap.spi.metadata.SearchResponse;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -51,8 +50,10 @@ public class NoopMetadataStorage implements MetadataStorage {
   }
 
   @Override
-  public List<MetadataChange> batch(List<? extends MetadataMutation> mutations, MutationOptions options) {
-    return mutations.stream().map(mutation -> apply(mutation, options)).collect(Collectors.toList());
+  public List<MetadataChange> batch(List<? extends MetadataMutation> mutations,
+      MutationOptions options) {
+    return mutations.stream().map(mutation -> apply(mutation, options))
+        .collect(Collectors.toList());
   }
 
   @Override

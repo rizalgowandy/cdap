@@ -20,11 +20,11 @@ import io.cdap.cdap.api.data.DatasetContext;
 import io.cdap.cdap.api.data.DatasetInstantiationException;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.data2.metadata.lineage.AccessType;
-
 import java.util.Map;
 
 /**
- * Extends {@link DatasetContext} with extra methods that take {@link AccessType} for lineage recording.
+ * Extends {@link DatasetContext} with extra methods that take {@link AccessType} for lineage
+ * recording.
  */
 public interface LineageDatasetContext extends DatasetContext {
 
@@ -37,7 +37,7 @@ public interface LineageDatasetContext extends DatasetContext {
    * @param accessType the accessType
    */
   <T extends Dataset> T getDataset(String name, Map<String, String> arguments,
-                                   AccessType accessType) throws DatasetInstantiationException;
+      AccessType accessType) throws DatasetInstantiationException;
 
   /**
    * Get an instance of the specified dataset, with the specified access type.
@@ -49,5 +49,5 @@ public interface LineageDatasetContext extends DatasetContext {
    * @param accessType the accessType
    */
   <T extends Dataset> T getDataset(String namespace, String name, Map<String, String> arguments,
-                                   AccessType accessType) throws DatasetInstantiationException;
+      AccessType accessType) throws DatasetInstantiationException;
 }

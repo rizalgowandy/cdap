@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto.id;
 
 import io.cdap.cdap.proto.element.EntityType;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -27,6 +26,7 @@ import java.util.Objects;
  * Uniquely identifies a messaging topic.
  */
 public class TopicId extends NamespacedEntityId implements ParentedId<NamespaceId> {
+
   private final String topic;
   private transient Integer hashCode;
   private transient byte[] idBytes;

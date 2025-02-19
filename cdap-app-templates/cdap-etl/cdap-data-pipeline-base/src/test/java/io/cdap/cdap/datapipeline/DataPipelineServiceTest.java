@@ -67,12 +67,6 @@ import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
@@ -83,6 +77,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
 
 /**
  * Tests for the data pipeline service.
@@ -98,8 +97,7 @@ public class DataPipelineServiceTest extends HydratorTestBase {
   static URI serviceURI;
 
   @ClassRule
-  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.Explore.EXPLORE_ENABLED, false,
-                                                                       Constants.Security.Store.PROVIDER, "file",
+  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.Security.Store.PROVIDER, "file",
                                                                        Constants.AppFabric.SPARK_COMPAT,
                                                                        Compat.SPARK_COMPAT);
 
@@ -202,39 +200,6 @@ public class DataPipelineServiceTest extends HydratorTestBase {
     // test it can still pass validation
     actual = sendRequest(new StageValidationRequest(stage, Collections.emptyList(), true));
     Assert.assertTrue(actual.getFailures().isEmpty());
-  }
-
-  @Test
-  public void testMacroResolutionFromProperties() throws Exception {
-    // StringValueFilterTransform checks that the field exists in the input schema
-    String stageName = "tx";
-    Map<String, String> properties = new HashMap<>();
-    properties.put("field", "x");
-    properties.put("value", "${someProperty}");
-    ETLStage stage = new ETLStage(stageName, new ETLPlugin(StringValueFilterTransform.NAME, Transform.PLUGIN_TYPE,
-                                                           properties));
-    Schema inputSchema = Schema.recordOf("x", Schema.Field.of("x", Schema.of(Schema.Type.STRING)));
-
-    // Set the preference value in the store
-    getPreferencesService().setProperties(NamespaceId.DEFAULT, Collections.singletonMap("someProperty", "someValue"));
-
-    // This call should include the resolved value for Field
-    StageValidationRequest requestBody1 =
-      new StageValidationRequest(stage, Collections.singletonList(new StageSchema("input", inputSchema)),
-                                 true);
-    StageValidationResponse actual1 = sendRequest(requestBody1);
-    Assert.assertTrue(actual1.getFailures().isEmpty());
-    Assert.assertNotNull(actual1.getSpec().getPlugin());
-    Assert.assertEquals("someValue", actual1.getSpec().getPlugin().getProperties().get("value"));
-
-    // This call should NOT include the resolved value for Field
-    StageValidationRequest requestBody2 =
-      new StageValidationRequest(stage, Collections.singletonList(new StageSchema("input", inputSchema)),
-                                 false);
-    StageValidationResponse actual2 = sendRequest(requestBody2);
-    Assert.assertTrue(actual2.getFailures().isEmpty());
-    Assert.assertNotNull(actual2.getSpec().getPlugin());
-    Assert.assertEquals("${someProperty}", actual2.getSpec().getPlugin().getProperties().get("value"));
   }
 
   @Test
@@ -455,8 +420,8 @@ public class DataPipelineServiceTest extends HydratorTestBase {
   public void testValidationFailureForJoiner() throws Exception {
     String stageName = "joiner";
     // join key field t2_cust_name does not exist
-    ETLStage stage = new ETLStage(stageName, MockJoiner.getPlugin("t1.customer_id=t2.cust_id&" +
-                                                                    "t1.customer_name=t2.t2_cust_name", "t1,t2", ""));
+    ETLStage stage = new ETLStage(stageName, MockJoiner.getPlugin("t1.customer_id=t2.cust_id&"
+                                                                    + "t1.customer_name=t2.t2_cust_name", "t1,t2", ""));
     StageSchema inputSchema1 = new StageSchema(
       "t1", Schema.recordOf("id", Schema.Field.of("customer_id", Schema.of(Schema.Type.STRING)),
                             Schema.Field.of("customer_name", Schema.of(Schema.Type.STRING))));
@@ -518,5 +483,35 @@ public class DataPipelineServiceTest extends HydratorTestBase {
     HttpResponse response = HttpRequests.execute(request, new DefaultHttpRequestConfig(false));
     Assert.assertEquals(200, response.getResponseCode());
     return GSON.fromJson(response.getResponseBodyAsString(), StageValidationResponse.class);
+  }
+
+  @Test
+  public void testValidationForInvalidMacrosForFunctions() throws Exception {
+    String stageName = "invalidMacro";
+    Map<String, String> properties =
+      Collections.singletonMap("metadataOperations", "${oauthAccessToken(provider,credential)}");
+    ETLStage stage = new ETLStage(stageName, new ETLPlugin(MockSource.NAME, BatchSource.PLUGIN_TYPE, properties));
+
+    // In case doNotSkipInvalidMacroForFunctions is set in StageValidationRequest,
+    // it will not skip invalid macro given in the list and will throw the exact exception
+    HttpResponse withDoNotSkipInvalidMacroForFunctionsResponse = sendRequestForInvalidMacros(
+      new StageValidationRequest(stage, Collections.emptyList(), false, "oauthAccessToken,oauth"));
+    Assert.assertEquals(500, withDoNotSkipInvalidMacroForFunctionsResponse.getResponseCode());
+
+    // In case doNotSkipInvalidMacroForFunctions is not set in StageValidationRequest,
+    // it will skip invalid macro and will not throw any exception
+    HttpResponse withoutDoNotSkipInvalidMacroForFunctionsResponse = sendRequestForInvalidMacros(
+      new StageValidationRequest(stage, Collections.emptyList(), false));
+    Assert.assertEquals(200, withoutDoNotSkipInvalidMacroForFunctionsResponse.getResponseCode());
+  }
+
+  private HttpResponse sendRequestForInvalidMacros(StageValidationRequest requestBody) throws IOException {
+    URL validatePipelineURL = serviceURI
+      .resolve(String.format("v1/contexts/%s/validations/stage", NamespaceId.DEFAULT.getNamespace()))
+      .toURL();
+    HttpRequest request = HttpRequest.builder(HttpMethod.POST, validatePipelineURL)
+      .withBody(GSON.toJson(requestBody))
+      .build();
+    return HttpRequests.execute(request, new DefaultHttpRequestConfig(false));
   }
 }

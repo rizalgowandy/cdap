@@ -34,6 +34,9 @@ import io.cdap.cdap.api.dataset.lib.Partitioning;
 import io.cdap.cdap.api.mapreduce.AbstractMapReduce;
 import io.cdap.cdap.api.mapreduce.MapReduceContext;
 import io.cdap.cdap.api.mapreduce.MapReduceTaskContext;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.avro.mapred.AvroKey;
@@ -43,10 +46,6 @@ import org.apache.avro.mapreduce.AvroKeyOutputFormat;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * App used to test whether M/R can use DynamicPartitioner with AvroKeyOutputFormat.
@@ -78,12 +77,6 @@ public class AppWithMapReduceUsingAvroDynamicPartitioner extends AbstractApplica
       // Properties for file set
       .setInputFormat(AvroKeyInputFormat.class)
       .setOutputFormat(AvroKeyOutputFormat.class)
-      // Properties for Explore (to create a partitioned Hive table)
-      .setEnableExploreOnCreate(true)
-      .setSerDe("org.apache.hadoop.hive.serde2.avro.AvroSerDe")
-      .setExploreInputFormat("org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat")
-      .setExploreOutputFormat("org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat")
-      .setTableProperty("avro.schema.literal", SCHEMA_STRING)
       .build());
 
     addMapReduce(new DynamicPartitioningMapReduce());

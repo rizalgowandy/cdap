@@ -43,10 +43,12 @@ import io.cdap.cdap.internal.app.runtime.schedule.TriggeringScheduleInfoAdapter;
 import io.cdap.cdap.internal.app.runtime.schedule.trigger.DefaultTimeTriggerInfo;
 import io.cdap.cdap.internal.app.runtime.schedule.trigger.TimeTrigger;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
+import io.cdap.cdap.internal.app.store.ApplicationMeta;
 import io.cdap.cdap.internal.app.store.DefaultStore;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramType;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
@@ -59,11 +61,6 @@ import io.cdap.cdap.security.impersonation.Impersonator;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.api.RunId;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,6 +69,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.api.RunId;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Tests for {@link OperationsDashboardHttpHandler}
@@ -173,7 +174,7 @@ public class OperationsDashboardHttpHandlerTest extends AppFabricTestBase {
 
     String opsDashboardQueryPath =
       String.format("%s/dashboard?start=%s&duration=%s&namespace=%s&namespace=%s", BASE_PATH,
-                    String.valueOf(startTime1), String.valueOf(endTime), ns1.getNamespace(), ns2.getNamespace());
+                    startTime1, endTime, ns1.getNamespace(), ns2.getNamespace());
     // get ops dashboard query results
     HttpResponse response = doGet(opsDashboardQueryPath);
     Assert.assertEquals(200, response.getResponseCode());
@@ -189,7 +190,7 @@ public class OperationsDashboardHttpHandlerTest extends AppFabricTestBase {
     // for the same time range query only in namespace ns1 to ensure filtering works fine
     opsDashboardQueryPath =
       String.format("%s/dashboard?start=%s&duration=%s&namespace=%s", BASE_PATH,
-                    String.valueOf(startTime1), String.valueOf(endTime), ns2.getNamespace());
+                    startTime1, endTime, ns2.getNamespace());
 
     // get ops dashboard query results
     response = doGet(opsDashboardQueryPath);
@@ -282,7 +283,7 @@ public class OperationsDashboardHttpHandlerTest extends AppFabricTestBase {
   /**
    * Adds {@link ApplicationSpecification} for APP1_ID and APP2_ID.
    */
-  private void addAppSpecs() {
+  private void addAppSpecs() throws ConflictException {
     WorkflowSpecification scheduledWorfklow1 =
       new WorkflowSpecification("DummyClass", SCHEDULED_PROG1_ID.getProgram(), "scheduled workflow",
                                 Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap(),
@@ -297,8 +298,10 @@ public class OperationsDashboardHttpHandlerTest extends AppFabricTestBase {
                                           Collections.emptyMap(), Collections.emptyMap(),
                                           Collections.emptyMap(), Collections.emptyMap()
       );
-
-    store.addApplication(APP1_ID, dummyAppSpec1);
+    ApplicationMeta meta = new ApplicationMeta(dummyAppSpec1.getName(), dummyAppSpec1,
+                                               new ChangeDetail(null, null, null,
+                                                                System.currentTimeMillis()));
+    store.addLatestApplication(APP1_ID, meta);
     WorkflowSpecification scheduledWorfklow2 =
       new WorkflowSpecification("DummyClass", SCHEDULED_PROG2_ID.getProgram(), "scheduled workflow",
                                 Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap(),
@@ -313,7 +316,10 @@ public class OperationsDashboardHttpHandlerTest extends AppFabricTestBase {
                                           Collections.emptyMap(), Collections.emptyMap(),
                                           Collections.emptyMap(), Collections.emptyMap()
       );
-    store.addApplication(APP2_ID, dummyAppSpec2);
+    meta = new ApplicationMeta(dummyAppSpec2.getName(), dummyAppSpec2,
+                               new ChangeDetail(null, null, null,
+                                                System.currentTimeMillis()));
+    store.addLatestApplication(APP2_ID, meta);
   }
 
   /**
@@ -364,7 +370,7 @@ public class OperationsDashboardHttpHandlerTest extends AppFabricTestBase {
 
     String opsDashboardQueryPath =
       String.format("%s/dashboard?start=%s&duration=%s&namespace=%s", BASE_PATH,
-                    String.valueOf(startTime1), String.valueOf(endTime), ns3.getNamespace());
+                    startTime1, endTime, ns3.getNamespace());
 
     // get ops dashboard query results
     HttpResponse response = doGet(opsDashboardQueryPath);

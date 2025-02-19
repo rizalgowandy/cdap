@@ -21,17 +21,19 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.http.CommonNettyHttpServiceBuilder;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
+import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
+import io.cdap.cdap.security.spi.authenticator.RemoteAuthenticator;
 import io.cdap.http.NettyHttpService;
-import org.apache.twill.common.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.InetAddress;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.common.Threads;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Launches an HTTP server for receiving and unpacking and caching artifacts.
@@ -49,19 +51,30 @@ public class ArtifactLocalizerService extends AbstractIdleService {
 
   @Inject
   ArtifactLocalizerService(CConfiguration cConf,
-                           ArtifactLocalizer artifactLocalizer) {
+      ArtifactLocalizer artifactLocalizer,
+      CommonNettyHttpServiceFactory commonNettyHttpServiceFactory,
+      RemoteClientFactory remoteClientFactory, RemoteAuthenticator remoteAuthenticator) {
     this.cConf = cConf;
     this.artifactLocalizer = artifactLocalizer;
-    this.httpService = new CommonNettyHttpServiceBuilder(cConf, Constants.Service.TASK_WORKER)
-      .setHost(InetAddress.getLoopbackAddress().getHostName())
-      .setPort(cConf.getInt(Constants.ArtifactLocalizer.PORT))
-      .setBossThreadPoolSize(cConf.getInt(Constants.ArtifactLocalizer.BOSS_THREADS))
-      .setWorkerThreadPoolSize(cConf.getInt(Constants.ArtifactLocalizer.WORKER_THREADS))
-      .setHttpHandlers(new ArtifactLocalizerHttpHandlerInternal(artifactLocalizer))
-      .build();
+    this.httpService = commonNettyHttpServiceFactory.builder(Constants.Service.TASK_WORKER)
+        .setHost(InetAddress.getLoopbackAddress().getHostName())
+        .setPort(cConf.getInt(Constants.ArtifactLocalizer.PORT))
+        .setBossThreadPoolSize(cConf.getInt(Constants.ArtifactLocalizer.BOSS_THREADS))
+        .setWorkerThreadPoolSize(cConf.getInt(Constants.ArtifactLocalizer.WORKER_THREADS))
+        .setHttpHandlers(new ArtifactLocalizerHttpHandlerInternal(artifactLocalizer),
+            new GcpMetadataHttpHandlerInternal(cConf, remoteClientFactory, remoteAuthenticator))
+        .build();
 
-    this.cacheCleanupInterval = cConf.getInt(Constants.ArtifactLocalizer.CACHE_CLEANUP_INTERVAL_MIN);
-    this.cleaner = new ArtifactLocalizerCleaner(cConf);
+    this.cacheCleanupInterval = cConf.getInt(
+        Constants.ArtifactLocalizer.CACHE_CLEANUP_INTERVAL_MIN);
+    String cacheDir = cConf.get(Constants.CFG_LOCAL_DATA_DIR);
+    this.cleaner = new ArtifactLocalizerCleaner(Paths.get(cacheDir).resolve("artifacts"),
+        cacheCleanupInterval);
+  }
+
+  @VisibleForTesting
+  public int getPort() {
+    return httpService.getBindAddress().getPort();
   }
 
   @Override
@@ -69,12 +82,15 @@ public class ArtifactLocalizerService extends AbstractIdleService {
     LOG.debug("Starting ArtifactLocalizerService");
     httpService.start();
     scheduledExecutorService = Executors
-      .newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("artifact-cache-cleaner"));
-    scheduledExecutorService.scheduleAtFixedRate(cleaner, cacheCleanupInterval, cacheCleanupInterval, TimeUnit.MINUTES);
+        .newSingleThreadScheduledExecutor(
+            Threads.createDaemonThreadFactory("artifact-localizer-cleaner"));
+    scheduledExecutorService.scheduleAtFixedRate(cleaner, cacheCleanupInterval,
+        cacheCleanupInterval, TimeUnit.MINUTES);
 
     artifactLocalizer.preloadArtifacts(
-      new HashSet<>(cConf.getTrimmedStringCollection(Constants.TaskWorker.PRELOAD_ARTIFACTS)));
-    
+        new HashSet<>(cConf.getTrimmedStringCollection(Constants.ArtifactLocalizer.PRELOAD_LIST)),
+        cConf.getInt(Constants.ArtifactLocalizer.PRELOAD_VERSION_LIMIT));
+
     LOG.debug("Starting ArtifactLocalizerService has completed");
   }
 

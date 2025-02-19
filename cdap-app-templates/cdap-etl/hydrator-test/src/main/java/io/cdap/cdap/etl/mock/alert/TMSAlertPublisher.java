@@ -28,7 +28,6 @@ import io.cdap.cdap.etl.api.Alert;
 import io.cdap.cdap.etl.api.AlertPublisher;
 import io.cdap.cdap.etl.api.AlertPublisherContext;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -39,6 +38,7 @@ import java.util.Map;
 @Plugin(type = AlertPublisher.PLUGIN_TYPE)
 @Name(TMSAlertPublisher.NAME)
 public class TMSAlertPublisher extends AlertPublisher {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   public static final String NAME = "TMS";
   private static final Gson GSON = new Gson();
@@ -70,6 +70,7 @@ public class TMSAlertPublisher extends AlertPublisher {
    * Plugin conf.
    */
   public static class Conf extends PluginConfig {
+
     private String topic;
 
     private String topicNamespace;
@@ -85,9 +86,11 @@ public class TMSAlertPublisher extends AlertPublisher {
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("topic", new PluginPropertyField("topic", "", "string", true, false));
-    properties.put("topicNamespace", new PluginPropertyField("topicNamespace", "", "string", true, false));
+    properties.put("topicNamespace",
+        new PluginPropertyField("topicNamespace", "", "string", true, false));
     return PluginClass.builder().setName(NAME).setType(AlertPublisher.PLUGIN_TYPE)
-             .setDescription("").setClassName(TMSAlertPublisher.class.getName()).setProperties(properties)
-             .setConfigFieldName("conf").build();
+        .setDescription("").setClassName(TMSAlertPublisher.class.getName())
+        .setProperties(properties)
+        .setConfigFieldName("conf").build();
   }
 }

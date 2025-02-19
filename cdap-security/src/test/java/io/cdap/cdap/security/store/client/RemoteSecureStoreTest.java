@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Cask Data, Inc.
+ * Copyright © 2019-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -34,6 +34,8 @@ import io.cdap.cdap.security.auth.context.AuthenticationTestContext;
 import io.cdap.cdap.security.store.FileSecureStoreService;
 import io.cdap.cdap.security.store.SecureStoreHandler;
 import io.cdap.http.NettyHttpService;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.apache.twill.discovery.InMemoryDiscoveryService;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -41,9 +43,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 /**
  * Tests for {@link RemoteSecureStore}.
@@ -70,7 +69,9 @@ public class RemoteSecureStoreTest {
       .build();
     namespaceClient.create(namespaceMeta);
 
-    FileSecureStoreService fileSecureStoreService = new FileSecureStoreService(conf, sConf, namespaceClient);
+    FileSecureStoreService fileSecureStoreService = new FileSecureStoreService(conf, sConf, namespaceClient,
+                                                                               FileSecureStoreService.CURRENT_CODEC
+                                                                                 .newInstance());
     // Starts a mock server to handle remote secure store requests
     httpService = new HttpsEnabler().configureKeyStore(conf, sConf).enable(
       NettyHttpService.builder("remoteSecureStoreTest")

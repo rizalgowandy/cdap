@@ -27,15 +27,15 @@ import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.test.AbstractProgramManager;
 import io.cdap.cdap.test.MetricsManager;
 import io.cdap.cdap.test.ServiceManager;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.discovery.DiscoveryServiceClient;
 
 /**
  * A default implementation of {@link ServiceManager}.
  */
-public class DefaultServiceManager extends AbstractProgramManager<ServiceManager> implements ServiceManager {
+public class DefaultServiceManager extends AbstractProgramManager<ServiceManager> implements
+    ServiceManager {
 
   private final DiscoveryServiceClient discoveryServiceClient;
   private final AppFabricClient appFabricClient;
@@ -43,8 +43,8 @@ public class DefaultServiceManager extends AbstractProgramManager<ServiceManager
   private final MetricsManager metricsManager;
 
   public DefaultServiceManager(ProgramId programId,
-                               AppFabricClient appFabricClient, DiscoveryServiceClient discoveryServiceClient,
-                               DefaultApplicationManager applicationManager, MetricsManager metricsManager) {
+      AppFabricClient appFabricClient, DiscoveryServiceClient discoveryServiceClient,
+      DefaultApplicationManager applicationManager, MetricsManager metricsManager) {
     super(programId, applicationManager);
 
     this.discoveryServiceClient = discoveryServiceClient;
@@ -57,7 +57,7 @@ public class DefaultServiceManager extends AbstractProgramManager<ServiceManager
     Preconditions.checkArgument(instances > 0, "Instance count should be > 0.");
     try {
       appFabricClient.setServiceInstances(programId.getNamespace(), programId.getApplication(),
-                                          programId.getProgram(), instances);
+          programId.getProgram(), instances);
     } catch (Exception e) {
       throw Throwables.propagate(e);
     }
@@ -77,8 +77,9 @@ public class DefaultServiceManager extends AbstractProgramManager<ServiceManager
 
   private ServiceInstances getInstances() {
     try {
-      return appFabricClient.getServiceInstances(programId.getNamespace(), programId.getApplication(),
-                                                 programId.getProgram());
+      return appFabricClient.getServiceInstances(programId.getNamespace(),
+          programId.getApplication(),
+          programId.getProgram());
     } catch (Exception e) {
       throw Throwables.propagate(e);
     }
@@ -92,13 +93,14 @@ public class DefaultServiceManager extends AbstractProgramManager<ServiceManager
   @Override
   public URL getServiceURL(long timeout, TimeUnit timeoutUnit) {
     return ServiceDiscoverable.createServiceBaseURL(
-      new RandomEndpointStrategy(() -> discoveryServiceClient.discover(ServiceDiscoverable.getName(programId)))
-        .pick(timeout, timeoutUnit), programId);
+        new RandomEndpointStrategy(
+            () -> discoveryServiceClient.discover(ServiceDiscoverable.getName(programId)))
+            .pick(timeout, timeoutUnit), programId);
   }
 
   @Override
   public RuntimeMetrics getMetrics() {
     return metricsManager.getServiceMetrics(programId.getNamespace(), programId.getApplication(),
-                                            programId.getProgram());
+        programId.getProgram());
   }
 }

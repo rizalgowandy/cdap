@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.common;
 
 import io.cdap.cdap.etl.api.Emitter;
 import io.cdap.cdap.etl.api.InvalidEntry;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,6 +30,7 @@ import java.util.Map;
  * @param <T> the type of object to emit
  */
 public class DefaultEmitter<T> implements Emitter<T> {
+
   private final List<T> entryList;
   private final List<InvalidEntry<T>> errorList;
   private final List<Map<String, String>> alerts;

@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.dataset.table;
 
 import io.cdap.cdap.api.common.Bytes;
-
 import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
@@ -29,10 +28,14 @@ public class Put implements Serializable {
 
   private static final long serialVersionUID = 5869452950547737896L;
 
-  /** row to write to. */
+  /**
+   * row to write to.
+   */
   private final byte[] row;
 
-  /** map of column to value to write. */
+  /**
+   * map of column to value to write.
+   */
   private final Map<byte[], byte[]> values;
 
   /**
@@ -53,6 +56,7 @@ public class Put implements Serializable {
 
   /**
    * Write to a row.
+   *
    * @param row Row to write to.
    */
   public Put(byte[] row) {
@@ -62,6 +66,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -73,6 +78,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -84,6 +90,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -95,6 +102,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -105,6 +113,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -116,6 +125,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -126,6 +136,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -137,6 +148,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -147,6 +159,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -158,6 +171,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -168,6 +182,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -179,6 +194,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -189,6 +205,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -200,6 +217,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column Column to write to.
    * @param value Value to write.
    * @return Instance of this {@link io.cdap.cdap.api.dataset.table.Put}.
@@ -210,6 +228,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row Row to write to.
    * @param column Column to write to.
    * @param value Value to write.
@@ -221,6 +240,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -233,6 +253,7 @@ public class Put implements Serializable {
 
   /**
    * Write to a row.
+   *
    * @param row row to write to
    */
   public Put(String row) {
@@ -241,6 +262,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -252,6 +274,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -262,6 +285,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -273,6 +297,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -283,6 +308,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -294,6 +320,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -304,6 +331,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -315,6 +343,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -325,6 +354,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -336,6 +366,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -346,6 +377,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -357,6 +389,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -367,6 +400,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of a row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -378,6 +412,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}
@@ -388,6 +423,7 @@ public class Put implements Serializable {
 
   /**
    * Write at least one value in a column of row.
+   *
    * @param row row to write to
    * @param column column to write to
    * @param value value to write
@@ -399,6 +435,7 @@ public class Put implements Serializable {
 
   /**
    * Write a value to a column.
+   *
    * @param column column to write to
    * @param value value to write
    * @return instance of this {@link io.cdap.cdap.api.dataset.table.Put}

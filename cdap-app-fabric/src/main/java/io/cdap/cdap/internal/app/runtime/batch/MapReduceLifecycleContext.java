@@ -45,11 +45,6 @@ import io.cdap.cdap.api.security.store.SecureStoreData;
 import io.cdap.cdap.api.security.store.SecureStoreMetadata;
 import io.cdap.cdap.api.workflow.WorkflowInfo;
 import io.cdap.cdap.api.workflow.WorkflowToken;
-import org.apache.tephra.TransactionFailureException;
-import org.apache.twill.api.RunId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -60,15 +55,20 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.tephra.TransactionFailureException;
+import org.apache.twill.api.RunId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Implements both MapReduceContext and MapReduceTaskContext to support backwards compatibility of Mapper/Reducer tasks
- * that implemented ProgramLifeCycle<MapReduceContext>.
+ * Implements both MapReduceContext and MapReduceTaskContext to support backwards compatibility of
+ * Mapper/Reducer tasks that implemented ProgramLifeCycle<MapReduceContext>.
  *
- * @param <KEY>   Type of output key.
+ * @param <KEY> Type of output key.
  * @param <VALUE> Type of output value.
  */
-public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskContext<KEY, VALUE>, MapReduceContext {
+public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskContext<KEY, VALUE>,
+    MapReduceContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(MapReduceLifecycleContext.class);
   private final BasicMapReduceTaskContext<KEY, VALUE> delegate;
@@ -78,7 +78,8 @@ public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskConte
   }
 
   @Override
-  public <K, V> void write(String namedOutput, K key, V value) throws IOException, InterruptedException {
+  public <K, V> void write(String namedOutput, K key, V value)
+      throws IOException, InterruptedException {
     delegate.write(namedOutput, key, value);
   }
 
@@ -120,7 +121,6 @@ public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskConte
   }
 
   /**
-   *
    * @return a map of feature flag names and if they are enabled.
    */
   @Override
@@ -134,19 +134,20 @@ public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskConte
   }
 
   @Override
-  public <T extends Dataset> T getDataset(String namespace, String name) throws DatasetInstantiationException {
+  public <T extends Dataset> T getDataset(String namespace, String name)
+      throws DatasetInstantiationException {
     return delegate.getDataset(namespace, name);
   }
 
   @Override
   public <T extends Dataset> T getDataset(String name,
-                                          Map<String, String> arguments) throws DatasetInstantiationException {
+      Map<String, String> arguments) throws DatasetInstantiationException {
     return delegate.getDataset(name, arguments);
   }
 
   @Override
   public <T extends Dataset> T getDataset(String namespace, String name,
-                                          Map<String, String> arguments) throws DatasetInstantiationException {
+      Map<String, String> arguments) throws DatasetInstantiationException {
     return delegate.getDataset(namespace, name, arguments);
   }
 
@@ -181,7 +182,8 @@ public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskConte
   }
 
   @Override
-  public <T> T newPluginInstance(String pluginId, MacroEvaluator evaluator) throws InstantiationException {
+  public <T> T newPluginInstance(String pluginId, MacroEvaluator evaluator)
+      throws InstantiationException {
     return delegate.newPluginInstance(pluginId, evaluator);
   }
 
@@ -228,14 +230,14 @@ public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskConte
   @Nullable
   @Override
   public HttpURLConnection openConnection(String namespaceId, String applicationId,
-                                          String serviceId, String methodPath) throws IOException {
+      String serviceId, String methodPath) throws IOException {
     return delegate.openConnection(namespaceId, applicationId, serviceId, methodPath);
   }
 
   // TODO: Document usage of ProgramLifeCycle<MapReduceTaskContext> instead of ProgramLifeCycle<MapReduceContext>
   // Until then, we can not remove the following methods.
   private static final String UNSUPPORTED_OPERATION_MESSAGE =
-    "Operation not supported from MapReduce task-level context.";
+      "Operation not supported from MapReduce task-level context.";
 
   @Override
   public <T> T getHadoopJob() {
@@ -321,60 +323,80 @@ public class MapReduceLifecycleContext<KEY, VALUE> implements MapReduceTaskConte
   }
 
   @Override
-  public void execute(TxRunnable runnable) throws TransactionFailureException {
-    throw new TransactionFailureException("Attempted to start a transaction within a MapReduce transaction");
+  public SecureStoreMetadata getMetadata(String namespace, String name) throws Exception {
+    return delegate.getMetadata(namespace, name);
   }
 
   @Override
-  public void execute(int timeoutInSeconds, TxRunnable runnable) throws TransactionFailureException {
-    throw new TransactionFailureException("Attempted to start a transaction within a MapReduce transaction");
+  public byte[] getData(String namespace, String name) throws Exception {
+    return delegate.getData(namespace, name);
+  }
+
+  @Override
+  public void execute(TxRunnable runnable) throws TransactionFailureException {
+    throw new TransactionFailureException(
+        "Attempted to start a transaction within a MapReduce transaction");
+  }
+
+  @Override
+  public void execute(int timeoutInSeconds, TxRunnable runnable)
+      throws TransactionFailureException {
+    throw new TransactionFailureException(
+        "Attempted to start a transaction within a MapReduce transaction");
   }
 
   @Override
   public String toString() {
-    return "MapReduceLifecycleContext{" +
-      "delegate=" + delegate +
-      '}';
+    return "MapReduceLifecycleContext{"
+        + "delegate=" + delegate
+        + '}';
   }
 
   @Override
   public MessagePublisher getMessagePublisher() {
     // TODO: CDAP-7807
-    throw new UnsupportedOperationException("Messaging is not supported in MapReduce task-level context");
+    throw new UnsupportedOperationException(
+        "Messaging is not supported in MapReduce task-level context");
   }
 
   @Override
   public MessagePublisher getDirectMessagePublisher() {
     // TODO: CDAP-7807
-    throw new UnsupportedOperationException("Messaging is not supported in MapReduce task-level context");
+    throw new UnsupportedOperationException(
+        "Messaging is not supported in MapReduce task-level context");
   }
 
   @Override
   public MessageFetcher getMessageFetcher() {
     // TODO: CDAP-7807
-    throw new UnsupportedOperationException("Messaging is not supported in MapReduce task-level context");
+    throw new UnsupportedOperationException(
+        "Messaging is not supported in MapReduce task-level context");
   }
 
   @Override
-  public Map<MetadataScope, Metadata> getMetadata(MetadataEntity metadataEntity) throws MetadataException {
+  public Map<MetadataScope, Metadata> getMetadata(MetadataEntity metadataEntity)
+      throws MetadataException {
     throw new UnsupportedOperationException("Metadata operations are not supported from tasks.");
   }
 
   @Override
-  public Metadata getMetadata(MetadataScope scope, MetadataEntity metadataEntity) throws MetadataException {
+  public Metadata getMetadata(MetadataScope scope, MetadataEntity metadataEntity)
+      throws MetadataException {
     throw new UnsupportedOperationException("Metadata operations are not supported from tasks.");
   }
 
   @Override
   public void record(Collection<? extends Operation> operations) {
-    throw new UnsupportedOperationException("Recording field lineage operations is not supported in " +
-                                              "MapReduce task-level context");
+    throw new UnsupportedOperationException(
+        "Recording field lineage operations is not supported in "
+            + "MapReduce task-level context");
   }
 
   @Override
   public void flushLineage() {
-    throw new UnsupportedOperationException("Recording field lineage operations is not supported in " +
-                                              "MapReduce task-level context");
+    throw new UnsupportedOperationException(
+        "Recording field lineage operations is not supported in "
+            + "MapReduce task-level context");
   }
 
   @Override

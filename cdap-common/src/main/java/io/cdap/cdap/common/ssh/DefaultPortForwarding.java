@@ -20,13 +20,12 @@ import com.jcraft.jsch.ChannelDirectTCPIP;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import io.cdap.cdap.runtime.spi.ssh.PortForwarding;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Default implementation of {@link PortForwarding}.
@@ -42,13 +41,15 @@ final class DefaultPortForwarding implements PortForwarding {
   private final byte[] transferBuf;
 
   /**
-   * Creates a new instance of this class by connecting the direct TCPIP channel for port forwarding.
+   * Creates a new instance of this class by connecting the direct TCPIP channel for port
+   * forwarding.
    *
    * @param sshChannel an unconnected {@link ChannelDirectTCPIP} created from a ssh session
    * @param dataConsumer the {@link DataConsumer} for receiving incoming data
    * @throws IOException if failed to connect to the channel
    */
-  DefaultPortForwarding(ChannelDirectTCPIP sshChannel, DataConsumer dataConsumer) throws IOException {
+  DefaultPortForwarding(ChannelDirectTCPIP sshChannel, DataConsumer dataConsumer)
+      throws IOException {
     sshChannel.setOutputStream(createIncomingOutputStream(dataConsumer));
 
     this.outputStream = sshChannel.getOutputStream();
@@ -59,7 +60,7 @@ final class DefaultPortForwarding implements PortForwarding {
       sshChannel.connect();
       Session session = sshChannel.getSession();
       LOG.trace("Opened port forwarding channel {} through host {}:{}",
-                sshChannel.getId(), session.getHost(), session.getPort());
+          sshChannel.getId(), session.getHost(), session.getPort());
     } catch (JSchException e) {
       throw new IOException(e);
     }
@@ -100,7 +101,8 @@ final class DefaultPortForwarding implements PortForwarding {
     sshChannel.disconnect();
 
     if (session != null) {
-      LOG.trace("Disconnected port forwarding channel {} through host {}:{}", id, session.getHost(), session.getPort());
+      LOG.trace("Disconnected port forwarding channel {} through host {}:{}", id, session.getHost(),
+          session.getPort());
     } else {
       LOG.trace("Disconnected port forwarding channel {}", id);
     }
@@ -131,7 +133,8 @@ final class DefaultPortForwarding implements PortForwarding {
   }
 
   /**
-   * Creates the {@link OutputStream} that will be provided to the SSH channel for receiving incoming data.
+   * Creates the {@link OutputStream} that will be provided to the SSH channel for receiving
+   * incoming data.
    *
    * @param dataConsumer the {@link DataConsumer} to invoke when there is data received.
    * @return an {@link OutputStream}

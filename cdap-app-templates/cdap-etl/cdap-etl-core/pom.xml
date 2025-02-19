@@ -23,7 +23,7 @@
   <parent>
     <groupId>io.cdap.cdap</groupId>
     <artifactId>cdap-etl</artifactId>
-    <version>6.7.0-SNAPSHOT</version>
+    <version>6.12.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>cdap-etl-core</artifactId>
@@ -54,6 +54,12 @@
       <groupId>io.cdap.cdap</groupId>
       <artifactId>cdap-proto</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.cdap.cdap</groupId>
+      <artifactId>cdap-unit-test</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

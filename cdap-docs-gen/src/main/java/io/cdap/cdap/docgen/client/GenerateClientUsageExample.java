@@ -17,7 +17,6 @@
 package io.cdap.cdap.docgen.client;
 
 import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.ListenableFuture;
 import io.cdap.cdap.api.service.ServiceSpecification;
 import io.cdap.cdap.client.ApplicationClient;
 import io.cdap.cdap.client.DatasetClient;
@@ -26,12 +25,9 @@ import io.cdap.cdap.client.DatasetTypeClient;
 import io.cdap.cdap.client.MonitorClient;
 import io.cdap.cdap.client.PreferencesClient;
 import io.cdap.cdap.client.ProgramClient;
-import io.cdap.cdap.client.QueryClient;
 import io.cdap.cdap.client.ServiceClient;
 import io.cdap.cdap.client.config.ClientConfig;
-import io.cdap.cdap.explore.client.ExploreExecutionResult;
 import io.cdap.cdap.proto.ApplicationRecord;
-import io.cdap.cdap.proto.ColumnDesc;
 import io.cdap.cdap.proto.DatasetModuleMeta;
 import io.cdap.cdap.proto.DatasetSpecificationSummary;
 import io.cdap.cdap.proto.DatasetTypeMeta;
@@ -40,7 +36,6 @@ import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.DatasetModuleId;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -91,11 +86,11 @@ public class GenerateClientUsageExample {
 
     // Get only the preferences of MyApp application which is deployed in the Dev namespace
     Map<String, String> appPrefs = preferencesClient.getApplicationPreferences(
-      new ApplicationId("Dev", "MyApp"), false);
+        new ApplicationId("Dev", "MyApp"), false);
 
     // Get the resolved preferences (collapsed with higher level(s) of preferences)
     Map<String, String> resolvedAppPrefs = preferencesClient.getApplicationPreferences(
-      new ApplicationId("Dev", "MyApp"), true);
+        new ApplicationId("Dev", "MyApp"), true);
   }
 
   public void programClient() throws Exception {
@@ -111,7 +106,8 @@ public class GenerateClientUsageExample {
     programClient.getLiveInfo(NamespaceId.DEFAULT.app("HelloWorld").service("greet"));
 
     // Fetch program logs in the WordCount example
-    programClient.getProgramLogs(NamespaceId.DEFAULT.app("WordCount").service("RetrieveCounts"), 0, Long.MAX_VALUE);
+    programClient.getProgramLogs(NamespaceId.DEFAULT.app("WordCount").service("RetrieveCounts"), 0,
+        Long.MAX_VALUE);
 
     // Scale a service in the HelloWorld example
     programClient.setServiceInstances(NamespaceId.DEFAULT.app("HelloWorld").service("greet"), 3);
@@ -159,30 +155,11 @@ public class GenerateClientUsageExample {
     DatasetTypeClient datasetTypeClient = new DatasetTypeClient(clientConfig);
 
     // Fetch the dataset type information using the type name
-    DatasetTypeMeta datasetTypeMeta = datasetTypeClient.get(NamespaceId.DEFAULT.datasetType("someDatasetType"));
+    DatasetTypeMeta datasetTypeMeta = datasetTypeClient.get(
+        NamespaceId.DEFAULT.datasetType("someDatasetType"));
 
     // Fetch the dataset type information using the classname
     datasetTypeClient.get(NamespaceId.DEFAULT.datasetType(SomeDataset.class.getName()));
-  }
-
-  public void queryClient() throws Exception {
-    // Construct the client used to interact with CDAP
-    QueryClient queryClient = new QueryClient(clientConfig);
-
-    // Perform an ad-hoc query using the Purchase example
-    ListenableFuture<ExploreExecutionResult> resultFuture = queryClient.execute(
-      NamespaceId.DEFAULT, "SELECT * FROM dataset_history WHERE customer IN ('Alice','Bob')");
-    ExploreExecutionResult results = resultFuture.get();
-
-    // Fetch schema
-    List<ColumnDesc> schema = results.getResultSchema();
-    String[] header = new String[schema.size()];
-    for (int i = 0; i < header.length; i++) {
-      ColumnDesc column = schema.get(i);
-      // Hive columns start at 1
-      int index = column.getPosition() - 1;
-      header[index] = column.getName() + ": " + column.getType();
-    }
   }
 
   public void serviceClient() throws Exception {
@@ -191,7 +168,7 @@ public class GenerateClientUsageExample {
 
     // Fetch service information using the service in the PurchaseApp example
     ServiceSpecification serviceSpec = serviceClient.get(
-      NamespaceId.DEFAULT.app("PurchaseApp").service("CatalogLookup"));
+        NamespaceId.DEFAULT.app("PurchaseApp").service("CatalogLookup"));
   }
 
   public void monitorClient() throws Exception {

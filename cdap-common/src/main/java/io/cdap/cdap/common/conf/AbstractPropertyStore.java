@@ -18,17 +18,16 @@ package io.cdap.cdap.common.conf;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
-import org.apache.twill.common.Cancellable;
-import org.apache.twill.common.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
+import org.apache.twill.common.Cancellable;
+import org.apache.twill.common.Threads;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base implementation of {@link PropertyStore}.
@@ -46,12 +45,14 @@ public abstract class AbstractPropertyStore<T> implements PropertyStore<T> {
   protected AbstractPropertyStore() {
     this.listeners = LinkedHashMultimap.create();
     this.propertyCache = Maps.newHashMap();
-    this.listenerExecutor = Executors.newSingleThreadExecutor(Threads.createDaemonThreadFactory("property-store-%d"));
+    this.listenerExecutor = Executors.newSingleThreadExecutor(
+        Threads.createDaemonThreadFactory("property-store-%d"));
     this.closed = new AtomicBoolean();
   }
 
   @Override
-  public final synchronized Cancellable addChangeListener(String name, PropertyChangeListener<T> listener) {
+  public final synchronized Cancellable addChangeListener(String name,
+      PropertyChangeListener<T> listener) {
     ListenerCaller caller = new ListenerCaller(name, listener);
     listeners.put(name, caller);
     if (listenerAdded(name)) {
@@ -78,7 +79,8 @@ public abstract class AbstractPropertyStore<T> implements PropertyStore<T> {
    * Invoked when a new listener is added.
    *
    * @param name Name of the property with listener added
-   * @return {@code true} if notify the newly added listener with the cached value, {@code false} otherwise
+   * @return {@code true} if notify the newly added listener with the cached value, {@code false}
+   *     otherwise
    */
   protected abstract boolean listenerAdded(String name);
 

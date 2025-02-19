@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.exec;
 import io.cdap.cdap.etl.api.Destroyable;
 import io.cdap.cdap.etl.common.RecordInfo;
 import io.cdap.cdap.etl.common.RecordType;
-
 import java.util.Map;
 import java.util.Set;
 
@@ -29,6 +28,7 @@ import java.util.Set;
  * @param <IN> Type of input
  */
 public class PipeTransformExecutor<IN> implements Destroyable {
+
   private final Set<String> startingPoints;
   private final Map<String, PipeStage> pipeStages;
 

@@ -35,18 +35,6 @@ import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.tephra.InvalidTruncateTimeException;
-import org.apache.tephra.Transaction;
-import org.apache.tephra.TransactionCouldNotTakeSnapshotException;
-import org.apache.tephra.TransactionSystemClient;
-import org.apache.tephra.TxConstants;
-import org.apache.tephra.txprune.RegionPruneInfo;
-import org.apache.tephra.txprune.hbase.InvalidListPruningDebug;
-import org.apache.tephra.txprune.hbase.RegionsAtTime;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
@@ -62,16 +50,30 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.tephra.InvalidTruncateTimeException;
+import org.apache.tephra.Transaction;
+import org.apache.tephra.TransactionCouldNotTakeSnapshotException;
+import org.apache.tephra.TransactionSystemClient;
+import org.apache.tephra.TxConstants;
+import org.apache.tephra.txprune.RegionPruneInfo;
+import org.apache.tephra.txprune.hbase.InvalidListPruningDebug;
+import org.apache.tephra.txprune.hbase.RegionsAtTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handler to for managing transaction states.
  */
 @Path(Constants.Gateway.API_VERSION_3)
 public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
+
   private static final Logger LOG = LoggerFactory.getLogger(TransactionHttpHandler.class);
   private static final Gson GSON = new Gson();
-  private static final Type STRING_LONG_MAP_TYPE = new TypeToken<Map<String, Long>>() { }.getType();
-  private static final Type STRING_LONG_SET_MAP_TYPE = new TypeToken<Map<String, Set<Long>>>() { }.getType();
+  private static final Type STRING_LONG_MAP_TYPE = new TypeToken<Map<String, Long>>() {
+  }.getType();
+  private static final Type STRING_LONG_SET_MAP_TYPE = new TypeToken<Map<String, Set<Long>>>() {
+  }.getType();
   private static final String PRUNING_TOOL_CLASS_NAME = "org.apache.tephra.hbase.txprune.InvalidListPruningDebugTool";
 
   private final Configuration hConf;
@@ -81,12 +83,13 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   private volatile InvalidListPruningDebug pruningDebug;
 
   @Inject
-  public TransactionHttpHandler(Configuration hConf, CConfiguration cConf, TransactionSystemClient txClient) {
+  public TransactionHttpHandler(Configuration hConf, CConfiguration cConf,
+      TransactionSystemClient txClient) {
     this.hConf = hConf;
     this.cConf = cConf;
     this.txClient = new TransactionSystemClientAdapter(txClient);
     this.pruneEnable = cConf.getBoolean(TxConstants.TransactionPruning.PRUNE_ENABLE,
-                                        TxConstants.TransactionPruning.DEFAULT_PRUNE_ENABLE);
+        TxConstants.TransactionPruning.DEFAULT_PRUNE_ENABLE);
   }
 
   /**
@@ -95,7 +98,7 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   @Path("/transactions/state")
   @GET
   public void getTxManagerSnapshot(HttpRequest request, HttpResponder responder)
-    throws TransactionCouldNotTakeSnapshotException, IOException {
+      throws TransactionCouldNotTakeSnapshotException, IOException {
     LOG.trace("Taking transaction manager snapshot at time {}", System.currentTimeMillis());
     LOG.trace("Took and retrieved transaction manager snapshot successfully.");
 
@@ -128,12 +131,13 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
 
   /**
    * Invalidate a transaction.
+   *
    * @param txId transaction ID.
    */
   @Path("/transactions/{tx-id}/invalidate")
   @POST
   public void invalidateTx(HttpRequest request, HttpResponder responder,
-                           @PathParam("tx-id") String txId) {
+      @PathParam("tx-id") String txId) {
     try {
       long txIdLong = Long.parseLong(txId);
       boolean success = txClient.invalidate(txIdLong);
@@ -154,7 +158,7 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   @POST
   @AuditPolicy(AuditDetail.REQUEST_BODY)
   public void truncateInvalidTxBefore(FullHttpRequest request,
-                                      HttpResponder responder) throws InvalidTruncateTimeException {
+      HttpResponder responder) throws InvalidTruncateTimeException {
     Map<String, Long> body;
     try {
       body = parseBody(request, STRING_LONG_MAP_TYPE);
@@ -199,13 +203,14 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   @GET
   public void invalidTxSize(HttpRequest request, HttpResponder responder) {
     int invalidSize = txClient.getInvalidSize();
-    responder.sendJson(HttpResponseStatus.OK, GSON.toJson(Collections.singletonMap("size", invalidSize)));
+    responder.sendJson(HttpResponseStatus.OK,
+        GSON.toJson(Collections.singletonMap("size", invalidSize)));
   }
 
   @Path("/transactions/invalid")
   @GET
   public void invalidList(HttpRequest request, HttpResponder responder,
-                          @QueryParam("limit") @DefaultValue("-1") int limit) {
+      @QueryParam("limit") @DefaultValue("-1") int limit) {
     Transaction tx = txClient.startShort();
     txClient.abort(tx);
     long[] invalids = tx.getInvalids();
@@ -213,7 +218,8 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
       responder.sendJson(HttpResponseStatus.OK, GSON.toJson(invalids));
       return;
     }
-    responder.sendJson(HttpResponseStatus.OK, GSON.toJson(Arrays.copyOf(invalids, Math.min(limit, invalids.length))));
+    responder.sendJson(HttpResponseStatus.OK,
+        GSON.toJson(Arrays.copyOf(invalids, Math.min(limit, invalids.length))));
   }
 
   /**
@@ -239,7 +245,8 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
 
   @Path("/transactions/prune/regions/{region-name}")
   @GET
-  public void getPruneInfo(HttpRequest request, HttpResponder responder, @PathParam("region-name") String regionName) {
+  public void getPruneInfo(HttpRequest request, HttpResponder responder,
+      @PathParam("region-name") String regionName) {
     try {
       if (!initializePruningDebug(responder)) {
         return;
@@ -248,7 +255,7 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
       RegionPruneInfo pruneInfo = pruningDebug.getRegionPruneInfo(regionName);
       if (pruneInfo == null) {
         responder.sendString(HttpResponseStatus.NOT_FOUND,
-                             "No prune upper bound has been registered for this region yet.");
+            "No prune upper bound has been registered for this region yet.");
         return;
       }
       responder.sendJson(HttpResponseStatus.OK, GSON.toJson(pruneInfo));
@@ -261,7 +268,7 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   @Path("/transactions/prune/regions")
   @GET
   public void getTimeRegions(HttpRequest request, HttpResponder responder,
-                             @QueryParam("time") @DefaultValue("now") String time) {
+      @QueryParam("time") @DefaultValue("now") String time) {
     try {
       if (!initializePruningDebug(responder)) {
         return;
@@ -278,14 +285,15 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   @Path("/transactions/prune/regions/idle")
   @GET
   public void getIdleRegions(HttpRequest request, HttpResponder responder,
-                             @QueryParam("limit") @DefaultValue("-1") int numRegions,
-                             @QueryParam("time") @DefaultValue("now") String time) {
+      @QueryParam("limit") @DefaultValue("-1") int numRegions,
+      @QueryParam("time") @DefaultValue("now") String time) {
     try {
       if (!initializePruningDebug(responder)) {
         return;
       }
 
-      SortedSet<? extends RegionPruneInfo> pruneInfos = pruningDebug.getIdleRegions(numRegions, time);
+      SortedSet<? extends RegionPruneInfo> pruneInfos = pruningDebug.getIdleRegions(numRegions,
+          time);
       responder.sendJson(HttpResponseStatus.OK, GSON.toJson(pruneInfos));
     } catch (Exception e) {
       responder.sendString(HttpResponseStatus.BAD_REQUEST, e.getMessage());
@@ -296,8 +304,8 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
   @Path("/transactions/prune/regions/block")
   @GET
   public void getRegionsToBeCompacted(HttpRequest request, HttpResponder responder,
-                                      @QueryParam("limit") @DefaultValue("-1") int numRegions,
-                                      @QueryParam("time") @DefaultValue("now") String time) {
+      @QueryParam("limit") @DefaultValue("-1") int numRegions,
+      @QueryParam("time") @DefaultValue("now") String time) {
     try {
       if (!initializePruningDebug(responder)) {
         return;
@@ -332,13 +340,14 @@ public class TransactionHttpHandler extends AbstractAppFabricHttpHandler {
       try {
         @SuppressWarnings("unchecked")
         Class<? extends InvalidListPruningDebug> clazz =
-          (Class<? extends InvalidListPruningDebug>) getClass().getClassLoader().loadClass(PRUNING_TOOL_CLASS_NAME);
+            (Class<? extends InvalidListPruningDebug>) getClass().getClassLoader()
+                .loadClass(PRUNING_TOOL_CLASS_NAME);
         this.pruningDebug = clazz.newInstance();
         pruningDebug.initialize(configuration);
       } catch (Exception e) {
         LOG.error("Not able to instantiate pruning debug class", e);
         responder.sendString(HttpResponseStatus.INTERNAL_SERVER_ERROR,
-                             "Cannot instantiate the pruning debug tool: " + e.getMessage());
+            "Cannot instantiate the pruning debug tool: " + e.getMessage());
         pruningDebug = null;
         return false;
       }

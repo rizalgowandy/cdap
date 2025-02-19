@@ -21,10 +21,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
+import java.lang.reflect.Type;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.ServiceDiscovered;
-
-import java.lang.reflect.Type;
 
 /**
  * A Gson codec for {@link org.apache.twill.discovery.ServiceDiscovered}
@@ -32,7 +31,8 @@ import java.lang.reflect.Type;
 public class ServiceDiscoveredCodec implements JsonSerializer<ServiceDiscovered> {
 
   @Override
-  public JsonElement serialize(ServiceDiscovered serviceDiscovered, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(ServiceDiscovered serviceDiscovered, Type typeOfSrc,
+      JsonSerializationContext context) {
     JsonArray object = new JsonArray();
     for (Discoverable discoverable : serviceDiscovered) {
       JsonObject discoverableJson = new JsonObject();

@@ -18,13 +18,13 @@ package io.cdap.cdap.security.authorization;
 
 import com.google.inject.assistedinject.Assisted;
 import io.cdap.cdap.security.spi.authorization.AuthorizationContext;
-
 import java.util.Properties;
 
 /**
  * Guice factory for creating {@link AuthorizationContext} instances
  */
 public interface AuthorizationContextFactory {
+
   /**
    * Creates an {@link AuthorizationContext}.
    *

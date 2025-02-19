@@ -20,13 +20,13 @@ import io.cdap.cdap.api.Resources;
 import io.cdap.cdap.api.annotation.TransactionControl;
 import io.cdap.cdap.api.annotation.TransactionPolicy;
 import io.cdap.cdap.internal.api.AbstractPluginConfigurable;
-
 import java.util.Map;
 
 /**
  * Extend this class to add workers.
  */
-public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerConfigurer> implements Worker {
+public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerConfigurer> implements
+    Worker {
 
   private WorkerConfigurer configurer;
   private WorkerContext context;
@@ -39,6 +39,7 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
 
   /**
    * Set the name of the {@link Worker}
+   *
    * @param name the name of the worker
    */
   protected void setName(String name) {
@@ -47,6 +48,7 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
 
   /**
    * Set description of the {@link Worker}.
+   *
    * @param description the description
    */
   protected void setDescription(String description) {
@@ -55,6 +57,7 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
 
   /**
    * Sets the resources requirements for the {@link Worker}.
+   *
    * @param resources the requirements
    */
   protected void setResources(Resources resources) {
@@ -63,6 +66,7 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
 
   /**
    * Sets the number of instances needed for the {@link Worker}.
+   *
    * @param instances number of instances, must be > 0
    */
   protected void setInstances(int instances) {
@@ -70,7 +74,9 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
   }
 
   /**
-   * Sets a set of properties that will be available through the {@link WorkerSpecification#getProperties()}.
+   * Sets a set of properties that will be available through the {@link
+   * WorkerSpecification#getProperties()}.
+   *
    * @param properties the properties to set
    */
   protected void setProperties(Map<String, String> properties) {
@@ -78,7 +84,8 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
   }
 
   /**
-   * Returns the {@link WorkerConfigurer} used for configuration. Only available during configuration time.
+   * Returns the {@link WorkerConfigurer} used for configuration. Only available during
+   * configuration time.
    */
   @Override
   protected final WorkerConfigurer getConfigurer() {
@@ -103,7 +110,8 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
   }
 
   /**
-   * By default, this method is a no-op. This method should be overridden to provide actual {@code stop} functionality.
+   * By default, this method is a no-op. This method should be overridden to provide actual {@code
+   * stop} functionality.
    */
   @Override
   public void stop() {
@@ -111,8 +119,8 @@ public abstract class AbstractWorker extends AbstractPluginConfigurable<WorkerCo
   }
 
   /**
-   * By default, this method is a no-op. This method should be overridden to provide actual {@code destroy}
-   * functionality.
+   * By default, this method is a no-op. This method should be overridden to provide actual {@code
+   * destroy} functionality.
    */
   @Override
   @TransactionPolicy(TransactionControl.EXPLICIT)

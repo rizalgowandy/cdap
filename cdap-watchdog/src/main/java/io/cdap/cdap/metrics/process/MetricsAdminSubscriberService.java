@@ -29,28 +29,26 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.utils.ImmutablePair;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.context.MultiThreadMessagingContext;
 import io.cdap.cdap.messaging.subscriber.AbstractMessagingPollingService;
 import io.cdap.cdap.metrics.store.MetricDatasetFactory;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Spliterators;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * A TMS subscriber service for consuming metrics administrative messages and performance admin operations on the
- * metrics system.
+ * A TMS subscriber service for consuming metrics administrative messages and performance admin
+ * operations on the metrics system.
  */
-public class MetricsAdminSubscriberService extends AbstractMessagingPollingService<MetricsAdminMessage> {
+public class MetricsAdminSubscriberService extends
+    AbstractMessagingPollingService<MetricsAdminMessage> {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsAdminSubscriberService.class);
   private static final Gson GSON = new Gson();
@@ -64,18 +62,19 @@ public class MetricsAdminSubscriberService extends AbstractMessagingPollingServi
   private MetricsConsumerMetaTable metaTable;
 
   @Inject
-  MetricsAdminSubscriberService(CConfiguration cConf, MetricsCollectionService metricsCollectionService,
-                                MessagingService messagingService, MetricDatasetFactory metricDatasetFactory,
-                                MetricStore metricStore) {
+  MetricsAdminSubscriberService(CConfiguration cConf,
+      MetricsCollectionService metricsCollectionService,
+      MessagingService messagingService, MetricDatasetFactory metricDatasetFactory,
+      MetricStore metricStore) {
     super(NamespaceId.SYSTEM.topic(cConf.get(Constants.Metrics.ADMIN_TOPIC)),
-          metricsCollectionService.getContext(ImmutableMap.of(
+        metricsCollectionService.getContext(ImmutableMap.of(
             Constants.Metrics.Tag.COMPONENT, Constants.Service.METRICS,
             Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace(),
             Constants.Metrics.Tag.TOPIC, cConf.get(Constants.Metrics.ADMIN_TOPIC),
             Constants.Metrics.Tag.CONSUMER, "metrics.admin"
-          )),
-          FETCH_SIZE, cConf.getLong(Constants.Metrics.ADMIN_POLL_DELAY_MILLIS),
-          RetryStrategies.fromConfiguration(cConf, "system.metrics."));
+        )),
+        FETCH_SIZE, cConf.getLong(Constants.Metrics.ADMIN_POLL_DELAY_MILLIS),
+        RetryStrategies.fromConfiguration(cConf, "system.metrics."));
 
     this.messagingContext = new MultiThreadMessagingContext(messagingService);
     this.metricDatasetFactory = metricDatasetFactory;
@@ -105,11 +104,11 @@ public class MetricsAdminSubscriberService extends AbstractMessagingPollingServi
 
   @Nullable
   @Override
-  protected String processMessages(Iterator<ImmutablePair<String, MetricsAdminMessage>> messages) {
+  protected String processMessages(Iterable<ImmutablePair<String, MetricsAdminMessage>> messages) {
     MetricsConsumerMetaTable metaTable = getMetaTable();
 
     List<ImmutablePair<String, MetricsAdminMessage>> pendingMessages =
-      StreamSupport.stream(Spliterators.spliteratorUnknownSize(messages, 0), false).collect(Collectors.toList());
+        StreamSupport.stream(messages.spliterator(), false).collect(Collectors.toList());
 
     String messageId = null;
     for (ImmutablePair<String, MetricsAdminMessage> messagePair : pendingMessages) {
@@ -129,7 +128,8 @@ public class MetricsAdminSubscriberService extends AbstractMessagingPollingServi
       // after processing each message.
       // We only store the message id and ignore other fields.
       TopicProcessMeta meta = new TopicProcessMeta(Bytes.toBytes(messageId), 0, 0, 0, 0);
-      metaTable.saveMetricsProcessorStats(Collections.singletonMap(new TopicIdMetaKey(getTopicId()), meta));
+      metaTable.saveMetricsProcessorStats(
+          Collections.singletonMap(new TopicIdMetaKey(getTopicId()), meta));
     }
 
     return messageId;

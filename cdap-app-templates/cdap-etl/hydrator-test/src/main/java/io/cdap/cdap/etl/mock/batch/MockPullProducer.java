@@ -27,6 +27,10 @@ import io.cdap.cdap.etl.api.engine.sql.dataset.SQLDatasetDescription;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLDatasetProducer;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLPullRequest;
 import io.cdap.cdap.etl.api.sql.engine.dataset.SparkRecordCollectionImpl;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -35,15 +39,11 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.types.StructType;
 
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
-
 /**
  * Pull Dataset implementation for unit test
  */
 public class MockPullProducer implements SQLDatasetProducer {
+
   private static final Gson GSON = new Gson();
 
   private final SQLDatasetDescription datasetDescription;
@@ -72,7 +72,8 @@ public class MockPullProducer implements SQLDatasetProducer {
   @Override
   public RecordCollection produce(SQLDataset dataset) {
     // Create a spark session and write RDD as JSON
-    TypeToken<HashSet<StructuredRecord>> typeToken = new TypeToken<HashSet<StructuredRecord>>() { };
+    TypeToken<HashSet<StructuredRecord>> typeToken = new TypeToken<HashSet<StructuredRecord>>() {
+    };
     Type setOfStructuredRecordType = typeToken.getType();
 
     // Read records from JSON and adjust data types
@@ -87,7 +88,8 @@ public class MockPullProducer implements SQLDatasetProducer {
     JavaSparkContext jsc = JavaSparkContext.fromSparkContext(SparkContext.getOrCreate());
     SQLContext sqlContext = new SQLContext(sc);
     StructType sparkSchema = DataFrames.toDataType(this.datasetDescription.getSchema());
-    JavaRDD<Row> rdd = jsc.parallelize(new ArrayList<>(records)).map(sr -> DataFrames.toRow(sr, sparkSchema));
+    JavaRDD<Row> rdd = jsc.parallelize(new ArrayList<>(records))
+        .map(sr -> DataFrames.toRow(sr, sparkSchema));
     Dataset<Row> ds = sqlContext.createDataFrame(rdd.rdd(), sparkSchema);
     return new SparkRecordCollectionImpl(ds);
   }
@@ -96,6 +98,7 @@ public class MockPullProducer implements SQLDatasetProducer {
    * Structured Record entries read using GSON will contain Doubles instead of Integers.
    *
    * This functions builds a new Structured Record with the correct data type.
+   *
    * @param record the structured record we need to adjust
    * @param schema Schema to use
    * @return a new Structured record with Double/Float values adjusted into integers.
@@ -108,7 +111,7 @@ public class MockPullProducer implements SQLDatasetProducer {
 
       // Adjust doubles and floats into integers.
       if (value instanceof Double) {
-         value = ((Double) value).intValue();
+        value = ((Double) value).intValue();
       }
       if (value instanceof Float) {
         value = ((Float) value).intValue();

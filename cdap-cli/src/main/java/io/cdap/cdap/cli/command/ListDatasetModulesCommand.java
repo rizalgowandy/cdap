@@ -26,7 +26,6 @@ import io.cdap.cdap.cli.util.table.Table;
 import io.cdap.cdap.client.DatasetModuleClient;
 import io.cdap.cdap.proto.DatasetModuleMeta;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -47,13 +46,13 @@ public class ListDatasetModulesCommand extends AbstractAuthCommand {
   public void perform(Arguments arguments, PrintStream output) throws Exception {
     List<DatasetModuleMeta> modules = client.list(cliConfig.getCurrentNamespace());
     Table table = Table.builder()
-      .setHeader("name", "className")
-      .setRows(modules, new RowMaker<DatasetModuleMeta>() {
-        @Override
-        public List<?> makeRow(DatasetModuleMeta object) {
-          return Lists.newArrayList(object.getName(), object.getClassName());
-        }
-      }).build();
+        .setHeader("name", "className")
+        .setRows(modules, new RowMaker<DatasetModuleMeta>() {
+          @Override
+          public List<?> makeRow(DatasetModuleMeta object) {
+            return Lists.newArrayList(object.getName(), object.getClassName());
+          }
+        }).build();
     cliConfig.getTableRenderer().render(cliConfig, output, table);
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2020 Cask Data, Inc.
+ * Copyright © 2020-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -33,27 +33,18 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.LocalLocationModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.context.MultiThreadMessagingContext;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
-import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.id.TopicId;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -67,6 +58,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * Unit test for {@link RuntimeServer} and {@link RuntimeClient}.
@@ -111,15 +112,18 @@ public class RuntimeClientServerTest {
 
     Injector injector = Guice.createInjector(
       new ConfigModule(cConf),
+      RemoteAuthenticatorModules.getNoOpModule(),
+      new NoOpAuditLogModule(),
       new InMemoryDiscoveryModule(),
       new LocalLocationModule(),
       new MessagingServerRuntimeModule().getInMemoryModules(),
       new AuthenticationContextModules().getNoOpModule(),
+      new AuthorizationEnforcementModule().getNoOpModules(),
       new RuntimeServerModule() {
         @Override
         protected void bindRequestValidator() {
           bind(RuntimeRequestValidator.class).toInstance(
-            (programRunId, request) -> new ProgramRunInfo(ProgramRunStatus.STOPPING, null));
+            (programRunId, request) -> new ProgramRunInfo(Long.MAX_VALUE));
         }
 
         @Override
@@ -142,7 +146,7 @@ public class RuntimeClientServerTest {
     if (messagingService instanceof Service) {
       ((Service) messagingService).startAndWait();
     }
-    messagingService.createTopic(new TopicMetadata(NamespaceId.SYSTEM.topic("topic")));
+    messagingService.createTopic(new DefaultTopicMetadata(NamespaceId.SYSTEM.topic("topic")));
 
     runtimeServer = injector.getInstance(RuntimeServer.class);
     runtimeServer.startAndWait();
@@ -220,7 +224,7 @@ public class RuntimeClientServerTest {
   @Test
   public void testFutureIsNotBlockingWhenValueIsSet() throws Exception {
     CountDownLatch countDownLatch = new CountDownLatch(1);
-    runtimeClient.onProgramStopRequested(() -> countDownLatch.countDown());
+    runtimeClient.onProgramStopRequested(terminateTs -> countDownLatch.countDown());
     // Now call sendMessages which will set the future
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").workflow("workflow").run(RunIds.generate());
     TopicId topicId = NamespaceId.SYSTEM.topic("topic");

@@ -18,7 +18,6 @@ package io.cdap.cdap.api.service.http;
 
 import io.cdap.cdap.api.DatasetConfigurer;
 import io.cdap.cdap.api.plugin.PluginConfigurer;
-
 import java.util.Map;
 
 /**
@@ -27,8 +26,8 @@ import java.util.Map;
 public interface HttpServiceConfigurer extends DatasetConfigurer, PluginConfigurer {
 
   /**
-   * Sets a set of properties that will be available through the {@link HttpServiceHandlerSpecification#getProperties()}
-   * at runtime.
+   * Sets a set of properties that will be available through the {@link
+   * HttpServiceHandlerSpecification#getProperties()} at runtime.
    *
    * @param properties the properties to set
    */

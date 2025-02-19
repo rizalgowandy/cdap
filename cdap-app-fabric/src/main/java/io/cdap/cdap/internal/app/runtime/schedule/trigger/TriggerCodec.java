@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableMap;
 import io.cdap.cdap.api.schedule.Trigger;
 import io.cdap.cdap.proto.ProtoTrigger;
 import io.cdap.cdap.proto.ProtoTriggerCodec;
-
 import java.util.Map;
 
 /**
@@ -29,13 +28,13 @@ import java.util.Map;
 public class TriggerCodec extends ProtoTriggerCodec {
 
   private static final Map<ProtoTrigger.Type, Class<? extends Trigger>> TYPE_TO_INTERNAL_TRIGGER =
-    ImmutableMap.<ProtoTrigger.Type, Class<? extends Trigger>>builder()
-      .put(ProtoTrigger.Type.TIME, TimeTrigger.class)
-      .put(ProtoTrigger.Type.PARTITION, PartitionTrigger.class)
-      .put(ProtoTrigger.Type.PROGRAM_STATUS, ProgramStatusTrigger.class)
-      .put(ProtoTrigger.Type.AND, AndTrigger.class)
-      .put(ProtoTrigger.Type.OR, OrTrigger.class)
-      .build();
+      ImmutableMap.<ProtoTrigger.Type, Class<? extends Trigger>>builder()
+          .put(ProtoTrigger.Type.TIME, TimeTrigger.class)
+          .put(ProtoTrigger.Type.PARTITION, PartitionTrigger.class)
+          .put(ProtoTrigger.Type.PROGRAM_STATUS, ProgramStatusTrigger.class)
+          .put(ProtoTrigger.Type.AND, AndTrigger.class)
+          .put(ProtoTrigger.Type.OR, OrTrigger.class)
+          .build();
 
   public TriggerCodec() {
     super(TYPE_TO_INTERNAL_TRIGGER);

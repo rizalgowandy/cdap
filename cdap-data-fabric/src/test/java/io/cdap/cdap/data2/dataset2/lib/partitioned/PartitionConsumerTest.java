@@ -39,6 +39,12 @@ import io.cdap.cdap.api.dataset.lib.partitioned.ProcessState;
 import io.cdap.cdap.api.dataset.lib.partitioned.StatePersistor;
 import io.cdap.cdap.data2.dataset2.DatasetFrameworkTestUtil;
 import io.cdap.cdap.proto.id.DatasetId;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import javax.annotation.Nullable;
 import org.apache.tephra.TransactionAware;
 import org.apache.tephra.TransactionContext;
 import org.apache.tephra.TransactionExecutor;
@@ -51,13 +57,6 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import javax.annotation.Nullable;
 
 /**
  * Tests PartitionConsumer.
@@ -740,6 +739,7 @@ public class PartitionConsumerTest {
           partitionConsumer.onFinish(partitionDetails, false);
           Assert.fail("Expected not to be able to abort a partition that is not IN_PROGRESS");
         } catch (IllegalStateException expected) {
+          // expected
         }
 
         // try to process the partition again, this time marking it as complete (by passing in true)
@@ -754,6 +754,7 @@ public class PartitionConsumerTest {
           partitionConsumer.onFinish(partitionDetails, true);
           Assert.fail("Expected not to be able to call onFinish on a partition is not IN_PROGRESS");
         } catch (IllegalArgumentException expected) {
+          // expected
         }
       }
     });
@@ -996,7 +997,7 @@ public class PartitionConsumerTest {
     });
   }
 
-  private int counter = 0;
+  private int counter;
 
   // generates unique partition keys, where the 'i' field is incrementing from 0 upwards on each returned key
   private PartitionKey generateUniqueKey() {

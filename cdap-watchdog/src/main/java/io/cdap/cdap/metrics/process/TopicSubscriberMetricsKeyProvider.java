@@ -17,13 +17,13 @@
 package io.cdap.cdap.metrics.process;
 
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * TopicSubscriberMetricsKeyProvider which provides a {@link TopicSubscriberMetaKey} for each {@link TopicId}
+ * TopicSubscriberMetricsKeyProvider which provides a {@link TopicSubscriberMetaKey} for each {@link
+ * TopicId}
  */
 public class TopicSubscriberMetricsKeyProvider implements MetricsMetaKeyProvider {
 
@@ -36,6 +36,7 @@ public class TopicSubscriberMetricsKeyProvider implements MetricsMetaKeyProvider
   @Override
   public Map<TopicId, MetricsMetaKey> getKeys(List<TopicId> topics) {
     return topics.stream()
-      .collect(Collectors.toMap(topicId -> topicId, topicId -> new TopicSubscriberMetaKey(topicId, subscriberId)));
+        .collect(Collectors.toMap(topicId -> topicId,
+            topicId -> new TopicSubscriberMetaKey(topicId, subscriberId)));
   }
 }

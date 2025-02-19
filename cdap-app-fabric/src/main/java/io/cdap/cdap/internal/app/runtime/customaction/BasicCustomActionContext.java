@@ -33,14 +33,14 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.runtime.AbstractContext;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowProgramInfo;
-import io.cdap.cdap.messaging.MessagingService;
-import org.apache.tephra.TransactionSystemClient;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
+import io.cdap.cdap.messaging.spi.MessagingService;
 import java.util.HashMap;
 import javax.annotation.Nullable;
+import org.apache.tephra.TransactionSystemClient;
+import org.apache.twill.discovery.DiscoveryServiceClient;
 
 /**
  * Implementation of {@link CustomActionContext}.
@@ -51,23 +51,26 @@ public class BasicCustomActionContext extends AbstractContext implements CustomA
   private final WorkflowProgramInfo workflowProgramInfo;
   private ProgramState state;
 
-  public BasicCustomActionContext(Program workflow, ProgramOptions programOptions, CConfiguration cConf,
-                                  CustomActionSpecification customActionSpecification,
-                                  WorkflowProgramInfo workflowProgramInfo,
-                                  MetricsCollectionService metricsCollectionService,
-                                  DatasetFramework datasetFramework, TransactionSystemClient txClient,
-                                  DiscoveryServiceClient discoveryServiceClient,
-                                  @Nullable PluginInstantiator pluginInstantiator,
-                                  SecureStore secureStore, SecureStoreManager secureStoreManager,
-                                  MessagingService messagingService, MetadataReader metadataReader,
-                                  MetadataPublisher metadataPublisher, NamespaceQueryAdmin namespaceQueryAdmin,
-                                  FieldLineageWriter fieldLineageWriter, RemoteClientFactory remoteClientFactory) {
+  public BasicCustomActionContext(Program workflow, ProgramOptions programOptions,
+      CConfiguration cConf,
+      CustomActionSpecification customActionSpecification,
+      WorkflowProgramInfo workflowProgramInfo,
+      MetricsCollectionService metricsCollectionService,
+      DatasetFramework datasetFramework, TransactionSystemClient txClient,
+      DiscoveryServiceClient discoveryServiceClient,
+      @Nullable PluginInstantiator pluginInstantiator,
+      SecureStore secureStore, SecureStoreManager secureStoreManager,
+      MessagingService messagingService, MetadataReader metadataReader,
+      MetadataPublisher metadataPublisher, NamespaceQueryAdmin namespaceQueryAdmin,
+      FieldLineageWriter fieldLineageWriter, RemoteClientFactory remoteClientFactory,
+      AppStateStoreProvider appStateStoreProvider) {
 
     super(workflow, programOptions, cConf, customActionSpecification.getDatasets(),
-          datasetFramework, txClient, false,
-          metricsCollectionService, workflowProgramInfo.updateMetricsTags(new HashMap<>()), secureStore,
-          secureStoreManager, messagingService, pluginInstantiator, metadataReader, metadataPublisher,
-          namespaceQueryAdmin, fieldLineageWriter, remoteClientFactory);
+        datasetFramework, txClient, false,
+        metricsCollectionService, workflowProgramInfo.updateMetricsTags(new HashMap<>()),
+        secureStore,
+        secureStoreManager, messagingService, pluginInstantiator, metadataReader, metadataPublisher,
+        namespaceQueryAdmin, fieldLineageWriter, remoteClientFactory, appStateStoreProvider);
 
     this.customActionSpecification = customActionSpecification;
     this.workflowProgramInfo = workflowProgramInfo;

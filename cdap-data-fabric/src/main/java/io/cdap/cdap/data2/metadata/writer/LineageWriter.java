@@ -20,13 +20,13 @@ import io.cdap.cdap.data2.metadata.lineage.AccessType;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.NamespacedEntityId;
 import io.cdap.cdap.proto.id.ProgramRunId;
-
 import javax.annotation.Nullable;
 
 /**
  * Defines an interface to record program-dataset access records.
  */
 public interface LineageWriter {
+
   /**
    * Add a program-dataset access.
    *
@@ -47,5 +47,5 @@ public interface LineageWriter {
    * @param component program component such as flowlet id, etc.
    */
   void addAccess(ProgramRunId run, DatasetId datasetInstance,
-                 AccessType accessType, @Nullable NamespacedEntityId component);
+      AccessType accessType, @Nullable NamespacedEntityId component);
 }

@@ -29,6 +29,10 @@ import io.cdap.cdap.api.workflow.AbstractWorkflow;
 import io.cdap.cdap.api.workflow.Value;
 import io.cdap.cdap.api.workflow.WorkflowInfo;
 import io.cdap.cdap.api.workflow.WorkflowToken;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -42,11 +46,6 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-
 /**
  * App to test the put operation on the WorkflowToken through map and reduce methods.
  * Also used to test the workflow run id in MapReduce programs that run inside the workflow.
@@ -57,8 +56,8 @@ public class WorkflowTokenTestPutApp extends AbstractApplication {
   @Override
   public void configure() {
     setName(NAME);
-    setDescription("Application to test the put operation on the Workflow in initialize, " +
-                     "destroy, map, and reduce methods of the MapReduce program.");
+    setDescription("Application to test the put operation on the Workflow in initialize, "
+        + "destroy, map, and reduce methods of the MapReduce program.");
     addMapReduce(new RecordCounter());
     addSpark(new SparkTestApp());
     addWorkflow(new WorkflowTokenTestPut());

@@ -28,7 +28,6 @@ import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.util.Set;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -51,8 +50,8 @@ public class UsageHandler extends AbstractHttpHandler {
   @GET
   @Path("/namespaces/{namespace-id}/apps/{app-id}/datasets")
   public void getAppDatasetUsage(HttpRequest request, HttpResponder responder,
-                                 @PathParam("namespace-id") String namespaceId,
-                                 @PathParam("app-id") String appId) {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("app-id") String appId) {
     final ApplicationId id = new ApplicationId(namespaceId, appId);
     Set<DatasetId> ids = registry.getDatasets(id);
     responder.sendJson(HttpResponseStatus.OK, GSON.toJson(ids));
@@ -61,10 +60,10 @@ public class UsageHandler extends AbstractHttpHandler {
   @GET
   @Path("/namespaces/{namespace-id}/apps/{app-id}/{program-type}/{program-id}/datasets")
   public void getProgramDatasetUsage(HttpRequest request, HttpResponder responder,
-                                     @PathParam("namespace-id") String namespaceId,
-                                     @PathParam("app-id") String appId,
-                                     @PathParam("program-type") String programType,
-                                     @PathParam("program-id") String programId) {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("app-id") String appId,
+      @PathParam("program-type") String programType,
+      @PathParam("program-id") String programId) {
     ProgramType type = ProgramType.valueOfCategoryName(programType);
     final ProgramId id = new ProgramId(namespaceId, appId, type, programId);
     Set<DatasetId> ids = registry.getDatasets(id);
@@ -75,8 +74,8 @@ public class UsageHandler extends AbstractHttpHandler {
   @GET
   @Path("/namespaces/{namespace-id}/data/datasets/{dataset-id}/programs")
   public void getDatasetAppUsage(HttpRequest request, HttpResponder responder,
-                                 @PathParam("namespace-id") String namespaceId,
-                                 @PathParam("dataset-id") String datasetId) {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("dataset-id") String datasetId) {
     final DatasetId id = new DatasetId(namespaceId, datasetId);
     Set<ProgramId> ids = registry.getPrograms(id);
     responder.sendJson(HttpResponseStatus.OK, GSON.toJson(ids));

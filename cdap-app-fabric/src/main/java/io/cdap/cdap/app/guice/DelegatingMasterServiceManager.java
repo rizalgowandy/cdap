@@ -18,13 +18,13 @@ package io.cdap.cdap.app.guice;
 
 import io.cdap.cdap.common.twill.MasterServiceManager;
 import io.cdap.cdap.proto.SystemServiceLiveInfo;
-import org.apache.twill.api.logging.LogEntry;
-
 import java.util.Map;
 import java.util.Set;
+import org.apache.twill.api.logging.LogEntry;
 
 /**
- * A {@link MasterServiceManager} that delegates all methods to another {@link MasterServiceManager}.
+ * A {@link MasterServiceManager} that delegates all methods to another {@link
+ * MasterServiceManager}.
  */
 class DelegatingMasterServiceManager implements MasterServiceManager {
 

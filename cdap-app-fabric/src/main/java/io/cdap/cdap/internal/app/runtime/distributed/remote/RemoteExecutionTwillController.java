@@ -26,6 +26,18 @@ import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import io.cdap.cdap.runtime.spi.runtimejob.RuntimeJobStatus;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import javax.annotation.Nullable;
 import org.apache.twill.api.Command;
 import org.apache.twill.api.ResourceReport;
 import org.apache.twill.api.RunId;
@@ -39,20 +51,9 @@ import org.apache.twill.internal.ServiceListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import javax.annotation.Nullable;
-
 /**
- * Implementation of {@link TwillController} that uses {@link RemoteProcessController} to control a running program.
+ * Implementation of {@link TwillController} that uses {@link RemoteProcessController} to control a
+ * running program.
  */
 class RemoteExecutionTwillController implements TwillController {
 
@@ -65,17 +66,17 @@ class RemoteExecutionTwillController implements TwillController {
   private final ScheduledExecutorService scheduler;
   private final RemoteProcessController remoteProcessController;
   private final RemoteExecutionService executionService;
-  private final long gracefulShutdownMillis;
   private final long pollCompletedMillis;
+  private final boolean terminateWithController;
   private volatile boolean terminateOnServiceStop;
 
   RemoteExecutionTwillController(CConfiguration cConf, ProgramRunId programRunId,
-                                 CompletionStage<?> startupCompletionStage,
-                                 RemoteProcessController remoteProcessController,
-                                 ScheduledExecutorService scheduler, RemoteExecutionService service) {
+      CompletionStage<?> startupCompletionStage,
+      RemoteProcessController remoteProcessController,
+      ScheduledExecutorService scheduler, RemoteExecutionService service,
+      boolean terminateWithController) {
     this.programRunId = programRunId;
     this.runId = RunIds.fromString(programRunId.getRun());
-    this.gracefulShutdownMillis = cConf.getLong(Constants.RuntimeMonitor.GRACEFUL_SHUTDOWN_MS);
     this.pollCompletedMillis = cConf.getLong(Constants.RuntimeMonitor.POLL_TIME_MS);
 
     // On start up task succeeded, complete the started stage to unblock the onRunning()
@@ -107,6 +108,7 @@ class RemoteExecutionTwillController implements TwillController {
     this.scheduler = scheduler;
     this.remoteProcessController = remoteProcessController;
     this.executionService = service;
+    this.terminateWithController = terminateWithController;
   }
 
   public void release() {
@@ -117,25 +119,29 @@ class RemoteExecutionTwillController implements TwillController {
   public void complete() {
     terminateOnServiceStop = true;
     executionService.stop();
-
     try {
+      RuntimeJobStatus status;
       RetryStrategy retryStrategy = RetryStrategies.timeLimit(
-        5, TimeUnit.SECONDS, RetryStrategies.exponentialDelay(500, 2000, TimeUnit.MILLISECONDS));
+          5, TimeUnit.SECONDS, RetryStrategies.exponentialDelay(500, 2000, TimeUnit.MILLISECONDS));
 
       // Make sure the remote execution is completed
       // Give 5 seconds for the remote process to shutdown. After 5 seconds, issues a kill.
       long startTime = System.currentTimeMillis();
-      while (Retries.callWithRetries(remoteProcessController::isRunning, retryStrategy, Exception.class::isInstance)) {
+      while ((status = Retries.callWithRetries(
+          remoteProcessController::getStatus, retryStrategy, Exception.class::isInstance))
+          == RuntimeJobStatus.RUNNING) {
         if (System.currentTimeMillis() - startTime >= 5000) {
-          throw new IllegalStateException("Remote process for " + programRunId + " is still running");
+          throw new IllegalStateException(
+              "Remote process for " + programRunId + " is still running");
         }
         TimeUnit.SECONDS.sleep(1);
       }
+      remoteProcessController.kill(status);
     } catch (Exception e) {
       // If there is exception, use the remote execution controller to try killing the remote process
       try {
         LOG.debug("Force termination of remote process for program run {}", programRunId);
-        remoteProcessController.kill();
+        remoteProcessController.kill(RuntimeJobStatus.RUNNING);
       } catch (Exception ex) {
         LOG.warn("Failed to terminate remote process for program run {}", programRunId, ex);
       }
@@ -148,24 +154,22 @@ class RemoteExecutionTwillController implements TwillController {
       return CompletableFuture.completedFuture(this);
     }
 
+    // graceful stop messages are handled by the RemoteClient.
+    // It will shut itself down, so this just needs to return a future that completes when the
+    // remote process is no longer running
+
     CompletableFuture<TwillController> result = completion.thenApply(r -> r);
     scheduler.execute(() -> {
       try {
-        remoteProcessController.terminate();
-
+        if (terminateWithController) {
+          remoteProcessController.terminate();
+        }
         // Poll for completion
-        long killTimeMillis = System.currentTimeMillis() + gracefulShutdownMillis + pollCompletedMillis * 5;
         scheduler.schedule(new Runnable() {
           @Override
           public void run() {
             try {
               if (!remoteProcessController.isRunning()) {
-                completion.complete(RemoteExecutionTwillController.this);
-                return;
-              }
-              // If the process is still running, kills it if it reaches the kill time.
-              if (System.currentTimeMillis() >= killTimeMillis) {
-                remoteProcessController.kill();
                 completion.complete(RemoteExecutionTwillController.this);
                 return;
               }
@@ -190,7 +194,7 @@ class RemoteExecutionTwillController implements TwillController {
   @Override
   public void kill() {
     try {
-      remoteProcessController.kill();
+      remoteProcessController.kill(RuntimeJobStatus.RUNNING);
     } catch (Exception e) {
       throw new RuntimeException("Failed when requesting program " + programRunId + " to stop", e);
     }
@@ -229,7 +233,8 @@ class RemoteExecutionTwillController implements TwillController {
   }
 
   @Override
-  public Future<Set<String>> restartInstances(Map<String, ? extends Set<Integer>> runnableToInstanceIds) {
+  public Future<Set<String>> restartInstances(
+      Map<String, ? extends Set<Integer>> runnableToInstanceIds) {
     throw new UnsupportedOperationException();
   }
 
@@ -244,24 +249,29 @@ class RemoteExecutionTwillController implements TwillController {
   }
 
   @Override
-  public Future<Map<String, LogEntry.Level>> updateLogLevels(Map<String, LogEntry.Level> logLevels) {
-    return Futures.immediateFailedFuture(new UnsupportedOperationException("updateLogLevels is not supported"));
+  public Future<Map<String, LogEntry.Level>> updateLogLevels(
+      Map<String, LogEntry.Level> logLevels) {
+    return Futures.immediateFailedFuture(
+        new UnsupportedOperationException("updateLogLevels is not supported"));
   }
 
   @Override
   public Future<Map<String, LogEntry.Level>> updateLogLevels(String runnableName,
-                                                             Map<String, LogEntry.Level> logLevelsForRunnable) {
-    return Futures.immediateFailedFuture(new UnsupportedOperationException("updateLogLevels is not supported"));
+      Map<String, LogEntry.Level> logLevelsForRunnable) {
+    return Futures.immediateFailedFuture(
+        new UnsupportedOperationException("updateLogLevels is not supported"));
   }
 
   @Override
   public Future<String[]> resetLogLevels(String... loggerNames) {
-    return Futures.immediateFailedFuture(new UnsupportedOperationException("resetLogLevels is not supported"));
+    return Futures.immediateFailedFuture(
+        new UnsupportedOperationException("resetLogLevels is not supported"));
   }
 
   @Override
   public Future<String[]> resetRunnableLogLevels(String runnableName, String... loggerNames) {
-    return Futures.immediateFailedFuture(new UnsupportedOperationException("resetRunnableLogLevels is not supported"));
+    return Futures.immediateFailedFuture(
+        new UnsupportedOperationException("resetRunnableLogLevels is not supported"));
   }
 
   @Override
@@ -271,12 +281,14 @@ class RemoteExecutionTwillController implements TwillController {
 
   @Override
   public Future<Command> sendCommand(Command command) {
-    return Futures.immediateFailedFuture(new UnsupportedOperationException("sendCommand is not supported"));
+    return Futures.immediateFailedFuture(
+        new UnsupportedOperationException("sendCommand is not supported"));
   }
 
   @Override
   public Future<Command> sendCommand(String runnableName, Command command) {
-    return Futures.immediateFailedFuture(new UnsupportedOperationException("sendCommand is not supported"));
+    return Futures.immediateFailedFuture(
+        new UnsupportedOperationException("sendCommand is not supported"));
   }
 
   @Override
@@ -286,7 +298,8 @@ class RemoteExecutionTwillController implements TwillController {
 
   @Override
   public void onTerminated(Runnable runnable, Executor executor) {
-    completion.whenCompleteAsync((remoteExecutionTwillController, throwable) -> runnable.run(), executor);
+    completion.whenCompleteAsync((remoteExecutionTwillController, throwable) -> runnable.run(),
+        executor);
   }
 
   @Override
@@ -295,7 +308,8 @@ class RemoteExecutionTwillController implements TwillController {
   }
 
   @Override
-  public void awaitTerminated(long timeout, TimeUnit timeoutUnit) throws TimeoutException, ExecutionException {
+  public void awaitTerminated(long timeout, TimeUnit timeoutUnit)
+      throws TimeoutException, ExecutionException {
     Uninterruptibles.getUninterruptibly(completion, timeout, timeoutUnit);
   }
 

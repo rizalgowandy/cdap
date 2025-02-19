@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.api.lineage.field;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.lineage.field.EndPoint;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,6 +29,7 @@ import java.util.Objects;
  */
 @Beta
 public class FieldWriteOperation extends FieldOperation {
+
   private final List<String> inputFields;
   private final EndPoint sink;
 
@@ -41,7 +41,8 @@ public class FieldWriteOperation extends FieldOperation {
    * @param sink the sink for the operation
    * @param inputFields the array of input fields to be written
    */
-  public FieldWriteOperation(String name, String description, EndPoint sink, String... inputFields) {
+  public FieldWriteOperation(String name, String description, EndPoint sink,
+      String... inputFields) {
     this(name, description, sink, Arrays.asList(inputFields));
   }
 
@@ -53,7 +54,8 @@ public class FieldWriteOperation extends FieldOperation {
    * @param sink the sink for the operation
    * @param inputFields the list of input fields to be written
    */
-  public FieldWriteOperation(String name, String description, EndPoint sink, List<String> inputFields) {
+  public FieldWriteOperation(String name, String description, EndPoint sink,
+      List<String> inputFields) {
     super(name, OperationType.WRITE, description);
     this.sink = sink;
     this.inputFields = Collections.unmodifiableList(new ArrayList<>(inputFields));
@@ -85,8 +87,8 @@ public class FieldWriteOperation extends FieldOperation {
       return false;
     }
     FieldWriteOperation that = (FieldWriteOperation) o;
-    return Objects.equals(inputFields, that.inputFields) &&
-      Objects.equals(sink, that.sink);
+    return Objects.equals(inputFields, that.inputFields)
+        && Objects.equals(sink, that.sink);
   }
 
   @Override

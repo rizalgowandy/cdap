@@ -27,6 +27,7 @@ import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.app.store.Store;
 import io.cdap.cdap.common.BadRequestException;
+import io.cdap.cdap.common.GoneException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.app.RunIds;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -47,6 +48,7 @@ import io.cdap.cdap.logging.gateway.handlers.ProgramRunRecordFetcher;
 import io.cdap.cdap.messaging.data.MessageId;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.id.NamespaceId;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.StandardPermission;
@@ -63,6 +65,11 @@ import io.cdap.cdap.store.StoreDefinition;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.tephra.TransactionSystemClient;
 import org.junit.After;
 import org.junit.Assert;
@@ -74,10 +81,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import java.io.IOException;
-import java.util.Collections;
-import javax.annotation.Nullable;
 
 /**
  * Unit test for {@link DirectRuntimeRequestValidator}.
@@ -136,7 +139,7 @@ public class DirectRuntimeRequestValidatorTest {
   }
 
   @Test
-  public void testValid() throws BadRequestException {
+  public void testValid() throws BadRequestException, GoneException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").spark("spark").run(RunIds.generate());
 
     // Insert the run
@@ -160,7 +163,7 @@ public class DirectRuntimeRequestValidatorTest {
   }
 
   @Test (expected = BadRequestException.class)
-  public void testInvalid() throws BadRequestException {
+  public void testInvalid() throws BadRequestException, GoneException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").spark("spark").run(RunIds.generate());
 
     // Validation should fail
@@ -171,7 +174,7 @@ public class DirectRuntimeRequestValidatorTest {
   }
 
   @Test (expected = UnauthorizedException.class)
-  public void testUnauthorized() throws BadRequestException {
+  public void testUnauthorized() throws BadRequestException, GoneException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").spark("spark").run(RunIds.generate());
 
     RuntimeRequestValidator validator = new DirectRuntimeRequestValidator(cConf, txRunner,
@@ -186,8 +189,8 @@ public class DirectRuntimeRequestValidatorTest {
     validator.getProgramRunStatus(programRunId, new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
   }
 
-  @Test (expected = BadRequestException.class)
-  public void testNotRunning() throws BadRequestException {
+  @Test (expected = GoneException.class)
+  public void testNotRunning() throws BadRequestException, GoneException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").spark("spark").run(RunIds.generate());
 
     // Insert a completed run
@@ -210,7 +213,7 @@ public class DirectRuntimeRequestValidatorTest {
   }
 
   @Test
-  public void testFetcher() throws BadRequestException {
+  public void testFetcher() throws BadRequestException, GoneException {
     ArtifactId artifactId = new ArtifactId("test", new ArtifactVersion("1.0"), ArtifactScope.USER);
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").spark("spark").run(RunIds.generate());
     ProgramRunStatus programRunStatus = ProgramRunStatus.RUNNING;
@@ -243,10 +246,12 @@ public class DirectRuntimeRequestValidatorTest {
   }
 
   @Test
-  public void testValidProgramInStoppingState() throws BadRequestException {
+  public void testValidProgramInStoppingState() throws BadRequestException, GoneException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app").spark("spark").run(RunIds.generate());
 
     // Insert the run
+    long now = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
+    long terminateTs = now + 300L;
     TransactionRunners.run(txRunner, context -> {
       AppMetadataStore store = AppMetadataStore.create(context);
       store.recordProgramProvisioning(programRunId, Collections.emptyMap(),
@@ -255,8 +260,7 @@ public class DirectRuntimeRequestValidatorTest {
       store.recordProgramProvisioned(programRunId, 1, createSourceId(2));
       store.recordProgramStart(programRunId, null, Collections.emptyMap(), createSourceId(3));
       store.recordProgramRunning(programRunId, System.currentTimeMillis(), null, createSourceId(3));
-      store.recordProgramStopping(programRunId, createSourceId(3), System.currentTimeMillis(),
-                                  System.currentTimeMillis() + 1000);
+      store.recordProgramStopping(programRunId, createSourceId(3), now, terminateTs);
     });
 
     // Validation should pass
@@ -267,7 +271,7 @@ public class DirectRuntimeRequestValidatorTest {
       HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
     // After recording the program start in AppMetaDataStore the expected state is Stopping
     Assert.assertEquals(ProgramRunStatus.STOPPING, programRunInfo.getProgramRunStatus());
-    Assert.assertNotNull("Payload isn't null when program status is Stopping", programRunInfo.getPayload());
+    Assert.assertEquals(terminateTs, programRunInfo.getTerminateTimestamp());
   }
 
   private byte[] createSourceId(int value) {
@@ -293,6 +297,20 @@ public class DirectRuntimeRequestValidatorTest {
       }
       if (!runId.equals(runRecord.getProgramRunId())) {
         throw new NotFoundException(runId);
+      }
+      return runRecord;
+    }
+
+    @Override
+    public RunRecordDetail getRunRecordMeta(ProgramReference programRef, String runId) throws NotFoundException {
+      if (runRecord == null) {
+        throw new NotFoundException(String.format("No run record found for program %s and runID: %s",
+                                                  programRef, runId));
+      }
+      if (!Objects.equals(programRef, runRecord.getProgramRunId().getParent().getProgramReference())
+        || !Objects.equals(runId, runRecord.getProgramRunId().getRun())) {
+        throw new NotFoundException(String.format("No run record found for program %s and runID: %s",
+                                                  programRef, runId));
       }
       return runRecord;
     }

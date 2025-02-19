@@ -19,7 +19,6 @@ package io.cdap.cdap.client.app;
 import io.cdap.cdap.api.service.http.AbstractHttpServiceHandler;
 import io.cdap.cdap.api.service.http.HttpServiceRequest;
 import io.cdap.cdap.api.service.http.HttpServiceResponder;
-
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 
@@ -27,6 +26,7 @@ import javax.ws.rs.Path;
  * Fake no-op Service.
  */
 public final class PingService extends AbstractHttpServiceHandler {
+
   public static final String NAME = "pingService";
 
   @Path("ping")

@@ -17,7 +17,6 @@
 package io.cdap.cdap.spi.data.table.field;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import javax.annotation.Nullable;
 
 /**
@@ -49,6 +48,13 @@ public final class Fields {
    */
   public static FieldType stringType(String name) {
     return new FieldType(name, FieldType.Type.STRING);
+  }
+
+  /**
+   * @return the FieldType of BOOLEAN with the given name
+   */
+  public static FieldType booleanType(String name) {
+    return new FieldType(name, FieldType.Type.BOOLEAN);
   }
 
   /**
@@ -114,6 +120,17 @@ public final class Fields {
    */
   public static Field<Float> floatField(String name, @Nullable Float value) {
     return new Field<>(new FieldType(name, FieldType.Type.FLOAT), value);
+  }
+
+  /**
+   * Create a field with boolean value.
+   *
+   * @param name name of the field
+   * @param value value of the field
+   * @return a field with type boolean
+   */
+  public static Field<Boolean> booleanField(String name, @Nullable Boolean value) {
+    return new Field<>(new FieldType(name, FieldType.Type.BOOLEAN), value);
   }
 
   /**

@@ -21,7 +21,6 @@ import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.management.ManagementFactory;
@@ -43,8 +42,8 @@ public class StackHandler extends AbstractHttpHandler {
   @Path(Constants.Gateway.API_VERSION_3 + "/system/services/{service-name}/stacks")
   @GET
   public void stacks(HttpRequest request, HttpResponder responder,
-                     @PathParam("service-name") String serviceName,
-                     @QueryParam("depth") @DefaultValue("20") int depth) {
+      @PathParam("service-name") String serviceName,
+      @QueryParam("depth") @DefaultValue("20") int depth) {
     StringWriter stringWriter = new StringWriter();
     getThreadInfo(new PrintWriter(stringWriter), serviceName, depth);
     responder.sendString(HttpResponseStatus.OK, stringWriter.toString());
@@ -65,7 +64,7 @@ public class StackHandler extends AbstractHttpHandler {
         continue;
       }
       println(stream, "Thread %s",
-              getTaskName(info.getThreadId(), info.getThreadName()) + ":");
+          getTaskName(info.getThreadId(), info.getThreadName()) + ":");
       Thread.State state = info.getThreadState();
       println(stream, "  State: %s", state);
       println(stream, "  Blocked count: %s", info.getBlockedCount());
@@ -79,7 +78,7 @@ public class StackHandler extends AbstractHttpHandler {
       } else if (state == Thread.State.BLOCKED) {
         println(stream, "  Blocked on %s", info.getLockName());
         println(stream, "  Blocked by %s",
-                         getTaskName(info.getLockOwnerId(), info.getLockOwnerName()));
+            getTaskName(info.getLockOwnerId(), info.getLockOwnerName()));
       }
       println(stream, "  Stack:");
       for (StackTraceElement frame : info.getStackTrace()) {

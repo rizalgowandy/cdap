@@ -23,19 +23,19 @@ import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
 import io.cdap.cdap.data2.metadata.writer.MetadataMessage.Type;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.StoreRequest;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.StoreRequest;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
+import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
-
 /**
- * An implementation of {@link MetadataPublisher} that publish metadata information to {@link MessagingService}.
+ * An implementation of {@link MetadataPublisher} that publish metadata information to {@link
+ * MessagingService}.
  */
 public class MessagingMetadataPublisher implements MetadataPublisher {
 
@@ -55,11 +55,13 @@ public class MessagingMetadataPublisher implements MetadataPublisher {
 
   @Override
   public void publish(EntityId publisher, MetadataOperation operation) {
-    MetadataMessage message = new MetadataMessage(Type.METADATA_OPERATION, publisher, GSON.toJsonTree(operation));
+    MetadataMessage message = new MetadataMessage(Type.METADATA_OPERATION, publisher,
+        GSON.toJsonTree(operation));
     StoreRequest request = StoreRequestBuilder.of(topic).addPayload(GSON.toJson(message)).build();
     LOG.trace("Publishing message {} to topic {}", message, topic);
     try {
-      Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy, Retries.ALWAYS_TRUE);
+      Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy,
+          Retries.ALWAYS_TRUE);
     } catch (Exception e) {
       throw new RuntimeException("Failed to publish metadata operation: " + operation, e);
     }

@@ -20,7 +20,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.cdap.cdap.common.AlreadyExistsException;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
 import io.cdap.cdap.proto.id.NamespacedEntityId;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,11 +40,11 @@ public class InMemoryOwnerStore extends OwnerStore {
 
   @Override
   public synchronized void add(NamespacedEntityId entityId,
-                               KerberosPrincipalId kerberosPrincipalId) throws AlreadyExistsException {
+      KerberosPrincipalId kerberosPrincipalId) throws AlreadyExistsException {
     validate(entityId, kerberosPrincipalId);
     if (ownerInfo.containsKey(entityId)) {
       throw new AlreadyExistsException(entityId,
-                                       String.format("Owner information already exists for entity '%s'.", entityId));
+          String.format("Owner information already exists for entity '%s'.", entityId));
     }
     ownerInfo.put(entityId, kerberosPrincipalId);
   }
@@ -58,7 +57,8 @@ public class InMemoryOwnerStore extends OwnerStore {
   }
 
   @Override
-  public synchronized <T extends NamespacedEntityId> Map<T, KerberosPrincipalId> getOwners(Set<T> ids) {
+  public synchronized <T extends NamespacedEntityId> Map<T, KerberosPrincipalId> getOwners(
+      Set<T> ids) {
     ids.forEach(this::validate);
     Map<T, KerberosPrincipalId> result = new HashMap<>();
     for (T id : ids) {

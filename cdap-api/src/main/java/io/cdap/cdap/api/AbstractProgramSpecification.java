@@ -17,26 +17,28 @@
 package io.cdap.cdap.api;
 
 import io.cdap.cdap.api.plugin.Plugin;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Base abstract class for {@link ProgramSpecification} which contains common information for various program
- * specifications.
+ * Base abstract class for {@link ProgramSpecification} which contains common information for
+ * various program specifications.
  */
 public abstract class AbstractProgramSpecification implements ProgramSpecification {
+
   private final String className;
   private final String name;
   private final String description;
   private final Map<String, Plugin> plugins;
 
-  public AbstractProgramSpecification(String className, String name, String description, Map<String, Plugin> plugins) {
+  public AbstractProgramSpecification(String className, String name, String description,
+      Map<String, Plugin> plugins) {
     this.className = className;
     this.name = name;
     this.description = description;
-    this.plugins = plugins.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(plugins));
+    this.plugins = plugins.isEmpty() ? Collections.emptyMap()
+        : Collections.unmodifiableMap(new HashMap<>(plugins));
   }
 
   @Override

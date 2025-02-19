@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -39,6 +39,8 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.NamespaceAdminTestModule;
 import io.cdap.cdap.common.guice.NonCustomLocationUnitTestModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
@@ -64,8 +66,6 @@ import io.cdap.cdap.data2.dataset2.InMemoryDatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
 import io.cdap.cdap.data2.transaction.DelegatingTransactionSystemClientService;
 import io.cdap.cdap.data2.transaction.TransactionSystemClientService;
-import io.cdap.cdap.explore.client.DiscoveryExploreClient;
-import io.cdap.cdap.explore.client.ExploreFacade;
 import io.cdap.cdap.proto.DatasetModuleMeta;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.DatasetModuleId;
@@ -91,6 +91,17 @@ import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
 import io.cdap.common.http.ObjectResponse;
 import io.cdap.http.HttpHandler;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.tephra.TransactionManager;
 import org.apache.tephra.TransactionSystemClient;
 import org.apache.tephra.runtime.TransactionInMemoryModule;
@@ -105,18 +116,6 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 
 /**
  * Base class for unit-tests that require running of {@link DatasetService}
@@ -146,7 +145,7 @@ public abstract class DatasetServiceTestBase {
 
   protected static void initialize() throws Exception {
     locationFactory = new LocalLocationFactory(TMP_FOLDER.newFolder());
-    initializeAndStartService(createCConf());
+    initializeAndStartService(createCconf());
   }
 
   @AfterClass
@@ -160,6 +159,7 @@ public abstract class DatasetServiceTestBase {
     // TODO: this whole method is a mess. Streamline it!
     injector = Guice.createInjector(
       new ConfigModule(cConf),
+      RemoteAuthenticatorModules.getNoOpModule(),
       new InMemoryDiscoveryModule(),
       new NonCustomLocationUnitTestModule(),
       new NamespaceAdminTestModule(),
@@ -182,13 +182,7 @@ public abstract class DatasetServiceTestBase {
         }
       });
 
-    AccessEnforcer authEnforcer = injector.getInstance(AccessEnforcer.class);
-
-    AuthenticationContext authenticationContext = injector.getInstance(AuthenticationContext.class);
-
     transactionRunner = injector.getInstance(TransactionRunner.class);
-
-    DiscoveryService discoveryService = injector.getInstance(DiscoveryService.class);
     discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
     dsFramework = injector.getInstance(RemoteDatasetFramework.class);
     // Tx Manager to support working with datasets
@@ -196,11 +190,7 @@ public abstract class DatasetServiceTestBase {
     txManager.startAndWait();
     StructuredTableAdmin structuredTableAdmin = injector.getInstance(StructuredTableAdmin.class);
     StoreDefinition.createAllTables(structuredTableAdmin);
-    TransactionSystemClient txSystemClient = injector.getInstance(TransactionSystemClient.class);
-    TransactionSystemClientService txSystemClientService =
-      new DelegatingTransactionSystemClientService(txSystemClient);
 
-    NamespacePathLocator namespacePathLocator = injector.getInstance(NamespacePathLocator.class);
     SystemDatasetInstantiatorFactory datasetInstantiatorFactory =
       new SystemDatasetInstantiatorFactory(locationFactory, dsFramework, cConf);
 
@@ -210,10 +200,12 @@ public abstract class DatasetServiceTestBase {
       new DatasetAdminService(dsFramework, cConf, locationFactory, datasetInstantiatorFactory, impersonator);
     ImmutableSet<HttpHandler> handlers =
       ImmutableSet.<HttpHandler>of(new DatasetAdminOpHTTPHandler(datasetAdminService));
-    MetricsCollectionService metricsCollectionService = injector.getInstance(MetricsCollectionService.class);
+    CommonNettyHttpServiceFactory commonNettyHttpServiceFactory =
+      injector.getInstance(CommonNettyHttpServiceFactory.class);
+    DiscoveryService discoveryService = injector.getInstance(DiscoveryService.class);
 
     opExecutorService = new DatasetOpExecutorService(cConf, SConfiguration.create(),
-                                                     discoveryService, metricsCollectionService, handlers);
+                                                     discoveryService, commonNettyHttpServiceFactory, handlers);
     opExecutorService.startAndWait();
 
     Map<String, DatasetModule> defaultModules =
@@ -227,8 +219,6 @@ public abstract class DatasetServiceTestBase {
     registryFactory = injector.getInstance(DatasetDefinitionRegistryFactory.class);
     inMemoryDatasetFramework = new InMemoryDatasetFramework(registryFactory, modules);
 
-    DiscoveryExploreClient exploreClient = new DiscoveryExploreClient(discoveryServiceClient, authenticationContext);
-    ExploreFacade exploreFacade = new ExploreFacade(exploreClient, cConf);
     namespaceAdmin = injector.getInstance(NamespaceAdmin.class);
     namespaceAdmin.create(NamespaceMeta.DEFAULT);
     ownerAdmin = injector.getInstance(OwnerAdmin.class);
@@ -238,6 +228,13 @@ public abstract class DatasetServiceTestBase {
     DatasetInstanceManager instanceManager =
       new DatasetInstanceManager(transactionRunner);
 
+    AccessEnforcer authEnforcer = injector.getInstance(AccessEnforcer.class);
+    AuthenticationContext authenticationContext = injector.getInstance(AuthenticationContext.class);
+    NamespacePathLocator namespacePathLocator = injector.getInstance(NamespacePathLocator.class);
+    TransactionSystemClient txSystemClient = injector.getInstance(TransactionSystemClient.class);
+    TransactionSystemClientService txSystemClientService =
+      new DelegatingTransactionSystemClientService(txSystemClient);
+
     DatasetTypeService noAuthTypeService = new DefaultDatasetTypeService(
       typeManager, namespaceAdmin, namespacePathLocator,
       cConf, impersonator, txSystemClientService, transactionRunner, defaultModules);
@@ -245,13 +242,13 @@ public abstract class DatasetServiceTestBase {
                                                                          authenticationContext);
 
     instanceService = new DatasetInstanceService(typeService, noAuthTypeService,
-                                                 instanceManager, opExecutor, exploreFacade,
+                                                 instanceManager, opExecutor,
                                                  namespaceQueryAdmin, ownerAdmin, authEnforcer,
                                                  authenticationContext,
                                                  new NoOpMetadataServiceClient());
 
     service = new DatasetService(cConf, SConfiguration.create(),
-                                 discoveryService, discoveryServiceClient, metricsCollectionService,
+                                 discoveryService, discoveryServiceClient, commonNettyHttpServiceFactory,
                                  new HashSet<>(), typeService, instanceService);
 
     // Start dataset service, wait for it to be discoverable
@@ -279,7 +276,7 @@ public abstract class DatasetServiceTestBase {
     return discoverable;
   }
 
-  protected static CConfiguration createCConf() throws IOException {
+  protected static CConfiguration createCconf() throws IOException {
     CConfiguration cConf = CConfiguration.create();
     File dataDir = new File(TMP_FOLDER.newFolder(), "data");
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, dataDir.getAbsolutePath());

@@ -35,7 +35,6 @@ import io.cdap.cdap.common.io.Decoder;
 import io.cdap.cdap.common.io.Encoder;
 import io.cdap.cdap.internal.io.DatumReaderFactory;
 import io.cdap.cdap.internal.io.DatumWriterFactory;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -47,16 +46,19 @@ import java.util.Base64;
  * Utility to encode and decode keys that are shared between keyManagers.
  */
 public class KeyIdentifierCodec implements Codec<KeyIdentifier> {
-  private static final TypeToken<KeyIdentifier> KEY_IDENTIFIER_TYPE = new TypeToken<KeyIdentifier>() { };
+
+  private static final TypeToken<KeyIdentifier> KEY_IDENTIFIER_TYPE = new TypeToken<KeyIdentifier>() {
+  };
 
   private final DatumReaderFactory readerFactory;
   private final DatumWriterFactory writerFactory;
   private final Gson gson;
 
   private static class ByteArrayBase64Deserializer implements JsonDeserializer<byte[]> {
+
     @Override
     public byte[] deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-      throws JsonParseException {
+        throws JsonParseException {
       return Base64.getDecoder().decode(json.getAsString());
     }
   }
@@ -65,7 +67,8 @@ public class KeyIdentifierCodec implements Codec<KeyIdentifier> {
   public KeyIdentifierCodec(DatumReaderFactory readerFactory, DatumWriterFactory writerFactory) {
     this.readerFactory = readerFactory;
     this.writerFactory = writerFactory;
-    this.gson = new GsonBuilder().registerTypeAdapter(byte[].class, new ByteArrayBase64Deserializer()).create();
+    this.gson = new GsonBuilder().registerTypeAdapter(byte[].class,
+        new ByteArrayBase64Deserializer()).create();
   }
 
   @Override
@@ -75,7 +78,7 @@ public class KeyIdentifierCodec implements Codec<KeyIdentifier> {
 
     encoder.writeInt(KeyIdentifier.Schemas.getVersion());
     DatumWriter<KeyIdentifier> writer = writerFactory.create(KEY_IDENTIFIER_TYPE,
-                                                             KeyIdentifier.Schemas.getCurrentSchema());
+        KeyIdentifier.Schemas.getCurrentSchema());
     writer.encode(keyIdentifier, encoder);
     return bos.toByteArray();
   }
@@ -86,7 +89,7 @@ public class KeyIdentifierCodec implements Codec<KeyIdentifier> {
     Decoder decoder = new BinaryDecoder(bis);
 
     DatumReader<KeyIdentifier> reader = readerFactory.create(KEY_IDENTIFIER_TYPE,
-                                                             KeyIdentifier.Schemas.getCurrentSchema());
+        KeyIdentifier.Schemas.getCurrentSchema());
     try {
       int readVersion = decoder.readInt();
       Schema readSchema = KeyIdentifier.Schemas.getSchemaVersion(readVersion);

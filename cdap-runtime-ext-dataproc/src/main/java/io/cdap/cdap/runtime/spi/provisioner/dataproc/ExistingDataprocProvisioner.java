@@ -17,7 +17,10 @@
 package io.cdap.cdap.runtime.spi.provisioner.dataproc;
 
 import com.google.common.base.Strings;
+import io.cdap.cdap.api.exception.ErrorCategory;
+import io.cdap.cdap.api.exception.ErrorType;
 import io.cdap.cdap.runtime.spi.RuntimeMonitorType;
+import io.cdap.cdap.runtime.spi.common.DataprocImageVersion;
 import io.cdap.cdap.runtime.spi.provisioner.Cluster;
 import io.cdap.cdap.runtime.spi.provisioner.ClusterStatus;
 import io.cdap.cdap.runtime.spi.provisioner.PollingStrategies;
@@ -26,13 +29,12 @@ import io.cdap.cdap.runtime.spi.provisioner.ProvisionerContext;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerSpecification;
 import io.cdap.cdap.runtime.spi.ssh.SSHKeyPair;
 import io.cdap.cdap.runtime.spi.ssh.SSHPublicKey;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Provisioner for connecting an existing Dataproc cluster.
@@ -42,13 +44,14 @@ public class ExistingDataprocProvisioner extends AbstractDataprocProvisioner {
   private static final Logger LOG = LoggerFactory.getLogger(ExistingDataprocProvisioner.class);
 
   private static final ProvisionerSpecification SPEC = new ProvisionerSpecification(
-    "gcp-existing-dataproc", "Existing Dataproc",
-    "Connect and Execute jobs on existing Dataproc cluster.");
+      "gcp-existing-dataproc", "Existing Dataproc",
+      "Connect and Execute jobs on existing Dataproc cluster.");
   // Keys for looking up system properties
 
   private static final String CLUSTER_NAME = "clusterName";
   private static final String SSH_USER = "sshUser";
   private static final String SSH_KEY = "sshKey";
+  private static final DataprocClientFactory CLIENT_FACTORY = new DefaultDataprocClientFactory();
 
   public ExistingDataprocProvisioner() {
     super(SPEC);
@@ -79,19 +82,25 @@ public class ExistingDataprocProvisioner extends AbstractDataprocProvisioner {
       String sshUser = contextProperties.get(SSH_USER);
       String sshKey = contextProperties.get(SSH_KEY);
       if (Strings.isNullOrEmpty(sshUser) || Strings.isNullOrEmpty(sshKey)) {
-        throw new DataprocRuntimeException("SSH User and key are required for monitoring through SSH.");
+        String errorMessage = "SSH User and key are required for monitoring through SSH.";
+        throw new DataprocRuntimeException.Builder()
+            .withErrorCategory(context.getErrorCategory())
+            .withErrorReason(errorMessage)
+            .withErrorMessage(errorMessage)
+            .withErrorType(ErrorType.USER)
+            .build();
       }
 
       SSHKeyPair sshKeyPair = new SSHKeyPair(new SSHPublicKey(sshUser, ""),
-                                             () -> sshKey.getBytes(StandardCharsets.UTF_8));
+          () -> sshKey.getBytes(StandardCharsets.UTF_8));
       // The ssh context shouldn't be null, but protect it in case there is platform bug
       Optional.ofNullable(context.getSSHContext()).ifPresent(c -> c.setSSHKeyPair(sshKeyPair));
     }
 
     String clusterName = contextProperties.get(CLUSTER_NAME);
-    try (DataprocClient client = DataprocClient.fromConf(conf, false)) {
+    try (DataprocClient client = CLIENT_FACTORY.create(conf, context.getErrorCategory())) {
       try {
-        client.updateClusterLabels(clusterName, getSystemLabels());
+        client.updateClusterLabels(clusterName, getCommonDataprocLabels(context));
       } catch (DataprocRuntimeException e) {
         // It's ok not able to update the labels
         // Only log the stacktrace if trace log level is enabled
@@ -101,10 +110,41 @@ public class ExistingDataprocProvisioner extends AbstractDataprocProvisioner {
           LOG.debug("Cannot update cluster labels due to {}", e.getMessage());
         }
       }
-      return client.getCluster(clusterName)
-        .filter(c -> c.getStatus() == ClusterStatus.RUNNING)
-        .orElseThrow(() -> new DataprocRuntimeException("Dataproc cluster " + clusterName +
-                                                          " does not exist or not in running state."));
+      final String errorMessage = String.format("Dataproc cluster '%s' does not exist or not in "
+          + "running state.", clusterName);
+      Cluster cluster = client.getCluster(clusterName)
+          .filter(c -> c.getStatus() == ClusterStatus.RUNNING)
+          .orElseThrow(() -> new DataprocRuntimeException.Builder()
+              .withErrorCategory(context.getErrorCategory())
+              .withErrorReason(errorMessage)
+              .withErrorMessage(errorMessage)
+              .withErrorType(ErrorType.USER)
+              .build());
+
+      // Determine cluster version and fail if version is smaller than 1.5
+      Optional<String> optImageVer = client.getClusterImageVersion(clusterName);
+      Optional<DataprocImageVersion> optComparableImageVer = optImageVer.map(this::extractVersion);
+      if (!optImageVer.isPresent()) {
+        LOG.warn("Unable to determine Dataproc version.");
+      } else if (!optComparableImageVer.isPresent()) {
+        LOG.warn("Unable to extract Dataproc version from string '{}'.", optImageVer.get());
+      } else if (DATAPROC_1_5_VERSION.compareTo(optComparableImageVer.get()) > 0) {
+        String errorReason = "Dataproc cluster must be version 1.5 or greater "
+            + "for pipeline execution.";
+        ErrorCategory errorCategory = DataprocRuntimeException.ERROR_CATEGORY_PROVISIONING_CONFIGURATION;
+        if (context.getErrorCategory() != null) {
+          errorCategory =
+              new ErrorCategory(context.getErrorCategory().getParentCategory(), "Configuration");
+        }
+        throw new DataprocRuntimeException.Builder()
+            .withErrorCategory(errorCategory)
+            .withErrorReason(errorReason)
+            .withErrorMessage(errorReason)
+            .withErrorType(ErrorType.USER)
+            .build();
+      }
+
+      return cluster;
     }
   }
 
@@ -126,6 +166,10 @@ public class ExistingDataprocProvisioner extends AbstractDataprocProvisioner {
 
   @Override
   public PollingStrategy getPollingStrategy(ProvisionerContext context, Cluster cluster) {
-    return PollingStrategies.fixedInterval(0, TimeUnit.SECONDS);
+    if (cluster.getStatus() == ClusterStatus.CREATING) {
+      return PollingStrategies.fixedInterval(0, TimeUnit.SECONDS);
+    }
+    DataprocConf conf = DataprocConf.create(createContextProperties(context));
+    return PollingStrategies.fixedInterval(conf.getPollInterval(), TimeUnit.SECONDS);
   }
 }

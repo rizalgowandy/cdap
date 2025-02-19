@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
+import io.cdap.cdap.api.app.AppStateStore;
 import io.cdap.cdap.api.artifact.ArtifactSummary;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
@@ -50,12 +51,14 @@ import io.cdap.cdap.etl.mock.batch.joiner.MockJoiner;
 import io.cdap.cdap.etl.mock.spark.Window;
 import io.cdap.cdap.etl.mock.spark.compute.StringValueFilterCompute;
 import io.cdap.cdap.etl.mock.spark.streaming.MockSource;
+import io.cdap.cdap.etl.mock.spark.streaming.MockStreamingEventSource;
 import io.cdap.cdap.etl.mock.test.HydratorTestBase;
 import io.cdap.cdap.etl.mock.transform.FilterErrorTransform;
 import io.cdap.cdap.etl.mock.transform.FlattenErrorTransform;
 import io.cdap.cdap.etl.mock.transform.IdentityTransform;
 import io.cdap.cdap.etl.mock.transform.IntValueFilterTransform;
 import io.cdap.cdap.etl.mock.transform.NullFieldSplitterTransform;
+import io.cdap.cdap.etl.mock.transform.RecoveringTransform;
 import io.cdap.cdap.etl.mock.transform.SleepTransform;
 import io.cdap.cdap.etl.mock.transform.StringValueFilterTransform;
 import io.cdap.cdap.etl.proto.v2.DataStreamsConfig;
@@ -76,12 +79,6 @@ import io.cdap.cdap.test.DataSetManager;
 import io.cdap.cdap.test.MetricsManager;
 import io.cdap.cdap.test.SparkManager;
 import io.cdap.cdap.test.TestConfiguration;
-import org.apache.twill.api.RunId;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,11 +87,17 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.apache.twill.api.RunId;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
 
 /**
  *
@@ -104,10 +107,9 @@ public class DataStreamsTest extends HydratorTestBase {
   private static final ArtifactId APP_ARTIFACT_ID = NamespaceId.DEFAULT.artifact("app", "1.0.0");
   private static final ArtifactSummary APP_ARTIFACT = new ArtifactSummary("app", "1.0.0");
   private static String checkpointDir;
-  private static int startCount = 0;
+  private static int startCount;
   @ClassRule
-  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.Explore.EXPLORE_ENABLED, false,
-                                                                       Constants.AppFabric.SPARK_COMPAT,
+  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.AppFabric.SPARK_COMPAT,
                                                                        Compat.SPARK_COMPAT);
 
   @BeforeClass
@@ -257,6 +259,67 @@ public class DataStreamsTest extends HydratorTestBase {
   }
 
   @Test
+  public void testSourceMacrosWithoutAllowFlagFails() throws Exception {
+    Schema schema = Schema.recordOf("test", Schema.Field.of("id", Schema.of(Schema.Type.STRING)));
+    String outputName = UUID.randomUUID().toString();
+    DataStreamsConfig etlConfig = DataStreamsConfig.builder()
+        .addStage(new ETLStage("source",
+            MockSource.getPlugin(schema, Collections.emptyList(), 1L, "${logicalStartTime()}")))
+        .addStage(new ETLStage("sink", MockSink.getPlugin(outputName)))
+        .setBatchInterval("1s")
+        .addConnection("source", "sink")
+        .build();
+
+    ApplicationId appId = NamespaceId.DEFAULT.app("sourceMacroFailsTest");
+    AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, etlConfig);
+    ApplicationManager appManager = deployApplication(appId, appRequest);
+
+    Map<String, String> runtimeArgs = new HashMap<>();
+    SparkManager sparkManager = appManager.getSparkManager(DataStreamsSparkLauncher.NAME);
+    sparkManager.start(runtimeArgs);
+    sparkManager.waitForRun(ProgramRunStatus.FAILED, 10, TimeUnit.SECONDS);
+  }
+
+  @Test
+  public void testSourceMacrosWithAllowFlag() throws Exception {
+    Schema schema = Schema.recordOf("test", Schema.Field.of("id", Schema.of(Schema.Type.STRING)));
+    List<StructuredRecord> input = new ArrayList<>();
+    input.add(StructuredRecord.builder(schema).set("id", "123").build());
+
+    String outputName = UUID.randomUUID().toString();
+    DataStreamsConfig etlConfig = DataStreamsConfig.builder()
+        .addStage(new ETLStage("source",
+            MockSource.getPlugin(schema, input, 1L, "${logicalStartTime()}")))
+        .addStage(new ETLStage("sink", MockSink.getPlugin(outputName)))
+        .setBatchInterval("1s")
+        .addConnection("source", "sink")
+        .build();
+
+    ApplicationId appId = NamespaceId.DEFAULT.app("sourceMacroTest");
+    AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, etlConfig);
+    ApplicationManager appManager = deployApplication(appId, appRequest);
+
+    Map<String, String> runtimeArgs = new HashMap<>();
+    runtimeArgs.put(io.cdap.cdap.etl.common.Constants.CDAP_STREAMING_ALLOW_SOURCE_MACROS, "true");
+    SparkManager sparkManager = appManager.getSparkManager(DataStreamsSparkLauncher.NAME);
+    sparkManager.start(runtimeArgs);
+    sparkManager.waitForRun(ProgramRunStatus.RUNNING, 10, TimeUnit.SECONDS);
+
+    DataSetManager<Table> outputManager = getDataset(outputName);
+    Tasks.waitFor(
+        true,
+        () -> {
+          outputManager.flush();
+          return input.equals(MockSink.readOutput(outputManager));
+        },
+        1,
+        TimeUnit.MINUTES);
+
+    sparkManager.stop();
+    sparkManager.waitForStopped(10, TimeUnit.SECONDS);
+  }
+
+  @Test
   public void testTransformComputeWithMacros() throws Exception {
     Schema schema = Schema.recordOf(
       "test",
@@ -372,8 +435,8 @@ public class DataStreamsTest extends HydratorTestBase {
       .addStage(new ETLStage("users2", MockSource.getPlugin(userSchema, users2)))
       .addStage(new ETLStage("sink1", MockSink.getPlugin("sink1")))
       .addStage(new ETLStage("sink2", MockSink.getPlugin("sink2")))
-      .addStage(new ETLStage("aggregator", isReducibleAggregator ?
-        FieldCountReducibleAggregator.getPlugin("${aggfield}", "${aggType}") :
+      .addStage(new ETLStage("aggregator", isReducibleAggregator
+        ? FieldCountReducibleAggregator.getPlugin("${aggfield}", "${aggType}") :
         FieldCountAggregator.getPlugin("${aggfield}", "${aggType}")))
       .addStage(new ETLStage("dupeFlagger", DupeFlagger.getPlugin("users1", "${flagField}")))
       .addConnection("users1", "aggregator")
@@ -522,10 +585,10 @@ public class DataStreamsTest extends HydratorTestBase {
       .addStage(new ETLStage("source2", MockSource.getPlugin(inputSchema, input2)))
       .addStage(new ETLStage("sink1", MockSink.getPlugin(sink1Name)))
       .addStage(new ETLStage("sink2", MockSink.getPlugin(sink2Name)))
-      .addStage(new ETLStage("agg1", isReducibleAggregator ?
-        FieldCountReducibleAggregator.getPlugin("user", "string") : FieldCountAggregator.getPlugin("user", "string")))
-      .addStage(new ETLStage("agg2", isReducibleAggregator ?
-        FieldCountReducibleAggregator.getPlugin("item", "long") : FieldCountAggregator.getPlugin("item", "long")))
+      .addStage(new ETLStage("agg1", isReducibleAggregator
+        ? FieldCountReducibleAggregator.getPlugin("user", "string") : FieldCountAggregator.getPlugin("user", "string")))
+      .addStage(new ETLStage("agg2", isReducibleAggregator
+        ? FieldCountReducibleAggregator.getPlugin("item", "long") : FieldCountAggregator.getPlugin("item", "long")))
       .addConnection("source1", "agg1")
       .addConnection("source1", "agg2")
       .addConnection("source2", "agg1")
@@ -533,7 +596,6 @@ public class DataStreamsTest extends HydratorTestBase {
       .addConnection("agg1", "sink1")
       .addConnection("agg2", "sink2")
       .setCheckpointDir(checkpointDir)
-      .disableCheckpoints()
       .build();
 
     AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, pipelineConfig);
@@ -1367,6 +1429,7 @@ public class DataStreamsTest extends HydratorTestBase {
       .addConnection("filter2", "sink5")
       .setProperties(Collections.singletonMap(io.cdap.cdap.etl.common.Constants.SPARK_PIPELINE_AUTOCACHE_ENABLE_FLAG,
                                               "false"))
+      .setBatchInterval("5s")
       .build();
 
     AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, config);
@@ -1398,11 +1461,11 @@ public class DataStreamsTest extends HydratorTestBase {
     Set<StructuredRecord> sink4Expected = new HashSet<>(Arrays.asList(item0, item2));
     Set<StructuredRecord> sink5Expected = new HashSet<>(Arrays.asList(item0, item1));
 
-    Tasks.waitFor(true, () -> sink1Expected.equals(new HashSet<>(MockExternalSink.readOutput(output1, schema))) &&
-                    sink2Expected.equals(new HashSet<>(MockExternalSink.readOutput(output2, schema))) &&
-                    sink3Expected.equals(new HashSet<>(MockExternalSink.readOutput(output3, errorSchema))) &&
-                    sink4Expected.equals(new HashSet<>(MockExternalSink.readOutput(output4, schema))) &&
-                    sink5Expected.equals(new HashSet<>(MockExternalSink.readOutput(output5, schema))),
+    Tasks.waitFor(true, () -> sink1Expected.equals(new HashSet<>(MockExternalSink.readOutput(output1, schema)))
+                    && sink2Expected.equals(new HashSet<>(MockExternalSink.readOutput(output2, schema)))
+                    && sink3Expected.equals(new HashSet<>(MockExternalSink.readOutput(output3, errorSchema)))
+                    && sink4Expected.equals(new HashSet<>(MockExternalSink.readOutput(output4, schema)))
+                    && sink5Expected.equals(new HashSet<>(MockExternalSink.readOutput(output5, schema))),
                   3, TimeUnit.MINUTES);
     sparkManager.stop();
     sparkManager.waitForStopped(1, TimeUnit.MINUTES);
@@ -1435,5 +1498,306 @@ public class DataStreamsTest extends HydratorTestBase {
                                                Constants.Metrics.Tag.APP, appId.getEntityName(),
                                                Constants.Metrics.Tag.SPARK, DataStreamsSparkLauncher.NAME);
     return getMetricsManager().getTotalMetric(tags, "user." + metric);
+  }
+
+  /**
+   * Uses {@link RecoveringTransform} plugin to test retry. Default retry settings are used.
+   */
+  @Test
+  public void testRetryOnException() throws Exception {
+    SparkManager sparkManager = null;
+    DataSetManager<Table> outputManager = null;
+    try {
+      Schema schema = Schema.recordOf(
+        "retry_test",
+        Schema.Field.of("id", Schema.of(Schema.Type.STRING)),
+        Schema.Field.of("name", Schema.of(Schema.Type.STRING))
+      );
+      List<StructuredRecord> input = new ArrayList<>();
+      StructuredRecord samuelRecord = StructuredRecord.builder(schema).set("id", "123").set("name", "samuel").build();
+      StructuredRecord jacksonRecord = StructuredRecord.builder(schema).set("id", "456").set("name", "jackson").build();
+      input.add(samuelRecord);
+      input.add(jacksonRecord);
+
+      DataStreamsConfig etlConfig = DataStreamsConfig.builder()
+        .addStage(new ETLStage("retry_source", MockSource.getPlugin(schema, input)))
+        .addStage(new ETLStage("retry_sink", MockSink.getPlugin("${retry_output_macro}")))
+        .addStage(new ETLStage("retry_transform", RecoveringTransform.getPlugin()))
+        .addConnection("retry_source", "retry_transform")
+        .addConnection("retry_transform", "retry_sink")
+        .setBatchInterval("1s")
+        .build();
+
+      ApplicationId appId = NamespaceId.DEFAULT.app("simpleRetryApp");
+      AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, etlConfig);
+      ApplicationManager appManager = deployApplication(appId, appRequest);
+
+      Set<StructuredRecord> expected = new HashSet<>();
+      expected.add(samuelRecord);
+      expected.add(jacksonRecord);
+
+      sparkManager = appManager.getSparkManager(DataStreamsSparkLauncher.NAME);
+      String outputName = "retry_output";
+      sparkManager.start(ImmutableMap.of("retry_output_macro", outputName));
+      sparkManager.waitForRun(ProgramRunStatus.RUNNING, 10, TimeUnit.SECONDS);
+
+      // since dataset name is a macro, the dataset isn't created until it is needed. Wait for it to exist
+      Tasks.waitFor(true, () -> getDataset(outputName).get() != null, 3, TimeUnit.MINUTES);
+
+      outputManager = getDataset(outputName);
+      final DataSetManager<Table> outputManagerRef = outputManager;
+      Tasks.waitFor(
+        true,
+        () -> {
+          outputManagerRef.flush();
+          Set<StructuredRecord> outputRecords = new HashSet<>(MockSink.readOutput(outputManagerRef));
+          return expected.equals(outputRecords);
+        },
+        3,
+        TimeUnit.MINUTES);
+    } finally {
+      RecoveringTransform.reset();
+      if (outputManager != null) {
+        MockSink.clear(outputManager);
+      }
+      if (sparkManager != null) {
+        sparkManager.stop();
+        sparkManager.waitForStopped(10, TimeUnit.SECONDS);
+      }
+    }
+  }
+
+  /**
+   * Uses {@link RecoveringTransform} plugin and custom retry settings to test retry timeout.
+   */
+  @Test
+  public void testRetryTimeout() throws Exception {
+    SparkManager sparkManager = null;
+    try {
+      Schema schema = Schema.recordOf(
+        "retry_timeout_test",
+        Schema.Field.of("id", Schema.of(Schema.Type.STRING)),
+        Schema.Field.of("name", Schema.of(Schema.Type.STRING))
+      );
+      List<StructuredRecord> input = new ArrayList<>();
+      StructuredRecord samuelRecord = StructuredRecord.builder(schema).set("id", "123").set("name", "samuel").build();
+      StructuredRecord jacksonRecord = StructuredRecord.builder(schema).set("id", "456").set("name", "jackson").build();
+      input.add(samuelRecord);
+      input.add(jacksonRecord);
+
+      DataStreamsConfig etlConfig = DataStreamsConfig.builder()
+        .addStage(new ETLStage("retry_timeout_source", MockSource.getPlugin(schema, input)))
+        .addStage(new ETLStage("retry_timeout_sink", MockSink.getPlugin("${retry_timeout_output_macro}")))
+        .addStage(new ETLStage("retry_timeout_transform", RecoveringTransform.getPlugin()))
+        .addConnection("retry_timeout_source", "retry_timeout_transform")
+        .addConnection("retry_timeout_transform", "retry_timeout_sink")
+        .setBatchInterval("1s")
+        .build();
+
+      ApplicationId appId = NamespaceId.DEFAULT.app("simpleRetryTimeoutApp");
+      AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, etlConfig);
+      ApplicationManager appManager = deployApplication(appId, appRequest);
+
+      sparkManager = appManager.getSparkManager(DataStreamsSparkLauncher.NAME);
+      // Timeout retry in 1 min and set the base delay to 60s.
+      sparkManager.start(ImmutableMap.of("retry_timeout_output_macro", "retry_timeout_output",
+                                         "cdap.streaming.maxRetryTimeInMins", "1",
+                                         "cdap.streaming.baseRetryDelayInSeconds", "60"));
+      sparkManager.waitForRun(ProgramRunStatus.RUNNING, 10, TimeUnit.SECONDS);
+      // Should fail after retry times out
+      sparkManager.waitForRun(ProgramRunStatus.FAILED, 2, TimeUnit.MINUTES);
+    } finally {
+      RecoveringTransform.reset();
+      if (sparkManager != null && sparkManager.isRunning()) {
+        sparkManager.stop();
+        sparkManager.waitForStopped(10, TimeUnit.SECONDS);
+      }
+    }
+  }
+
+  @Test
+  public void testStreamingEvents() throws Exception {
+    SparkManager sparkManager = null;
+    DataSetManager<Table> outputManager = null;
+    try {
+      Schema schema = Schema.recordOf(
+          "streaming_event_test",
+          Schema.Field.of("id", Schema.of(Schema.Type.STRING)),
+          Schema.Field.of("name", Schema.of(Schema.Type.STRING))
+      );
+      List<StructuredRecord> input = new ArrayList<>();
+      StructuredRecord samuelRecord = StructuredRecord.builder(schema).set("id", "123").set("name", "samuel").build();
+      StructuredRecord jacksonRecord = StructuredRecord.builder(schema).set("id", "456").set("name", "jackson").build();
+      input.add(samuelRecord);
+      input.add(jacksonRecord);
+
+      Set<StructuredRecord> expected = new HashSet<>();
+      expected.add(samuelRecord);
+      expected.add(jacksonRecord);
+
+      String sourceStageName = "streaming_event_source";
+      DataStreamsConfig etlConfig = DataStreamsConfig.builder()
+          .addStage(new ETLStage(
+              sourceStageName, MockStreamingEventSource.getPlugin(schema, input)))
+          .addStage(new ETLStage("streaming_event_sink", MockSink.getPlugin("${streaming_event_output_macro}")))
+          .addConnection(sourceStageName, "streaming_event_sink")
+          .setBatchInterval("1s")
+          .setStopGracefully(false)
+          .build();
+
+      ApplicationId appId = NamespaceId.DEFAULT.app("StreamingEventApp");
+      AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, etlConfig);
+      ApplicationManager appManager = deployApplication(appId, appRequest);
+
+      sparkManager = appManager.getSparkManager(DataStreamsSparkLauncher.NAME);
+      // Timeout retry in 1 min and set the base delay to 60s.
+      String outputName = "streaming_event_output";
+      sparkManager.start(ImmutableMap.of("streaming_event_output_macro", outputName));
+      sparkManager.waitForRun(ProgramRunStatus.RUNNING, 10, TimeUnit.SECONDS);
+
+      String keyFormat = "%s.%s";
+      AppStateStore state = getAppStateStore(appId.getNamespace(), appId.getApplication());
+      String completedKey = String.format(keyFormat, sourceStageName,
+          MockStreamingEventSource.MOCK_STREAMING_EVENT_SOURCE_COMPLETED);
+      String startedKey = String.format(keyFormat, sourceStageName,
+          MockStreamingEventSource.MOCK_STREAMING_EVENT_SOURCE_STARTED);
+      String retryKey = String.format(keyFormat, sourceStageName,
+          MockStreamingEventSource.MOCK_STREAMING_EVENT_SOURCE_RETRIED);
+
+      // Wait for the calls
+      Tasks.waitFor(true,
+          () -> {
+            Optional<byte[]> startedState = state.getState(startedKey);
+            Optional<byte[]> completedState = state.getState(completedKey);
+            Optional<byte[]> retryState = state.getState(retryKey);
+            return startedState.isPresent() && completedState.isPresent()
+                && !retryState.isPresent();
+          },
+          3, TimeUnit.MINUTES);
+      state.deleteState(completedKey);
+      state.deleteState(startedKey);
+      state.deleteState(retryKey);
+
+      // since dataset name is a macro, the dataset isn't created until it is needed. Wait for it to exist
+      Tasks.waitFor(true, () -> getDataset(outputName).get() != null, 3, TimeUnit.MINUTES);
+
+      outputManager = getDataset(outputName);
+      final DataSetManager<Table> outputManagerRef = outputManager;
+      Tasks.waitFor(
+          true,
+          () -> {
+            outputManagerRef.flush();
+            Set<StructuredRecord> outputRecords = new HashSet<>(
+                MockSink.readOutput(outputManagerRef));
+            return expected.equals(outputRecords);
+          },
+          3,
+          TimeUnit.MINUTES);
+
+    } finally {
+      if (outputManager != null) {
+        MockSink.clear(outputManager);
+      }
+      if (sparkManager != null && sparkManager.isRunning()) {
+        sparkManager.stop();
+        sparkManager.waitForStopped(10, TimeUnit.SECONDS);
+      }
+    }
+  }
+
+  @Test
+  public void testStreamingEventsWithRetry() throws Exception {
+    SparkManager sparkManager = null;
+    DataSetManager<Table> outputManager = null;
+    try {
+      Schema schema = Schema.recordOf(
+          "streaming_event_test",
+          Schema.Field.of("id", Schema.of(Schema.Type.STRING)),
+          Schema.Field.of("name", Schema.of(Schema.Type.STRING))
+      );
+      List<StructuredRecord> input = new ArrayList<>();
+      StructuredRecord samuelRecord = StructuredRecord.builder(schema).set("id", "123").set("name", "samuel").build();
+      StructuredRecord jacksonRecord = StructuredRecord.builder(schema).set("id", "456").set("name", "jackson").build();
+      input.add(samuelRecord);
+      input.add(jacksonRecord);
+
+      Set<StructuredRecord> expected = new HashSet<>();
+      expected.add(samuelRecord);
+      expected.add(jacksonRecord);
+
+      String sourceStageName = "streaming_event_source_retry";
+      String transformStageName = "streaming_event_transform_retry";
+      String sinkStageName = "streaming_event_sink_retry";
+      String outputMacroName = "streaming_event_retry_output_macro";
+      DataStreamsConfig etlConfig = DataStreamsConfig.builder()
+          .addStage(new ETLStage(
+              sourceStageName, MockStreamingEventSource.getPlugin(schema, input)))
+          .addStage(new ETLStage(sinkStageName, MockSink.getPlugin(
+              "${" + outputMacroName + "}")))
+          .addStage(new ETLStage(transformStageName, RecoveringTransform.getPlugin()))
+          .addConnection(sourceStageName, transformStageName)
+          .addConnection(transformStageName, sinkStageName)
+          .setBatchInterval("1s")
+          .setStopGracefully(false)
+          .build();
+
+      ApplicationId appId = NamespaceId.DEFAULT.app("StreamingEventApp");
+      AppRequest<DataStreamsConfig> appRequest = new AppRequest<>(APP_ARTIFACT, etlConfig);
+      ApplicationManager appManager = deployApplication(appId, appRequest);
+
+      sparkManager = appManager.getSparkManager(DataStreamsSparkLauncher.NAME);
+      // Timeout retry in 1 min and set the base delay to 60s.
+      String outputName = "streaming_event_output";
+      sparkManager.start(ImmutableMap.of(outputMacroName, outputName));
+      sparkManager.waitForRun(ProgramRunStatus.RUNNING, 10, TimeUnit.SECONDS);
+
+      String keyFormat = "%s.%s";
+      AppStateStore state = getAppStateStore(appId.getNamespace(), appId.getApplication());
+      String completedKey = String.format(keyFormat, sourceStageName,
+          MockStreamingEventSource.MOCK_STREAMING_EVENT_SOURCE_COMPLETED);
+      String startedKey = String.format(keyFormat, sourceStageName,
+          MockStreamingEventSource.MOCK_STREAMING_EVENT_SOURCE_STARTED);
+      String retryKey = String.format(keyFormat, sourceStageName,
+          MockStreamingEventSource.MOCK_STREAMING_EVENT_SOURCE_RETRIED);
+
+      // Wait for the calls
+      Tasks.waitFor(true,
+          () -> {
+            Optional<byte[]> startedState = state.getState(startedKey);
+            Optional<byte[]> completedState = state.getState(completedKey);
+            Optional<byte[]> retryState = state.getState(retryKey);
+            return startedState.isPresent() && retryState.isPresent() && completedState.isPresent();
+          },
+          3, TimeUnit.MINUTES);
+      state.deleteState(completedKey);
+      state.deleteState(startedKey);
+      state.deleteState(retryKey);
+
+      // since dataset name is a macro, the dataset isn't created until it is needed. Wait for it to exist
+      Tasks.waitFor(true, () -> getDataset(outputName).get() != null, 3, TimeUnit.MINUTES);
+
+      outputManager = getDataset(outputName);
+      final DataSetManager<Table> outputManagerRef = outputManager;
+      Tasks.waitFor(
+          true,
+          () -> {
+            outputManagerRef.flush();
+            Set<StructuredRecord> outputRecords = new HashSet<>(
+                MockSink.readOutput(outputManagerRef));
+            return expected.equals(outputRecords);
+          },
+          3,
+          TimeUnit.MINUTES);
+
+    } finally {
+      RecoveringTransform.reset();
+      if (outputManager != null) {
+        MockSink.clear(outputManager);
+      }
+      if (sparkManager != null && sparkManager.isRunning()) {
+        sparkManager.stop();
+        sparkManager.waitForStopped(10, TimeUnit.SECONDS);
+      }
+    }
   }
 }

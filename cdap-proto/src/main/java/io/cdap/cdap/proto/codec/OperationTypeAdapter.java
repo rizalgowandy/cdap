@@ -28,13 +28,14 @@ import io.cdap.cdap.api.lineage.field.OperationType;
 import io.cdap.cdap.api.lineage.field.ReadOperation;
 import io.cdap.cdap.api.lineage.field.TransformOperation;
 import io.cdap.cdap.api.lineage.field.WriteOperation;
-
 import java.lang.reflect.Type;
 
 /**
  * Type adapter for {@link Operation}.
  */
-public class OperationTypeAdapter implements JsonSerializer<Operation>, JsonDeserializer<Operation> {
+public class OperationTypeAdapter implements JsonSerializer<Operation>,
+    JsonDeserializer<Operation> {
+
   @Override
   public JsonElement serialize(Operation src, Type typeOfSrc, JsonSerializationContext context) {
     return context.serialize(src);
@@ -42,7 +43,7 @@ public class OperationTypeAdapter implements JsonSerializer<Operation>, JsonDese
 
   @Override
   public Operation deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+      throws JsonParseException {
     JsonObject jsonObj = json.getAsJsonObject();
 
     OperationType type = context.deserialize(jsonObj.get("type"), OperationType.class);

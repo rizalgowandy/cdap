@@ -37,19 +37,19 @@ public class TransactionServiceManager extends AbstractMasterServiceManager {
 
   @Inject
   TransactionServiceManager(CConfiguration cConf, TwillRunner twillRunner,
-                            TransactionSystemClient txClient, DiscoveryServiceClient discoveryClient) {
+      TransactionSystemClient txClient, DiscoveryServiceClient discoveryClient) {
     super(cConf, discoveryClient, Constants.Service.TRANSACTION, twillRunner);
     this.txClient = txClient;
   }
 
   @Override
   public boolean isServiceEnabled() {
-    return getCConf().getBoolean(Constants.Transaction.TX_ENABLED);
+    return getCconf().getBoolean(Constants.Transaction.TX_ENABLED);
   }
 
   @Override
   public int getMaxInstances() {
-    return getCConf().getInt(Constants.Transaction.Container.MAX_INSTANCES);
+    return getCconf().getInt(Constants.Transaction.Container.MAX_INSTANCES);
   }
 
   @Override

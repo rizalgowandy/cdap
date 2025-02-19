@@ -19,13 +19,13 @@ package io.cdap.cdap.security.spi.authorization;
 import io.cdap.cdap.api.common.HttpErrorStatusProvider;
 import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.proto.security.Role;
-
 import java.net.HttpURLConnection;
 
 /**
  * Exception thrown for handling unknown entities
  */
 public class NotFoundException extends AccessException implements HttpErrorStatusProvider {
+
   public NotFoundException(Role role) {
     super(String.format("%s not found.", role));
   }

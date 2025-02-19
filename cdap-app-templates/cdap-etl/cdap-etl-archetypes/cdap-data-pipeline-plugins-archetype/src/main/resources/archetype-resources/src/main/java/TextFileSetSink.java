@@ -33,27 +33,27 @@ import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.batch.BatchRuntimeContext;
 import io.cdap.cdap.etl.api.batch.BatchSink;
 import io.cdap.cdap.etl.api.batch.BatchSinkContext;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import javax.annotation.Nullable;
-
 /**
- * Batch Sink that writes to a FileSet in text format.
- * Each record will be written as a single line, with record fields separated by a configurable separator.
+ * Batch Sink that writes to a FileSet in text format. Each record will be written as a single line,
+ * with record fields separated by a configurable separator.
  *
- * StructuredRecord is the first parameter because that is the input to the sink.
- * The second and third parameters are the key and value expected by Hadoop's {@link TextOutputFormat}.
+ * StructuredRecord is the first parameter because that is the input to the sink. The second and
+ * third parameters are the key and value expected by Hadoop's {@link TextOutputFormat}.
  */
 @Plugin(type = BatchSink.PLUGIN_TYPE)
 @Name(TextFileSetSink.NAME)
 @Description("Writes to a FileSet in text format.")
 public class TextFileSetSink extends BatchSink<StructuredRecord, NullWritable, Text> {
+
   public static final String NAME = "TextFileSet";
   private final Conf config;
 
@@ -61,6 +61,7 @@ public class TextFileSetSink extends BatchSink<StructuredRecord, NullWritable, T
    * Config properties for the plugin.
    */
   public static class Conf extends PluginConfig {
+
     public static final String FILESET_NAME = "fileSetName";
     public static final String OUTPUT_DIR = "outputDir";
     public static final String FIELD_SEPARATOR = "fieldSeparator";
@@ -101,14 +102,14 @@ public class TextFileSetSink extends BatchSink<StructuredRecord, NullWritable, T
   public void configurePipeline(PipelineConfigurer pipelineConfigurer) {
     // create the FileSet here.
     pipelineConfigurer.createDataset(config.fileSetName,
-                                     FileSet.class,
-                                     FileSetProperties.builder()
-                                       .setInputFormat(TextInputFormat.class)
-                                       .setOutputFormat(TextOutputFormat.class)
-                                       .setEnableExploreOnCreate(true)
-                                       .setExploreFormat("text")
-                                       .setExploreSchema("text string")
-                                       .build()
+        FileSet.class,
+        FileSetProperties.builder()
+            .setInputFormat(TextInputFormat.class)
+            .setOutputFormat(TextOutputFormat.class)
+            .setEnableExploreOnCreate(true)
+            .setExploreFormat("text")
+            .setExploreSchema("text string")
+            .build()
     );
   }
 
@@ -144,7 +145,8 @@ public class TextFileSetSink extends BatchSink<StructuredRecord, NullWritable, T
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<KeyValue<NullWritable, Text>> emitter) throws Exception {
+  public void transform(StructuredRecord input, Emitter<KeyValue<NullWritable, Text>> emitter)
+      throws Exception {
     StringBuilder joinedFields = new StringBuilder();
     Iterator<Schema.Field> fieldIter = input.getSchema().getFields().iterator();
     if (!fieldIter.hasNext()) {

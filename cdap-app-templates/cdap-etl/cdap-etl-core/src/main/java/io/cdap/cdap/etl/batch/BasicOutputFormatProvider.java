@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.batch;
 
 import io.cdap.cdap.api.data.batch.OutputFormatProvider;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,9 +29,11 @@ public class BasicOutputFormatProvider implements OutputFormatProvider {
   private final String outputFormatClassName;
   private final Map<String, String> outputFormatConfiguration;
 
-  public BasicOutputFormatProvider(String outputFormatClassName, Map<String, String> outputFormatConfiguration) {
+  public BasicOutputFormatProvider(String outputFormatClassName,
+      Map<String, String> outputFormatConfiguration) {
     this.outputFormatClassName = outputFormatClassName;
-    this.outputFormatConfiguration = Collections.unmodifiableMap(new HashMap<>(outputFormatConfiguration));
+    this.outputFormatConfiguration = Collections.unmodifiableMap(
+        new HashMap<>(outputFormatConfiguration));
   }
 
   @Override

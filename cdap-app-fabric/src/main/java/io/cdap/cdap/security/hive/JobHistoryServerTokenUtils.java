@@ -19,6 +19,8 @@ package io.cdap.cdap.security.hive;
 import com.google.common.base.Throwables;
 import com.google.common.net.HostAndPort;
 import io.cdap.cdap.common.security.YarnTokenUtils;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClientCache;
@@ -36,13 +38,11 @@ import org.apache.twill.internal.yarn.YarnUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-
 /**
  * Helper class for getting JobHistoryServer security delegation token.
  */
 public final class JobHistoryServerTokenUtils {
+
   private static final Logger LOG = LoggerFactory.getLogger(YarnTokenUtils.class);
 
   /**
@@ -58,15 +58,18 @@ public final class JobHistoryServerTokenUtils {
     String historyServerAddress = configuration.get("mapreduce.jobhistory.address");
     HostAndPort hostAndPort = HostAndPort.fromString(historyServerAddress);
     try {
-      ResourceMgrDelegate resourceMgrDelegate = new ResourceMgrDelegate(new YarnConfiguration(configuration));
+      ResourceMgrDelegate resourceMgrDelegate = new ResourceMgrDelegate(
+          new YarnConfiguration(configuration));
       MRClientCache clientCache = new MRClientCache(configuration, resourceMgrDelegate);
       MRClientProtocol hsProxy = clientCache.getInitializedHSProxy();
       GetDelegationTokenRequest request = new GetDelegationTokenRequestPBImpl();
       request.setRenewer(YarnUtils.getYarnTokenRenewer(configuration));
 
-      InetSocketAddress address = new InetSocketAddress(hostAndPort.getHostText(), hostAndPort.getPort());
+      InetSocketAddress address = new InetSocketAddress(hostAndPort.getHostText(),
+          hostAndPort.getPort());
       Token<TokenIdentifier> token =
-        ConverterUtils.convertFromYarn(hsProxy.getDelegationToken(request).getDelegationToken(), address);
+          ConverterUtils.convertFromYarn(hsProxy.getDelegationToken(request).getDelegationToken(),
+              address);
 
       credentials.addToken(new Text(token.getService()), token);
       LOG.debug("Adding JobHistoryServer delegation token {}.", token);

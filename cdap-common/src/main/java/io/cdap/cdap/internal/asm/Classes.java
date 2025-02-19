@@ -16,6 +16,12 @@
 
 package io.cdap.cdap.internal.asm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -25,13 +31,6 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A util class to help on class inspections and manipulations through bytecode.
@@ -45,14 +44,15 @@ public final class Classes {
    *
    * @param className name of the class to check
    * @param superTypeName name of the super type
-   * @param resourceProvider a {@link Function} to provide {@link URL} of a class from the class name
+   * @param resourceProvider a {@link Function} to provide {@link URL} of a class from the class
+   *     name
    * @param cache a cache for memorizing previous decision for classes of the same super type
    * @return true if the given class name is a sub-class of the given super type
    * @throws IOException if failed to read class information
    */
   public static boolean isSubTypeOf(String className, final String superTypeName,
-                                    final Function<String, URL> resourceProvider,
-                                    final Map<String, Boolean> cache) throws IOException {
+      final Function<String, URL> resourceProvider,
+      final Map<String, Boolean> cache) throws IOException {
     // Base case
     if (superTypeName.equals(className)) {
       cache.put(className, true);
@@ -82,18 +82,20 @@ public final class Classes {
         cr = new ClassReader(input);
       } catch (Exception e) {
         LOG.error("Failed to create classreader. className: {}, superTypeName: {}, url: {}",
-                  className, superTypeName, url.toString());
+            className, superTypeName, url.toString());
       }
       String superName = cr.getSuperName();
       if (superName != null) {
-        result = isSubTypeOf(Type.getObjectType(superName).getClassName(), superTypeName, resourceProvider, cache);
+        result = isSubTypeOf(Type.getObjectType(superName).getClassName(), superTypeName,
+            resourceProvider, cache);
       }
 
       if (!result) {
         String[] interfaces = cr.getInterfaces();
         if (interfaces != null) {
           for (String intf : interfaces) {
-            if (isSubTypeOf(Type.getObjectType(intf).getClassName(), superTypeName, resourceProvider, cache)) {
+            if (isSubTypeOf(Type.getObjectType(intf).getClassName(), superTypeName,
+                resourceProvider, cache)) {
               result = true;
               break;
             }
@@ -113,13 +115,13 @@ public final class Classes {
    * Rewrites methods in the given class bytecode to noop methods.
    */
   public static byte[] rewriteMethodToNoop(final String className,
-                                           InputStream byteCodeStream, final Set<String> methods) throws IOException {
+      InputStream byteCodeStream, final Set<String> methods) throws IOException {
     ClassReader cr = new ClassReader(byteCodeStream);
     ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
     cr.accept(new ClassVisitor(Opcodes.ASM5, cw) {
       @Override
       public MethodVisitor visitMethod(final int access, final String name, final String desc,
-                                       String signature, String[] exceptions) {
+          String signature, String[] exceptions) {
         MethodVisitor methodVisitor = super.visitMethod(access, name, desc, signature, exceptions);
 
         if (!methods.contains(name)) {
@@ -128,7 +130,8 @@ public final class Classes {
 
         // We can only rewrite method that returns void
         if (!Type.getReturnType(desc).equals(Type.VOID_TYPE)) {
-          LOG.warn("Cannot patch method {} in {} due to non-void return type: {}", name, className, desc);
+          LOG.warn("Cannot patch method {} in {} due to non-void return type: {}", name, className,
+              desc);
           return methodVisitor;
         }
 

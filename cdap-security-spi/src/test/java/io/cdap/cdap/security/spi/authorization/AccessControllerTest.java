@@ -23,13 +23,12 @@ import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.Role;
 import io.cdap.cdap.proto.security.StandardPermission;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for {@link AccessController}.
@@ -194,8 +193,9 @@ public abstract class AccessControllerTest {
   private void verifyAuthFailure(EntityId entity, Principal principal, Permission permission) throws Exception {
     try {
       get().enforce(entity, principal, permission);
-      Assert.fail(String.format("Expected authorization failure, but it succeeded for entity %s, principal %s," +
-                                  " permission %s", entity, principal, permission));
+      Assert.fail(String.format(
+          "Expected authorization failure, but it succeeded for entity %s, principal %s,"
+              + " permission %s", entity, principal, permission));
     } catch (UnauthorizedException expected) {
       // expected
     }

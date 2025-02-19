@@ -25,7 +25,6 @@ import io.cdap.cdap.spi.data.table.StructuredTableSchema;
 import io.cdap.cdap.spi.data.table.field.Field;
 import io.cdap.cdap.spi.data.table.field.FieldType;
 import io.cdap.cdap.spi.data.table.field.Fields;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
@@ -36,6 +35,7 @@ import javax.annotation.Nullable;
  * The nosql structured row represents a row in the nosql table.
  */
 public final class NoSqlStructuredRow implements StructuredRow {
+
   private final Row row;
   private final StructuredTableSchema tableSchema;
   private final Map<String, Object> keyFields;
@@ -57,6 +57,12 @@ public final class NoSqlStructuredRow implements StructuredRow {
   @Nullable
   @Override
   public Long getLong(String fieldName) throws InvalidFieldException {
+    return get(fieldName);
+  }
+
+  @Nullable
+  @Override
+  public Boolean getBoolean(String fieldName) throws InvalidFieldException {
     return get(fieldName);
   }
 
@@ -136,17 +142,24 @@ public final class NoSqlStructuredRow implements StructuredRow {
           keys.add(Fields.bytesField(key, bytesVal));
           builder.put(key, bytesVal);
           break;
+        case BOOLEAN:
+          boolean booleanVal = splitter.getBoolean();
+          keys.add(Fields.booleanField(key, booleanVal));
+          builder.put(key, booleanVal);
+          break;
         default:
           // this should never happen since all the keys are from the table schema and should never contain other types
           throw new IllegalStateException(
-            String.format("The type %s of the primary key %s is not a valid key type", type, key));
+              String.format("The type %s of the primary key %s is not a valid key type", type,
+                  key));
       }
     }
     return builder.build();
   }
 
   @SuppressWarnings("unchecked")
-  private <T> T getFieldValue(String fieldName, FieldType.Type expectedType) throws InvalidFieldException {
+  private <T> T getFieldValue(String fieldName, FieldType.Type expectedType)
+      throws InvalidFieldException {
     switch (expectedType) {
       case INTEGER:
         return (T) row.getInt(fieldName);
@@ -160,6 +173,8 @@ public final class NoSqlStructuredRow implements StructuredRow {
         return (T) row.getString(fieldName);
       case BYTES:
         return (T) row.get(fieldName);
+      case BOOLEAN:
+        return (T) row.getBoolean(fieldName);
       default:
         throw new InvalidFieldException(tableSchema.getTableId(), fieldName);
     }

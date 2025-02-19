@@ -17,7 +17,6 @@
 package io.cdap.cdap.internal.provision;
 
 import com.google.gson.annotations.SerializedName;
-
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -26,6 +25,7 @@ import javax.annotation.Nullable;
  * Contains the config for the provisioner
  */
 public class ProvisionerConfig {
+
   @SerializedName("configuration-groups")
   private final List<Object> configurationGroups;
   @SerializedName("filters")
@@ -35,8 +35,9 @@ public class ProvisionerConfig {
   @SerializedName("beta")
   private final boolean beta;
 
-  public ProvisionerConfig(List<Object> configurationGroups, @Nullable List<Object> filters, @Nullable Object icon,
-                           boolean beta) {
+  public ProvisionerConfig(List<Object> configurationGroups, @Nullable List<Object> filters,
+      @Nullable Object icon,
+      boolean beta) {
     this.configurationGroups = configurationGroups;
     this.filters = filters;
     this.icon = icon;
@@ -71,9 +72,9 @@ public class ProvisionerConfig {
     }
     ProvisionerConfig that = (ProvisionerConfig) o;
 
-    return Objects.equals(configurationGroups, that.configurationGroups) &&
-      Objects.equals(filters, that.filters) &&
-      Objects.equals(beta, that.beta);
+    return Objects.equals(configurationGroups, that.configurationGroups)
+        && Objects.equals(filters, that.filters)
+        && Objects.equals(beta, that.beta);
   }
 
   @Override

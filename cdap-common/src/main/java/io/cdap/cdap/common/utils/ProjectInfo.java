@@ -18,14 +18,13 @@ package io.cdap.cdap.common.utils;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import io.cdap.cdap.runtime.spi.VersionInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Objects;
 import java.util.Properties;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Accessor class for providing project information.
@@ -47,7 +46,8 @@ public final class ProjectInfo {
         String buildTimeStr = buildProp.getProperty("project.info.build.time");
 
         if (versionStr != null && buildTimeStr != null) {
-          long buildTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").parse(buildTimeStr).getTime();
+          long buildTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").parse(buildTimeStr)
+              .getTime();
           version = new Version(String.format("%s-%d", versionStr, buildTime));
         }
       }
@@ -69,6 +69,7 @@ public final class ProjectInfo {
    * This class encapsulates information about project version.
    */
   public static final class Version implements VersionInfo {
+
     private final int major;
     private final int minor;
     private final int fix;
@@ -84,8 +85,11 @@ public final class ProjectInfo {
     }
 
     /**
-     * Construct a Version instance by parsing the version string, in the format returned by {@link #toString()}.
-     * @param version The version string. If the version is {@code null}, all versions would be {@code 0}.
+     * Construct a Version instance by parsing the version string, in the format returned by {@link
+     * #toString()}.
+     *
+     * @param version The version string. If the version is {@code null}, all versions would be
+     *     {@code 0}.
      */
     public Version(@Nullable String version) {
       int major = 0;
@@ -133,6 +137,7 @@ public final class ProjectInfo {
       this.buildTime = buildTime;
     }
 
+    @Override
     public int getMajor() {
       return major;
     }
@@ -141,14 +146,17 @@ public final class ProjectInfo {
       return minor;
     }
 
+    @Override
     public int getFix() {
       return fix;
     }
 
+    @Override
     public boolean isSnapshot() {
       return snapshot;
     }
 
+    @Override
     public long getBuildTime() {
       return buildTime;
     }

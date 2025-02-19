@@ -19,14 +19,15 @@ package io.cdap.cdap.internal.app.preview;
 import com.google.inject.Inject;
 import io.cdap.cdap.app.preview.PreviewRequest;
 import io.cdap.cdap.app.preview.PreviewRequestQueue;
-
 import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Implementation of {@link PreviewRequestFetcher} which fetches directly from {@link PreviewRequestQueue}.
+ * Implementation of {@link PreviewRequestFetcher} which fetches directly from {@link
+ * PreviewRequestQueue}.
  */
 public class DirectPreviewRequestFetcher implements PreviewRequestFetcher {
+
   private final PreviewRequestQueue previewRequestQueue;
 
   @Inject

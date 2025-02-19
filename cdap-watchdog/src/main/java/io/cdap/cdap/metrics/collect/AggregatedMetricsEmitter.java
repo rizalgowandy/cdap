@@ -20,15 +20,11 @@ import io.cdap.cdap.api.metrics.MetricValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
- * {@link MetricsEmitter} that aggregates  values for a metric
- * during collection and emit the aggregated value when emit.
+ * {@link MetricsEmitter} that aggregates  values for a metric during collection and emit the
+ * aggregated value when emit.
  */
-final class AggregatedMetricsEmitter implements MetricsEmitter {
+public final class AggregatedMetricsEmitter implements MetricsEmitter {
   private static final Logger LOG = LoggerFactory.getLogger(AggregatedMetricsEmitter.class);
 
   private final String name;
@@ -37,7 +33,7 @@ final class AggregatedMetricsEmitter implements MetricsEmitter {
   private MetricType metricType = MetricType.COUNTER;
   private Distribution distribution;
 
-  AggregatedMetricsEmitter(String name) {
+  public AggregatedMetricsEmitter(String name) {
     if (name == null || name.isEmpty()) {
       LOG.warn("Creating emmitter with " + (name == null ? "null" : "empty") + " name, ");
     }

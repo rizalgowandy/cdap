@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -25,29 +25,42 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import io.cdap.cdap.api.feature.FeatureFlagsProvider;
+import io.cdap.cdap.app.guice.AuditLogWriterModule;
 import io.cdap.cdap.app.guice.DistributedArtifactManagerModule;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.feature.DefaultFeatureFlagsProvider;
 import io.cdap.cdap.common.guice.ConfigModule;
+import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
 import io.cdap.cdap.common.guice.LocalLocationModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.guice.SupplierProviderBridge;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
+import io.cdap.cdap.features.Feature;
 import io.cdap.cdap.logging.appender.LogAppenderInitializer;
 import io.cdap.cdap.logging.guice.KafkaLogAppenderModule;
 import io.cdap.cdap.logging.guice.RemoteLogAppenderModule;
 import io.cdap.cdap.master.environment.MasterEnvironments;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
+import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.guice.CoreSecurityModule;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.api.AbstractTwillRunnable;
 import org.apache.twill.api.TwillContext;
@@ -59,16 +72,10 @@ import org.apache.twill.internal.ServiceListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
 /**
  * The {@link TwillRunnable} for running {@link ArtifactLocalizerService}.
  *
- * This runnable will run as a sidecar container for {@link io.cdap.cdap.internal.app.worker.TaskWorkerTwillRunnable}
+ * <p>This runnable will run as a sidecar container for {@link io.cdap.cdap.internal.app.worker.TaskWorkerTwillRunnable}
  */
 public class ArtifactLocalizerTwillRunnable extends AbstractTwillRunnable {
 
@@ -82,40 +89,59 @@ public class ArtifactLocalizerTwillRunnable extends AbstractTwillRunnable {
     super(ImmutableMap.of("cConf", cConfFileName, "hConf", hConfFileName));
   }
 
+  /**
+   * Creates an injector for use in the task worker runnable.
+   *
+   * @param cConf The CConf to use.
+   * @param hConf The HConf to use.
+   * @return The injector for the task worker runnable.
+   */
   @VisibleForTesting
-  static Injector createInjector(CConfiguration cConf, Configuration hConf) {
+  public static Injector createInjector(CConfiguration cConf, Configuration hConf) {
     List<Module> modules = new ArrayList<>();
 
     CoreSecurityModule coreSecurityModule = CoreSecurityRuntimeModule.getDistributedModule(cConf);
 
     modules.add(new ConfigModule(cConf, hConf));
     modules.add(new IOModule());
+    FeatureFlagsProvider featureFlagsProvider = new DefaultFeatureFlagsProvider(cConf);
+    if (Feature.NAMESPACED_SERVICE_ACCOUNTS.isEnabled(featureFlagsProvider)) {
+      modules.add(RemoteAuthenticatorModules.getDefaultModule(
+          Constants.ArtifactLocalizer.REMOTE_AUTHENTICATOR_NAME));
+    } else {
+      modules.add(RemoteAuthenticatorModules.getDefaultModule());
+    }
     modules.add(new AuthenticationContextModules().getMasterModule());
     modules.add(coreSecurityModule);
+    modules.add(new MessagingServiceModule(cConf));
+    modules.add(new MetricsClientRuntimeModule().getDistributedModules());
+    modules.add(new AuditLogWriterModule(cConf).getInMemoryModules());
 
     // If MasterEnvironment is not available, assuming it is the old hadoop stack with ZK, Kafka
     MasterEnvironment masterEnv = MasterEnvironments.getMasterEnvironment();
 
     if (masterEnv == null) {
-      modules.add(new ZKClientModule());
-      modules.add(new ZKDiscoveryModule());
+      modules.add(new ZkClientModule());
+      modules.add(new ZkDiscoveryModule());
       modules.add(new KafkaClientModule());
       modules.add(new KafkaLogAppenderModule());
+      modules.add(new DFSLocationModule());
     } else {
       modules.add(new AbstractModule() {
         @Override
         protected void configure() {
           bind(DiscoveryService.class)
-            .toProvider(new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceSupplier()));
+              .toProvider(new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceSupplier()));
           bind(DiscoveryServiceClient.class)
-            .toProvider(new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceClientSupplier()));
+              .toProvider(
+                  new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceClientSupplier()));
         }
       });
       modules.add(new RemoteLogAppenderModule());
       modules.add(new LocalLocationModule());
 
       if (coreSecurityModule.requiresZKClient()) {
-        modules.add(new ZKClientModule());
+        modules.add(new ZkClientModule());
       }
     }
     modules.add(new DistributedArtifactManagerModule());
@@ -175,7 +201,8 @@ public class ArtifactLocalizerTwillRunnable extends AbstractTwillRunnable {
     }
   }
 
-  private void doInitialize() throws Exception {
+  @VisibleForTesting
+  void doInitialize() throws Exception {
     CConfiguration cConf = CConfiguration.create();
     cConf.clear();
     cConf.addResource(new File(getArgument("cConf")).toURI().toURL());
@@ -191,8 +218,8 @@ public class ArtifactLocalizerTwillRunnable extends AbstractTwillRunnable {
     logAppenderInitializer.initialize();
 
     LoggingContext loggingContext = new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                                              Constants.Logging.COMPONENT_NAME,
-                                                              Constants.Service.ARTIFACT_LOCALIZER);
+        Constants.Logging.COMPONENT_NAME,
+        Constants.Service.ARTIFACT_LOCALIZER);
     LoggingContextAccessor.setLoggingContext(loggingContext);
 
     tokenManager = injector.getInstance(TokenManager.class);

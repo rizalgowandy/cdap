@@ -46,8 +46,8 @@ import io.cdap.cdap.security.impersonation.UnsupportedUGIProvider;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.store.StoreDefinition;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.tephra.TransactionManager;
 import org.apache.tephra.runtime.TransactionModules;
 import org.apache.twill.filesystem.LocationFactory;
@@ -59,8 +59,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.TimeUnit;
-
 public class LogFileManagerTest {
   @ClassRule
   public static final TemporaryFolder TMP_FOLDER = new TemporaryFolder();
@@ -70,7 +68,7 @@ public class LogFileManagerTest {
 
   @BeforeClass
   public static void setUpContext() throws Exception {
-    Configuration hConf = HBaseConfiguration.create();
+    Configuration hConf = new Configuration();
     final CConfiguration cConf = CConfiguration.create();
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TMP_FOLDER.newFolder().getAbsolutePath());
     String logBaseDir = cConf.get(LoggingConfiguration.LOG_BASE_DIR) + "/" + CDAPLogAppender.class.getSimpleName();

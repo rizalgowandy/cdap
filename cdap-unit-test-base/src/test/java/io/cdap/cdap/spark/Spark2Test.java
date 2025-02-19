@@ -38,7 +38,6 @@ import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.common.utils.DirUtils;
 import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.internal.DefaultId;
-import io.cdap.cdap.internal.app.spark.SparkCompatReader;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.artifact.AppRequest;
@@ -58,10 +57,7 @@ import io.cdap.cdap.test.ApplicationManager;
 import io.cdap.cdap.test.DataSetManager;
 import io.cdap.cdap.test.SparkManager;
 import io.cdap.cdap.test.TestBase;
-import io.cdap.cdap.test.TestConfiguration;
-import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
-import org.apache.hadoop.util.ComparableVersion;
 import org.apache.twill.filesystem.LocalLocationFactory;
 import org.apache.twill.filesystem.Location;
 import org.junit.Assert;
@@ -92,17 +88,14 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+
 import static org.junit.Assume.assumeNoException;
-import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
 /**
  *
  */
 public class Spark2Test extends TestBase {
-
-  @ClassRule
-  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.Explore.EXPLORE_ENABLED, false);
 
   @ClassRule
   public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();

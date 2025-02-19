@@ -20,7 +20,7 @@ MAINTAINER Cask Data <ops@cask.co>
 # update system
 RUN apt-get update && \
   apt-get dist-upgrade -y && \
-  apt-get install -y curl
+  apt-get install -y curl dpkg-sig
 
 # grab gosu for easy step-down from root
 ENV GOSU_VERSION 1.7
@@ -32,7 +32,13 @@ RUN apt-get install -y --no-install-recommends git && \
     "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture).asc" > \
     /usr/local/bin/gosu.asc && \
   export GNUPGHOME="$(mktemp -d)" && \
-  gpg --keyserver pgp.mit.edu --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 && \
+  for server in $(shuf -e ha.pool.sks-keyservers.net \
+                          hkp://p80.pool.sks-keyservers.net:80 \
+                          keyserver.ubuntu.com \
+                          hkp://keyserver.ubuntu.com:80 \
+                          pgp.mit.edu) ; do \
+      gpg --keyserver "$server" --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 && break || : ; \
+  done && \
   gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu && \
   rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc && \
   chmod +x /usr/local/bin/gosu && \
@@ -43,7 +49,9 @@ COPY packer/scripts /tmp/scripts
 COPY packer/files /tmp/files
 
 # Install Chef, setup APT, run Chef cdap::sdk recipe, then clean up
-RUN curl -vL http://chef.io/chef/install.sh | bash -s -- -v 13.8.5 && \
+RUN curl -O https://packages.chef.io/files/stable/chef/13.8.5/ubuntu/16.04/chef_13.8.5-1_amd64.deb && \
+    dpkg-sig --verify chef_13.8.5-1_amd64.deb && \
+    dpkg -i chef_13.8.5-1_amd64.deb && \
     for i in apt-setup.sh cookbook-dir.sh cookbook-setup.sh ; do /tmp/scripts/$i ; done && \
     chef-solo -o cdap::sdk -j /tmp/files/cdap-sdk.json && \
     for i in remove-chef.sh sdk-cleanup.sh apt-cleanup.sh ; do /tmp/scripts/$i ; done && \

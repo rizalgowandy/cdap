@@ -29,18 +29,19 @@ import com.google.inject.Inject;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.lang.ClassLoaders;
+import java.util.Collections;
+import java.util.Map;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.Map;
-
 /**
- * Service that programmatically loads additional log appenders. It provides classloader isolation for additional
- * appender.
+ * Service that programmatically loads additional log appenders. It provides classloader isolation
+ * for additional appender.
  */
 public class LogAppenderLoaderService extends AbstractIdleService {
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(LogAppenderLoaderService.class);
+
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      LogAppenderLoaderService.class);
   private final CConfiguration cConf;
   private Appender<ILoggingEvent> logAppender;
 
@@ -82,8 +83,8 @@ public class LogAppenderLoaderService extends AbstractIdleService {
     Appender<ILoggingEvent> appender = new LogAppenderExtensionLoader(cConf).get(appenderProvider);
     if (appender == null) {
       // this will not happen unless log appender provider is misconfigured.
-      throw new RuntimeException("Log appender " + appenderProvider + " is not constructed. " +
-                                   "Please provide correct log appender provider.");
+      throw new RuntimeException("Log appender " + appenderProvider + " is not constructed. "
+          + "Please provide correct log appender provider.");
     }
     return appender;
   }
@@ -102,13 +103,15 @@ public class LogAppenderLoaderService extends AbstractIdleService {
         // Display any errors during initialization of log appender to console
         configureStatusManager(loggerContext);
 
-        ClassLoader oldClassLoader = ClassLoaders.setContextClassLoader(appender.getClass().getClassLoader());
+        ClassLoader oldClassLoader = ClassLoaders.setContextClassLoader(
+            appender.getClass().getClassLoader());
         try {
           Class<?> appenderClass = appender.getClass();
           // set all the provided properties for the log appender
           Map<String, String> properties = getProperties(cConf);
           for (Map.Entry<String, String> property : properties.entrySet()) {
-            appenderClass.getMethod(property.getKey(), String.class).invoke(appender, property.getValue());
+            appenderClass.getMethod(property.getKey(), String.class)
+                .invoke(appender, property.getValue());
           }
 
           appender.start();
@@ -135,7 +138,7 @@ public class LogAppenderLoaderService extends AbstractIdleService {
    */
   private Map<String, String> getProperties(CConfiguration cConf) {
     String prefix = String.format("%s%s.", Constants.Logging.LOG_APPENDER_PROPERTY_PREFIX,
-                                  cConf.get(Constants.Logging.LOG_APPENDER_PROVIDER));
+        cConf.get(Constants.Logging.LOG_APPENDER_PROVIDER));
     return Collections.unmodifiableMap(cConf.getPropsWithPrefix(prefix));
   }
 }

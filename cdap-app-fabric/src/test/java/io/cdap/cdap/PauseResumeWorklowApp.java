@@ -19,11 +19,10 @@ package io.cdap.cdap;
 import io.cdap.cdap.api.app.AbstractApplication;
 import io.cdap.cdap.api.customaction.AbstractCustomAction;
 import io.cdap.cdap.api.workflow.AbstractWorkflow;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Application to test pause and resume functionality for the Workflow
@@ -63,11 +62,13 @@ public class PauseResumeWorklowApp extends AbstractApplication {
     public void run() {
       LOG.info("Running SimpleAction: " + getContext().getSpecification().getName());
       try {
-        File file = new File(getContext().getRuntimeArguments().get(getContext().getSpecification().getName() +
-                                                                      ".simple.action.file"));
+        File file = new File(
+            getContext().getRuntimeArguments().get(getContext().getSpecification().getName()
+                + ".simple.action.file"));
         file.createNewFile();
-        File doneFile = new File(getContext().getRuntimeArguments().get(getContext().getSpecification().getName() +
-                                                                          ".simple.action.donefile"));
+        File doneFile = new File(
+            getContext().getRuntimeArguments().get(getContext().getSpecification().getName()
+                + ".simple.action.donefile"));
         while (!doneFile.exists()) {
           TimeUnit.MILLISECONDS.sleep(50);
         }

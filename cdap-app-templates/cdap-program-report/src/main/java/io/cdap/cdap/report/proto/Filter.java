@@ -17,17 +17,18 @@
 package io.cdap.cdap.report.proto;
 
 import io.cdap.cdap.report.util.ReportField;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Represents a filter that checks whether the value of a field is allowed to be included in the report.
+ * Represents a filter that checks whether the value of a field is allowed to be included in the
+ * report.
  *
  * @param <T> type of the values
  */
 public abstract class Filter<T> extends ReportGenerationRequest.Field {
+
   public Filter(String fieldName) {
     super(fieldName);
   }
@@ -41,7 +42,8 @@ public abstract class Filter<T> extends ReportGenerationRequest.Field {
   public abstract boolean apply(T value);
 
   /**
-   * Gets errors in the filter of a given filter type that are not allowed in a report generation request.
+   * Gets errors in the filter of a given filter type that are not allowed in a report generation
+   * request.
    *
    * @param filterType type of the filter
    * @return list of errors in the filter
@@ -50,10 +52,11 @@ public abstract class Filter<T> extends ReportGenerationRequest.Field {
     List<String> errors = new ArrayList<>();
     ReportField valueFilterField = ReportField.valueOfFieldName(getFieldName());
     if (valueFilterField != null && !valueFilterField.getApplicableFilters().contains(filterType)) {
-      errors.add(String.format("Field '%s' cannot be filtered by %s. It can only be filtered by: [%s]",
-                               getFieldName(), filterType.getPrettyName(),
-                               valueFilterField.getApplicableFilters().stream()
-                                 .map(ReportField.FilterType::getPrettyName).collect(Collectors.joining(","))));
+      errors.add(
+          String.format("Field '%s' cannot be filtered by %s. It can only be filtered by: [%s]",
+              getFieldName(), filterType.getPrettyName(),
+              valueFilterField.getApplicableFilters().stream()
+                  .map(ReportField.FilterType::getPrettyName).collect(Collectors.joining(","))));
     }
     return errors;
   }

@@ -22,15 +22,15 @@ import io.cdap.cdap.common.conf.CConfigurationUtil;
 import io.cdap.cdap.master.environment.k8s.MasterEnvironmentMain;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentRunnable;
-import org.apache.twill.filesystem.LocationFactory;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
 import javax.inject.Inject;
+import org.apache.twill.filesystem.LocationFactory;
 
 /**
- * Default implementation of {@link MasterEnvironmentContext} that reflects the actual master runtime environment.
+ * Default implementation of {@link MasterEnvironmentContext} that reflects the actual master
+ * runtime environment.
  */
 public class DefaultMasterEnvironmentContext implements MasterEnvironmentContext {
 
@@ -42,7 +42,7 @@ public class DefaultMasterEnvironmentContext implements MasterEnvironmentContext
 
   @Inject
   DefaultMasterEnvironmentContext(CConfiguration cConf, LocationFactory locationFactory,
-                                  @Named(MASTER_ENV_NAME) String masterEnvName) {
+      @Named(MASTER_ENV_NAME) String masterEnvName) {
     this.masterEnvName = masterEnvName;
     this.locationFactory = locationFactory;
     this.configuration = CConfigurationUtil.asMap(cConf);
@@ -60,11 +60,11 @@ public class DefaultMasterEnvironmentContext implements MasterEnvironmentContext
 
   @Override
   public String[] getRunnableArguments(Class<? extends MasterEnvironmentRunnable> runnableClass,
-                                       String... runnableArgs) {
+      String... runnableArgs) {
     return Stream.concat(
-      Stream.of(MasterEnvironmentMain.class.getName(),
-                "--env=" + masterEnvName, "--runnableClass=" + runnableClass.getName()),
-      Arrays.stream(runnableArgs)
+        Stream.of(MasterEnvironmentMain.class.getName(),
+            "--env=" + masterEnvName, "--runnableClass=" + runnableClass.getName()),
+        Arrays.stream(runnableArgs)
     ).toArray(String[]::new);
   }
 }

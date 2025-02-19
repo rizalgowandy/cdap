@@ -33,13 +33,12 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.data2.dataset2.lib.table.BufferingTable;
 import io.cdap.cdap.data2.dataset2.lib.table.FuzzyRowFilter;
 import io.cdap.cdap.data2.dataset2.lib.table.Update;
-import org.apache.tephra.Transaction;
-
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import javax.annotation.Nullable;
+import org.apache.tephra.Transaction;
 
 /**
  * In-memory implementation of Table.
@@ -76,13 +75,15 @@ public class InMemoryTable extends BufferingTable {
   /**
    * To be used in tests that need namespaces
    */
-  public InMemoryTable(DatasetContext datasetContext, String name, ConflictDetection level, CConfiguration cConf) {
+  public InMemoryTable(DatasetContext datasetContext, String name, ConflictDetection level,
+      CConfiguration cConf) {
     super(PrefixedNamespaces.namespace(cConf, datasetContext.getNamespaceId(), name), level);
   }
 
-  public InMemoryTable(DatasetContext datasetContext, DatasetSpecification spec, CConfiguration cConf) {
+  public InMemoryTable(DatasetContext datasetContext, DatasetSpecification spec,
+      CConfiguration cConf) {
     super(PrefixedNamespaces.namespace(cConf, datasetContext.getNamespaceId(), spec.getName()),
-          false, spec.getProperties());
+        false, spec.getProperties());
   }
 
   @WriteOnly
@@ -120,8 +121,9 @@ public class InMemoryTable extends BufferingTable {
   }
 
   @Override
-  protected NavigableMap<byte[], byte[]> getPersisted(byte[] row, byte[] startColumn, byte[] stopColumn, int limit)
-    throws Exception {
+  protected NavigableMap<byte[], byte[]> getPersisted(byte[] row, byte[] startColumn,
+      byte[] stopColumn, int limit)
+      throws Exception {
 
     NavigableMap<byte[], byte[]> rowMap = getInternal(row, null);
     if (rowMap == null) {
@@ -131,7 +133,8 @@ public class InMemoryTable extends BufferingTable {
   }
 
   @Override
-  protected NavigableMap<byte[], byte[]> getPersisted(byte[] row, @Nullable byte[][] columns) throws Exception {
+  protected NavigableMap<byte[], byte[]> getPersisted(byte[] row, @Nullable byte[][] columns)
+      throws Exception {
     return getInternal(row, columns);
   }
 
@@ -142,9 +145,10 @@ public class InMemoryTable extends BufferingTable {
     byte[] startRow = scan.getStartRow();
     byte[] stopRow = scan.getStopRow();
     NavigableMap<byte[], NavigableMap<byte[], NavigableMap<Long, byte[]>>> rowRange =
-      InMemoryTableService.getRowRange(getTableName(), startRow, stopRow,
-          tx == null ? null : tx);
-    NavigableMap<byte[], NavigableMap<byte[], byte[]>> visibleRowRange = getLatestNotExcludedRows(rowRange, tx);
+        InMemoryTableService.getRowRange(getTableName(), startRow, stopRow,
+            tx == null ? null : tx);
+    NavigableMap<byte[], NavigableMap<byte[], byte[]>> visibleRowRange = getLatestNotExcludedRows(
+        rowRange, tx);
     NavigableMap<byte[], NavigableMap<byte[], byte[]>> rows = unwrapDeletesForRows(visibleRowRange);
 
     rows = applyFilter(rows, scan.getFilter());
@@ -153,8 +157,8 @@ public class InMemoryTable extends BufferingTable {
   }
 
   private NavigableMap<byte[], NavigableMap<byte[], byte[]>> applyFilter(
-                                                    NavigableMap<byte[], NavigableMap<byte[], byte[]>> map,
-                                                    @Nullable Filter filter) {
+      NavigableMap<byte[], NavigableMap<byte[], byte[]>> map,
+      @Nullable Filter filter) {
 
     if (filter == null) {
       return map;
@@ -162,9 +166,11 @@ public class InMemoryTable extends BufferingTable {
 
     // todo: currently we support only FuzzyRowFilter as an experimental feature
     if (filter instanceof FuzzyRowFilter) {
-      NavigableMap<byte[], NavigableMap<byte[], byte[]>> result = Maps.newTreeMap(Bytes.BYTES_COMPARATOR);
+      NavigableMap<byte[], NavigableMap<byte[], byte[]>> result = Maps.newTreeMap(
+          Bytes.BYTES_COMPARATOR);
       for (Map.Entry<byte[], NavigableMap<byte[], byte[]>> entry : map.entrySet()) {
-        if (FuzzyRowFilter.ReturnCode.INCLUDE == ((FuzzyRowFilter) filter).filterRow(entry.getKey())) {
+        if (FuzzyRowFilter.ReturnCode.INCLUDE == ((FuzzyRowFilter) filter).filterRow(
+            entry.getKey())) {
           result.put(entry.getKey(), entry.getValue());
         }
       }
@@ -175,17 +181,18 @@ public class InMemoryTable extends BufferingTable {
   }
 
   @ReadOnly
-  private NavigableMap<byte[], byte[]> getInternal(byte[] row, @Nullable byte[][] columns) throws IOException {
+  private NavigableMap<byte[], byte[]> getInternal(byte[] row, @Nullable byte[][] columns)
+      throws IOException {
     // no tx logic needed
     if (tx == null) {
       NavigableMap<byte[], NavigableMap<Long, byte[]>> rowMap =
-        InMemoryTableService.get(getTableName(), row, tx);
+          InMemoryTableService.get(getTableName(), row, tx);
 
       return unwrapDeletes(filterByColumns(getLatest(rowMap), columns));
     }
 
     NavigableMap<byte[], NavigableMap<Long, byte[]>> rowMap =
-      InMemoryTableService.get(getTableName(), row, tx);
+        InMemoryTableService.get(getTableName(), row, tx);
 
     if (rowMap == null) {
       return EMPTY_ROW_MAP;
@@ -196,12 +203,13 @@ public class InMemoryTable extends BufferingTable {
       return unwrapDeletes(filterByColumns(getLatest(rowMap), columns));
     }
 
-    NavigableMap<byte[], byte[]> result = filterByColumns(getLatestNotExcluded(rowMap, tx), columns);
+    NavigableMap<byte[], byte[]> result = filterByColumns(getLatestNotExcluded(rowMap, tx),
+        columns);
     return unwrapDeletes(result);
   }
 
   private NavigableMap<byte[], byte[]> filterByColumns(NavigableMap<byte[], byte[]> rowMap,
-                                                       @Nullable byte[][] columns) {
+      @Nullable byte[][] columns) {
     if (columns == null) {
       return rowMap;
     }
@@ -216,7 +224,8 @@ public class InMemoryTable extends BufferingTable {
 
   }
 
-  private NavigableMap<byte[], byte[]> getLatest(NavigableMap<byte[], NavigableMap<Long, byte[]>> rowMap) {
+  private NavigableMap<byte[], byte[]> getLatest(
+      NavigableMap<byte[], NavigableMap<Long, byte[]>> rowMap) {
     if (rowMap == null) {
       return EMPTY_ROW_MAP;
     }
@@ -230,7 +239,7 @@ public class InMemoryTable extends BufferingTable {
   }
 
   protected static NavigableMap<byte[], byte[]> getLatestNotExcluded(
-    NavigableMap<byte[], NavigableMap<Long, byte[]>> rowMap, Transaction tx) {
+      NavigableMap<byte[], NavigableMap<Long, byte[]>> rowMap, Transaction tx) {
 
     // todo: for some subclasses it is ok to do changes in place...
     NavigableMap<byte[], byte[]> result = Maps.newTreeMap(Bytes.BYTES_COMPARATOR);
@@ -250,8 +259,9 @@ public class InMemoryTable extends BufferingTable {
   }
 
   protected static NavigableMap<byte[], NavigableMap<byte[], byte[]>> getLatestNotExcludedRows(
-    NavigableMap<byte[], NavigableMap<byte[], NavigableMap<Long, byte[]>>> rows, Transaction tx) {
-    NavigableMap<byte[], NavigableMap<byte[], byte[]>> result = Maps.newTreeMap(Bytes.BYTES_COMPARATOR);
+      NavigableMap<byte[], NavigableMap<byte[], NavigableMap<Long, byte[]>>> rows, Transaction tx) {
+    NavigableMap<byte[], NavigableMap<byte[], byte[]>> result = Maps.newTreeMap(
+        Bytes.BYTES_COMPARATOR);
 
     for (Map.Entry<byte[], NavigableMap<byte[], NavigableMap<Long, byte[]>>> rowMap : rows.entrySet()) {
       NavigableMap<byte[], byte[]> visibleRowMap = getLatestNotExcluded(rowMap.getValue(), tx);
@@ -278,7 +288,8 @@ public class InMemoryTable extends BufferingTable {
     return new AbstractIterator<T>() {
       @Override
       protected T computeNext() {
-        return InMemoryTable.this.hasNext(iterator) ? InMemoryTable.this.next(iterator) : endOfData();
+        return InMemoryTable.this.hasNext(iterator) ? InMemoryTable.this.next(iterator)
+            : endOfData();
       }
     };
   }

@@ -33,20 +33,22 @@ import io.cdap.cdap.api.dataset.table.Scanner;
 import io.cdap.cdap.api.metrics.MetricsCollector;
 import io.cdap.cdap.data2.dataset2.lib.table.inmemory.InMemoryMetricsTable;
 import io.cdap.cdap.data2.dataset2.lib.table.inmemory.InMemoryTableService;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Test base for {@link io.cdap.cdap.data2.dataset2.lib.timeseries.FactTable}.
  */
 public class FactTableTest {
+
+  private int coarseLagFactor = 10;
+  private int coarseRoundFactor = 1;
 
   @Test
   public void testBasics() throws Exception {
@@ -56,8 +58,8 @@ public class FactTableTest {
     int rollTimebaseInterval = 2;
 
     FactTable table = new FactTable(new InMemoryMetricsTable("DataTable"),
-                                                            new EntityTable(new InMemoryMetricsTable("EntityTable")),
-                                                            resolution, rollTimebaseInterval);
+                                    new EntityTable(new InMemoryMetricsTable("EntityTable")),
+                                    resolution, rollTimebaseInterval, coarseLagFactor, coarseRoundFactor);
 
     // aligned to start of resolution bucket
     // "/1000" because time is expected to be in seconds
@@ -217,7 +219,7 @@ public class FactTableTest {
 
     FactTable table = new FactTable(new InMemoryMetricsTable("SearchDataTable"),
                                     new EntityTable(new InMemoryMetricsTable("SearchEntityTable")),
-                                    resolution, rollTimebaseInterval);
+                                    resolution, rollTimebaseInterval, coarseLagFactor, coarseRoundFactor);
 
     // aligned to start of resolution bucket
     // "/1000" because time is expected to be in seconds
@@ -297,7 +299,7 @@ public class FactTableTest {
 
     FactTable table = new FactTable(new InMemoryMetricsTable("QueryDataTable"),
                                     new EntityTable(new InMemoryMetricsTable("QueryEntityTable")),
-                                    resolution, rollTimebaseInterval);
+                                    resolution, rollTimebaseInterval, coarseLagFactor, coarseRoundFactor);
 
     // aligned to start of resolution bucket
     // "/1000" because time is expected to be in seconds
@@ -488,7 +490,7 @@ public class FactTableTest {
 
     FactTable table = new FactTable(new InMemoryMetricsTable("TotalsDataTable"),
                                     new EntityTable(new InMemoryMetricsTable("TotalsEntityTable")),
-                                    resolution, rollTimebaseInterval);
+                                    resolution, rollTimebaseInterval, coarseLagFactor, coarseRoundFactor);
 
 
     // ts is expected in seconds
@@ -523,7 +525,7 @@ public class FactTableTest {
     InMemoryMetricsTable metricsTable = new InMemoryMetricsTable("presplitDataTable");
     FactTable table = new FactTable(metricsTable,
                                     new EntityTable(new InMemoryMetricsTable("presplitEntityTable")),
-                                    resolution, rollTimebaseInterval);
+                                    resolution, rollTimebaseInterval, coarseLagFactor, coarseRoundFactor);
 
     byte[][] splits = FactTable.getSplits(3);
 
@@ -575,7 +577,9 @@ public class FactTableTest {
 
     InMemoryMetricsTable metricsTable = new InMemoryMetricsTable(tableName);
     FactTable table = new FactTable(metricsTable,
-                                    new EntityTable(new InMemoryMetricsTable(entityTableName)), resolution, 2);
+                                    new EntityTable(new InMemoryMetricsTable(entityTableName)),
+                                    resolution, 2,
+                                    coarseLagFactor, coarseRoundFactor);
 
     // set the metrics collector for the table
     FactTableMetricsCollector metricsCollector = new FactTableMetricsCollector(resolution);

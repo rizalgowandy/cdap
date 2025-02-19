@@ -17,15 +17,15 @@
 package io.cdap.cdap.data2.transaction;
 
 import com.google.common.collect.ForwardingObject;
+import java.util.Collection;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionAware;
-
-import java.util.Collection;
 
 /**
  * A {@link TransactionAware} that forwards every methods to another {@link TransactionAware}.
  */
-public abstract class ForwardingTransactionAware extends ForwardingObject implements TransactionAware {
+public abstract class ForwardingTransactionAware extends ForwardingObject implements
+    TransactionAware {
 
   @Override
   protected abstract TransactionAware delegate();

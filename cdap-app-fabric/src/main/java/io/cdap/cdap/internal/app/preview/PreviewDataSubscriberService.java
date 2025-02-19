@@ -35,7 +35,7 @@ import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.utils.ImmutablePair;
 import io.cdap.cdap.internal.app.runtime.ProgramRunners;
 import io.cdap.cdap.internal.app.store.AppMetadataStore;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.context.MultiThreadMessagingContext;
 import io.cdap.cdap.messaging.subscriber.AbstractMessagingSubscriberService;
 import io.cdap.cdap.proto.codec.EntityIdTypeAdapter;
@@ -45,30 +45,31 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.spi.data.StructuredTableContext;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
-import org.apache.tephra.TxConstants;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.tephra.TxConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Service responsible for consuming preview messages from TMS and persist it to preview store.
  */
-public class PreviewDataSubscriberService extends AbstractMessagingSubscriberService<PreviewMessage> {
+public class PreviewDataSubscriberService extends
+    AbstractMessagingSubscriberService<PreviewMessage> {
+
   private static final Logger LOG = LoggerFactory.getLogger(PreviewDataSubscriberService.class);
   private static final Gson GSON = new GsonBuilder()
-    .registerTypeAdapter(EntityId.class, new EntityIdTypeAdapter())
-    .create();
+      .registerTypeAdapter(EntityId.class, new EntityIdTypeAdapter())
+      .create();
 
   private final PreviewStore previewStore;
   private final MultiThreadMessagingContext messagingContext;
   private final TransactionRunner transactionRunner;
   private final int maxRetriesOnError;
-  private int errorCount = 0;
-  private String erroredMessageId = null;
+  private int errorCount;
+  private String erroredMessageId;
   private MetricsCollectionService metricsCollectionService;
 
   /**
@@ -76,24 +77,24 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
    */
   @Inject
   PreviewDataSubscriberService(CConfiguration cConf,
-                               @Named(PreviewConfigModule.GLOBAL_TMS) MessagingService messagingService,
-                               @Named(PreviewConfigModule.GLOBAL_METRICS) MetricsCollectionService
-                                 metricsCollectionService,
-                               PreviewStore previewStore,
-                               TransactionRunner transactionRunner) {
+      @Named(PreviewConfigModule.GLOBAL_TMS) MessagingService messagingService,
+      @Named(PreviewConfigModule.GLOBAL_METRICS) MetricsCollectionService
+          metricsCollectionService,
+      PreviewStore previewStore,
+      TransactionRunner transactionRunner) {
     super(
-      NamespaceId.SYSTEM.topic(cConf.get(Constants.Preview.MESSAGING_TOPIC)),
-      cConf.getInt(Constants.Metadata.MESSAGING_FETCH_SIZE),
-      cConf.getInt(TxConstants.Manager.CFG_TX_TIMEOUT),
-      cConf.getLong(Constants.Metadata.MESSAGING_POLL_DELAY_MILLIS),
-      RetryStrategies.fromConfiguration(cConf, "system.preview."),
-      metricsCollectionService.getContext(ImmutableMap.of(
-        Constants.Metrics.Tag.COMPONENT, Constants.Service.MASTER_SERVICES,
-        Constants.Metrics.Tag.INSTANCE_ID, "0",
-        Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace(),
-        Constants.Metrics.Tag.TOPIC, cConf.get(Constants.Preview.MESSAGING_TOPIC),
-        Constants.Metrics.Tag.CONSUMER, "preview.writer"
-      )));
+        NamespaceId.SYSTEM.topic(cConf.get(Constants.Preview.MESSAGING_TOPIC)),
+        cConf.getInt(Constants.Metadata.MESSAGING_FETCH_SIZE),
+        cConf.getInt(TxConstants.Manager.CFG_TX_TIMEOUT),
+        cConf.getLong(Constants.Metadata.MESSAGING_POLL_DELAY_MILLIS),
+        RetryStrategies.fromConfiguration(cConf, "system.preview."),
+        metricsCollectionService.getContext(ImmutableMap.of(
+            Constants.Metrics.Tag.COMPONENT, Constants.Service.MASTER_SERVICES,
+            Constants.Metrics.Tag.INSTANCE_ID, "0",
+            Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace(),
+            Constants.Metrics.Tag.TOPIC, cConf.get(Constants.Preview.MESSAGING_TOPIC),
+            Constants.Metrics.Tag.CONSUMER, "preview.writer"
+        )));
 
     this.messagingContext = new MultiThreadMessagingContext(messagingService);
     this.previewStore = previewStore;
@@ -122,7 +123,7 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
 
   @Override
   protected void processMessages(StructuredTableContext structuredTableContext,
-                                 Iterator<ImmutablePair<String, PreviewMessage>> messages) throws Exception {
+      Iterator<ImmutablePair<String, PreviewMessage>> messages) throws Exception {
     Map<PreviewMessage.Type, PreviewMessageProcessor> processors = new HashMap<>();
 
     // Loop over all fetched messages and process them with corresponding PreviewMessageProcessor
@@ -156,8 +157,9 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
         if (messageId.equals(erroredMessageId)) {
           errorCount++;
           if (errorCount >= maxRetriesOnError) {
-            LOG.warn("Skipping preview message {} after processing it has caused {} consecutive errors: {}",
-                     message, errorCount, e.getMessage());
+            LOG.warn(
+                "Skipping preview message {} after processing it has caused {} consecutive errors: {}",
+                message, errorCount, e.getMessage());
             continue;
           }
         } else {
@@ -182,11 +184,13 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
   /**
    * Emit the preview run time metric.
    */
-  private void emitRunTimeMetric(PreviewStatus previewStatus, ApplicationId applicationId, ProgramRunId programRunId) {
+  private void emitRunTimeMetric(PreviewStatus previewStatus, ApplicationId applicationId,
+      ProgramRunId programRunId) {
     long runTime = (previewStatus.getEndTime() - previewStatus.getStartTime()) / 1000;
-    Map<String, String> tags = ImmutableMap.of(Constants.Metrics.Tag.STATUS, previewStatus.getStatus().name());
+    Map<String, String> tags = ImmutableMap.of(Constants.Metrics.Tag.STATUS,
+        previewStatus.getStatus().name());
     MetricsContext metricsContext = ProgramRunners.createProgramMetricsContext(programRunId, tags,
-                                                                               metricsCollectionService);
+        metricsCollectionService);
     metricsContext.gauge(Constants.Metrics.Preview.RUN_TIME_SECONDS, runTime);
   }
 
@@ -194,10 +198,13 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
    * The {@link PreviewMessageProcessor} for processing preview data.
    */
   private final class PreviewDataProcessor implements PreviewMessageProcessor {
+
     @Override
     public void processMessage(PreviewMessage message) {
       if (!(message.getEntityId() instanceof ApplicationId)) {
-        LOG.warn("Missing application id from the preview data information. Ignoring the message {}", message);
+        LOG.warn(
+            "Missing application id from the preview data information. Ignoring the message {}",
+            message);
         return;
       }
 
@@ -206,11 +213,13 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
       try {
         payload = message.getPayload(GSON, PreviewDataPayload.class);
       } catch (Throwable t) {
-        LOG.warn("Error while deserializing the preview data message received from TMS. Ignoring : {}",
-                 message, t);
+        LOG.warn(
+            "Error while deserializing the preview data message received from TMS. Ignoring : {}",
+            message, t);
         return;
       }
-      previewStore.put(applicationId, payload.getTracerName(), payload.getPropertyName(), payload.getPropertyValue());
+      previewStore.put(applicationId, payload.getTracerName(), payload.getPropertyName(),
+          payload.getPropertyValue());
     }
   }
 
@@ -218,10 +227,13 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
    * The {@link PreviewMessageProcessor} for writing preview status to store.
    */
   private final class PreviewStatusWriter implements PreviewMessageProcessor {
+
     @Override
     public void processMessage(PreviewMessage message) {
       if (!(message.getEntityId() instanceof ApplicationId)) {
-        LOG.warn("Missing application id from the preview status information. Ignoring the message {}", message);
+        LOG.warn(
+            "Missing application id from the preview status information. Ignoring the message {}",
+            message);
         return;
       }
 
@@ -230,14 +242,16 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
       try {
         payload = message.getPayload(GSON, PreviewStatus.class);
       } catch (Throwable t) {
-        LOG.warn("Error while deserializing the preview status message received from TMS. Ignoring : {}",
-                 message, t);
+        LOG.warn(
+            "Error while deserializing the preview status message received from TMS. Ignoring : {}",
+            message, t);
         return;
       }
       PreviewStatus existing = previewStore.getPreviewStatus(applicationId);
       if (existing != null && existing.getStatus().isEndState()) {
-        LOG.warn("Preview status for application {} is already in end state {}. Ignoring the update with state {}.",
-                 applicationId, existing.getStatus(), payload.getStatus());
+        LOG.warn(
+            "Preview status for application {} is already in end state {}. Ignoring the update with state {}.",
+            applicationId, existing.getStatus(), payload.getStatus());
         return;
       }
       previewStore.setPreviewStatus(applicationId, payload);
@@ -251,10 +265,12 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
    * The {@link PreviewMessageProcessor} for writing preview run id to store.
    */
   private final class PreviewProgramRunIdWriter implements PreviewMessageProcessor {
+
     @Override
     public void processMessage(PreviewMessage message) {
       if (!(message.getEntityId() instanceof ApplicationId)) {
-        LOG.warn("Missing application id from the preview run information. Ignoring the message {}", message);
+        LOG.warn("Missing application id from the preview run information. Ignoring the message {}",
+            message);
         return;
       }
 
@@ -262,8 +278,9 @@ public class PreviewDataSubscriberService extends AbstractMessagingSubscriberSer
       try {
         payload = message.getPayload(GSON, ProgramRunId.class);
       } catch (Throwable t) {
-        LOG.warn("Error while deserializing the preview program run information received from TMS. Ignoring : {}",
-                 message, t);
+        LOG.warn(
+            "Error while deserializing the preview program run information received from TMS. Ignoring : {}",
+            message, t);
         return;
       }
       previewStore.setProgramId(payload);

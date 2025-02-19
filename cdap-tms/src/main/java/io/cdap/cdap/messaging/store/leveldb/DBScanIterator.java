@@ -19,21 +19,21 @@ package io.cdap.cdap.messaging.store.leveldb;
 import com.google.common.base.Throwables;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.dataset.lib.AbstractCloseableIterator;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.DBIterator;
-
 import java.io.IOException;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.iq80.leveldb.DB;
+import org.iq80.leveldb.DBIterator;
 
 /**
  * LevelDB Table Scan Iterator that takes in optional startKey and stopKey.
  */
 final class DBScanIterator extends AbstractCloseableIterator<Map.Entry<byte[], byte[]>> {
+
   private final DBIterator iterator;
   private final byte[] stopKey;
 
-  private boolean closed = false;
+  private boolean closed;
 
   DBScanIterator(DB levelDB, @Nullable byte[] startKey, @Nullable final byte[] stopKey) {
     this.iterator = levelDB.iterator();

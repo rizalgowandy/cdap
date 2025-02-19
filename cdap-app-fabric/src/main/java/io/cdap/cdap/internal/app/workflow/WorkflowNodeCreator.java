@@ -29,7 +29,6 @@ import io.cdap.cdap.internal.app.customaction.DefaultCustomActionConfigurer;
 import io.cdap.cdap.internal.app.deploy.pipeline.AppDeploymentRuntimeInfo;
 import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
-
 import javax.annotation.Nullable;
 
 /**
@@ -37,9 +36,11 @@ import javax.annotation.Nullable;
  */
 final class WorkflowNodeCreator {
 
-  private WorkflowNodeCreator() {}
+  private WorkflowNodeCreator() {
+  }
 
-  static WorkflowNode createWorkflowActionNode(String programName, SchedulableProgramType programType) {
+  static WorkflowNode createWorkflowActionNode(String programName,
+      SchedulableProgramType programType) {
     switch (programType) {
       case MAPREDUCE:
         Preconditions.checkNotNull(programName, "MapReduce name is null.");
@@ -59,16 +60,18 @@ final class WorkflowNodeCreator {
     return new WorkflowActionNode(programName, new ScheduleProgramInfo(programType, programName));
   }
 
-  static WorkflowNode createWorkflowCustomActionNode(CustomAction action, Id.Namespace deployNamespace,
-                                                     Id.Artifact artifactId, PluginFinder pluginFinder,
-                                                     PluginInstantiator pluginInstantiator,
-                                                     @Nullable AppDeploymentRuntimeInfo runtimeInfo,
-                                                     FeatureFlagsProvider featureFlagsProvider) {
+  static WorkflowNode createWorkflowCustomActionNode(CustomAction action,
+      Id.Namespace deployNamespace,
+      Id.Artifact artifactId, PluginFinder pluginFinder,
+      PluginInstantiator pluginInstantiator,
+      @Nullable AppDeploymentRuntimeInfo runtimeInfo,
+      FeatureFlagsProvider featureFlagsProvider) {
     Preconditions.checkArgument(action != null, "CustomAction is null.");
-    CustomActionSpecification spec = DefaultCustomActionConfigurer.configureAction(action, deployNamespace, artifactId,
-                                                                                   pluginFinder,
-                                                                                   pluginInstantiator, runtimeInfo,
-                                                                                   featureFlagsProvider);
+    CustomActionSpecification spec = DefaultCustomActionConfigurer.configureAction(action,
+        deployNamespace, artifactId,
+        pluginFinder,
+        pluginInstantiator, runtimeInfo,
+        featureFlagsProvider);
     return new WorkflowActionNode(spec.getName(), spec);
   }
 }

@@ -18,7 +18,6 @@ package io.cdap.cdap.api.plugin;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.macro.Macros;
-
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,13 +55,14 @@ public class PluginProperties implements Serializable {
   }
 
   public Macros getMacros() {
-    return  (macros == null) ? new Macros() : macros;
+    return (macros == null) ? new Macros() : macros;
   }
 
   /**
-   * Creates and returns a new instance of Plugin properties with current properties and the passed macros parameter.
-   * Note this is used internally by the CDAP Platform and it is advisable
-   * that plugin developers not use this method.
+   * Creates and returns a new instance of Plugin properties with current properties and the passed
+   * macros parameter. Note this is used internally by the CDAP Platform and it is advisable that
+   * plugin developers not use this method.
+   *
    * @param macros set of macros used by this plugin.
    * @return new instance of plugin properties with macros set.
    */
@@ -84,10 +84,10 @@ public class PluginProperties implements Serializable {
 
   @Override
   public String toString() {
-    return "PluginProperties{" +
-      "properties=" + properties +
-      ", macros=" + macros +
-      '}';
+    return "PluginProperties{"
+        + "properties=" + properties
+        + ", macros=" + macros
+        + '}';
   }
 
   @Override
@@ -119,6 +119,7 @@ public class PluginProperties implements Serializable {
 
     /**
      * Adds a property
+     *
      * @param key the name of the property
      * @param value the value of the property
      * @return this builder
@@ -129,7 +130,8 @@ public class PluginProperties implements Serializable {
     }
 
     /**
-     * Creates a new instance of {@link PluginProperties} with the properties added to this builder prior to this call.
+     * Creates a new instance of {@link PluginProperties} with the properties added to this builder
+     * prior to this call.
      */
     public PluginProperties build() {
       return new PluginProperties(Collections.unmodifiableMap(new HashMap<>(properties)));

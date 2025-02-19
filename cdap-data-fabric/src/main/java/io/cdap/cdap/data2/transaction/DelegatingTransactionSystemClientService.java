@@ -18,6 +18,9 @@ package io.cdap.cdap.data2.transaction;
 
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
+import java.io.InputStream;
+import java.util.Collection;
+import java.util.Set;
 import org.apache.tephra.InvalidTruncateTimeException;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionCouldNotTakeSnapshotException;
@@ -25,15 +28,12 @@ import org.apache.tephra.TransactionFailureException;
 import org.apache.tephra.TransactionNotInProgressException;
 import org.apache.tephra.TransactionSystemClient;
 
-import java.io.InputStream;
-import java.util.Collection;
-import java.util.Set;
-
 /**
- * Delegates all transaction methods to a TransactionSystemClient and does nothing during startup and shutdown.
+ * Delegates all transaction methods to a TransactionSystemClient and does nothing during startup
+ * and shutdown.
  */
 public class DelegatingTransactionSystemClientService
-  extends AbstractIdleService implements TransactionSystemClientService {
+    extends AbstractIdleService implements TransactionSystemClientService {
 
   private final TransactionSystemClient delegate;
 
@@ -58,13 +58,15 @@ public class DelegatingTransactionSystemClientService
   }
 
   @Override
-  public boolean canCommit(Transaction tx, Collection<byte[]> changeIds) throws TransactionNotInProgressException {
+  public boolean canCommit(Transaction tx, Collection<byte[]> changeIds)
+      throws TransactionNotInProgressException {
     //noinspection deprecation
     return delegate.canCommit(tx, changeIds);
   }
 
   @Override
-  public void canCommitOrThrow(Transaction tx, Collection<byte[]> changeIds) throws TransactionFailureException {
+  public void canCommitOrThrow(Transaction tx, Collection<byte[]> changeIds)
+      throws TransactionFailureException {
     delegate.canCommitOrThrow(tx, changeIds);
   }
 

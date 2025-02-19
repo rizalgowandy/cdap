@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019-2021 Cask Data, Inc.
+ * Copyright © 2019-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -27,14 +27,16 @@ import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Module;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
+import io.cdap.cdap.app.guice.AuditLogWriterModule;
 import io.cdap.cdap.app.preview.PreviewConfigModule;
 import io.cdap.cdap.common.app.MainClassLoader;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.guice.SupplierProviderBridge;
-import io.cdap.cdap.common.guice.ZKClientModule;
+import io.cdap.cdap.common.guice.ZkClientModule;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.logging.common.UncaughtExceptionHandler;
@@ -52,11 +54,18 @@ import io.cdap.cdap.master.environment.MasterEnvironments;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
 import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
+import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.guice.CoreSecurityModule;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.spi.data.StorageProvider;
+import java.io.File;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.tephra.TransactionSystemClient;
 import org.apache.twill.discovery.DiscoveryService;
@@ -64,13 +73,6 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
-
-import java.io.File;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import javax.annotation.Nullable;
 
 /**
  * The abstract base class for writing various service main classes.
@@ -91,15 +93,16 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
    * Helper method for sub-class to call from static void main.
    *
    * @param mainClass the class of the master main class implementation
-   * @param args arguments to main
-   * @param <T> type of the master main class
+   * @param args      arguments to main
+   * @param <T>       type of the master main class
    * @throws Exception if execution failed
    */
   protected static <E extends EnvironmentOptions, T extends AbstractServiceMain<E>>
   void main(Class<T> mainClass, String[] args) throws Exception {
     ClassLoader classLoader = MainClassLoader.createFromContext();
     if (classLoader == null) {
-      LOG.warn("Failed to create CDAP system ClassLoader. AuthEnforce annotation will not be rewritten.");
+      LOG.warn(
+          "Failed to create CDAP system ClassLoader. AuthEnforce annotation will not be rewritten.");
       mainClass.newInstance().doMain(args);
     } else {
       Thread.currentThread().setContextClassLoader(classLoader);
@@ -108,14 +111,15 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
       // We need to find the DaemonMain class from the super class chain
       Class<?> cls = classLoader.loadClass(mainClass.getName());
       Class<?> superClass = cls.getSuperclass();
-      while (!DaemonMain.class.getName().equals(superClass.getName()) && !Object.class.equals(superClass)) {
+      while (!DaemonMain.class.getName().equals(superClass.getName()) && !Object.class.equals(
+          superClass)) {
         superClass = superClass.getSuperclass();
       }
 
       if (!DaemonMain.class.getName().equals(superClass.getName())) {
         // This should never happen
-        throw new IllegalStateException("Main service class " + mainClass.getName() +
-                                          " should inherit from " + DaemonMain.class.getName());
+        throw new IllegalStateException("Main service class " + mainClass.getName()
+            + " should inherit from " + DaemonMain.class.getName());
       }
 
       Method method = superClass.getDeclaredMethod("doMain", String[].class);
@@ -135,9 +139,11 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
     SLF4JBridgeHandler.removeHandlersForRootLogger();
     SLF4JBridgeHandler.install();
 
-    TypeToken<?> type = TypeToken.of(getClass()).resolveType(AbstractServiceMain.class.getTypeParameters()[0]);
+    TypeToken<?> type = TypeToken.of(getClass())
+        .resolveType(AbstractServiceMain.class.getTypeParameters()[0]);
     T options = (T) type.getRawType().newInstance();
-    OptionsParser.init(options, args, getClass().getSimpleName(), ProjectInfo.getVersion().toString(), System.out);
+    OptionsParser.init(options, args, getClass().getSimpleName(),
+        ProjectInfo.getVersion().toString(), System.out);
 
     CConfiguration cConf = CConfiguration.create();
     SecurityUtil.loginForMasterService(cConf);
@@ -151,22 +157,27 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
 
     Configuration hConf = new Configuration();
 
-    masterEnv = MasterEnvironments.setMasterEnvironment(MasterEnvironments.create(cConf, options.getEnvProvider()));
-    MasterEnvironmentContext masterEnvContext = MasterEnvironments.createContext(cConf, hConf, masterEnv.getName());
+    masterEnv = MasterEnvironments.setMasterEnvironment(
+        MasterEnvironments.create(cConf, options.getEnvProvider()));
+    MasterEnvironmentContext masterEnvContext = MasterEnvironments.createContext(cConf, hConf,
+        masterEnv.getName());
     masterEnv.initialize(masterEnvContext);
 
     List<Module> modules = new ArrayList<>();
     modules.add(new ConfigModule(cConf, hConf, sConf));
+    modules.add(RemoteAuthenticatorModules.getDefaultModule());
     modules.add(new PreviewConfigModule(cConf, hConf, sConf));
     modules.add(new IOModule());
     modules.add(new MetricsClientRuntimeModule().getDistributedModules());
+    modules.add(new AuditLogWriterModule(cConf).getDistributedModules());
     modules.add(new AbstractModule() {
       @Override
       protected void configure() {
         bind(DiscoveryService.class)
-          .toProvider(new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceSupplier()));
+            .toProvider(new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceSupplier()));
         bind(DiscoveryServiceClient.class)
-          .toProvider(new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceClientSupplier()));
+            .toProvider(
+                new SupplierProviderBridge<>(masterEnv.getDiscoveryServiceClientSupplier()));
       }
     });
     modules.add(getLogAppenderModule());
@@ -174,7 +185,7 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
     CoreSecurityModule coreSecurityModule = CoreSecurityRuntimeModule.getDistributedModule(cConf);
     modules.add(coreSecurityModule);
     if (coreSecurityModule.requiresZKClient()) {
-      modules.add(new ZKClientModule());
+      modules.add(new ZkClientModule());
     }
     modules.add(new AuthenticationContextModules().getMasterModule());
 
@@ -183,18 +194,24 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
     injector = Guice.createInjector(modules);
 
     // Initialize logging context
-    LogAppenderInitializer logAppenderInitializer = injector.getInstance(LogAppenderInitializer.class);
+    LogAppenderInitializer logAppenderInitializer = injector.getInstance(
+        LogAppenderInitializer.class);
     closeableResources.add(logAppenderInitializer);
 
     logAppenderInitializer.initialize();
-    Optional.ofNullable(getLoggingContext(options)).ifPresent(LoggingContextAccessor::setLoggingContext);
+    Optional.ofNullable(getLoggingContext(options))
+        .ifPresent(LoggingContextAccessor::setLoggingContext);
 
     // Add Services
     services.add(injector.getInstance(MetricsCollectionService.class));
+    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
+      services.add(injector.getInstance(TokenManager.class));
+    }
     addServices(injector, services, closeableResources, masterEnv, masterEnvContext, options);
 
     // Optionally get the storage provider. It is for destroy() method to close it on shutdown.
-    Binding<StorageProvider> storageBinding = injector.getExistingBinding(Key.get(StorageProvider.class));
+    Binding<StorageProvider> storageBinding = injector.getExistingBinding(
+        Key.get(StorageProvider.class));
     if (storageBinding != null) {
       storageProvider = storageBinding.getProvider().get();
     }
@@ -221,7 +238,8 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
         service.stopAndWait();
       } catch (Exception e) {
         // Catch and log exception on stopping to make sure each service has a chance to stop
-        LOG.warn("Exception raised when stopping service {} for {}", service, getClass().getName(), e);
+        LOG.warn("Exception raised when stopping service {} for {}", service, getClass().getName(),
+            e);
       }
     }
 
@@ -230,7 +248,8 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
         closeable.close();
       } catch (Exception e) {
         // Catch and log exception on stopping to make sure all closeables are closed
-        LOG.warn("Exception raised when closing resource {} for {}", closeable, getClass().getName(), e);
+        LOG.warn("Exception raised when closing resource {} for {}", closeable,
+            getClass().getName(), e);
       }
     }
     LOG.info("All services for {} stopped", getClass().getName());
@@ -268,7 +287,8 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
         // Bind transaction system to a constant one, basically no transaction, with every write become
         // visible immediately.
         // TODO: Ideally we shouldn't need this at all. However, it is needed now to satisfy dependencies
-        bind(TransactionSystemClientService.class).to(DelegatingTransactionSystemClientService.class);
+        bind(TransactionSystemClientService.class).to(
+            DelegatingTransactionSystemClientService.class);
         bind(TransactionSystemClient.class).to(ConstantTransactionSystemClient.class);
       }
     };
@@ -287,6 +307,7 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
    * @param cConf the {@link CConfiguration} to be updated
    * @return the updated configuration
    */
+  @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
   protected CConfiguration updateCConf(CConfiguration cConf) {
     return cConf;
   }
@@ -294,20 +315,23 @@ public abstract class AbstractServiceMain<T extends EnvironmentOptions> extends 
   /**
    * Returns a {@link List} of Guice {@link Module} that this specific for this master service.
    */
-  protected abstract List<Module> getServiceModules(MasterEnvironment masterEnv, T options, CConfiguration cConf);
+  protected abstract List<Module> getServiceModules(MasterEnvironment masterEnv, T options,
+      CConfiguration cConf);
 
   /**
    * Adds {@link Service} to run.
-   * @param injector the Guice {@link Injector} for all the necessary bindings
-   * @param services the {@link List} to populate services to run
-   * @param closeableResources the {@link List} to populate {@link AutoCloseable} that will be closed on stopping
-   * @param masterEnv the {@link MasterEnvironment} created for this main service
-   * @param masterEnvContext the {@link MasterEnvironmentContext} created for this main service
+   *
+   * @param injector           the Guice {@link Injector} for all the necessary bindings
+   * @param services           the {@link List} to populate services to run
+   * @param closeableResources the {@link List} to populate {@link AutoCloseable} that will be
+   *                           closed on stopping
+   * @param masterEnv          the {@link MasterEnvironment} created for this main service
+   * @param masterEnvContext   the {@link MasterEnvironmentContext} created for this main service
    */
   protected abstract void addServices(Injector injector, List<? super Service> services,
-                                      List<? super AutoCloseable> closeableResources,
-                                      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
-                                      T options);
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
+      T options);
 
   /**
    * Returns the {@link LoggingContext} to use for this service main.

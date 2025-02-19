@@ -47,9 +47,6 @@ import io.cdap.cdap.etl.api.batch.BatchSourceContext;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
 import io.cdap.cdap.format.StructuredRecordStringConverter;
 import io.cdap.cdap.test.DataSetManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Collections;
@@ -58,21 +55,26 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Mock source that can be used to write a list of records in a Table and reads them out in a pipeline run.
+ * Mock source that can be used to write a list of records in a Table and reads them out in a
+ * pipeline run.
  */
 @Plugin(type = BatchSource.PLUGIN_TYPE)
 @Name(MockSource.NAME)
 public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
+
   public static final String NAME = "Mock";
 
   private static final Logger LOG = LoggerFactory.getLogger(MockSource.class);
 
   private static final Gson GSON = new GsonBuilder()
-    .registerTypeAdapter(MetadataOperation.class, new MetadataOperationTypeAdapter())
-    .create();
-  private static final Type SET_METADATA_OPERATION_TYPE = new TypeToken<Set<MetadataOperation>>() { }.getType();
+      .registerTypeAdapter(MetadataOperation.class, new MetadataOperationTypeAdapter())
+      .create();
+  private static final Type SET_METADATA_OPERATION_TYPE = new TypeToken<Set<MetadataOperation>>() {
+  }.getType();
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   private static final byte[] SCHEMA_COL = Bytes.toBytes("s");
   private static final byte[] RECORD_COL = Bytes.toBytes("r");
@@ -86,10 +88,12 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
    * Config for the source.
    */
   public static class Config extends PluginConfig {
+
     @Macro
     private ConnectionConfig connectionConfig;
 
     @Nullable
+    @Macro
     private String schema;
 
     @Nullable
@@ -98,8 +102,9 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
     @Nullable
     private Long sleepInMillis;
 
-    public void setConfig(ConnectionConfig connectionConfig, String schema, String metadataOperations,
-                          Long sleepInMillis) {
+    public void setConfig(ConnectionConfig connectionConfig, String schema,
+        String metadataOperations,
+        Long sleepInMillis) {
       this.connectionConfig = connectionConfig;
       this.schema = schema;
       this.metadataOperations = metadataOperations;
@@ -111,6 +116,7 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
    * Connection Config for mock source
    */
   public static class ConnectionConfig extends PluginConfig {
+
     private String tableName;
 
     public void setTableName(String tableName) {
@@ -124,7 +130,7 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
     if (!config.containsMacro("tableName")) {
       pipelineConfigurer.createDataset(config.connectionConfig.tableName, Table.class);
     }
-    if (config.schema != null) {
+    if (!config.containsMacro("schema") && config.schema != null) {
       try {
         pipelineConfigurer.getStageConfigurer().setOutputSchema(Schema.parseJson(config.schema));
       } catch (IOException e) {
@@ -136,17 +142,20 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
   @Override
   public void initialize(BatchRuntimeContext context) throws Exception {
     super.initialize(context);
-    if (config.schema != null) {
+    // context.getOutputSchema is null if schema has macro at configure time, so skip the comparison
+    if (config.schema != null && context.getOutputSchema() != null) {
       // should never happen, just done to test App correctness in unit tests
       Schema outputSchema = Schema.parseJson(config.schema);
       if (!outputSchema.equals(context.getOutputSchema())) {
-        throw new IllegalStateException("Output schema does not match what was set at configure time.");
+        throw new IllegalStateException(
+            "Output schema does not match what was set at configure time.");
       }
     }
   }
 
   @Override
-  public void transform(KeyValue<byte[], Row> input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(KeyValue<byte[], Row> input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     Schema schema = Schema.parseJson(input.getValue().getString(SCHEMA_COL));
     String recordStr = input.getValue().getString(RECORD_COL);
     emitter.emit(StructuredRecordStringConverter.fromJsonString(recordStr, schema));
@@ -162,8 +171,9 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
   }
 
   /**
-   * Get the plugin config to be used in a pipeline config. If the source outputs records of the same schema,
-   * {@link #getPlugin(String, Schema)} should be used instead, so that the source will set an output schema.
+   * Get the plugin config to be used in a pipeline config. If the source outputs records of the
+   * same schema, {@link #getPlugin(String, Schema)} should be used instead, so that the source will
+   * set an output schema.
    *
    * @param tableName the table backing the mock source
    * @return the plugin config to be used in a pipeline config
@@ -187,14 +197,16 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
   }
 
   /**
-   * Get the plugin config to be used in a pipeline config. The source must only output records with the given schema.
+   * Get the plugin config to be used in a pipeline config. The source must only output records with
+   * the given schema.
    *
    * @param tableName the table backing the mock source
    * @param schema the schema of records output by this source
    * @param operations {@link MetadataOperation} to be performed
    * @return the plugin config to be used in a pipeline config
    */
-  public static ETLPlugin getPlugin(String tableName, Schema schema, Set<MetadataOperation> operations) {
+  public static ETLPlugin getPlugin(String tableName, Schema schema,
+      Set<MetadataOperation> operations) {
     Map<String, String> properties = new HashMap<>();
     properties.put("tableName", tableName);
     properties.put("schema", schema.toString());
@@ -203,7 +215,8 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
   }
 
   /**
-   * Get the plugin config to be used in a pipeline config. The source must only output records with the given schema.
+   * Get the plugin config to be used in a pipeline config. The source must only output records with
+   * the given schema.
    *
    * @param tableName the table backing the mock source
    * @param schema the schema of records output by this source
@@ -217,7 +230,8 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
   }
 
   /**
-   * Get the plugin config to be used in a pipeline config. The source must only output records with the given schema.
+   * Get the plugin config to be used in a pipeline config. The source must only output records with
+   * the given schema.
    *
    * @param tableName the table backing the mock source
    * @param schema the schema of records output by this source
@@ -233,31 +247,32 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
   }
 
   /**
-   * Used to write the input records for the pipeline run. Should be called after the pipeline has been created.
+   * Used to write the input records for the pipeline run. Should be called after the pipeline has
+   * been created.
    *
    * @param tableManager dataset manager used to write to the source dataset
    * @param records records that should be the input for the pipeline
    */
   public static void writeInput(DataSetManager<Table> tableManager,
-                                Iterable<StructuredRecord> records) throws Exception {
+      Iterable<StructuredRecord> records) throws Exception {
     writeInput(tableManager, null, records);
   }
 
   /**
-   * Used to write the input record with specified row key for the pipeline run.
-   * Should be called after the pipeline has been created.
+   * Used to write the input record with specified row key for the pipeline run. Should be called
+   * after the pipeline has been created.
    *
    * @param tableManager dataset manager used to write to the source dataset
    * @param rowKey the row key of the table
    * @param record record that should be the input for the pipeline
    */
   public static void writeInput(DataSetManager<Table> tableManager, String rowKey,
-                                StructuredRecord record) throws Exception {
+      StructuredRecord record) throws Exception {
     writeInput(tableManager, rowKey, ImmutableList.of(record));
   }
 
   private static void writeInput(DataSetManager<Table> tableManager, @Nullable String rowKey,
-                                 Iterable<StructuredRecord> records) throws Exception {
+      Iterable<StructuredRecord> records) throws Exception {
     tableManager.flush();
     Table table = tableManager.get();
     // write each record as a separate row, with the serialized record as one column and schema as another
@@ -265,52 +280,62 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
     for (StructuredRecord record : records) {
       byte[] row = rowKey == null ? Bytes.toBytes(UUID.randomUUID()) : Bytes.toBytes(rowKey);
       table.put(row, SCHEMA_COL, Bytes.toBytes(record.getSchema().toString()));
-      table.put(row, RECORD_COL, Bytes.toBytes(StructuredRecordStringConverter.toJsonString(record)));
+      table.put(row, RECORD_COL,
+          Bytes.toBytes(StructuredRecordStringConverter.toJsonString(record)));
     }
     tableManager.flush();
   }
 
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
-    properties.put("connectionConfig", new PluginPropertyField("connectionConfig", "", "connectionconfig", true, true,
-                                                               false, Collections.singleton("tableName")));
+    properties.put("connectionConfig",
+        new PluginPropertyField("connectionConfig", "", "connectionconfig", true, true,
+            false, Collections.singleton("tableName")));
     properties.put("tableName", new PluginPropertyField("tableName", "", "string", true, false));
-    properties.put("schema", new PluginPropertyField("schema", "", "string", false, false));
-    properties.put("metadataOperations", new PluginPropertyField("metadataOperations", "", "string", false, false));
-    properties.put("sleepInMillis", new PluginPropertyField("sleepInMillis", "", "long", false, false));
+    properties.put("schema", new PluginPropertyField("schema", "", "string", false, true));
+    properties.put("metadataOperations",
+        new PluginPropertyField("metadataOperations", "", "string", false, false));
+    properties.put("sleepInMillis",
+        new PluginPropertyField("sleepInMillis", "", "long", false, false));
     return PluginClass.builder().setName("Mock").setType(BatchSource.PLUGIN_TYPE)
-             .setDescription("").setClassName(MockSource.class.getName()).setProperties(properties)
-             .setConfigFieldName("config").build();
+        .setDescription("").setClassName(MockSource.class.getName()).setProperties(properties)
+        .setConfigFieldName("config").build();
   }
 
   /**
    * Processes metadata operations
    */
   private void processsMetadata(BatchSourceContext context) throws MetadataException {
-    MetadataEntity metadataEntity = MetadataEntity.ofDataset(context.getNamespace(), config.connectionConfig.tableName);
+    MetadataEntity metadataEntity = MetadataEntity.ofDataset(context.getNamespace(),
+        config.connectionConfig.tableName);
     Map<MetadataScope, Metadata> currentMetadata = context.getMetadata(metadataEntity);
-    Set<MetadataOperation> operations = GSON.fromJson(config.metadataOperations, SET_METADATA_OPERATION_TYPE);
+    Set<MetadataOperation> operations = GSON.fromJson(config.metadataOperations,
+        SET_METADATA_OPERATION_TYPE);
     // must be to fetch metadata and there should be system metadata
-    if (currentMetadata.get(MetadataScope.SYSTEM).getProperties().isEmpty() ||
-      currentMetadata.get(MetadataScope.SYSTEM).getProperties().isEmpty()) {
-      throw new IllegalArgumentException(String.format("System properties or tags for '%s' is empty. " +
-                                                 "Expected to have system metadata.", metadataEntity));
+    if (currentMetadata.get(MetadataScope.SYSTEM).getProperties().isEmpty()
+        || currentMetadata.get(MetadataScope.SYSTEM).getProperties().isEmpty()) {
+      throw new IllegalArgumentException(
+          String.format("System properties or tags for '%s' is empty. "
+              + "Expected to have system metadata.", metadataEntity));
     }
-    LOG.trace("Metadata operations {} will be applied. Current Metadata Record is {}", operations, currentMetadata);
+    LOG.trace("Metadata operations {} will be applied. Current Metadata Record is {}", operations,
+        currentMetadata);
     // noinspection ConstantConditions
     for (MetadataOperation curOperation : operations) {
       switch (curOperation.getType()) {
         case PUT:
           // noinspection ConstantConditions
-          context.addTags(curOperation.getEntity(), ((MetadataOperation.Put) curOperation).getTags());
-          context.addProperties(curOperation.getEntity(), ((MetadataOperation.Put) curOperation).getProperties());
+          context.addTags(curOperation.getEntity(),
+              ((MetadataOperation.Put) curOperation).getTags());
+          context.addProperties(curOperation.getEntity(),
+              ((MetadataOperation.Put) curOperation).getProperties());
           break;
         case DELETE:
           // noinspection ConstantConditions
           context.removeTags(curOperation.getEntity(),
-                             ((MetadataOperation.Delete) curOperation).getTags().toArray(new String[0]));
+              ((MetadataOperation.Delete) curOperation).getTags().toArray(new String[0]));
           context.removeProperties(curOperation.getEntity(),
-                                   ((MetadataOperation.Delete) curOperation).getProperties().toArray(new String[0]));
+              ((MetadataOperation.Delete) curOperation).getProperties().toArray(new String[0]));
           break;
         case DELETE_ALL:
           context.removeMetadata(curOperation.getEntity());
@@ -322,7 +347,8 @@ public class MockSource extends BatchSource<byte[], Row, StructuredRecord> {
           context.removeProperties(curOperation.getEntity());
           break;
         default:
-          throw new IllegalArgumentException(String.format("Invalid metadata operation '%s'", curOperation.getType()));
+          throw new IllegalArgumentException(
+              String.format("Invalid metadata operation '%s'", curOperation.getType()));
       }
     }
   }

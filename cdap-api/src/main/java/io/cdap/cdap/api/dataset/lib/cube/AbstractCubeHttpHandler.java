@@ -22,26 +22,27 @@ import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.service.http.AbstractHttpServiceHandler;
 import io.cdap.cdap.api.service.http.HttpServiceRequest;
 import io.cdap.cdap.api.service.http.HttpServiceResponder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.Type;
 import java.util.Collection;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * A basic implementation of {@link io.cdap.cdap.api.service.http.HttpServiceHandler} that provides endpoints to
- * explore and execute queries in {@link Cube} dataset.
+ * A basic implementation of {@link io.cdap.cdap.api.service.http.HttpServiceHandler} that provides
+ * endpoints to explore and execute queries in {@link Cube} dataset.
  * <p/>
- * Subclasses must implement {@link io.cdap.cdap.api.dataset.lib.cube.AbstractCubeHttpHandler#getCube()} that returns
- * {@link Cube} dataset.
+ * Subclasses must implement {@link io.cdap.cdap.api.dataset.lib.cube.AbstractCubeHttpHandler#getCube()}
+ * that returns {@link Cube} dataset.
  */
 @Beta
 public abstract class AbstractCubeHttpHandler extends AbstractHttpServiceHandler {
+
   private static final Logger LOG = LoggerFactory.getLogger(AbstractCubeHttpHandler.class);
 
-  private static final Type CUBE_FACT_COLLECTION = new TypeToken<Collection<CubeFact>>() { }.getType();
+  private static final Type CUBE_FACT_COLLECTION = new TypeToken<Collection<CubeFact>>() {
+  }.getType();
   private static final Gson GSON = new Gson();
 
   /**
@@ -67,8 +68,8 @@ public abstract class AbstractCubeHttpHandler extends AbstractHttpServiceHandler
   }
 
   /**
-   * Searches dimension values in a {@link Cube} as defined by
-   * {@link Cube#findDimensionValues(CubeExploreQuery)}.
+   * Searches dimension values in a {@link Cube} as defined by {@link
+   * Cube#findDimensionValues(CubeExploreQuery)}.
    */
   @Path("searchDimensionValue")
   @POST

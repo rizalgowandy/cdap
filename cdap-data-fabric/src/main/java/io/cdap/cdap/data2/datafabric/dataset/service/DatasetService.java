@@ -22,14 +22,13 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
-import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
 import io.cdap.cdap.common.discovery.URIScheme;
 import io.cdap.cdap.common.http.CommonNettyHttpServiceBuilder;
-import io.cdap.cdap.common.metrics.MetricsReporterHook;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.security.HttpsEnabler;
 import io.cdap.cdap.data2.metrics.DatasetMetricsReporter;
 import io.cdap.http.ChannelPipelineModifier;
@@ -38,6 +37,11 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpRequest;
+import java.net.InetSocketAddress;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
@@ -45,17 +49,11 @@ import org.apache.twill.discovery.ServiceDiscovered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 /**
  * DatasetService implemented using the common http netty framework.
  */
 public class DatasetService extends AbstractService {
+
   private static final Logger LOG = LoggerFactory.getLogger(DatasetService.class);
 
   private final NettyHttpService httpService;
@@ -72,17 +70,19 @@ public class DatasetService extends AbstractService {
 
   @Inject
   public DatasetService(CConfiguration cConf, SConfiguration sConf,
-                        DiscoveryService discoveryService,
-                        DiscoveryServiceClient discoveryServiceClient,
-                        MetricsCollectionService metricsCollectionService,
-                        Set<DatasetMetricsReporter> metricReporters,
-                        DatasetTypeService datasetTypeService,
-                        DatasetInstanceService datasetInstanceService) {
+      DiscoveryService discoveryService,
+      DiscoveryServiceClient discoveryServiceClient,
+      CommonNettyHttpServiceFactory commonNettyHttpServiceFactory,
+      Set<DatasetMetricsReporter> metricReporters,
+      DatasetTypeService datasetTypeService,
+      DatasetInstanceService datasetInstanceService) {
     this.cConf = cConf;
     this.typeService = datasetTypeService;
     DatasetTypeHandler datasetTypeHandler = new DatasetTypeHandler(datasetTypeService);
-    DatasetInstanceHandler datasetInstanceHandler = new DatasetInstanceHandler(datasetInstanceService);
-    CommonNettyHttpServiceBuilder builder = new CommonNettyHttpServiceBuilder(cConf, Constants.Service.DATASET_MANAGER);
+    DatasetInstanceHandler datasetInstanceHandler = new DatasetInstanceHandler(
+        datasetInstanceService);
+    CommonNettyHttpServiceBuilder builder = commonNettyHttpServiceFactory.builder(
+        Constants.Service.DATASET_MANAGER);
     if (LOG.isTraceEnabled()) {
       builder.addChannelPipelineModifier(new ChannelPipelineModifier() {
         @Override
@@ -92,7 +92,8 @@ public class DatasetService extends AbstractService {
             public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
               if (msg instanceof HttpRequest) {
                 HttpRequest req = (HttpRequest) msg;
-                LOG.trace("Received {} for {} on channel {}", req.method(), req.uri(), ctx.channel());
+                LOG.trace("Received {} for {} on channel {}", req.method(), req.uri(),
+                    ctx.channel());
               }
               super.channelRead(ctx, msg);
             }
@@ -106,16 +107,14 @@ public class DatasetService extends AbstractService {
     }
 
     this.httpService = builder
-      .setHttpHandlers(datasetTypeHandler, datasetInstanceHandler)
-      .setHandlerHooks(Collections.singleton(new MetricsReporterHook(metricsCollectionService,
-                                                                     Constants.Service.DATASET_MANAGER)))
-      .setHost(cConf.get(Constants.Service.MASTER_SERVICES_BIND_ADDRESS))
-      .setPort(cConf.getInt(Constants.Dataset.Manager.PORT))
-      .setConnectionBacklog(cConf.getInt(Constants.Dataset.Manager.BACKLOG_CONNECTIONS))
-      .setExecThreadPoolSize(cConf.getInt(Constants.Dataset.Manager.EXEC_THREADS))
-      .setBossThreadPoolSize(cConf.getInt(Constants.Dataset.Manager.BOSS_THREADS))
-      .setWorkerThreadPoolSize(cConf.getInt(Constants.Dataset.Manager.WORKER_THREADS))
-      .build();
+        .setHttpHandlers(datasetTypeHandler, datasetInstanceHandler)
+        .setHost(cConf.get(Constants.Service.MASTER_SERVICES_BIND_ADDRESS))
+        .setPort(cConf.getInt(Constants.Dataset.Manager.PORT))
+        .setConnectionBacklog(cConf.getInt(Constants.Dataset.Manager.BACKLOG_CONNECTIONS))
+        .setExecThreadPoolSize(cConf.getInt(Constants.Dataset.Manager.EXEC_THREADS))
+        .setBossThreadPoolSize(cConf.getInt(Constants.Dataset.Manager.BOSS_THREADS))
+        .setWorkerThreadPoolSize(cConf.getInt(Constants.Dataset.Manager.WORKER_THREADS))
+        .build();
     this.discoveryService = discoveryService;
     this.discoveryServiceClient = discoveryServiceClient;
     this.metricReporters = metricReporters;
@@ -147,15 +146,16 @@ public class DatasetService extends AbstractService {
       httpService.start();
 
       // setting watch for ops executor service that we need to be running to operate correctly
-      ServiceDiscovered discover = discoveryServiceClient.discover(Constants.Service.DATASET_EXECUTOR);
+      ServiceDiscovered discover = discoveryServiceClient.discover(
+          Constants.Service.DATASET_EXECUTOR);
       opExecutorDiscovered = SettableFuture.create();
       opExecutorServiceWatch = discover.watchChanges(
-        serviceDiscovered -> {
-          if (!Iterables.isEmpty(serviceDiscovered)) {
-            LOG.info("Discovered {} service", Constants.Service.DATASET_EXECUTOR);
-            opExecutorDiscovered.set(serviceDiscovered);
-          }
-        }, MoreExecutors.sameThreadExecutor());
+          serviceDiscovered -> {
+            if (!Iterables.isEmpty(serviceDiscovered)) {
+              LOG.info("Discovered {} service", Constants.Service.DATASET_EXECUTOR);
+              opExecutorDiscovered.set(serviceDiscovered);
+            }
+          }, MoreExecutors.sameThreadExecutor());
 
       for (DatasetMetricsReporter metricsReporter : metricReporters) {
         metricsReporter.start();
@@ -171,16 +171,17 @@ public class DatasetService extends AbstractService {
     try {
       waitForOpExecutorToStart();
       String announceAddress = cConf.get(Constants.Service.MASTER_SERVICES_ANNOUNCE_ADDRESS,
-                                         httpService.getBindAddress().getHostName());
+          httpService.getBindAddress().getHostName());
       int announcePort = cConf.getInt(Constants.Dataset.Manager.ANNOUNCE_PORT,
-                                      httpService.getBindAddress().getPort());
+          httpService.getBindAddress().getPort());
 
       InetSocketAddress socketAddress = new InetSocketAddress(announceAddress, announcePort);
       URIScheme scheme = httpService.isSSLEnabled() ? URIScheme.HTTPS : URIScheme.HTTP;
       LOG.info("Announcing DatasetService for discovery...");
       // Register the service
       cancelDiscovery = discoveryService.register(
-        ResolvingDiscoverable.of(scheme.createDiscoverable(Constants.Service.DATASET_MANAGER, socketAddress)));
+          ResolvingDiscoverable.of(
+              scheme.createDiscoverable(Constants.Service.DATASET_MANAGER, socketAddress)));
 
       LOG.info("DatasetService started successfully on {}", socketAddress);
     } catch (Throwable t) {
@@ -203,13 +204,14 @@ public class DatasetService extends AbstractService {
       } catch (TimeoutException e) {
         // re-try
       } catch (InterruptedException e) {
-        LOG.warn("Got interrupted while waiting for service {}", Constants.Service.DATASET_EXECUTOR);
+        LOG.warn("Got interrupted while waiting for service {}",
+            Constants.Service.DATASET_EXECUTOR);
         Thread.currentThread().interrupt();
         opExecutorServiceWatch.cancel();
         break;
       } catch (ExecutionException e) {
         LOG.error("Error during discovering service {}, DatasetService start failed",
-                  Constants.Service.DATASET_EXECUTOR);
+            Constants.Service.DATASET_EXECUTOR);
         opExecutorServiceWatch.cancel();
         throw e;
       }
@@ -249,7 +251,7 @@ public class DatasetService extends AbstractService {
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
-      .add("bindAddress", httpService.getBindAddress())
-      .toString();
+        .add("bindAddress", httpService.getBindAddress())
+        .toString();
   }
 }

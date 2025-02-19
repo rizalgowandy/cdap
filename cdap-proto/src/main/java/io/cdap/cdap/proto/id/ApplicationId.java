@@ -17,8 +17,8 @@ package io.cdap.cdap.proto.id;
 
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.proto.ProgramType;
+import io.cdap.cdap.proto.app.AppVersion;
 import io.cdap.cdap.proto.element.EntityType;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -28,6 +28,7 @@ import java.util.Objects;
  * Uniquely identifies an application.
  */
 public class ApplicationId extends NamespacedEntityId implements ParentedId<NamespaceId> {
+
   private final String application;
   private final String version;
   private transient Integer hashCode;
@@ -66,14 +67,22 @@ public class ApplicationId extends NamespacedEntityId implements ParentedId<Name
   @Override
   public MetadataEntity toMetadataEntity() {
     return MetadataEntity.builder().append(MetadataEntity.NAMESPACE, namespace)
-      .appendAsType(MetadataEntity.APPLICATION, application)
-      .append(MetadataEntity.VERSION, version)
-      .build();
+        .appendAsType(MetadataEntity.APPLICATION, application)
+        .append(MetadataEntity.VERSION, version)
+        .build();
   }
 
   @Override
   public NamespaceId getParent() {
     return new NamespaceId(namespace);
+  }
+
+  public ApplicationReference getAppReference() {
+    return new ApplicationReference(namespace, application);
+  }
+
+  public AppVersion getAppVersion() {
+    return new AppVersion(application, version);
   }
 
   public ProgramId program(ProgramType type, String program) {
@@ -110,9 +119,9 @@ public class ApplicationId extends NamespacedEntityId implements ParentedId<Name
       return false;
     }
     ApplicationId that = (ApplicationId) o;
-    return Objects.equals(namespace, that.namespace) &&
-      Objects.equals(application, that.application) &&
-      Objects.equals(version, that.version);
+    return Objects.equals(namespace, that.namespace)
+        && Objects.equals(application, that.application)
+        && Objects.equals(version, that.version);
   }
 
   @Override
@@ -128,7 +137,7 @@ public class ApplicationId extends NamespacedEntityId implements ParentedId<Name
   public static ApplicationId fromIdParts(Iterable<String> idString) {
     Iterator<String> iterator = idString.iterator();
     return new ApplicationId(next(iterator, "namespace"), next(iterator, "application"),
-                             nextAndEnd(iterator, "version"));
+        nextAndEnd(iterator, "version"));
   }
 
   @Override

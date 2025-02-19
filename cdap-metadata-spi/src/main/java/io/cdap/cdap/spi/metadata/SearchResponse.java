@@ -17,7 +17,6 @@
 package io.cdap.cdap.spi.metadata;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -44,9 +43,9 @@ public class SearchResponse {
    * @param results the search results
    */
   public SearchResponse(SearchRequest request,
-                        @Nullable String cursor,
-                        int offset, int limit, int totalResults,
-                        List<MetadataRecord> results) {
+      @Nullable String cursor,
+      int offset, int limit, int totalResults,
+      List<MetadataRecord> results) {
     this.request = request;
     this.cursor = cursor;
     this.offset = offset;
@@ -63,7 +62,8 @@ public class SearchResponse {
   }
 
   /**
-   * @return the cursor for the next page of results, if requested, or null if there are no more results
+   * @return the cursor for the next page of results, if requested, or null if there are no more
+   *     results
    */
   @Nullable
   public String getCursor() {
@@ -85,8 +85,8 @@ public class SearchResponse {
   }
 
   /**
-   * @return the estimated total number of results. If this is greater than {@link #getOffset()} plus
-   * the size of {@link #getResults()}, then there are more results.
+   * @return the estimated total number of results. If this is greater than {@link #getOffset()}
+   *     plus the size of {@link #getResults()}, then there are more results.
    */
   public int getTotalResults() {
     return totalResults;
@@ -101,14 +101,14 @@ public class SearchResponse {
 
   @Override
   public String toString() {
-    return "SearchResponse{" +
-      "request=" + request +
-      ", cursor='" + cursor + '\'' +
-      ", offset=" + offset +
-      ", limit=" + limit +
-      ", totalResults=" + totalResults +
-      ", results=" + results +
-      '}';
+    return "SearchResponse{"
+        + "request=" + request
+        + ", cursor='" + cursor + '\''
+        + ", offset=" + offset
+        + ", limit=" + limit
+        + ", totalResults=" + totalResults
+        + ", results=" + results
+        + '}';
   }
 
   @Override
@@ -120,12 +120,12 @@ public class SearchResponse {
       return false;
     }
     SearchResponse response = (SearchResponse) o;
-    return offset == response.offset &&
-      limit == response.limit &&
-      totalResults == response.totalResults &&
-      Objects.equals(request, response.request) &&
-      Objects.equals(cursor, response.cursor) &&
-      Objects.equals(results, response.results);
+    return offset == response.offset
+        && limit == response.limit
+        && totalResults == response.totalResults &&
+        Objects.equals(request, response.request) &&
+        Objects.equals(cursor, response.cursor) &&
+        Objects.equals(results, response.results);
   }
 
   @Override

@@ -20,21 +20,23 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.dataset.lib.cube.DimensionValue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helper for serde of Fact into columnar format.
  */
 public class FactCodec {
+
   private static final Logger LOG = LoggerFactory.getLogger(FactCodec.class);
   // current version
-  private static final byte[] VERSION = new byte[] {0};
+  private static final byte[] VERSION = new byte[]{0};
 
   // encoding types
   private static final String TYPE_MEASURE_NAME = "measureName";
@@ -44,92 +46,131 @@ public class FactCodec {
 
   private final int resolution;
   private final int rollTimebaseInterval;
+  private final int coarseLagFactor;
+  private final int coarseRoundFactor;
   // Cache for delta values.
   private final byte[][] deltaCache;
 
-  public FactCodec(EntityTable entityTable, int resolution, int rollTimebaseInterval) {
+  public FactCodec(EntityTable entityTable, int resolution, int rollTimebaseInterval,
+      int coarseLagFactor, int coarseRoundFactor) {
     this.entityTable = entityTable;
     this.resolution = resolution;
     this.rollTimebaseInterval = rollTimebaseInterval;
+    this.coarseLagFactor = coarseLagFactor;
+    this.coarseRoundFactor = coarseRoundFactor;
     this.deltaCache = createDeltaCache(rollTimebaseInterval);
   }
 
   /**
    * Builds row key for write and get operations.
+   *
    * @param dimensionValues dimension values
    * @param measureName measure name
    * @param ts timestamp
+   * @param now current time in seconds to calculate processing lag
    * @return row key
    */
-  public byte[] createRowKey(List<DimensionValue> dimensionValues, String measureName, long ts) {
+  public byte[] createRowKey(List<DimensionValue> dimensionValues, String measureName, long ts,
+      long now) {
+    return createRowKey(dimensionValues, measureName, ts, now, (name, loader) -> loader.get());
+  }
+
+  /**
+   * Builds row key for write and get operations.
+   *
+   * @param dimensionValues dimension values
+   * @param measureName measure name
+   * @param ts timestamp
+   * @param now current time in seconds to calculate processing lag
+   * @param fastCache additional thread-local cache function that can be consulted before going
+   *     to concurrent cache or doing database retrieval. May call provided supplier right away if
+   *     thread-local cache is not used.
+   * @return row key
+   */
+  public byte[] createRowKey(List<DimensionValue> dimensionValues, String measureName, long ts,
+      long now,
+      BiFunction<EntityTable.EntityName, Supplier<Long>, Long> fastCache) {
     // "false" would write null in dimension values as "undefined"
-    return createRowKey(dimensionValues, measureName, ts, false, false);
+    return createRowKey(dimensionValues, measureName, ts, false, false, now, fastCache);
   }
 
   /**
    * Builds start row key for scan operation.
+   *
    * @param dimensionValues dimension values
    * @param measureName measure name
    * @param ts timestamp
-   * @param anyAggGroup if true, then scan matches every aggregation group; if false,
-   *                    scan matches only aggregation group defined with list of dimension values
+   * @param anyAggGroup if true, then scan matches every aggregation group; if false, scan
+   *     matches only aggregation group defined with list of dimension values
    * @return row key
    */
   public byte[] createStartRowKey(List<DimensionValue> dimensionValues, String measureName,
-                                  long ts, boolean anyAggGroup) {
+      long ts, boolean anyAggGroup) {
     // "false" would write null in dimension values as "undefined"
-    return createRowKey(dimensionValues, measureName, ts, false, anyAggGroup);
+    return createRowKey(dimensionValues, measureName, ts, false, anyAggGroup, ts);
   }
 
   /**
    * Builds end row key for scan operation.
+   *
    * @param dimensionValues dimension values
    * @param measureName measure name
    * @param ts timestamp
-   * @param anyAggGroup if true, then scan matches every aggregation group; if false,
-   *                    scan matches only aggregation group defined with list of dimension values
+   * @param anyAggGroup if true, then scan matches every aggregation group; if false, scan
+   *     matches only aggregation group defined with list of dimension values
    * @return row key
    */
   public byte[] createEndRowKey(List<DimensionValue> dimensionValues, String measureName,
-                                long ts, boolean anyAggGroup) {
+      long ts, boolean anyAggGroup) {
     // "false" would write null in dimension values as "undefined"
-    return createRowKey(dimensionValues, measureName, ts, true, anyAggGroup);
+    return createRowKey(dimensionValues, measureName, ts, true, anyAggGroup, ts);
   }
 
   /**
    * for the given measureName return the id from entity table
-   * @param measureName
+   *
    * @return entity id
    */
   public long getMeasureEntityId(String measureName) {
     return entityTable.getId(TYPE_MEASURE_NAME, measureName);
   }
 
-  private byte[] createRowKey(List<DimensionValue> dimensionValues, String measureName, long ts, boolean stopKey,
-                              boolean anyAggGroup) {
+  private byte[] createRowKey(List<DimensionValue> dimensionValues, String measureName, long ts,
+      boolean stopKey,
+      boolean anyAggGroup, long now) {
+    return createRowKey(dimensionValues, measureName, ts, stopKey, anyAggGroup, now,
+        (n, cache) -> cache.get());
+  }
+
+  private byte[] createRowKey(List<DimensionValue> dimensionValues, String measureName, long ts,
+      boolean stopKey,
+      boolean anyAggGroup, long now,
+      BiFunction<EntityTable.EntityName, Supplier<Long>, Long> fastCache) {
     // Row key format:
     // <version><encoded agg group><time base><encoded dimension1 value>...
     //                                                                 <encoded dimensionN value><encoded measure name>.
     // "+2" is for <encoded agg group> and <encoded measure name>
     byte[] rowKey =
-      new byte[VERSION.length + (dimensionValues.size() + 2) * entityTable.getIdSize() + Bytes.SIZEOF_INT];
+        new byte[VERSION.length + (dimensionValues.size() + 2) * entityTable.getIdSize()
+            + Bytes.SIZEOF_INT];
 
     int offset = writeVersion(rowKey);
 
     if (anyAggGroup) {
       offset = writeAnyEncoded(rowKey, offset, stopKey);
     } else {
-      offset = writeEncodedAggGroup(dimensionValues, rowKey, offset);
+      offset = writeEncodedAggGroup(dimensionValues, rowKey, offset, fastCache);
     }
 
-    long timestamp = roundToResolution(ts);
+    long timestamp = roundToResolution(ts, now);
     int timeBase = getTimeBase(timestamp);
     offset = Bytes.putInt(rowKey, offset, timeBase);
 
     for (DimensionValue dimensionValue : dimensionValues) {
       if (dimensionValue.getValue() != null) {
         // encoded value is unique within values of the dimension name
-        offset = writeEncoded(dimensionValue.getName(), dimensionValue.getValue(), rowKey, offset);
+        offset = writeEncoded(dimensionValue.getName(), dimensionValue.getValue(), rowKey, offset,
+            fastCache);
       } else {
         // todo: this is only applicable for constructing scan, throw smth if constructing key for writing data
         // writing "ANY" as a value
@@ -138,7 +179,7 @@ public class FactCodec {
     }
 
     if (measureName != null) {
-      writeEncoded(TYPE_MEASURE_NAME, measureName, rowKey, offset);
+      writeEncoded(TYPE_MEASURE_NAME, measureName, rowKey, offset, fastCache);
     } else {
       // todo: this is only applicable for constructing scan, throw smth if constructing key for writing data
       // writing "ANY" value
@@ -155,24 +196,26 @@ public class FactCodec {
   /**
    * For the given rowKey, return next rowKey that has different dimensionValue at given position.
    * returns null if no next row key exist
+   *
    * @param rowKey given row key
    * @param indexOfDimValueToChange position of the dimension in a given row key to change
    * @return next row key
    */
   public byte[] getNextRowKey(byte[] rowKey, int indexOfDimValueToChange) {
     /*
-    * 1) result row key length is determined by the dimensionValues to be included,
-    * which is indexOfDimValueToChange plus one: the last dimensionValue will be changing
-    * 2) the row key part up to the dimensionValue to be changed remains the same
-    * 3) to unchanged part we append incremented value of the key part at position of dimensionValue to be changed.
-    * We use Bytes.stopKeyForPrefix to increment that key part.
-    * 4) if key part cannot be incremented, then we return null, indicating "no next row key exist
-    */
+     * 1) result row key length is determined by the dimensionValues to be included,
+     * which is indexOfDimValueToChange plus one: the last dimensionValue will be changing
+     * 2) the row key part up to the dimensionValue to be changed remains the same
+     * 3) to unchanged part we append incremented value of the key part at position of dimensionValue to be changed.
+     * We use Bytes.stopKeyForPrefix to increment that key part.
+     * 4) if key part cannot be incremented, then we return null, indicating "no next row key exist
+     */
     byte[] newRowKey = new byte[rowKey.length];
     int offset =
-      VERSION.length + entityTable.getIdSize() + Bytes.SIZEOF_INT + entityTable.getIdSize() * indexOfDimValueToChange;
+        VERSION.length + entityTable.getIdSize() + Bytes.SIZEOF_INT
+            + entityTable.getIdSize() * indexOfDimValueToChange;
     byte[] nextDimValueEncoded = Bytes.stopKeyForPrefix(Arrays.copyOfRange(rowKey,
-                                                                           offset, offset + entityTable.getIdSize()));
+        offset, offset + entityTable.getIdSize()));
     if (nextDimValueEncoded == null) {
       return null;
     }
@@ -181,20 +224,26 @@ public class FactCodec {
     return newRowKey;
   }
 
-  private long roundToResolution(long ts) {
-    return (ts / resolution) * resolution;
+  public long roundToResolution(long ts, long now) {
+    long rounded = (ts / resolution) * resolution;
+    if (now - rounded > resolution * coarseLagFactor) {
+      int coarseResolution = resolution * coarseRoundFactor;
+      return (rounded / coarseResolution) * coarseResolution;
+    }
+    return rounded;
   }
 
   /**
-   * create fuzzy row mask based on dimension values and measure name.
-   * if dimension value/measure name is null it matches any dimension values / measures.
-   * @param dimensionValues
-   * @param measureName
+   * create fuzzy row mask based on dimension values and measure name. if dimension value/measure
+   * name is null it matches any dimension values / measures.
+   *
    * @return fuzzy mask byte array
    */
-  public byte[] createFuzzyRowMask(List<DimensionValue> dimensionValues, @Nullable String measureName) {
+  public byte[] createFuzzyRowMask(List<DimensionValue> dimensionValues,
+      @Nullable String measureName) {
     // See createRowKey for row format info
-    byte[] mask = new byte[VERSION.length + (dimensionValues.size() + 2) * entityTable.getIdSize() + Bytes.SIZEOF_INT];
+    byte[] mask = new byte[VERSION.length + (dimensionValues.size() + 2) * entityTable.getIdSize()
+        + Bytes.SIZEOF_INT];
     int offset = writeVersion(mask);
 
     // agg group encoded is always provided for fuzzy row filter
@@ -219,11 +268,11 @@ public class FactCodec {
     return mask;
   }
 
-  public byte[] createColumn(long ts) {
-    long timestamp = roundToResolution(ts);
+  public byte[] createColumn(long ts, long now) {
+    long timestamp = roundToResolution(ts, now);
     int timeBase = getTimeBase(timestamp);
 
-    return deltaCache[(int) ((ts - timeBase) / resolution)];
+    return deltaCache[(int) ((timestamp - timeBase) / resolution)];
   }
 
   public String getMeasureName(byte[] rowKey) {
@@ -255,7 +304,8 @@ public class FactCodec {
     for (int i = 0; i < dimensionNames.length; i++) {
       // dimension values go right after encoded agg group and timebase (encoded as int)
       long encodedDimensionValue =
-        readEncoded(rowKey, VERSION.length + entityTable.getIdSize() *  (i + 1) + Bytes.SIZEOF_INT);
+          readEncoded(rowKey,
+              VERSION.length + entityTable.getIdSize() * (i + 1) + Bytes.SIZEOF_INT);
       String dimensionValue = entityTable.getName(encodedDimensionValue, dimensionNames[i]);
       dimensions.add(new DimensionValue(dimensionNames[i], dimensionValue));
     }
@@ -290,21 +340,23 @@ public class FactCodec {
     return splits;
   }
 
-  private int writeEncodedAggGroup(List<DimensionValue> dimensionValues, byte[] rowKey, int offset) {
+  private int writeEncodedAggGroup(List<DimensionValue> dimensionValues, byte[] rowKey, int offset,
+      BiFunction<EntityTable.EntityName, Supplier<Long>, Long> fastCache) {
     // aggregation group is defined by list of dimension names
     StringBuilder sb = new StringBuilder();
     for (DimensionValue dimensionValue : dimensionValues) {
       sb.append(dimensionValue.getName()).append(".");
     }
 
-    return writeEncoded(TYPE_DIMENSIONS_GROUP, sb.toString(), rowKey, offset);
+    return writeEncoded(TYPE_DIMENSIONS_GROUP, sb.toString(), rowKey, offset, fastCache);
   }
 
   /**
    * @return incremented offset
    */
-  private int writeEncoded(String type, String entity, byte[] destination, int offset) {
-    long id = entityTable.getId(type, entity);
+  private int writeEncoded(String type, String entity, byte[] destination, int offset,
+      BiFunction<EntityTable.EntityName, Supplier<Long>, Long> fastCache) {
+    long id = entityTable.getId(type, entity, fastCache);
     int idSize = entityTable.getIdSize();
     return writeEncoded(destination, offset, id, idSize);
   }

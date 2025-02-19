@@ -17,7 +17,6 @@
 package io.cdap.cdap.security;
 
 import com.google.common.collect.Lists;
-
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.util.Collections;
@@ -42,6 +41,7 @@ import java.util.List;
  * </p>
  */
 class ApplicationPermissionCollection extends PermissionCollection {
+
   private final List<Permission> perms = Lists.newArrayList();
 
   /**

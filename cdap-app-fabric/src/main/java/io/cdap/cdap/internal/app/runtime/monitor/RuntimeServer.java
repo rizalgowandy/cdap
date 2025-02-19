@@ -19,14 +19,13 @@ package io.cdap.cdap.internal.app.runtime.monitor;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
-import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
 import io.cdap.cdap.common.discovery.URIScheme;
 import io.cdap.cdap.common.http.CommonNettyHttpServiceBuilder;
-import io.cdap.cdap.common.metrics.MetricsReporterHook;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.security.HttpsEnabler;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.http.ChannelPipelineModifier;
@@ -35,14 +34,12 @@ import io.cdap.http.NettyHttpService;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.util.concurrent.EventExecutor;
+import java.util.Set;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.DiscoveryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Collections;
-import java.util.Set;
 
 /**
  * The runtime server for accepting runtime calls from the program runtime.
@@ -56,25 +53,28 @@ public class RuntimeServer extends AbstractIdleService {
   private Cancellable cancelDiscovery;
 
   @Inject
-  RuntimeServer(CConfiguration cConf, SConfiguration sConf, @Named(Constants.Service.RUNTIME) Set<HttpHandler> handlers,
-                DiscoveryService discoveryService, MetricsCollectionService metricsCollectionService) {
-    NettyHttpService.Builder builder = new CommonNettyHttpServiceBuilder(cConf, Constants.Service.RUNTIME)
-      .setHttpHandlers(handlers)
-      .setHandlerHooks(Collections.singleton(new MetricsReporterHook(metricsCollectionService,
-                                                                     Constants.Service.RUNTIME)))
-      .setChannelPipelineModifier(new ChannelPipelineModifier() {
-        @Override
-        public void modify(ChannelPipeline pipeline) {
-          pipeline.addAfter("compressor", "decompressor", new HttpContentDecompressor());
-          if (enableRuntimeIdentity(cConf)) {
-            EventExecutor executor = pipeline.context(CommonNettyHttpServiceBuilder.AUTHENTICATOR_NAME).executor();
-            pipeline.addBefore(executor, CommonNettyHttpServiceBuilder.AUTHENTICATOR_NAME, "identity-handler",
-                               new RuntimeIdentityHandler(cConf));
+  RuntimeServer(CConfiguration cConf, SConfiguration sConf,
+      @Named(Constants.Service.RUNTIME) Set<HttpHandler> handlers,
+      DiscoveryService discoveryService,
+      CommonNettyHttpServiceFactory commonNettyHttpServiceFactory) {
+    NettyHttpService.Builder builder = commonNettyHttpServiceFactory.builder(
+            Constants.Service.RUNTIME)
+        .setHttpHandlers(handlers)
+        .setChannelPipelineModifier(new ChannelPipelineModifier() {
+          @Override
+          public void modify(ChannelPipeline pipeline) {
+            pipeline.addAfter("compressor", "decompressor", new HttpContentDecompressor());
+            if (enableRuntimeIdentity(cConf)) {
+              EventExecutor executor = pipeline.context(
+                  CommonNettyHttpServiceBuilder.AUTHENTICATOR_NAME).executor();
+              pipeline.addBefore(executor, CommonNettyHttpServiceBuilder.AUTHENTICATOR_NAME,
+                  "identity-handler",
+                  new RuntimeIdentityHandler(cConf));
+            }
           }
-        }
-      })
-      .setHost(cConf.get(Constants.RuntimeMonitor.BIND_ADDRESS))
-      .setPort(cConf.getInt(Constants.RuntimeMonitor.BIND_PORT));
+        })
+        .setHost(cConf.get(Constants.RuntimeMonitor.BIND_ADDRESS))
+        .setPort(cConf.getInt(Constants.RuntimeMonitor.BIND_PORT));
 
     if (cConf.getBoolean(Constants.RuntimeMonitor.SSL_ENABLED)) {
       new HttpsEnabler().configureKeyStore(cConf, sConf).enable(builder);
@@ -85,23 +85,24 @@ public class RuntimeServer extends AbstractIdleService {
   }
 
   /**
-   * Enable the runtime identity handler if security is enabled AND either internal auth is enabled OR runtime identity
-   * backwards compatibility mode is disabled.
+   * Enable the runtime identity handler if security is enabled AND either internal auth is enabled
+   * OR runtime identity backwards compatibility mode is disabled.
    */
   private boolean enableRuntimeIdentity(CConfiguration cConf) {
     return cConf.getBoolean(Constants.Security.ENABLED, false)
-      && (SecurityUtil.isInternalAuthEnabled(cConf)
-      || !cConf.getBoolean(Constants.Security.RUNTIME_IDENTITY_COMPATIBILITY_ENABLED));
+        && (SecurityUtil.isInternalAuthEnabled(cConf)
+        || !cConf.getBoolean(Constants.Security.RUNTIME_IDENTITY_COMPATIBILITY_ENABLED));
   }
 
   @Override
   protected void startUp() throws Exception {
     httpService.start();
-    Discoverable discoverable = ResolvingDiscoverable.of(URIScheme.createDiscoverable(Constants.Service.RUNTIME,
-                                                                                      httpService));
+    Discoverable discoverable = ResolvingDiscoverable.of(
+        URIScheme.createDiscoverable(Constants.Service.RUNTIME,
+            httpService));
     cancelDiscovery = discoveryService.register(discoverable);
     LOG.debug("Runtime server with service name '{}' started on {}:{}", discoverable.getName(),
-              discoverable.getSocketAddress().getHostName(), discoverable.getSocketAddress().getPort());
+        discoverable.getSocketAddress().getHostName(), discoverable.getSocketAddress().getPort());
   }
 
   @Override

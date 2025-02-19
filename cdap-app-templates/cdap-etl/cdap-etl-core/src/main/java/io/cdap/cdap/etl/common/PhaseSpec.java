@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.etl.common;
 
+import io.cdap.cdap.api.RuntimeContext;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -23,6 +24,7 @@ import java.util.Map;
  * Class that contain common pipeline phase information
  */
 public class PhaseSpec implements Serializable {
+
   private final String name;
   private final PipelinePhase phase;
   private final Map<String, String> connectorDatasets;
@@ -30,7 +32,7 @@ public class PhaseSpec implements Serializable {
   private final boolean isProcessTimingEnabled;
 
   public PhaseSpec(String name, PipelinePhase phase, Map<String, String> connectorDatasets,
-                   boolean isStageLoggingEnabled, boolean isProcessTimingEnabled) {
+      boolean isStageLoggingEnabled, boolean isProcessTimingEnabled) {
     this.name = name;
     this.phase = phase;
     this.connectorDatasets = connectorDatasets;
@@ -56,5 +58,10 @@ public class PhaseSpec implements Serializable {
 
   public Map<String, String> getConnectorDatasets() {
     return connectorDatasets;
+  }
+
+  public boolean isPreviewEnabled(RuntimeContext context) {
+    return phase.size() == 0
+        || context.getDataTracer(phase.iterator().next().getName()).isEnabled();
   }
 }

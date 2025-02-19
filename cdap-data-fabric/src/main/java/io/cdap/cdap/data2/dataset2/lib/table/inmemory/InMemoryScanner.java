@@ -22,7 +22,6 @@ import io.cdap.cdap.api.dataset.table.Result;
 import io.cdap.cdap.api.dataset.table.Row;
 import io.cdap.cdap.api.dataset.table.Scanner;
 import io.cdap.cdap.data2.dataset2.lib.table.FuzzyRowFilter;
-
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -43,8 +42,9 @@ public class InMemoryScanner implements Scanner {
     this(rows, null, null);
   }
 
-  public InMemoryScanner(Iterator<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> rows, FuzzyRowFilter filter,
-                         byte[][] columnsToInclude) {
+  public InMemoryScanner(Iterator<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> rows,
+      FuzzyRowFilter filter,
+      byte[][] columnsToInclude) {
     this.rows = rows;
     this.filter = filter;
     if (columnsToInclude != null) {

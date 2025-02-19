@@ -37,16 +37,16 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.runtime.AbstractContext;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.ProgramRunners;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
-import io.cdap.cdap.messaging.MessagingService;
-import org.apache.tephra.TransactionSystemClient;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
+import io.cdap.cdap.messaging.spi.MessagingService;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.tephra.TransactionSystemClient;
+import org.apache.twill.discovery.DiscoveryServiceClient;
 
 /**
  * Default implementation of a {@link WorkflowContext}.
@@ -61,22 +61,23 @@ final class BasicWorkflowContext extends AbstractContext implements WorkflowCont
   private boolean consolidateFieldOperations;
 
   BasicWorkflowContext(WorkflowSpecification workflowSpec,
-                       WorkflowToken token, Program program, ProgramOptions programOptions, CConfiguration cConf,
-                       MetricsCollectionService metricsCollectionService,
-                       DatasetFramework datasetFramework, TransactionSystemClient txClient,
-                       DiscoveryServiceClient discoveryServiceClient, Map<String, WorkflowNodeState> nodeStates,
-                       @Nullable PluginInstantiator pluginInstantiator,
-                       SecureStore secureStore, SecureStoreManager secureStoreManager,
-                       MessagingService messagingService, @Nullable ConditionSpecification conditionSpecification,
-                       MetadataReader metadataReader, MetadataPublisher metadataPublisher,
-                       NamespaceQueryAdmin namespaceQueryAdmin, FieldLineageWriter fieldLineageWriter,
-                       RemoteClientFactory remoteClientFactory) {
+      WorkflowToken token, Program program, ProgramOptions programOptions, CConfiguration cConf,
+      MetricsCollectionService metricsCollectionService,
+      DatasetFramework datasetFramework, TransactionSystemClient txClient,
+      DiscoveryServiceClient discoveryServiceClient, Map<String, WorkflowNodeState> nodeStates,
+      @Nullable PluginInstantiator pluginInstantiator,
+      SecureStore secureStore, SecureStoreManager secureStoreManager,
+      MessagingService messagingService, @Nullable ConditionSpecification conditionSpecification,
+      MetadataReader metadataReader, MetadataPublisher metadataPublisher,
+      NamespaceQueryAdmin namespaceQueryAdmin, FieldLineageWriter fieldLineageWriter,
+      RemoteClientFactory remoteClientFactory, AppStateStoreProvider appStateStoreProvider) {
     super(program, programOptions, cConf, new HashSet<>(),
-          datasetFramework, txClient, false,
-          metricsCollectionService, Collections.singletonMap(Constants.Metrics.Tag.WORKFLOW_RUN_ID,
-                                                             ProgramRunners.getRunId(programOptions).getId()),
-          secureStore, secureStoreManager, messagingService, pluginInstantiator, metadataReader, metadataPublisher,
-          namespaceQueryAdmin, fieldLineageWriter, remoteClientFactory);
+        datasetFramework, txClient, false,
+        metricsCollectionService, Collections.singletonMap(Constants.Metrics.Tag.WORKFLOW_RUN_ID,
+            ProgramRunners.getRunId(programOptions).getId()),
+        secureStore, secureStoreManager, messagingService, pluginInstantiator, metadataReader,
+        metadataPublisher,
+        namespaceQueryAdmin, fieldLineageWriter, remoteClientFactory, appStateStoreProvider);
     this.workflowSpec = workflowSpec;
     this.conditionSpecification = conditionSpecification;
     this.token = token;

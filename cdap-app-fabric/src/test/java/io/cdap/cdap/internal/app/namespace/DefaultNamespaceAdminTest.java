@@ -18,6 +18,7 @@ package io.cdap.cdap.internal.app.namespace;
 
 import io.cdap.cdap.common.BadRequestException;
 import io.cdap.cdap.common.NamespaceAlreadyExistsException;
+import io.cdap.cdap.common.NamespaceCannotBeDeletedException;
 import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -26,16 +27,21 @@ import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.namespace.NamespaceAdmin;
 import io.cdap.cdap.common.namespace.NamespacePathLocator;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
+import io.cdap.cdap.internal.tethering.NamespaceAllocation;
+import io.cdap.cdap.internal.tethering.PeerInfo;
+import io.cdap.cdap.internal.tethering.PeerMetadata;
+import io.cdap.cdap.internal.tethering.TetheringStatus;
+import io.cdap.cdap.internal.tethering.TetheringStore;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
+import java.util.Collections;
+import javax.annotation.Nullable;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.twill.filesystem.Location;
 import org.apache.twill.filesystem.LocationFactory;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import javax.annotation.Nullable;
 
 /**
  * Tests for {@link DefaultNamespaceAdmin}
@@ -45,10 +51,11 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
   private static NamespaceAdmin namespaceAdmin;
   private static LocationFactory baseLocationFactory;
   private static NamespacePathLocator namespacePathLocator;
+  private static TetheringStore tetheringStore;
 
   @BeforeClass
   public static void beforeClass() throws Exception {
-    cConf = createBasicCConf();
+    cConf = createBasicCconf();
     // we enable Kerberos for these unit tests, so we can test namespace group permissions (see testDataDirCreation).
     cConf.set(Constants.Security.KERBEROS_ENABLED, Boolean.toString(true));
     cConf.set(Constants.Security.CFG_CDAP_MASTER_KRB_PRINCIPAL, "cdap");
@@ -58,6 +65,7 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
     baseLocationFactory = getInjector().getInstance(LocationFactory.class);
     namespacePathLocator =
       getInjector().getInstance(NamespacePathLocator.class);
+    tetheringStore = getInjector().getInstance(TetheringStore.class);
   }
 
   @Test
@@ -150,6 +158,40 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
   }
 
   @Test
+  public void testNamespaceUsedInTethering() throws Exception {
+    // Create 2 namespaces
+    String namespace1 = "namespace1";
+    NamespaceId namespaceId1 = new NamespaceId(namespace1);
+    String namespace2 = "namespace2";
+    NamespaceId namespaceId2 = new NamespaceId(namespace2);
+    namespaceAdmin.create(new NamespaceMeta.Builder().setName(namespace1).build());
+    namespaceAdmin.create(new NamespaceMeta.Builder().setName(namespace2).build());
+
+    // namespace2 is used in a tethering connection, but namespace1 is not
+    PeerMetadata metadata = new PeerMetadata(Collections.singletonList(new NamespaceAllocation(namespace2,
+                                                                                               null,
+                                                                                               null)),
+                                                                       Collections.emptyMap(), null);
+    PeerInfo peerInfo = new PeerInfo("peer", null, TetheringStatus.ACCEPTED, metadata, 0);
+    tetheringStore.addPeer(peerInfo);
+
+    // Deletion of namespace1 should be successful
+    namespaceAdmin.delete(namespaceId1);
+
+    // Deletion of namespace2 should fail as it's associated with a tethering connection
+    try {
+      namespaceAdmin.delete(namespaceId2);
+      Assert.fail();
+    } catch (NamespaceCannotBeDeletedException e) {
+      // expected
+    }
+
+    // Deletion of namespace2 should succeed after the tethering is deleted
+    tetheringStore.deletePeer("peer");
+    namespaceAdmin.delete(namespaceId2);
+  }
+
+  @Test
   public void testKerberos() throws Exception {
     // test that the namespace create handler doesn't allow configuring only one of the following two:
     // principal, keytabURI
@@ -162,7 +204,7 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
     }
 
     // now check with just key tab uri
-    namespaceMeta = new NamespaceMeta.Builder().setName("test_ns").setKeytabURI("/some/path").build();
+    namespaceMeta = new NamespaceMeta.Builder().setName("test_ns").setKeytabUri("/some/path").build();
     try {
       namespaceAdmin.create(namespaceMeta);
       Assert.fail();
@@ -170,9 +212,8 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
       // expected
     }
 
-    // if set explore as principal is set to false it should be present with both keytab uri and principal
-    namespaceMeta = new NamespaceMeta.Builder().setName("test_ns").setKeytabURI("/some/path")
-      .setExploreAsPrincipal(false).build();
+    namespaceMeta = new NamespaceMeta.Builder().setName("test_ns").setKeytabUri("/some/path")
+      .build();
     try {
       namespaceAdmin.create(namespaceMeta);
       Assert.fail();
@@ -180,9 +221,8 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
       // expected
     }
 
-    // if set explore as principal is set to false it shoule be present with both keytab uri and principal
     namespaceMeta = new NamespaceMeta.Builder().setName("test_ns").setPrincipal("somePrincipal")
-      .setExploreAsPrincipal(false).build();
+      .build();
     try {
       namespaceAdmin.create(namespaceMeta);
       Assert.fail();
@@ -253,7 +293,7 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
     // updating the keytabURI for an existing namespace with no existing principal should fail
     try {
       namespaceAdmin.updateProperties(nsMeta.getNamespaceId(),
-                                      new NamespaceMeta.Builder(nsMeta).setKeytabURI("/new/keytab/uri").build());
+                                      new NamespaceMeta.Builder(nsMeta).setKeytabUri("/new/keytab/uri").build());
       Assert.fail();
     } catch (BadRequestException e) {
       // expected
@@ -268,12 +308,6 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
       // expected
     }
 
-    // Although disabling explore impersonation should be allowed
-    Assert.assertTrue(namespaceAdmin.get(nsMeta.getNamespaceId()).getConfig().isExploreAsPrincipal());
-    namespaceAdmin.updateProperties(nsMeta.getNamespaceId(),
-                                    new NamespaceMeta.Builder(nsMeta).setExploreAsPrincipal(false).build());
-    Assert.assertFalse(namespaceAdmin.get(nsMeta.getNamespaceId()).getConfig().isExploreAsPrincipal());
-
     //clean up
     namespaceAdmin.delete(namespaceId);
     Locations.deleteQuietly(customlocation);
@@ -284,21 +318,21 @@ public class DefaultNamespaceAdminTest extends AppFabricTestBase {
     String namespace = "updateNamespace";
     NamespaceId namespaceId = new NamespaceId(namespace);
     NamespaceMeta nsMeta = new NamespaceMeta.Builder().setName(namespaceId)
-      .setPrincipal("alice").setKeytabURI("/alice/keytab").build();
+      .setPrincipal("alice").setKeytabUri("/alice/keytab").build();
     namespaceAdmin.create(nsMeta);
     Assert.assertTrue(namespaceAdmin.exists(namespaceId));
     // update the keytab URI
     String newKeytab = "/alice/new_keytab";
-    NamespaceMeta newKeytabMeta = new NamespaceMeta.Builder(nsMeta).setKeytabURI(newKeytab).build();
+    NamespaceMeta newKeytabMeta = new NamespaceMeta.Builder(nsMeta).setKeytabUri(newKeytab).build();
     namespaceAdmin.updateProperties(nsMeta.getNamespaceId(), newKeytabMeta);
     // assert the keytab URI is updated and the version remains 0
-    Assert.assertEquals(newKeytab, namespaceAdmin.get(namespaceId).getConfig().getKeytabURIWithoutVersion());
-    Assert.assertEquals(0, namespaceAdmin.get(namespaceId).getConfig().getKeytabURIVersion());
+    Assert.assertEquals(newKeytab, namespaceAdmin.get(namespaceId).getConfig().getKeytabUriWithoutVersion());
+    Assert.assertEquals(0, namespaceAdmin.get(namespaceId).getConfig().getKeytabUriVersion());
     // update the namespace with the same keytab URI
     namespaceAdmin.updateProperties(nsMeta.getNamespaceId(), newKeytabMeta);
     // assert the keytab URI without version remains the same and the version is incremented to 1
-    Assert.assertEquals(newKeytab, namespaceAdmin.get(namespaceId).getConfig().getKeytabURIWithoutVersion());
-    Assert.assertEquals(1, namespaceAdmin.get(namespaceId).getConfig().getKeytabURIVersion());
+    Assert.assertEquals(newKeytab, namespaceAdmin.get(namespaceId).getConfig().getKeytabUriWithoutVersion());
+    Assert.assertEquals(1, namespaceAdmin.get(namespaceId).getConfig().getKeytabUriVersion());
     //clean up
     namespaceAdmin.delete(namespaceId);
   }

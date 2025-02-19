@@ -31,6 +31,8 @@ import io.cdap.cdap.app.runtime.ProgramController;
 import io.cdap.cdap.app.runtime.ProgramOptions;
 import io.cdap.cdap.app.runtime.ProgramRunner;
 import io.cdap.cdap.common.conf.CConfiguration;
+import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
 import io.cdap.cdap.common.service.RetryStrategy;
@@ -39,6 +41,7 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.runtime.AbstractProgramRunnerWithPlugin;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.BasicProgramContext;
 import io.cdap.cdap.internal.app.runtime.ProgramControllerServiceAdapter;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
@@ -48,20 +51,19 @@ import io.cdap.cdap.internal.app.runtime.artifact.ArtifactManagerFactory;
 import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
 import io.cdap.cdap.internal.app.services.ServiceHttpServer;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.metadata.PreferencesFetcher;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.security.spi.authorization.ContextAccessEnforcer;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
+import java.util.Collections;
 import org.apache.tephra.TransactionSystemClient;
 import org.apache.twill.api.RunId;
 import org.apache.twill.api.ServiceAnnouncer;
 import org.apache.twill.common.Threads;
 import org.apache.twill.discovery.DiscoveryServiceClient;
-
-import java.util.Collections;
 
 /**
  * A {@link ProgramRunner} that runs an HTTP Server inside a Service.
@@ -86,19 +88,25 @@ public class ServiceProgramRunner extends AbstractProgramRunnerWithPlugin {
   private final PreferencesFetcher preferencesFetcher;
   private final RemoteClientFactory remoteClientFactory;
   private final ContextAccessEnforcer contextAccessEnforcer;
+  private final CommonNettyHttpServiceFactory commonNettyHttpServiceFactory;
+  private final AppStateStoreProvider appStateStoreProvider;
+  private final SConfiguration sConf;
 
   @Inject
-  public ServiceProgramRunner(CConfiguration cConf, MetricsCollectionService metricsCollectionService,
-                              DatasetFramework datasetFramework, DiscoveryServiceClient discoveryServiceClient,
-                              TransactionSystemClient txClient, ServiceAnnouncer serviceAnnouncer,
-                              SecureStore secureStore, SecureStoreManager secureStoreManager,
-                              MessagingService messagingService,
-                              ArtifactManagerFactory artifactManagerFactory,
-                              MetadataReader metadataReader, MetadataPublisher metadataPublisher,
-                              NamespaceQueryAdmin namespaceQueryAdmin, PluginFinder pluginFinder,
-                              FieldLineageWriter fieldLineageWriter, TransactionRunner transactionRunner,
-                              PreferencesFetcher preferencesFetcher, RemoteClientFactory remoteClientFactory,
-                              ContextAccessEnforcer contextAccessEnforcer) {
+  public ServiceProgramRunner(CConfiguration cConf,
+      MetricsCollectionService metricsCollectionService,
+      DatasetFramework datasetFramework, DiscoveryServiceClient discoveryServiceClient,
+      TransactionSystemClient txClient, ServiceAnnouncer serviceAnnouncer,
+      SecureStore secureStore, SecureStoreManager secureStoreManager,
+      MessagingService messagingService,
+      ArtifactManagerFactory artifactManagerFactory,
+      MetadataReader metadataReader, MetadataPublisher metadataPublisher,
+      NamespaceQueryAdmin namespaceQueryAdmin, PluginFinder pluginFinder,
+      FieldLineageWriter fieldLineageWriter, TransactionRunner transactionRunner,
+      PreferencesFetcher preferencesFetcher, RemoteClientFactory remoteClientFactory,
+      ContextAccessEnforcer contextAccessEnforcer,
+      CommonNettyHttpServiceFactory commonNettyHttpServiceFactory,
+      AppStateStoreProvider appStateStoreProvider, SConfiguration sConf) {
     super(cConf);
     this.metricsCollectionService = metricsCollectionService;
     this.datasetFramework = datasetFramework;
@@ -118,14 +126,19 @@ public class ServiceProgramRunner extends AbstractProgramRunnerWithPlugin {
     this.preferencesFetcher = preferencesFetcher;
     this.remoteClientFactory = remoteClientFactory;
     this.contextAccessEnforcer = contextAccessEnforcer;
+    this.commonNettyHttpServiceFactory = commonNettyHttpServiceFactory;
+    this.appStateStoreProvider = appStateStoreProvider;
+    this.sConf = sConf;
   }
 
   @Override
   public ProgramController run(Program program, ProgramOptions options) {
-    int instanceId = Integer.parseInt(options.getArguments().getOption(ProgramOptionConstants.INSTANCE_ID, "-1"));
+    int instanceId = Integer.parseInt(
+        options.getArguments().getOption(ProgramOptionConstants.INSTANCE_ID, "-1"));
     Preconditions.checkArgument(instanceId >= 0, "Missing instance Id");
 
-    int instanceCount = Integer.parseInt(options.getArguments().getOption(ProgramOptionConstants.INSTANCES, "0"));
+    int instanceCount = Integer.parseInt(
+        options.getArguments().getOption(ProgramOptionConstants.INSTANCES, "0"));
     Preconditions.checkArgument(instanceCount > 0, "Invalid or missing instance count");
 
     RunId runId = ProgramRunners.getRunId(options);
@@ -135,7 +148,8 @@ public class ServiceProgramRunner extends AbstractProgramRunnerWithPlugin {
 
     ProgramType programType = program.getType();
     Preconditions.checkNotNull(programType, "Missing processor type.");
-    Preconditions.checkArgument(programType == ProgramType.SERVICE, "Only Service process type is supported.");
+    Preconditions.checkArgument(programType == ProgramType.SERVICE,
+        "Only Service process type is supported.");
 
     ServiceSpecification spec = appSpec.getServices().get(program.getName());
 
@@ -145,29 +159,35 @@ public class ServiceProgramRunner extends AbstractProgramRunnerWithPlugin {
     // Setup dataset framework context, if required
     if (datasetFramework instanceof ProgramContextAware) {
       ProgramId programId = program.getId();
-      ((ProgramContextAware) datasetFramework).setContext(new BasicProgramContext(programId.run(runId)));
+      ((ProgramContextAware) datasetFramework).setContext(
+          new BasicProgramContext(programId.run(runId)));
     }
 
-    final PluginInstantiator pluginInstantiator = createPluginInstantiator(options, program.getClassLoader());
+    final PluginInstantiator pluginInstantiator = createPluginInstantiator(options,
+        program.getClassLoader());
     try {
-      RetryStrategy retryStrategy = SystemArguments.getRetryStrategy(options.getUserArguments().asMap(),
-                                                                     program.getType(), cConf);
-      ArtifactManager artifactManager = artifactManagerFactory.create(program.getId().getNamespaceId(), retryStrategy);
+      RetryStrategy retryStrategy = SystemArguments.getRetryStrategy(
+          options.getUserArguments().asMap(),
+          program.getType(), cConf);
+      ArtifactManager artifactManager = artifactManagerFactory.create(
+          program.getId().getNamespaceId(), retryStrategy);
       ServiceHttpServer component = new ServiceHttpServer(host, program, options, cConf, spec,
-                                                          instanceId, instanceCount, serviceAnnouncer,
-                                                          metricsCollectionService, datasetFramework,
-                                                          txClient, discoveryServiceClient,
-                                                          pluginInstantiator, secureStore, secureStoreManager,
-                                                          messagingService, artifactManager, metadataReader,
-                                                          metadataPublisher, namespaceQueryAdmin, pluginFinder,
-                                                          fieldLineageWriter, transactionRunner, preferencesFetcher,
-                                                          remoteClientFactory, contextAccessEnforcer);
+          instanceId, instanceCount, serviceAnnouncer,
+          metricsCollectionService, datasetFramework,
+          txClient, discoveryServiceClient,
+          pluginInstantiator, secureStore, secureStoreManager,
+          messagingService, artifactManager, metadataReader,
+          metadataPublisher, namespaceQueryAdmin, pluginFinder,
+          fieldLineageWriter, transactionRunner, preferencesFetcher,
+          remoteClientFactory, contextAccessEnforcer,
+          commonNettyHttpServiceFactory, appStateStoreProvider, sConf);
 
       // Add a service listener to make sure the plugin instantiator is closed when the http server is finished.
       component.addListener(createRuntimeServiceListener(Collections.singleton(pluginInstantiator)),
-                                                         Threads.SAME_THREAD_EXECUTOR);
+          Threads.SAME_THREAD_EXECUTOR);
 
-      ProgramController controller = new ServiceProgramControllerAdapter(component, program.getId().run(runId));
+      ProgramController controller = new ServiceProgramControllerAdapter(component,
+          program.getId().run(runId));
       component.start();
       return controller;
     } catch (Throwable t) {
@@ -176,7 +196,9 @@ public class ServiceProgramRunner extends AbstractProgramRunnerWithPlugin {
     }
   }
 
-  private static final class ServiceProgramControllerAdapter extends ProgramControllerServiceAdapter {
+  private static final class ServiceProgramControllerAdapter extends
+      ProgramControllerServiceAdapter {
+
     private final ServiceHttpServer service;
 
     ServiceProgramControllerAdapter(ServiceHttpServer service, ProgramRunId programRunId) {

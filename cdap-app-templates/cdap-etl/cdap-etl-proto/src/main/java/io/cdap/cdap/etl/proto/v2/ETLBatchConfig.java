@@ -23,7 +23,6 @@ import io.cdap.cdap.etl.api.Engine;
 import io.cdap.cdap.etl.api.batch.BatchSink;
 import io.cdap.cdap.etl.api.batch.BatchSource;
 import io.cdap.cdap.etl.proto.Connection;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,6 +37,7 @@ import javax.annotation.Nullable;
  * ETL Batch Configuration.
  */
 public final class ETLBatchConfig extends ETLConfig {
+
   private final Engine engine;
   private final String schedule;
   private final Integer maxConcurrentRuns;
@@ -51,26 +51,27 @@ public final class ETLBatchConfig extends ETLConfig {
   private final Boolean pushdownEnabled;
   private final ETLTransformationPushdown transformationPushdown;
 
-  private ETLBatchConfig(Set<ETLStage> stages,
-                         Set<Connection> connections,
-                         List<ETLStage> postActions,
-                         Resources resources,
-                         @Nullable Boolean stageLoggingEnabled,
-                         @Nullable Boolean processTimingEnabled,
-                         Engine engine,
-                         String schedule,
-                         Resources driverResources,
-                         Resources clientResources,
-                         @Nullable Integer numOfRecordsPreview,
-                         @Nullable Integer maxConcurrentRuns,
-                         Map<String, String> engineProperties,
-                         Boolean service,
-                         @Nullable ConnectionConfig connectionConfig,
-                         List<Object> comments,
-                         @Nullable Boolean pushdownEnabled,
-                         @Nullable ETLTransformationPushdown transformationPushdown) {
-    super(stages, connections, resources, driverResources, clientResources, stageLoggingEnabled, processTimingEnabled,
-          numOfRecordsPreview, engineProperties, comments);
+  private ETLBatchConfig(String description,
+      Set<ETLStage> stages,
+      Set<Connection> connections,
+      List<ETLStage> postActions,
+      Resources resources,
+      @Nullable Boolean stageLoggingEnabled,
+      @Nullable Boolean processTimingEnabled,
+      Engine engine,
+      String schedule,
+      Resources driverResources,
+      Resources clientResources,
+      @Nullable Integer numOfRecordsPreview,
+      @Nullable Integer maxConcurrentRuns,
+      Map<String, String> engineProperties,
+      Boolean service,
+      @Nullable ConnectionConfig connectionConfig,
+      List<Object> comments,
+      @Nullable Boolean pushdownEnabled,
+      @Nullable ETLTransformationPushdown transformationPushdown) {
+    super(description,stages, connections, resources, driverResources, clientResources,
+        stageLoggingEnabled, processTimingEnabled, numOfRecordsPreview, engineProperties, comments);
     this.postActions = ImmutableList.copyOf(postActions);
     this.engine = engine;
     this.schedule = schedule;
@@ -97,9 +98,9 @@ public final class ETLBatchConfig extends ETLConfig {
   }
 
   /**
-   * If this has the old v1 fields (source, sinks, transforms), convert them all to stages and create a proper
-   * v2 config. If this is already a v2 config, just returns itself.
-   * This method is only here to support backwards compatibility.
+   * If this has the old v1 fields (source, sinks, transforms), convert them all to stages and
+   * create a proper v2 config. If this is already a v2 config, just returns itself. This method is
+   * only here to support backwards compatibility.
    *
    * @return A v2 config.
    */
@@ -109,14 +110,15 @@ public final class ETLBatchConfig extends ETLConfig {
     }
 
     ETLBatchConfig.Builder builder = builder(schedule)
-      .setEngine(engine)
-      .setDriverResources(getDriverResources())
-      .addPostActions(actions == null ? new HashSet<ETLStage>() : actions);
+        .setEngine(engine)
+        .setDriverResources(getDriverResources())
+        .addPostActions(actions == null ? new HashSet<ETLStage>() : actions);
     return convertStages(builder, BatchSource.PLUGIN_TYPE, BatchSink.PLUGIN_TYPE).build();
   }
 
   public List<ETLStage> getPostActions() {
-    return Collections.unmodifiableList(postActions == null ? new ArrayList<ETLStage>() : postActions);
+    return Collections.unmodifiableList(
+        postActions == null ? new ArrayList<ETLStage>() : postActions);
   }
 
   public Engine getEngine() {
@@ -143,23 +145,28 @@ public final class ETLBatchConfig extends ETLConfig {
   }
 
   /**
-   * Updates current ETLBatchConfig by running update actions provided in context such as upgrading plugin artifact
-   * versions.
+   * Updates current ETLBatchConfig by running update actions provided in context such as upgrading
+   * plugin artifact versions.
    *
    * @param upgradeContext Context for performing update for current batch config.
    * @return a new (updated) etl batch config after performing update operations.
    */
   public ETLBatchConfig updateBatchConfig(ApplicationUpdateContext upgradeContext)
-    throws Exception {
-    Set<ETLStage> upgradedStages = new HashSet<>();
+      throws Exception {
     // Upgrade all stages.
+    Set<ETLStage> upgradedStages = new HashSet<>();
     for (ETLStage stage : getStages()) {
       upgradedStages.add(stage.updateStage(upgradeContext));
     }
-    return new ETLBatchConfig(upgradedStages, connections, postActions, resources, stageLoggingEnabled,
-                              processTimingEnabled, engine, schedule, driverResources, clientResources,
-                              numOfRecordsPreview, maxConcurrentRuns, properties, service, connectionConfig, comments,
-                              pushdownEnabled, transformationPushdown);
+    // Upgrade all actions.
+    List<ETLStage> upgradedPostActions = new ArrayList<>();
+    for (ETLStage postAction : getPostActions()) {
+      upgradedPostActions.add(postAction.updateStage(upgradeContext));
+    }
+    return new ETLBatchConfig(description, upgradedStages, connections, upgradedPostActions,
+        resources, stageLoggingEnabled, processTimingEnabled, engine, schedule, driverResources,
+        clientResources, numOfRecordsPreview, maxConcurrentRuns, properties, service,
+        connectionConfig, comments, pushdownEnabled, transformationPushdown);
   }
 
   @Override
@@ -176,31 +183,31 @@ public final class ETLBatchConfig extends ETLConfig {
 
     ETLBatchConfig that = (ETLBatchConfig) o;
 
-    return Objects.equals(engine, that.engine) &&
-      Objects.equals(schedule, that.schedule) &&
-      Objects.equals(postActions, that.postActions) &&
-      Objects.equals(actions, that.actions) &&
-      Objects.equals(maxConcurrentRuns, that.maxConcurrentRuns) &&
-      Objects.equals(transformationPushdown, that.transformationPushdown);
+    return Objects.equals(engine, that.engine)
+        && Objects.equals(schedule, that.schedule)
+        && Objects.equals(postActions, that.postActions)
+        && Objects.equals(actions, that.actions)
+        && Objects.equals(maxConcurrentRuns, that.maxConcurrentRuns)
+        && Objects.equals(transformationPushdown, that.transformationPushdown);
 
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(super.hashCode(), engine, schedule, postActions, actions, maxConcurrentRuns,
-                        transformationPushdown);
+        transformationPushdown);
   }
 
   @Override
   public String toString() {
-    return "ETLBatchConfig{" +
-      "engine=" + engine +
-      ", schedule='" + schedule + '\'' +
-      ", maxConcurrentRuns=" + maxConcurrentRuns +
-      ", postActions=" + postActions +
-      ", actions=" + actions +
-      ", transformationPushdown=" + transformationPushdown +
-      "} " + super.toString();
+    return "ETLBatchConfig{"
+        + "engine=" + engine
+        + ", schedule='" + schedule + '\''
+        + ", maxConcurrentRuns=" + maxConcurrentRuns
+        + ", postActions=" + postActions
+        + ", actions=" + actions
+        + ", transformationPushdown=" + transformationPushdown
+        + "} " + super.toString();
   }
 
   /**
@@ -223,6 +230,7 @@ public final class ETLBatchConfig extends ETLConfig {
    * Builder for creating configs.
    */
   public static class Builder extends ETLConfig.Builder<Builder> {
+
     private String schedule;
     private Engine engine;
     private List<ETLStage> endingActions;
@@ -233,7 +241,7 @@ public final class ETLBatchConfig extends ETLConfig {
     private List<Object> comments;
 
     private Builder() {
-      this(null);
+      this((String) null);
       this.comments = new ArrayList<>();
     }
 
@@ -246,6 +254,26 @@ public final class ETLBatchConfig extends ETLConfig {
       this.schedule = schedule;
       this.engine = Engine.MAPREDUCE;
       this.endingActions = new ArrayList<>();
+    }
+
+    public Builder(ETLBatchConfig config) {
+      super();
+      this.description = config.getDescription();
+      this.stages = config.getStages();
+      this.connections = config.getConnections();
+      this.endingActions = config.getPostActions();
+      this.processTimingEnabled = config.isProcessTimingEnabled();
+      this.engine = config.getEngine();
+      this.schedule = config.getSchedule();
+      this.resources = config.getResources();
+      this.driverResources = config.getDriverResources();
+      this.clientResources = config.getClientResources();
+      this.numOfRecordsPreview = config.getNumOfRecordsPreview();
+      this.maxConcurrentRuns = config.getMaxConcurrentRuns();
+      this.properties = config.getProperties();
+      this.comments = config.getComments();
+      this.pushdownEnabled = config.isPushdownEnabled();
+      this.transformationPushdown = config.getTransformationPushdown();
     }
 
     public Builder setTimeSchedule(String schedule) {
@@ -290,10 +318,10 @@ public final class ETLBatchConfig extends ETLConfig {
     }
 
     public ETLBatchConfig build() {
-      return new ETLBatchConfig(stages, connections, endingActions, resources, stageLoggingEnabled,
-                                processTimingEnabled, engine, schedule, driverResources, clientResources,
-                                numOfRecordsPreview, maxConcurrentRuns, properties, false, null, comments,
-                                pushdownEnabled, transformationPushdown);
+      return new ETLBatchConfig(description, stages, connections, endingActions, resources,
+          stageLoggingEnabled, processTimingEnabled, engine, schedule, driverResources,
+          clientResources, numOfRecordsPreview, maxConcurrentRuns, properties, false, null,
+          comments, pushdownEnabled, transformationPushdown);
     }
   }
 }

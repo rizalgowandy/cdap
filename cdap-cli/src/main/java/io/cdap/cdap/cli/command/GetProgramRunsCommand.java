@@ -28,9 +28,9 @@ import io.cdap.cdap.cli.util.RowMaker;
 import io.cdap.cdap.cli.util.table.Table;
 import io.cdap.cdap.client.ProgramClient;
 import io.cdap.cdap.proto.RunRecord;
+import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -42,7 +42,8 @@ public class GetProgramRunsCommand extends AbstractCommand {
   private final ProgramClient programClient;
   private final ElementType elementType;
 
-  protected GetProgramRunsCommand(ElementType elementType, ProgramClient programClient, CLIConfig cliConfig) {
+  protected GetProgramRunsCommand(ElementType elementType, ProgramClient programClient,
+      CLIConfig cliConfig) {
     super(cliConfig);
     this.elementType = elementType;
     this.programClient = programClient;
@@ -52,10 +53,14 @@ public class GetProgramRunsCommand extends AbstractCommand {
   public void perform(Arguments arguments, PrintStream output) throws Exception {
     String[] programIdParts = arguments.get(elementType.getArgumentName().toString()).split("\\.");
     String appId = programIdParts[0];
+    String version = arguments.getOptional(ArgumentName.APP_VERSION.toString());
+    String appVersion = version == null ? ApplicationId.DEFAULT_VERSION : version;
     long currentTime = System.currentTimeMillis();
 
-    long startTime = getTimestamp(arguments.getOptional(ArgumentName.START_TIME.toString(), "min"), currentTime);
-    long endTime = getTimestamp(arguments.getOptional(ArgumentName.END_TIME.toString(), "max"), currentTime);
+    long startTime = getTimestamp(arguments.getOptional(ArgumentName.START_TIME.toString(), "min"),
+        currentTime);
+    long endTime = getTimestamp(arguments.getOptional(ArgumentName.END_TIME.toString(), "max"),
+        currentTime);
     int limit = arguments.getIntOptional(ArgumentName.LIMIT.toString(), Integer.MAX_VALUE);
 
     List<RunRecord> records;
@@ -64,41 +69,45 @@ public class GetProgramRunsCommand extends AbstractCommand {
         throw new CommandInputError(this);
       }
       String programName = programIdParts[1];
-      ProgramId programId = cliConfig.getCurrentNamespace().app(appId).program(elementType.getProgramType(),
-                                                                               programName);
+      ProgramId programId = cliConfig.getCurrentNamespace().app(appId, appVersion)
+          .program(elementType.getProgramType(), programName);
       if (arguments.hasArgument(ArgumentName.RUN_STATUS.toString())) {
-        records = programClient.getProgramRuns(programId, arguments.get(ArgumentName.RUN_STATUS.toString()),
-                                               startTime, endTime, limit);
+        records = programClient.getProgramRuns(programId,
+            arguments.get(ArgumentName.RUN_STATUS.toString()),
+            startTime, endTime, limit);
       } else {
         records = programClient.getAllProgramRuns(programId, startTime, endTime, limit);
       }
 
     } else {
-      throw new IllegalArgumentException("Unrecognized program element type for history: " + elementType);
+      throw new IllegalArgumentException(
+          "Unrecognized program element type for history: " + elementType);
     }
 
     Table table = Table.builder()
-      .setHeader("pid", "end status", "init time", "start time", "stop time")
-      .setRows(records, new RowMaker<RunRecord>() {
-        @Override
-        public List<?> makeRow(RunRecord object) {
-          return Lists.newArrayList(object.getPid(), object.getStatus(), object.getStartTs(),
-                                    object.getRunTs() == null ? "" : object.getRunTs(),
-                                    object.getStopTs() == null ? "" : object.getStopTs());
-        }
-      }).build();
+        .setHeader("pid", "end status", "init time", "start time", "stop time")
+        .setRows(records, new RowMaker<RunRecord>() {
+          @Override
+          public List<?> makeRow(RunRecord object) {
+            return Lists.newArrayList(object.getPid(), object.getStatus(), object.getStartTs(),
+                object.getRunTs() == null ? "" : object.getRunTs(),
+                object.getStopTs() == null ? "" : object.getStopTs());
+          }
+        }).build();
     cliConfig.getTableRenderer().render(cliConfig, output, table);
   }
 
   @Override
   public String getPattern() {
-    return String.format("get %s runs <%s> [<%s>] [<%s>] [<%s>] [<%s>]", elementType.getShortName(),
-                         elementType.getArgumentName(), ArgumentName.RUN_STATUS,
-                         ArgumentName.START_TIME, ArgumentName.END_TIME, ArgumentName.LIMIT);
+    return String.format("get %s runs <%s> [version <%s>] [<%s>] [<%s>] [<%s>] [<%s>]",
+        elementType.getShortName(),
+        elementType.getArgumentName(), ArgumentName.APP_VERSION, ArgumentName.RUN_STATUS,
+        ArgumentName.START_TIME, ArgumentName.END_TIME, ArgumentName.LIMIT);
   }
 
   @Override
   public String getDescription() {
-    return String.format("Gets the run history of %s", Fragment.of(Article.A, elementType.getName()));
+    return String.format("Gets the run history of %s",
+        Fragment.of(Article.A, elementType.getName()));
   }
 }

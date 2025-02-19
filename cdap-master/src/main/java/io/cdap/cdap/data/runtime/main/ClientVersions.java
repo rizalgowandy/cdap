@@ -17,13 +17,11 @@
 package io.cdap.cdap.data.runtime.main;
 
 import io.cdap.cdap.common.utils.ProjectInfo;
-import io.cdap.cdap.data2.util.hbase.HBaseVersion;
 import io.cdap.cdap.gateway.handlers.util.VersionHelper;
-import org.apache.kafka.clients.KafkaClient;
-
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.kafka.clients.KafkaClient;
 
 /**
  * Provides client versions of infrastructure components.
@@ -32,11 +30,6 @@ public class ClientVersions {
 
   public static String getCdapVersion() {
     return ProjectInfo.getVersion().toString();
-  }
-
-  public static String getCdapHBaseCompatVersion() {
-    // cdap hbase compat module
-    return HBaseVersion.get().toString();
   }
 
   public static String getTephraHBaseCompatVersion() {
@@ -49,20 +42,18 @@ public class ClientVersions {
     return VersionHelper.getHadoopVersion().getVersion();
   }
 
-  public static String getHBaseVersion() {
-    return HBaseVersion.getVersionString();
-  }
-
   public static String getZooKeeperVersion() {
     return VersionHelper.getZooKeeperVersion().getVersion();
   }
 
   public static String getKafkaVersion() {
-    URL kafkaJar = KafkaClient.class.getResource("/" + KafkaClient.class.getName().replace(".", "/") + ".class");
+    URL kafkaJar = KafkaClient.class.getResource(
+        "/" + KafkaClient.class.getName().replace(".", "/") + ".class");
     // kafkaJar.getPath() looks like jar:file:/a/b/c/d/kafka-clients-0.8.2.2.jar
     String[] tokens = kafkaJar.getPath().split("!")[0].split("/");
     String jarFilename = tokens[tokens.length - 1];
-    Matcher matcher = Pattern.compile("kafka-clients-(\\d+\\.\\d+\\.\\d+\\.\\d+)\\.jar").matcher(jarFilename);
+    Matcher matcher = Pattern.compile("kafka-clients-(\\d+\\.\\d+\\.\\d+\\.\\d+)\\.jar")
+        .matcher(jarFilename);
     if (matcher.find()) {
       return matcher.group(1);
     }
@@ -72,13 +63,12 @@ public class ClientVersions {
 
   public static void main(String[] args) {
     System.out.println("Hadoop version: " + ClientVersions.getHadoopVersion());
-    System.out.println("HBase version: " + ClientVersions.getHBaseVersion());
     System.out.println("ZooKeeper version: " + ClientVersions.getZooKeeperVersion());
     System.out.println("Kafka version: " + ClientVersions.getKafkaVersion());
 
     System.out.println("CDAP version: " + ClientVersions.getCdapVersion());
-    System.out.println("CDAP HBase compat version: " + ClientVersions.getCdapHBaseCompatVersion());
-    System.out.println("Tephra HBase compat version: " + ClientVersions.getTephraHBaseCompatVersion());
+    System.out.println(
+        "Tephra HBase compat version: " + ClientVersions.getTephraHBaseCompatVersion());
   }
 
 }

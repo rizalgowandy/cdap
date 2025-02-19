@@ -20,14 +20,13 @@ import io.cdap.cdap.common.logging.LogSamplers;
 import io.cdap.cdap.common.logging.Loggers;
 import io.cdap.cdap.common.service.AbstractRetryableScheduledService;
 import io.cdap.cdap.common.service.RetryStrategy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class that continuously serializes logs from a queue and publishes them.
@@ -35,9 +34,11 @@ import java.util.concurrent.TimeUnit;
  * @param <MESSAGE> the type of message used in the in-memory buffer, before publishing
  */
 public abstract class AbstractLogPublisher<MESSAGE> extends AbstractRetryableScheduledService {
+
   private static final Logger LOG = LoggerFactory.getLogger(AbstractLogPublisher.class);
   private static final Logger OUTAGE_LOG = Loggers.sampling(
-    LOG, LogSamplers.all(LogSamplers.skipFirstN(5), LogSamplers.limitRate(TimeUnit.SECONDS.toMillis(30))));
+      LOG, LogSamplers.all(LogSamplers.skipFirstN(5),
+          LogSamplers.limitRate(TimeUnit.SECONDS.toMillis(30))));
 
   private final int queueSize;
   private final BlockingQueue<LogMessage> messageQueue;
@@ -53,8 +54,8 @@ public abstract class AbstractLogPublisher<MESSAGE> extends AbstractRetryableSch
   }
 
   /**
-   * Creates a {@link MESSAGE}, which the type is dependent on the implementation. This is buffered in-memory before
-   * being published.
+   * Creates a {@link MESSAGE}, which the type is dependent on the implementation. This is buffered
+   * in-memory before being published.
    *
    * @param logMessage the log message to prepare for publishing
    * @return a {@link MESSAGE}, prepared for publishing.
@@ -84,7 +85,8 @@ public abstract class AbstractLogPublisher<MESSAGE> extends AbstractRetryableSch
   /**
    * Offers an element to the given queue uninterruptibly.
    */
-  private <E> boolean offerUninterruptibly(BlockingQueue<E> queue, E element, long timeout, TimeUnit timeUnit) {
+  private <E> boolean offerUninterruptibly(BlockingQueue<E> queue, E element, long timeout,
+      TimeUnit timeUnit) {
     boolean interrupted = false;
     try {
       while (true) {

@@ -22,8 +22,13 @@ import io.cdap.cdap.proto.ProgramType;
  * Uniquely identifies a service.
  */
 public class ServiceId extends ProgramId implements ParentedId<ApplicationId> {
+
   public ServiceId(String namespace, String application, String program) {
     super(namespace, application, ProgramType.SERVICE, program);
+  }
+
+  public ServiceId(String namespace, String application, String version, String program) {
+    super(namespace, application, version, ProgramType.SERVICE, program);
   }
 
   public ServiceId(ApplicationId appId, String program) {

@@ -16,9 +16,8 @@
 
 package io.cdap.cdap.master.spi.twill;
 
-import org.apache.twill.api.TwillContext;
-
 import javax.annotation.Nullable;
+import org.apache.twill.api.TwillContext;
 
 /**
  * Extends the {@link TwillContext} to add extra functionalities for CDAP.
@@ -28,7 +27,8 @@ public interface ExtendedTwillContext extends TwillContext {
   /**
    * Returns an unique ID of the current container.
    *
-   * @return the unique ID, or {@code null} if there is no unique ID in the current execution environment.
+   * @return the unique ID, or {@code null} if there is no unique ID in the current execution
+   *     environment.
    */
   @Nullable
   String getUID();

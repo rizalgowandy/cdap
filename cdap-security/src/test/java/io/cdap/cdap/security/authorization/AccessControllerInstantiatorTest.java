@@ -18,32 +18,50 @@ package io.cdap.cdap.security.authorization;
 
 import com.google.common.base.Throwables;
 import com.google.gson.Gson;
+import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.common.FeatureDisabledException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.test.AppJarHelper;
+import io.cdap.cdap.proto.element.EntityType;
+import io.cdap.cdap.proto.id.EntityId;
+import io.cdap.cdap.proto.security.Action;
+import io.cdap.cdap.proto.security.Authorizable;
 import io.cdap.cdap.proto.security.GrantedPermission;
+import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
+import io.cdap.cdap.proto.security.Privilege;
 import io.cdap.cdap.proto.security.Role;
+import io.cdap.cdap.security.auth.context.AuthenticationTestContext;
+import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessController;
+import io.cdap.cdap.security.spi.authorization.AccessControllerSpi;
+import io.cdap.cdap.security.spi.authorization.AuditLogContext;
+import io.cdap.cdap.security.spi.authorization.AuditLogRequest;
 import io.cdap.cdap.security.spi.authorization.AuthorizationContext;
+import io.cdap.cdap.security.spi.authorization.AuthorizationResponse;
+import io.cdap.cdap.security.spi.authorization.AuthorizedResult;
+import io.cdap.cdap.security.spi.authorization.Authorizer;
 import io.cdap.cdap.security.spi.authorization.NoOpAccessController;
-import org.apache.twill.filesystem.Location;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
+import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests for {@link AccessControllerInstantiator}.
@@ -52,6 +70,8 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
 
   @ClassRule
   public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
+
+  public static AuthenticationContext authenticationContext = new AuthenticationTestContext();
 
   @Test
   public void testAuthenticationDisabled() throws IOException {
@@ -71,12 +91,12 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
 
   private void assertDisabled(CConfiguration cConf, FeatureDisabledException.Feature feature) throws IOException {
     try (AccessControllerInstantiator instantiator = new AccessControllerInstantiator(cConf, AUTH_CONTEXT_FACTORY)) {
-      AccessController accessController = instantiator.get();
+      AccessControllerSpi accessController = instantiator.get();
       Assert.assertTrue(
         String.format("When %s is disabled, a %s must be returned, but got %s.",
-                      feature.name().toLowerCase(), NoOpAccessController.class.getSimpleName(),
+                      feature.name().toLowerCase(), NoOpAccessControllerV2.class.getSimpleName(),
                       accessController.getClass().getName()),
-        accessController instanceof NoOpAccessController
+        accessController instanceof NoOpAccessControllerV2
       );
     }
   }
@@ -105,7 +125,8 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
 
   @Test(expected = InvalidAccessControllerException.class)
   public void testAccessControllerJarPathIsNotJar() throws Throwable {
-    CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, TEMPORARY_FOLDER.newFile("abc.txt").getPath());
+    CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, TEMPORARY_FOLDER.newFile("abc.txt")
+      .getPath());
     try (AccessControllerInstantiator instantiator = new AccessControllerInstantiator(CCONF, AUTH_CONTEXT_FACTORY)) {
       instantiator.get();
       Assert.fail("Instantiation of AccessController should have failed because extension jar is not a jar file");
@@ -120,8 +141,8 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, externalAuthJar.toString());
     try (AccessControllerInstantiator instantiator = new AccessControllerInstantiator(CCONF, AUTH_CONTEXT_FACTORY)) {
       instantiator.get();
-      Assert.fail("Instantiation of AccessController should have failed " +
-                    "because extension jar does not have a manifest");
+      Assert.fail("Instantiation of AccessController should have failed "
+          + "because extension jar does not have a manifest");
     } catch (Throwable e) {
       throw Throwables.getRootCause(e);
     }
@@ -135,8 +156,9 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, externalAuthJar.toString());
     try (AccessControllerInstantiator instantiator = new AccessControllerInstantiator(CCONF, AUTH_CONTEXT_FACTORY)) {
       instantiator.get();
-      Assert.fail("Instantiation of AccessController should have failed because extension jar's manifest does not " +
-                    "define AccessController class.");
+      Assert.fail(
+          "Instantiation of AccessController should have failed because extension jar's manifest does not "
+              + "define AccessController class.");
     } catch (Throwable e) {
       throw Throwables.getRootCause(e);
     }
@@ -152,10 +174,34 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, externalAuthJar.toString());
     try (AccessControllerInstantiator instantiator = new AccessControllerInstantiator(CCONF, AUTH_CONTEXT_FACTORY)) {
       instantiator.get();
-      Assert.fail("Instantiation of AccessController should have failed because the AccessController class defined " +
-                    "in the extension jar's manifest does not implement " + AccessController.class.getName());
+      Assert.fail(
+          "Instantiation of AccessController should have failed because the AccessController class defined "
+              + "in the extension jar's manifest does not implement "
+              + AccessControllerSpi.class.getName());
     } catch (Throwable e) {
       throw Throwables.getRootCause(e);
+    }
+  }
+
+
+  @Test
+  public void testSupportedExternalAuthMainClass() throws Throwable {
+
+    List<Class> supportedDummyClassList = Arrays.asList(
+      AuthorizerImpl.class,
+      AccessControllerImp.class,
+      AccessControllerSpiImp.class);
+
+    for (Class authMainClass : supportedDummyClassList) {
+      Manifest manifest = new Manifest();
+      Attributes mainAttributes = manifest.getMainAttributes();
+      mainAttributes.put(Attributes.Name.MAIN_CLASS, authMainClass.getName());
+      Location externalAuthJar = AppJarHelper.createDeploymentJar(locationFactory, authMainClass,
+                                                                  manifest);
+      CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, externalAuthJar.toString());
+      AccessControllerInstantiator instantiator = new AccessControllerInstantiator(CCONF, AUTH_CONTEXT_FACTORY);
+      instantiator.get();
+      //Incase if unsupported class, it should throw error. 
     }
   }
 
@@ -169,8 +215,10 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     CCONF.set(Constants.Security.Authorization.EXTENSION_JAR_PATH, externalAuthJar.toString());
     try (AccessControllerInstantiator instantiator = new AccessControllerInstantiator(CCONF, AUTH_CONTEXT_FACTORY)) {
       instantiator.get();
-      Assert.fail("Instantiation of AccessController should have failed because the AccessController class defined " +
-                    "in the extension jar's manifest does not implement " + AccessController.class.getName());
+      Assert.fail(
+          "Instantiation of AccessController should have failed because the AccessController class defined "
+              + "in the extension jar's manifest does not implement "
+              + AccessControllerSpi.class.getName());
     } catch (Throwable e) {
       throw e.getCause();
     }
@@ -190,9 +238,10 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     try (AccessControllerInstantiator instantiator =
            new AccessControllerInstantiator(cConfCopy, AUTH_CONTEXT_FACTORY)) {
       // should be able to load the ExternalAccessController class via the AccessControllerInstantiatorService
-      AccessController externalAccessController1 = instantiator.get();
-      externalAccessController1.listAllRoles();
-      externalAccessController1.listGrants(new Principal("test", Principal.PrincipalType.USER));
+      AccessControllerSpi externalAccessController1 = instantiator.get();
+      externalAccessController1.listAllRoles(authenticationContext.getPrincipal());
+      externalAccessController1.listGrants(authenticationContext.getPrincipal(),
+        new Principal("test", Principal.PrincipalType.USER));
 
       ClassLoader accessControllerClassLoader = externalAccessController1.getClass().getClassLoader();
 
@@ -220,9 +269,9 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     try (AccessControllerInstantiator instantiator =
            new AccessControllerInstantiator(cConfCopy, AUTH_CONTEXT_FACTORY)) {
       // should be able to load the ExternalAccessController class via the AccessControllerInstantiatorService
-      AccessController externalAccessController1 = instantiator.get();
+      AccessControllerSpi externalAccessController1 = instantiator.get();
       Assert.assertNotNull(externalAccessController1);
-      AccessController externalAccessController2 = instantiator.get();
+      AccessControllerSpi externalAccessController2 = instantiator.get();
       Assert.assertNotNull(externalAccessController2);
       // verify that get returns the same  instance each time it is called.
       Assert.assertEquals(externalAccessController1, externalAccessController2);
@@ -230,12 +279,13 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
       ClassLoader accessControllerClassLoader = externalAccessController1.getClass().getClassLoader();
       ClassLoader parent = accessControllerClassLoader.getParent();
       // should be able to load the AccessController interface via the parent
-      parent.loadClass(AccessController.class.getName());
+      parent.loadClass(AccessControllerSpi.class.getName());
       // should not be able to load the ExternalAccessController class via the parent class loader
       try {
         parent.loadClass(ValidExternalAccessController.class.getName());
-        Assert.fail("Should not be able to load external accessController classes via the parent classloader of the " +
-                      "AccessController class loader.");
+        Assert.fail(
+            "Should not be able to load external accessController classes via the parent classloader of the "
+                + "AccessController class loader.");
       } catch (ClassNotFoundException expected) {
         // expected
       }
@@ -285,17 +335,18 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     }
   }
 
-  public static class ValidExternalAccessControllerBase extends NoOpAccessController {
+  public static class ValidExternalAccessControllerBase extends NoOpAccessControllerV2 {
 
     @Override
-    public Set<Role> listAllRoles() {
+    public AuthorizedResult<Set<Role>> listAllRoles(Principal caller) {
       Assert.assertEquals(getClass().getClassLoader(), Thread.currentThread().getContextClassLoader());
-      return super.listAllRoles();
+      return super.listAllRoles(caller);
     }
   }
 
   public static final class ValidExternalAccessController extends ValidExternalAccessControllerBase {
     private Properties properties;
+
     @Override
     public void initialize(AuthorizationContext context) {
       this.properties = context.getExtensionProperties();
@@ -306,9 +357,9 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
     }
 
     @Override
-    public Set<GrantedPermission> listGrants(Principal principal) {
+    public AuthorizedResult<Set<GrantedPermission>> listGrants(Principal caller, Principal principal) {
       assertContextClassLoader();
-      return super.listGrants(principal);
+      return super.listGrants(caller, principal);
     }
 
     private static void assertContextClassLoader() {
@@ -318,6 +369,240 @@ public class AccessControllerInstantiatorTest extends AuthorizationTestBase {
 
   }
 
+  // Dummy Classes to test supported spi both old and new.
+
   private static final class DoesNotImplementAccessController {
+  }
+
+  public static final class AuthorizerImpl implements Authorizer {
+
+    @Override
+    public void enforce(EntityId entity, Principal principal, Action action) throws Exception {
+
+    }
+
+    @Override
+    public void enforce(EntityId entity, Principal principal, Set<Action> actions) throws Exception {
+
+    }
+
+    @Override
+    public Set<? extends EntityId> isVisible(Set<? extends EntityId> entityIds, Principal principal) throws Exception {
+      return null;
+    }
+
+    @Override
+    public void initialize(AuthorizationContext context) throws Exception {
+
+    }
+
+    @Override
+    public void createRole(Role role) throws Exception {
+
+    }
+
+    @Override
+    public void dropRole(Role role) throws Exception {
+
+    }
+
+    @Override
+    public void addRoleToPrincipal(Role role, Principal principal) throws Exception {
+
+    }
+
+    @Override
+    public void removeRoleFromPrincipal(Role role, Principal principal) throws Exception {
+
+    }
+
+    @Override
+    public Set<Role> listRoles(Principal principal) throws Exception {
+      return null;
+    }
+
+    @Override
+    public Set<Role> listAllRoles() throws Exception {
+      return null;
+    }
+
+    @Override
+    public void destroy() throws Exception {
+
+    }
+
+    @Override
+    public void grant(Authorizable authorizable, Principal principal, Set<Action> actions) throws Exception {
+
+    }
+
+    @Override
+    public void revoke(Authorizable authorizable, Principal principal, Set<Action> actions) throws Exception {
+
+    }
+
+    @Override
+    public void revoke(Authorizable authorizable) throws Exception {
+
+    }
+
+    @Override
+    public Set<Privilege> listPrivileges(Principal principal) throws Exception {
+      return null;
+    }
+  }
+
+  public static final class AccessControllerImp implements AccessController {
+
+    @Override
+    public void createRole(Role role) throws AccessException {
+
+    }
+
+    @Override
+    public void dropRole(Role role) throws AccessException {
+
+    }
+
+    @Override
+    public void addRoleToPrincipal(Role role, Principal principal) throws AccessException {
+
+    }
+
+    @Override
+    public void removeRoleFromPrincipal(Role role, Principal principal) throws AccessException {
+
+    }
+
+    @Override
+    public Set<Role> listRoles(Principal principal) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public Set<Role> listAllRoles() throws AccessException {
+      return null;
+    }
+
+    @Override
+    public void enforce(EntityId entity, Principal principal, Set<? extends Permission> permissions)
+      throws AccessException {
+
+    }
+
+    @Override
+    public void enforceOnParent(EntityType entityType, EntityId parentId, Principal principal, Permission permission)
+      throws AccessException {
+
+    }
+
+    @Override
+    public Set<? extends EntityId> isVisible(Set<? extends EntityId> entityIds, Principal principal)
+      throws AccessException {
+      return null;
+    }
+
+    @Override
+    public void grant(Authorizable authorizable, Principal principal, Set<? extends Permission> permissions)
+      throws AccessException {
+
+    }
+
+    @Override
+    public void revoke(Authorizable authorizable, Principal principal, Set<? extends Permission> permissions)
+      throws AccessException {
+
+    }
+
+    @Override
+    public void revoke(Authorizable authorizable) throws AccessException {
+
+    }
+
+    @Override
+    public Set<GrantedPermission> listGrants(Principal principal) throws AccessException {
+      return null;
+    }
+  }
+
+  public static class AccessControllerSpiImp implements AccessControllerSpi {
+
+    @Override
+    public AuthorizationResponse enforce(EntityId entity, Principal principal, Set<? extends Permission> permissions)
+      throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse enforceOnParent(EntityType entityType, EntityId parentId, Principal principal,
+                                                 Permission permission) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public Map<? extends EntityId, AuthorizationResponse> isVisible(Set<? extends EntityId> entityIds,
+                                                                    Principal principal) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse grant(Principal caller, Authorizable authorizable, Principal principal,
+                                       Set<? extends Permission> permissions) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse revoke(Principal caller, Authorizable authorizable, Principal principal,
+                                        Set<? extends Permission> permissions) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse revoke(Principal caller, Authorizable authorizable) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse createRole(Principal caller, Role role) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse dropRole(Principal caller, Role role) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse addRoleToPrincipal(Principal caller, Role role, Principal principal)
+      throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizationResponse removeRoleFromPrincipal(Principal caller, Role role, Principal principal)
+      throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizedResult<Set<Role>> listRoles(Principal caller, Principal principal) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizedResult<Set<Role>> listAllRoles(Principal caller) throws AccessException {
+      return null;
+    }
+
+    @Override
+    public AuthorizedResult<Set<GrantedPermission>> listGrants(Principal caller, Principal principal)
+      throws AccessException {
+      return null;
+    }
+
+    @Override
+    public PublishStatus publishAuditLogs(AuditLogRequest auditLogRequest) {
+      return null;
+    }
   }
 }

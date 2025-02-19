@@ -17,26 +17,27 @@
 package io.cdap.cdap.logging.plugins;
 
 import io.cdap.cdap.common.io.Syncable;
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import org.apache.twill.filesystem.Location;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FilterOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-
 /**
- * Location outputstream used by {@link LocationManager} which holds location, number of bytes written to a location
- * and its open outputstream
+ * Location outputstream used by {@link LocationManager} which holds location, number of bytes
+ * written to a location and its open outputstream
  */
 public class LocationOutputStream extends FilterOutputStream implements Syncable {
+
   private static final Logger LOG = LoggerFactory.getLogger(LocationOutputStream.class);
 
   private Location location;
   private long numOfBytes;
   private long lastWriteTimestamp;
 
-  public LocationOutputStream(Location location, OutputStream outputStream, long lastWriteTimestamp) {
+  public LocationOutputStream(Location location, OutputStream outputStream,
+      long lastWriteTimestamp) {
     super(outputStream);
     this.location = location;
     this.lastWriteTimestamp = lastWriteTimestamp;

@@ -23,20 +23,20 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link RelayChannelHandler} that relay traffic from one {@link Channel} to another.
  */
-public final class SimpleRelayChannelHandler extends ChannelInboundHandlerAdapter implements RelayChannelHandler {
+public final class SimpleRelayChannelHandler extends ChannelInboundHandlerAdapter implements
+    RelayChannelHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(SimpleRelayChannelHandler.class);
   private static final Logger OUTAGE_LOG = Loggers.sampling(
-    LOG, LogSamplers.perMessage(() -> LogSamplers.limitRate(TimeUnit.MINUTES.toMillis(1))));
+      LOG, LogSamplers.perMessage(() -> LogSamplers.limitRate(TimeUnit.MINUTES.toMillis(1))));
 
   private final Channel outboundChannel;
 

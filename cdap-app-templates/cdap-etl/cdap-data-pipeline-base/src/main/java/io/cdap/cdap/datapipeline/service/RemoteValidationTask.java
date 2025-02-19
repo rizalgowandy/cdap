@@ -31,6 +31,7 @@ import io.cdap.cdap.api.service.worker.SystemAppTaskContext;
 import io.cdap.cdap.etl.common.BasicArguments;
 import io.cdap.cdap.etl.common.ConnectionMacroEvaluator;
 import io.cdap.cdap.etl.common.DefaultMacroEvaluator;
+import io.cdap.cdap.etl.common.OAuthAccessTokenMacroEvaluator;
 import io.cdap.cdap.etl.common.OAuthMacroEvaluator;
 import io.cdap.cdap.etl.common.SecureStoreMacroEvaluator;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
@@ -42,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -88,18 +90,19 @@ public class RemoteValidationTask implements RunnableTask {
     }
 
     Map<String, MacroEvaluator> evaluators = ImmutableMap.of(
-      SecureStoreMacroEvaluator.FUNCTION_NAME,
-      new SecureStoreMacroEvaluator(namespace, systemAppContext),
+      SecureStoreMacroEvaluator.FUNCTION_NAME, new SecureStoreMacroEvaluator(namespace, systemAppContext),
       OAuthMacroEvaluator.FUNCTION_NAME, new OAuthMacroEvaluator(systemAppContext),
-      ConnectionMacroEvaluator.FUNCTION_NAME,
-      new ConnectionMacroEvaluator(namespace, systemAppContext)
+      ConnectionMacroEvaluator.FUNCTION_NAME, new ConnectionMacroEvaluator(namespace, systemAppContext),
+      OAuthAccessTokenMacroEvaluator.FUNCTION_NAME, new OAuthAccessTokenMacroEvaluator(systemAppContext)
     );
     MacroEvaluator macroEvaluator = new DefaultMacroEvaluator(new BasicArguments(arguments), evaluators,
                                                               DefaultMacroEvaluator.MAP_FUNCTIONS);
+    Set<String> doNotSkipInvalidMacroForFunctions = validationRequest.getDoNotSkipInvalidMacroForFunctions();
     MacroParserOptions macroParserOptions = MacroParserOptions.builder()
-      .skipInvalidMacros()
       .setEscaping(false)
       .setFunctionWhitelist(evaluators.keySet())
+      .skipInvalidMacros()
+      .setDoNotSkipInvalidMacroForFunctions(doNotSkipInvalidMacroForFunctions)
       .build();
     Function<Map<String, String>, Map<String, String>> macroFn =
       macroProperties -> systemAppContext

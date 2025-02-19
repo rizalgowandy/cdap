@@ -19,14 +19,13 @@ package io.cdap.cdap.internal.app.runtime.schedule;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import com.google.inject.Inject;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.service.RetryOnStartFailureService;
 import io.cdap.cdap.common.service.RetryStrategies;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Scheduler service to run in Distributed CDAP. Waits for Dataset service to be available.

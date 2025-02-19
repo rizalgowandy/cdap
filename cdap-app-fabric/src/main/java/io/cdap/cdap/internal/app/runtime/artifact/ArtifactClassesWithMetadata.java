@@ -19,7 +19,6 @@ package io.cdap.cdap.internal.app.runtime.artifact;
 
 import io.cdap.cdap.api.artifact.ArtifactClasses;
 import io.cdap.cdap.spi.metadata.MetadataMutation;
-
 import java.util.List;
 import java.util.Objects;
 
@@ -27,10 +26,12 @@ import java.util.Objects;
  * Artifact classes along with metadata
  */
 public class ArtifactClassesWithMetadata {
+
   private final ArtifactClasses artifactClasses;
   private final List<MetadataMutation> mutations;
 
-  public ArtifactClassesWithMetadata(ArtifactClasses artifactClasses, List<MetadataMutation> mutations) {
+  public ArtifactClassesWithMetadata(ArtifactClasses artifactClasses,
+      List<MetadataMutation> mutations) {
     this.artifactClasses = artifactClasses;
     this.mutations = mutations;
   }
@@ -54,8 +55,8 @@ public class ArtifactClassesWithMetadata {
     }
 
     ArtifactClassesWithMetadata that = (ArtifactClassesWithMetadata) o;
-    return Objects.equals(artifactClasses, that.artifactClasses) &&
-             Objects.equals(mutations, that.mutations);
+    return Objects.equals(artifactClasses, that.artifactClasses)
+        && Objects.equals(mutations, that.mutations);
   }
 
   @Override

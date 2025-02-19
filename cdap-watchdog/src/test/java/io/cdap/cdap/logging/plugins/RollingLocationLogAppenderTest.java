@@ -49,8 +49,11 @@ import io.cdap.cdap.security.impersonation.OwnerAdmin;
 import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.security.impersonation.UnsupportedUGIProvider;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.tephra.TransactionManager;
 import org.apache.tephra.runtime.TransactionModules;
 import org.apache.twill.filesystem.Location;
@@ -63,11 +66,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.Map;
 
 /**
  * Unit test for {@link RollingLocationLogAppender}
@@ -82,21 +80,21 @@ public class RollingLocationLogAppenderTest {
 
   @BeforeClass
   public static void setUpContext() throws Exception {
-    Configuration hConf = HBaseConfiguration.create();
+    Configuration hConf = new Configuration();
     final CConfiguration cConf = CConfiguration.create();
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TMP_FOLDER.newFolder().getAbsolutePath());
-    String logBaseDir = cConf.get(LoggingConfiguration.LOG_BASE_DIR) + "/" +
-      RollingLocationLogAppender.class.getSimpleName();
+    String logBaseDir = cConf.get(LoggingConfiguration.LOG_BASE_DIR) + "/"
+        + RollingLocationLogAppender.class.getSimpleName();
     cConf.set(LoggingConfiguration.LOG_BASE_DIR, logBaseDir);
 
     injector = Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new NonCustomLocationUnitTestModule(),
-      new TransactionModules().getInMemoryModules(),
-      new LocalLogAppenderModule(),
-      new DataSetsModules().getInMemoryModules(),
-      new SystemDatasetRuntimeModule().getInMemoryModules(),
-      new AuthorizationTestModule(),
+        new ConfigModule(cConf, hConf),
+        new NonCustomLocationUnitTestModule(),
+        new TransactionModules().getInMemoryModules(),
+        new LocalLogAppenderModule(),
+        new DataSetsModules().getInMemoryModules(),
+        new SystemDatasetRuntimeModule().getInMemoryModules(),
+        new AuthorizationTestModule(),
       new AuthorizationEnforcementModule().getInMemoryModules(),
       new AuthenticationContextModules().getNoOpModule(),
       new StorageModule(),
@@ -161,6 +159,7 @@ public class RollingLocationLogAppenderTest {
     activeFiles = rollingAppender.getLocationManager().getActiveLocations();
     Assert.assertEquals(3, activeFiles.size());
     verifyFileOutput(activeFiles, 5);
+    rollingAppender.stop();
   }
 
   @Test
@@ -210,6 +209,7 @@ public class RollingLocationLogAppenderTest {
     locationOutputStream = activeFiles.get(new LocationIdentifier("testNs1", "testApp1"));
     parentDir = Locations.getParent(locationOutputStream.getLocation());
     Assert.assertEquals(10, parentDir.list().size());
+    rollingAppender.stop();
   }
 
   @Test

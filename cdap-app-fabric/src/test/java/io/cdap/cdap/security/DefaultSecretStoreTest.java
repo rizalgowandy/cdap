@@ -22,9 +22,6 @@ import io.cdap.cdap.securestore.spi.SecretNotFoundException;
 import io.cdap.cdap.securestore.spi.SecretStore;
 import io.cdap.cdap.securestore.spi.secret.Decoder;
 import io.cdap.cdap.securestore.spi.secret.Encoder;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -37,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for {@link DefaultSecretStore}.
@@ -140,11 +139,11 @@ public abstract class DefaultSecretStoreTest {
 
       TestSecret secret = (TestSecret) o;
 
-      return creationTimeMs == secret.creationTimeMs &&
-        Objects.equals(name, secret.name) &&
-        Objects.equals(description, secret.description) &&
-        Arrays.equals(secretData, secret.secretData) &&
-        Objects.equals(properties, secret.properties);
+      return creationTimeMs == secret.creationTimeMs
+          && Objects.equals(name, secret.name)
+          && Objects.equals(description, secret.description)
+          && Arrays.equals(secretData, secret.secretData)
+          && Objects.equals(properties, secret.properties);
     }
 
     @Override

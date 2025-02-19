@@ -17,7 +17,6 @@ package io.cdap.cdap.common.conf;
 
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture;
-
 import javax.annotation.Nullable;
 
 /**
@@ -31,7 +30,8 @@ public interface PropertyUpdater<T> extends AsyncFunction<T, T> {
    * Computes the updated copy of property asynchronously.
    *
    * @param property The existing property value or {@code null} if no existing value.
-   * @return A future that will be completed and carries the new property value when it become available.
+   * @return A future that will be completed and carries the new property value when it become
+   *     available.
    */
   @Override
   ListenableFuture<T> apply(@Nullable T property) throws Exception;

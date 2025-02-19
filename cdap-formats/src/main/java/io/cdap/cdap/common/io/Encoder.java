@@ -107,12 +107,23 @@ public interface Encoder {
   Encoder writeBytes(byte[] bytes, int off, int len) throws IOException;
 
   /**
-   * Writes out the remaining bytes in {@link ByteBuffer}.
-   * The given {@link ByteBuffer} is untounch after this method is returned (i.e. same position and limit).
+   * Writes out the remaining bytes in {@link ByteBuffer}. The given {@link ByteBuffer} is untounch
+   * after this method is returned (i.e. same position and limit).
    *
    * @param bytes bytes to write
    * @return this Encoder
    * @throws IOException if failed to encode
    */
   Encoder writeBytes(ByteBuffer bytes) throws IOException;
+
+  /**
+   * Writes out a number.
+   *
+   * @param number number to write
+   * @return this Encoder
+   * @throws IOException if failed to encode
+   */
+  default Encoder writeNumber(Number number) throws IOException {
+    throw new UnsupportedOperationException("Not implemented");
+  }
 }

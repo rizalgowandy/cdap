@@ -22,17 +22,17 @@ import io.cdap.cdap.app.store.preview.PreviewStore;
 import io.cdap.cdap.internal.app.runtime.k8s.PreviewRequestPollerInfo;
 import io.cdap.cdap.master.spi.twill.ExtendedTwillController;
 import io.cdap.cdap.proto.id.ApplicationId;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.concurrent.Future;
 import org.apache.twill.api.TwillController;
 import org.apache.twill.api.TwillRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.concurrent.Future;
-
 /**
- * A {@link PreviewRunStopper} implementation when preview runners is distributed to run in different processes.
+ * A {@link PreviewRunStopper} implementation when preview runners is distributed to run in
+ * different processes.
  */
 public class DistributedPreviewRunStopper implements PreviewRunStopper {
 
@@ -53,12 +53,14 @@ public class DistributedPreviewRunStopper implements PreviewRunStopper {
     byte[] info = previewStore.getPreviewRequestPollerInfo(previewApp);
     if (info == null) {
       // should not happen
-      throw new IllegalStateException("Preview cannot be stopped. Please try stopping again or run the new preview.");
+      throw new IllegalStateException(
+          "Preview cannot be stopped. Please try stopping again or run the new preview.");
     }
 
     PreviewRequestPollerInfo pollerInfo = GSON.fromJson(new String(info, StandardCharsets.UTF_8),
-                                                        PreviewRequestPollerInfo.class);
-    Iterator<TwillController> controllers = twillRunner.lookup(PreviewRunnerTwillApplication.NAME).iterator();
+        PreviewRequestPollerInfo.class);
+    Iterator<TwillController> controllers = twillRunner.lookup(PreviewRunnerTwillApplication.NAME)
+        .iterator();
     if (!controllers.hasNext()) {
       throw new IllegalStateException("Preview runners cannot be stopped. Please try again.");
     }
@@ -68,12 +70,13 @@ public class DistributedPreviewRunStopper implements PreviewRunStopper {
     TwillController controller = controllers.next();
     Future<String> future;
     if (controller instanceof ExtendedTwillController) {
-      future = ((ExtendedTwillController) controller).restartInstance(PreviewRunnerTwillRunnable.class.getSimpleName(),
-                                                                      pollerInfo.getInstanceId(),
-                                                                      pollerInfo.getInstanceUid());
+      future = ((ExtendedTwillController) controller).restartInstance(
+          PreviewRunnerTwillRunnable.class.getSimpleName(),
+          pollerInfo.getInstanceId(),
+          pollerInfo.getInstanceUid());
     } else {
       future = controller.restartInstances(PreviewRunnerTwillRunnable.class.getSimpleName(),
-                                           pollerInfo.getInstanceId());
+          pollerInfo.getInstanceId());
     }
     future.get();
     LOG.info("Force stopped preview run {}", previewApp);

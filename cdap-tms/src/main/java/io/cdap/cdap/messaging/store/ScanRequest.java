@@ -15,12 +15,13 @@
  */
 package io.cdap.cdap.messaging.store;
 
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 
 /**
  * Request to scan across a key range in a MessageTable.
  */
 public class ScanRequest {
+
   private final TopicMetadata topicMetadata;
   private final byte[] startRow;
   private final byte[] stopRow;

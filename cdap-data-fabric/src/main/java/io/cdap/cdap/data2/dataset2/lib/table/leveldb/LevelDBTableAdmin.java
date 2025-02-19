@@ -21,7 +21,6 @@ import io.cdap.cdap.api.dataset.DatasetContext;
 import io.cdap.cdap.api.dataset.DatasetSpecification;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.data2.dataset2.lib.table.inmemory.PrefixedNamespaces;
-
 import java.io.IOException;
 
 /**
@@ -33,9 +32,10 @@ public class LevelDBTableAdmin implements DatasetAdmin {
   private final String name;
 
   public LevelDBTableAdmin(DatasetContext datasetContext, DatasetSpecification spec,
-                           LevelDBTableService service, CConfiguration cConf) throws IOException {
+      LevelDBTableService service, CConfiguration cConf) throws IOException {
     this.service = service;
-    this.name = PrefixedNamespaces.namespace(cConf, datasetContext.getNamespaceId(), spec.getName());
+    this.name = PrefixedNamespaces.namespace(cConf, datasetContext.getNamespaceId(),
+        spec.getName());
   }
 
   @Override

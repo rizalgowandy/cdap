@@ -23,6 +23,7 @@ import com.google.inject.Key;
 import com.google.inject.Module;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.encryption.guice.UserCredentialAeadEncryptionModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
@@ -30,23 +31,21 @@ import io.cdap.cdap.gateway.router.NettyRouter;
 import io.cdap.cdap.gateway.router.RouterModules;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
-import io.cdap.cdap.security.impersonation.SecurityUtil;
-import org.apache.twill.zookeeper.ZKClientService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
+import org.apache.twill.zookeeper.ZKClientService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The main class to run router service.
  */
 public class RouterServiceMain extends AbstractServiceMain<EnvironmentOptions> {
+
   private static final Logger LOG = LoggerFactory.getLogger(RouterServiceMain.class);
 
   /**
@@ -58,31 +57,29 @@ public class RouterServiceMain extends AbstractServiceMain<EnvironmentOptions> {
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options, CConfiguration cConf) {
+      EnvironmentOptions options, CConfiguration cConf) {
     List<Module> modules = new ArrayList<>();
 
-    modules.add(new MessagingClientModule());
+    modules.add(new MessagingServiceModule(cConf));
     modules.add(new RouterModules().getDistributedModules());
     modules.add(new DFSLocationModule());
     modules.add(new ExternalAuthenticationModule());
+    modules.add(new UserCredentialAeadEncryptionModule());
 
     return modules;
   }
 
   @Override
   protected void addServices(Injector injector, List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources,
-                             MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
-                             EnvironmentOptions options) {
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
+      EnvironmentOptions options) {
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
     }
     services.add(injector.getInstance(NettyRouter.class));
-    CConfiguration cConf = injector.getInstance(CConfiguration.class);
-    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
-      services.add(injector.getInstance(TokenManager.class));
-    }
   }
 
   @Nullable

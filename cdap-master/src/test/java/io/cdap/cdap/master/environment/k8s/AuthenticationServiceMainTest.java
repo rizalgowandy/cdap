@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Cask Data, Inc.
+ * Copyright © 2019-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -18,6 +18,7 @@ package io.cdap.cdap.master.environment.k8s;
 
 import com.google.inject.Injector;
 import io.cdap.cdap.common.conf.CConfiguration;
+import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.Constants.Security;
 import io.cdap.cdap.common.conf.Constants.Service;
 import io.cdap.cdap.common.conf.SConfiguration;
@@ -27,17 +28,16 @@ import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequestConfig;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.discovery.Discoverable;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class AuthenticationServiceMainTest extends MasterServiceMainTestBase {
 
@@ -48,6 +48,7 @@ public class AuthenticationServiceMainTest extends MasterServiceMainTestBase {
     cConf.set(Security.AUTH_HANDLER_CLASS, BasicAuthenticationHandler.class.getName());
     cConf.setBoolean(Security.KERBEROS_ENABLED, false);
     cConf.set(Security.BASIC_REALM_FILE, realmFile());
+    cConf.setInt(Constants.Security.AuthenticationServer.SSL_PORT, 0);
     MasterServiceMainTestBase.cConf = cConf;
 
     final SConfiguration sConf = SConfiguration.create();
@@ -69,17 +70,20 @@ public class AuthenticationServiceMainTest extends MasterServiceMainTestBase {
 
   @Test
   public void testBasicAuthenticationEnabled() throws IOException {
-    HttpResponse response = HttpRequests.execute(HttpRequest.get(getAuthenticationBaseURI().toURL()).build()
-        , new HttpRequestConfig(0, 0, false));
+    HttpResponse response = HttpRequests
+        .execute(HttpRequest.get(getAuthenticationBaseUri().toURL()).build(),
+            new HttpRequestConfig(0, 0, false));
 
     Assert.assertEquals("basic realm=\"null\"",
-                        response.getHeaders().get("WWW-Authenticate").stream().findFirst().orElse(null));
+        response.getHeaders().get("WWW-Authenticate").stream().findFirst().orElse(null));
     Assert.assertEquals(HttpURLConnection.HTTP_UNAUTHORIZED, response.getResponseCode());
 
     Injector injector = getServiceMainInstance(AuthenticationServiceMain.class).getInjector();
-    DiscoveryServiceClient discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
+    DiscoveryServiceClient discoveryServiceClient = injector
+        .getInstance(DiscoveryServiceClient.class);
     Discoverable authenticationEndpoint = new RandomEndpointStrategy(
-        () -> discoveryServiceClient.discover(Service.EXTERNAL_AUTHENTICATION)).pick(5, TimeUnit.SECONDS);
+        () -> discoveryServiceClient.discover(Service.EXTERNAL_AUTHENTICATION))
+        .pick(5, TimeUnit.SECONDS);
 
     Assert.assertNotNull(authenticationEndpoint);
   }

@@ -23,7 +23,6 @@ import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.service.http.AbstractHttpServiceHandler;
 import io.cdap.cdap.api.service.http.HttpServiceRequest;
 import io.cdap.cdap.api.service.http.HttpServiceResponder;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import javax.ws.rs.POST;
@@ -42,8 +41,10 @@ public class DatasetWriterService extends AbstractHttpServiceHandler {
   @Path("/write")
   @POST
   public void write(HttpServiceRequest request, HttpServiceResponder responder) {
-    Map<String, String> req = new Gson().fromJson(StandardCharsets.UTF_8.decode(request.getContent()).toString(),
-                                                  new TypeToken<Map<String, String>>() { }.getType());
+    Map<String, String> req = new Gson().fromJson(
+        StandardCharsets.UTF_8.decode(request.getContent()).toString(),
+        new TypeToken<Map<String, String>>() {
+        }.getType());
     req.forEach((k, v) -> fakeDataset.put(Bytes.toBytes(k), Bytes.toBytes(v)));
     responder.sendStatus(200);
   }

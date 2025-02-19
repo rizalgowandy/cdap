@@ -35,16 +35,13 @@ import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.context.MultiThreadMessagingContext;
 import io.cdap.cdap.proto.MetricQueryResult;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -56,14 +53,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.twill.discovery.Discoverable;
+import org.apache.twill.discovery.DiscoveryServiceClient;
 
 /**
- * Implementation of {@link MetricsSystemClient} that interacts with the metric system that runs remotely.
+ * Implementation of {@link MetricsSystemClient} that interacts with the metric system that runs
+ * remotely.
  */
 public class RemoteMetricsSystemClient implements MetricsSystemClient {
 
   private static final Gson GSON = new Gson();
-  private static final DefaultHttpRequestConfig REQUEST_CONFIG = new DefaultHttpRequestConfig(false);
+  private static final DefaultHttpRequestConfig REQUEST_CONFIG = new DefaultHttpRequestConfig(
+      false);
 
   private final String adminTopic;
   private final EndpointStrategy endpointStrategy;
@@ -72,11 +73,11 @@ public class RemoteMetricsSystemClient implements MetricsSystemClient {
 
   @Inject
   RemoteMetricsSystemClient(CConfiguration cConf,
-                            DiscoveryServiceClient discoveryServiceClient,
-                            MessagingService messagingService) {
+      DiscoveryServiceClient discoveryServiceClient,
+      MessagingService messagingService) {
     this.adminTopic = cConf.get(Constants.Metrics.ADMIN_TOPIC);
     this.endpointStrategy = new RandomEndpointStrategy(
-      () -> discoveryServiceClient.discover(Constants.Service.METRICS));
+        () -> discoveryServiceClient.discover(Constants.Service.METRICS));
     this.messagingContext = new MultiThreadMessagingContext(messagingService);
     this.retryStrategy = RetryStrategies.fromConfiguration(cConf, "system.metrics.");
   }
@@ -84,14 +85,16 @@ public class RemoteMetricsSystemClient implements MetricsSystemClient {
   @Override
   public void delete(MetricDeleteQuery deleteQuery) throws IOException {
     // Delete operation is asynchronous.
-    MetricsAdminMessage msg = new MetricsAdminMessage(MetricsAdminMessage.Type.DELETE, GSON.toJsonTree(deleteQuery));
+    MetricsAdminMessage msg = new MetricsAdminMessage(MetricsAdminMessage.Type.DELETE,
+        GSON.toJsonTree(deleteQuery));
     String payload = GSON.toJson(msg);
 
     // Retry on topic not found. The system topic is automatically created by the TMS service.
     try {
       Retries.runWithRetries(
-        () -> messagingContext.getMessagePublisher().publish(NamespaceId.SYSTEM.getNamespace(), adminTopic, payload),
-        retryStrategy, TopicNotFoundException.class::isInstance);
+          () -> messagingContext.getMessagePublisher()
+              .publish(NamespaceId.SYSTEM.getNamespace(), adminTopic, payload),
+          retryStrategy, TopicNotFoundException.class::isInstance);
     } catch (IOException e) {
       throw e;
     } catch (Exception e) {
@@ -101,9 +104,9 @@ public class RemoteMetricsSystemClient implements MetricsSystemClient {
 
   @Override
   public Collection<MetricTimeSeries> query(int start, int end, int resolution,
-                                            Map<String, String> tags,
-                                            Collection<String> metrics,
-                                            Collection<String> groupByTags) throws IOException {
+      Map<String, String> tags,
+      Collection<String> metrics,
+      Collection<String> groupByTags) throws IOException {
     String metricsParam = Joiner.on("&metric=").join(metrics);
     if (!metricsParam.isEmpty()) {
       metricsParam = "&metric=" + metricsParam;
@@ -118,24 +121,27 @@ public class RemoteMetricsSystemClient implements MetricsSystemClient {
     }
 
     // Only query for aggregate metrics. Currently that's the only use case.
-    String queryString = "aggregate=true&start=" + start + "&end=" + end + "&resolution=" + resolution + "s" +
-                          metricsParam + tagsParam + groupByParam;
+    String queryString =
+        "aggregate=true&start=" + start + "&end=" + end + "&resolution=" + resolution + "s"
+            + metricsParam + tagsParam + groupByParam;
 
     URL url = getBaseURI().resolve("query?" + queryString).toURL();
     HttpResponse response = HttpRequests.execute(HttpRequest.post(url).build(), REQUEST_CONFIG);
     if (response.getResponseCode() != HttpURLConnection.HTTP_OK) {
-      throw new IOException("Failed to query for metrics " + metrics + ", with tags " + tags +
-                              ". Error code " + response.getResponseCode() +
-                              ", message " + response.getResponseBodyAsString());
+      throw new IOException("Failed to query for metrics " + metrics + ", with tags " + tags
+          + ". Error code " + response.getResponseCode()
+          + ", message " + response.getResponseBodyAsString());
     }
-    MetricQueryResult queryResult = GSON.fromJson(response.getResponseBodyAsString(), MetricQueryResult.class);
+    MetricQueryResult queryResult = GSON.fromJson(response.getResponseBodyAsString(),
+        MetricQueryResult.class);
     List<MetricTimeSeries> result = new ArrayList<>();
 
     for (MetricQueryResult.TimeSeries timeSeries : queryResult.getSeries()) {
       List<TimeValue> timeValues = Arrays.stream(timeSeries.getData())
-        .map(tv -> new TimeValue(tv.getTime(), tv.getValue()))
-        .collect(Collectors.toList());
-      result.add(new MetricTimeSeries(timeSeries.getMetricName(), timeSeries.getGrouping(), timeValues));
+          .map(tv -> new TimeValue(tv.getTime(), tv.getValue()))
+          .collect(Collectors.toList());
+      result.add(
+          new MetricTimeSeries(timeSeries.getMetricName(), timeSeries.getGrouping(), timeValues));
     }
     return result;
   }
@@ -151,11 +157,12 @@ public class RemoteMetricsSystemClient implements MetricsSystemClient {
 
     HttpResponse response = HttpRequests.execute(HttpRequest.post(url).build(), REQUEST_CONFIG);
     if (response.getResponseCode() != HttpURLConnection.HTTP_OK) {
-      throw new IOException("Failed to search for metrics names for tags " + tags +
-                              ". Error code " + response.getResponseCode() +
-                              ", message " + response.getResponseBodyAsString());
+      throw new IOException("Failed to search for metrics names for tags " + tags
+          + ". Error code " + response.getResponseCode()
+          + ", message " + response.getResponseBodyAsString());
     }
-    return GSON.fromJson(response.getResponseBodyAsString(), new TypeToken<List<String>>() { }.getType());
+    return GSON.fromJson(response.getResponseBodyAsString(), new TypeToken<List<String>>() {
+    }.getType());
   }
 
   /**

@@ -18,19 +18,19 @@ package io.cdap.cdap.internal.tethering;
 
 import com.google.gson.Gson;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
 import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.junit.Assert;
-
 import java.nio.charset.StandardCharsets;
-import javax.ws.rs.GET;
+import java.util.Collections;
+import java.util.Objects;
+import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
-import javax.ws.rs.QueryParam;
+import org.junit.Assert;
 
 /**
  * Mock tethering server handler used in unit tests.
@@ -39,21 +39,44 @@ import javax.ws.rs.QueryParam;
 public class MockTetheringServerHandler extends AbstractHttpHandler {
   private static final Gson GSON = new Gson();
   private HttpResponseStatus responseStatus = HttpResponseStatus.OK;
-  private boolean tetheringCreated = false;
+  private TetheringStatus tetheringStatus = TetheringStatus.PENDING;
+  private String programStatus;
 
-  @GET
-  @Path("/tethering/controlchannels/{peer}")
-  public void getControlChannels(HttpRequest request, HttpResponder responder,
-                                 @PathParam("peer") String peer,
-                                 @QueryParam("messageId") String messageId) {
+  @POST
+  @Path("/tethering/channels/{peer}")
+  public void getControlChannels(FullHttpRequest request, HttpResponder responder,
+                                 @PathParam("peer") String peer) {
     Assert.assertEquals(TetheringClientHandlerTest.CLIENT_INSTANCE, peer);
     if (responseStatus != HttpResponseStatus.OK) {
       responder.sendStatus(responseStatus);
       return;
     }
-    TetheringControlMessage keepalive = new TetheringControlMessage(TetheringControlMessage.Type.KEEPALIVE);
-    TetheringControlResponse[] responses =  { new TetheringControlResponse(messageId, keepalive) };
-    responder.sendJson(responseStatus, GSON.toJson(responses, TetheringControlResponse[].class));
+    if (tetheringStatus != TetheringStatus.ACCEPTED) {
+      TetheringControlResponseV2 controlResponse = new TetheringControlResponseV2(
+        Collections.emptyList(), tetheringStatus);
+      HttpResponseStatus respStatus = responseStatus;
+      if (tetheringStatus == TetheringStatus.NOT_FOUND) {
+        // Server returns 404 if tethering status is NOT_FOUND
+        respStatus = HttpResponseStatus.NOT_FOUND;
+      }
+      responder.sendJson(respStatus, GSON.toJson(controlResponse, TetheringControlResponseV2.class));
+      return;
+    }
+
+    TetheringControlMessage controlMessage = new TetheringControlMessage(TetheringControlMessage.Type.KEEPALIVE,
+                                                                         new byte[0]);
+    TetheringControlMessageWithId controlMessageWithId = new TetheringControlMessageWithId(controlMessage,
+                                                                                           "1");
+    String content = request.content().toString(StandardCharsets.UTF_8);
+    TetheringControlChannelRequest controlChannelRequest = GSON.fromJson(content, TetheringControlChannelRequest.class);
+    programStatus = controlChannelRequest.getNotificationList().stream()
+      .map(n -> n.getProperties().get(ProgramOptionConstants.PROGRAM_STATUS))
+      .filter(Objects::nonNull)
+      .findFirst().orElse(null);
+
+    TetheringControlResponseV2 controlResponse = new TetheringControlResponseV2(
+      Collections.singletonList(controlMessageWithId), tetheringStatus);
+    responder.sendJson(responseStatus, GSON.toJson(controlResponse, TetheringControlResponseV2.class));
   }
 
   @PUT
@@ -63,19 +86,18 @@ public class MockTetheringServerHandler extends AbstractHttpHandler {
     TetheringConnectionRequest tetherRequest = GSON.fromJson(content, TetheringConnectionRequest.class);
     Assert.assertEquals(TetheringClientHandlerTest.CLIENT_INSTANCE, peer);
     Assert.assertEquals(TetheringClientHandlerTest.NAMESPACES, tetherRequest.getNamespaceAllocations());
-    tetheringCreated = true;
-    responder.sendStatus(HttpResponseStatus.OK);
+    responder.sendStatus(responseStatus);
   }
 
   public void setResponseStatus(HttpResponseStatus responseStatus) {
     this.responseStatus = responseStatus;
   }
 
-  public boolean isTetheringCreated() {
-    return tetheringCreated;
+  public void setTetheringStatus(TetheringStatus tetheringStatus) {
+    this.tetheringStatus = tetheringStatus;
   }
 
-  public void setTetheringCreated(boolean tetheringCreated) {
-    this.tetheringCreated = tetheringCreated;
+  public String getProgramStatus() {
+    return programStatus;
   }
 }

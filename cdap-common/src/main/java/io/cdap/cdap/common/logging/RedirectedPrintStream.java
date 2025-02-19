@@ -19,13 +19,12 @@ package io.cdap.cdap.common.logging;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
-import org.slf4j.Logger;
-
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
 
 /**
  * Redirected {@link PrintStream} to logger
@@ -38,26 +37,33 @@ public final class RedirectedPrintStream extends FilterOutputStream {
   private final boolean isErrorStream;
 
   /**
-   * Creates {@link RedirectedPrintStream} from given outstream which will be redirected to given logger.
+   * Creates {@link RedirectedPrintStream} from given outstream which will be redirected to given
+   * logger.
+   *
    * @param logger logger object to which outstream will be redirected to.
    * @param outStream output stream which will be redirected to logger object.
    * @return The instance of a {@link RedirectedPrintStream}.
    */
-  public static RedirectedPrintStream createRedirectedOutStream(Logger logger, @Nullable PrintStream outStream) {
+  public static RedirectedPrintStream createRedirectedOutStream(Logger logger,
+      @Nullable PrintStream outStream) {
     return new RedirectedPrintStream(logger, outStream, false);
   }
 
   /**
-   * Creates {@link RedirectedPrintStream} from given errorstream which will be redirected to given logger.
+   * Creates {@link RedirectedPrintStream} from given errorstream which will be redirected to given
+   * logger.
+   *
    * @param logger logger object to which outstream will be redirected to.
    * @param errorStream error stream which will be redirected to logger object.
    * @return The instance of a {@link RedirectedPrintStream}.
    */
-  public static RedirectedPrintStream createRedirectedErrStream(Logger logger, @Nullable PrintStream errorStream) {
+  public static RedirectedPrintStream createRedirectedErrStream(Logger logger,
+      @Nullable PrintStream errorStream) {
     return new RedirectedPrintStream(logger, errorStream, true);
   }
 
-  private RedirectedPrintStream(Logger logger, @Nullable PrintStream outStream, boolean isErrorStream) {
+  private RedirectedPrintStream(Logger logger, @Nullable PrintStream outStream,
+      boolean isErrorStream) {
     super(new ByteBufOutputStream(Unpooled.buffer()));
     // Safe cast as we know what outputStream we've created.
     this.buffer = ((ByteBufOutputStream) out).buffer();

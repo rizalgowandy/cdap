@@ -22,7 +22,9 @@ import com.google.inject.util.Modules;
 import io.cdap.cdap.app.runtime.ProgramRunner;
 import io.cdap.cdap.app.runtime.ProgramStateWriter;
 import io.cdap.cdap.common.runtime.RuntimeModule;
+import io.cdap.cdap.internal.app.program.MessagingProgramStatePublisher;
 import io.cdap.cdap.internal.app.program.MessagingProgramStateWriter;
+import io.cdap.cdap.internal.app.program.ProgramStatePublisher;
 
 /**
  *
@@ -33,14 +35,14 @@ public final class ProgramRunnerRuntimeModule extends RuntimeModule {
   public Module getInMemoryModules() {
     // No remote execution module in unit-test
     return Modules.combine(new InMemoryProgramRunnerModule(),
-                           new ProgramStateWriterModule());
+        new ProgramStateWriterModule());
   }
 
   @Override
   public Module getStandaloneModules() {
     return Modules.combine(new InMemoryProgramRunnerModule(),
-                           new RemoteExecutionProgramRunnerModule(),
-                           new ProgramStateWriterModule());
+        new RemoteExecutionProgramRunnerModule(),
+        new ProgramStateWriterModule());
   }
 
   @Override
@@ -51,24 +53,25 @@ public final class ProgramRunnerRuntimeModule extends RuntimeModule {
   /**
    * Creates a guice module for distributed mode.
    *
-   * @param publishProgramState if {@code true}, program state will be published from the {@link ProgramRunner} upon
-   *                            program state change. It only applies to {@link ProgramRunner} created for "native"
-   *                            cluster execution. It doesn't applies to remote execution.
+   * @param publishProgramState if {@code true}, program state will be published from the {@link
+   *     ProgramRunner} upon program state change. It only applies to {@link ProgramRunner} created
+   *     for "native" cluster execution. It doesn't applies to remote execution.
    */
   public Module getDistributedModules(boolean publishProgramState) {
     return Modules.combine(new DistributedProgramRunnerModule(publishProgramState),
-                           new RemoteExecutionProgramRunnerModule(),
-                           new ProgramStateWriterModule());
+        new RemoteExecutionProgramRunnerModule(),
+        new ProgramStateWriterModule());
   }
 
   /**
-   * Guice module for exposing the {@link ProgramStateWriter}.
+   * Guice module for exposing the {@link ProgramStateWriter} and {@link ProgramStatePublisher}.
    */
-  private static final class ProgramStateWriterModule extends AbstractModule {
+  public static final class ProgramStateWriterModule extends AbstractModule {
 
     @Override
     protected void configure() {
-      // Bind ProgramStateWriter
+      bind(ProgramStatePublisher.class).to(MessagingProgramStatePublisher.class)
+          .in(Scopes.SINGLETON);
       bind(ProgramStateWriter.class).to(MessagingProgramStateWriter.class).in(Scopes.SINGLETON);
     }
   }

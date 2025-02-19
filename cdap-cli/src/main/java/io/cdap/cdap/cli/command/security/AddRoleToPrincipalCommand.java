@@ -24,7 +24,6 @@ import io.cdap.cdap.client.AuthorizationClient;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.Role;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
@@ -45,15 +44,18 @@ public class AddRoleToPrincipalCommand extends AbstractAuthCommand {
     String roleName = arguments.get("role-name");
     String principalType = arguments.get("principal-type");
     String principalName = arguments.get("principal-name");
-    client.addRoleToPrincipal(new Role(roleName), new Principal(principalName, Principal.PrincipalType.valueOf
-      (principalType.toUpperCase())));
-    output.printf("Successfully added role '%s' to '%s' '%s'\n", roleName, principalType, principalName);
+    client.addRoleToPrincipal(new Role(roleName),
+        new Principal(principalName, Principal.PrincipalType.valueOf
+            (principalType.toUpperCase())));
+    output.printf("Successfully added role '%s' to '%s' '%s'\n", roleName, principalType,
+        principalName);
   }
 
   @Override
   public String getPattern() {
-    return String.format("add role <%s> to <%s> <%s>", ArgumentName.ROLE_NAME, ArgumentName.PRINCIPAL_TYPE,
-                         ArgumentName.PRINCIPAL_NAME);
+    return String.format("add role <%s> to <%s> <%s>", ArgumentName.ROLE_NAME,
+        ArgumentName.PRINCIPAL_TYPE,
+        ArgumentName.PRINCIPAL_NAME);
   }
 
   @Override

@@ -21,10 +21,6 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.io.Codec;
 import io.cdap.cdap.common.utils.DirUtils;
-import org.apache.twill.common.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,10 +29,13 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.common.Threads;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Maintains secret keys used to sign and validate authentication tokens.
- * Writes and loads a serialized secret key from file.
+ * Maintains secret keys used to sign and validate authentication tokens. Writes and loads a
+ * serialized secret key from file.
  */
 public class FileBasedKeyManager extends MapBackedKeyManager {
 
@@ -62,15 +61,17 @@ public class FileBasedKeyManager extends MapBackedKeyManager {
   public void doInit() throws IOException {
     // Create directory for keyfile if it doesn't exist already.
     if (!DirUtils.mkdirs(keyFile.toFile().getParentFile())) {
-      throw new IOException("Failed to create directory " + keyFile.getParent() + " for key file storage.");
+      throw new IOException(
+          "Failed to create directory " + keyFile.getParent() + " for key file storage.");
     }
 
     reloadKeyFile();
 
-    scheduler = Executors.newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("key-manager-watcher"));
+    scheduler = Executors.newSingleThreadScheduledExecutor(
+        Threads.createDaemonThreadFactory("key-manager-watcher"));
     scheduler.scheduleWithFixedDelay(this::checkKeyFileChange,
-                                     KEY_FILE_POLL_INTERVAL_MILLIS,
-                                     KEY_FILE_POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+        KEY_FILE_POLL_INTERVAL_MILLIS,
+        KEY_FILE_POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
   }
 
   @Override
@@ -103,12 +104,13 @@ public class FileBasedKeyManager extends MapBackedKeyManager {
   }
 
   /**
-   * Watches for file system changes to the key file. On file change detected,
-   * {@link #reloadKeyFile()} will be called.
+   * Watches for file system changes to the key file. On file change detected, {@link
+   * #reloadKeyFile()} will be called.
    */
   private void checkKeyFileChange() {
     try {
-      if (!Files.exists(keyFile) || keyFileLastModified != Files.getLastModifiedTime(keyFile).toMillis()) {
+      if (!Files.exists(keyFile) || keyFileLastModified != Files.getLastModifiedTime(keyFile)
+          .toMillis()) {
         reloadKeyFile();
       }
     } catch (Exception e) {

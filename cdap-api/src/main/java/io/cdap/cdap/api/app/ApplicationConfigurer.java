@@ -29,13 +29,13 @@ import io.cdap.cdap.api.spark.Spark;
 import io.cdap.cdap.api.worker.Worker;
 import io.cdap.cdap.api.workflow.Workflow;
 import io.cdap.cdap.internal.schedule.ScheduleCreationSpec;
-
 import javax.annotation.Nullable;
 
 /**
  * Configures a CDAP Application.
  */
-public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigurer, FeatureFlagsProvider {
+public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigurer,
+    FeatureFlagsProvider {
 
   /**
    * Sets the name of the Application.
@@ -52,8 +52,8 @@ public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigur
   void setDescription(String description);
 
   /**
-   * Adds a {@link MapReduce MapReduce job} to the Application. Use it when you need to re-use existing MapReduce jobs
-   * that rely on Hadoop MapReduce APIs.
+   * Adds a {@link MapReduce MapReduce job} to the Application. Use it when you need to re-use
+   * existing MapReduce jobs that rely on Hadoop MapReduce APIs.
    *
    * @param mapReduce The {@link MapReduce MapReduce job} to include in the Application
    */
@@ -89,14 +89,15 @@ public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigur
 
   /**
    * Get a ScheduleBuilder for the specified program.
-   * @param scheduleName the name of the schedule
-   * @param programType the type of the program; currently, only ProgramType.WORKFLOW can be scheduled
-   * @param programName the name of the program
    *
+   * @param scheduleName the name of the schedule
+   * @param programType the type of the program; currently, only ProgramType.WORKFLOW can be
+   *     scheduled
+   * @param programName the name of the program
    * @return The {@link ScheduleBuilder} used to build the schedule
    */
   ScheduleBuilder buildSchedule(String scheduleName, ProgramType programType,
-                                String programName);
+      String programName);
 
   /**
    * Schedules a program, using the given scheduleCreationSpec.
@@ -106,9 +107,9 @@ public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigur
   void schedule(ScheduleCreationSpec scheduleCreationSpec);
 
   /**
-   * Emit the given {@link Metadata} for the application in the given scope.
-   * Note the tags and properties emitted in SYSTEM scope will get overridden by the platform system metadata if
-   * the tags or property keys are same.
+   * Emit the given {@link Metadata} for the application in the given scope. Note the tags and
+   * properties emitted in SYSTEM scope will get overridden by the platform system metadata if the
+   * tags or property keys are same.
    *
    * @param metadata the metadata to emit
    */
@@ -124,9 +125,10 @@ public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigur
   TriggerFactory getTriggerFactory();
 
   /**
-   * Return the runtime configurer that contains the runtime arguments and provides access for other runtime
-   * functionalities. This is used for the app to provide additional information for the newly generated app spec
-   * before each program run. This method will return null when the app initially gets deployed.
+   * Return the runtime configurer that contains the runtime arguments and provides access for other
+   * runtime functionalities. This is used for the app to provide additional information for the
+   * newly generated app spec before each program run. This method will return null when the app
+   * initially gets deployed.
    *
    * @return the runtime configurer, or null if this is the initial deploy time.
    */
@@ -142,5 +144,16 @@ public interface ApplicationConfigurer extends PluginConfigurer, DatasetConfigur
    */
   default String getDeployedNamespace() {
     throw new UnsupportedOperationException("Getting deployed namespace is not supported");
+  }
+
+  /**
+   * Return the application Specification if it was deployed before. This is useful for upgrade
+   * usecases ( for example - transferring checkpoints for realtime / replication pipelines)
+   *
+   * @return the application Specification of the app if previously deployed otherwise null
+   */
+  @Nullable
+  default ApplicationSpecification getDeployedApplicationSpec() {
+    return null;
   }
 }

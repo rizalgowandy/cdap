@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -22,14 +22,16 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.multibindings.Multibinder;
 import com.google.inject.name.Names;
+import io.cdap.cdap.app.guice.AuditLogWriterModule;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
 import io.cdap.cdap.common.namespace.guice.NamespaceQueryAdminModule;
@@ -42,7 +44,7 @@ import io.cdap.cdap.data.runtime.main.transaction.TransactionPingHandler;
 import io.cdap.cdap.data2.audit.AuditModule;
 import io.cdap.cdap.logging.appender.LogAppenderInitializer;
 import io.cdap.cdap.logging.guice.KafkaLogAppenderModule;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.client.DefaultMessagingClientModule;
 import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
@@ -50,18 +52,18 @@ import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.impersonation.DefaultOwnerAdmin;
 import io.cdap.cdap.security.impersonation.OwnerAdmin;
 import io.cdap.http.HttpHandler;
+import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.tephra.distributed.TransactionService;
 import org.apache.twill.api.TwillContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-
 /**
  * TwillRunnable to run Transaction Service through twill.
  */
 public class TransactionServiceTwillRunnable extends AbstractMasterTwillRunnable {
+
   private static final Logger LOG = LoggerFactory.getLogger(TransactionServiceTwillRunnable.class);
 
   private Injector injector;
@@ -72,16 +74,19 @@ public class TransactionServiceTwillRunnable extends AbstractMasterTwillRunnable
 
   @Override
   protected Injector doInit(TwillContext context) {
-    getCConfiguration().set(Constants.Transaction.Container.ADDRESS, context.getHost().getCanonicalHostName());
+    getCConfiguration().set(Constants.Transaction.Container.ADDRESS,
+        context.getHost().getCanonicalHostName());
     // Set the hostname of the machine so that cConf can be used to start internal services
     LOG.info("{} Setting host name to {}", name, context.getHost().getCanonicalHostName());
 
-    String txClientId = String.format("cdap.service.%s.%d", Constants.Service.TRANSACTION, context.getInstanceId());
+    String txClientId = String.format("cdap.service.%s.%d", Constants.Service.TRANSACTION,
+        context.getInstanceId());
     injector = createGuiceInjector(getCConfiguration(), getConfiguration(), txClientId);
     injector.getInstance(LogAppenderInitializer.class).initialize();
-    LoggingContextAccessor.setLoggingContext(new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                                                       Constants.Logging.COMPONENT_NAME,
-                                                                       Constants.Service.TRANSACTION));
+    LoggingContextAccessor.setLoggingContext(
+        new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
+            Constants.Logging.COMPONENT_NAME,
+            Constants.Service.TRANSACTION));
     return injector;
   }
 
@@ -91,36 +96,40 @@ public class TransactionServiceTwillRunnable extends AbstractMasterTwillRunnable
     services.add(injector.getInstance(TransactionHttpService.class));
   }
 
-  static Injector createGuiceInjector(CConfiguration cConf, Configuration hConf, String txClientId) {
+  static Injector createGuiceInjector(CConfiguration cConf, Configuration hConf,
+      String txClientId) {
     return Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new IOModule(),
-      new ZKClientModule(),
-      new ZKDiscoveryModule(),
-      new KafkaClientModule(),
-      new MessagingClientModule(),
-      new DataFabricModules(txClientId).getDistributedModules(),
-      new DataSetsModules().getDistributedModules(),
-      new SystemDatasetRuntimeModule().getDistributedModules(),
-      new DFSLocationModule(),
-      new NamespaceQueryAdminModule(),
-      new MetricsClientRuntimeModule().getDistributedModules(),
-      new KafkaLogAppenderModule(),
-      new AuditModule(),
-      // needed by RemoteDatasetFramework while making an HTTP call to DatasetService
-      new AuthorizationEnforcementModule().getDistributedModules(),
-      new AuthenticationContextModules().getMasterModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
+        new ConfigModule(cConf, hConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new IOModule(),
+        new ZkClientModule(),
+        new ZkDiscoveryModule(),
+        new KafkaClientModule(),
+        new DefaultMessagingClientModule(),
+        new DataFabricModules(txClientId).getDistributedModules(),
+        new DataSetsModules().getDistributedModules(),
+        new SystemDatasetRuntimeModule().getDistributedModules(),
+        new DFSLocationModule(),
+        new NamespaceQueryAdminModule(),
+        new MetricsClientRuntimeModule().getDistributedModules(),
+        new KafkaLogAppenderModule(),
+        new AuditModule(),
+        // needed by RemoteDatasetFramework while making an HTTP call to DatasetService
+        new AuthorizationEnforcementModule().getDistributedModules(),
+        new AuthenticationContextModules().getMasterModule(),
+        new AuditLogWriterModule(cConf).getDistributedModules(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
 
-          // configure common handlers
-          Multibinder<HttpHandler> handlerBinder =
-            Multibinder.newSetBinder(binder(), HttpHandler.class, Names.named(Constants.Service.TRANSACTION_HTTP));
-          handlerBinder.addBinding().to(TransactionPingHandler.class);
+            // configure common handlers
+            Multibinder<HttpHandler> handlerBinder =
+                Multibinder.newSetBinder(binder(), HttpHandler.class,
+                    Names.named(Constants.Service.TRANSACTION_HTTP));
+            handlerBinder.addBinding().to(TransactionPingHandler.class);
+          }
         }
-      }
     );
   }
 }

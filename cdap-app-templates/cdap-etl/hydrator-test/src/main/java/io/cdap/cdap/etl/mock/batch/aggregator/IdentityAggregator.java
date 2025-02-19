@@ -26,7 +26,6 @@ import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.StageConfigurer;
 import io.cdap.cdap.etl.api.batch.BatchAggregator;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -36,7 +35,9 @@ import java.util.Map;
  */
 @Plugin(type = BatchAggregator.PLUGIN_TYPE)
 @Name("Identity")
-public class IdentityAggregator extends BatchAggregator<StructuredRecord, StructuredRecord, StructuredRecord> {
+public class IdentityAggregator extends
+    BatchAggregator<StructuredRecord, StructuredRecord, StructuredRecord> {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
 
   @Override
@@ -52,7 +53,7 @@ public class IdentityAggregator extends BatchAggregator<StructuredRecord, Struct
 
   @Override
   public void aggregate(StructuredRecord structuredRecord, Iterator<StructuredRecord> groupValues,
-                        Emitter<StructuredRecord> emitter) throws Exception {
+      Emitter<StructuredRecord> emitter) throws Exception {
     while (groupValues.hasNext()) {
       emitter.emit(groupValues.next());
     }
@@ -66,6 +67,7 @@ public class IdentityAggregator extends BatchAggregator<StructuredRecord, Struct
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     return PluginClass.builder().setName("Identity").setType(BatchAggregator.PLUGIN_TYPE)
-             .setDescription("").setClassName(IdentityAggregator.class.getName()).setProperties(properties).build();
+        .setDescription("").setClassName(IdentityAggregator.class.getName())
+        .setProperties(properties).build();
   }
 }

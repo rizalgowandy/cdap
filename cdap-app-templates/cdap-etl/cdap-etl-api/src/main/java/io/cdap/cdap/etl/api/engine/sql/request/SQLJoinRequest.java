@@ -17,26 +17,23 @@
 package io.cdap.cdap.etl.api.engine.sql.request;
 
 import io.cdap.cdap.api.annotation.Beta;
-import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLDataset;
 import io.cdap.cdap.etl.api.join.JoinDefinition;
-
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.Collections;
-import javax.annotation.Nullable;
 
 /**
  * Class representing a Request to execute as join operation on a SQL engine.
  */
 @Beta
 public class SQLJoinRequest extends SQLJoinDefinition implements Serializable {
+
   private static final long serialVersionUID = -5049631486914347507L;
   private final Collection<SQLDataset> inputDatasets;
 
   public SQLJoinRequest(String datasetName,
-                        JoinDefinition joinDefinition,
-                        Collection<SQLDataset> inputDatasets) {
+      JoinDefinition joinDefinition,
+      Collection<SQLDataset> inputDatasets) {
     super(datasetName, joinDefinition);
     this.inputDatasets = inputDatasets;
   }

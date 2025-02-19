@@ -25,7 +25,6 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import io.cdap.cdap.app.runtime.Arguments;
 import io.cdap.cdap.internal.app.runtime.BasicArguments;
-
 import java.lang.reflect.Type;
 import java.util.Map;
 
@@ -34,11 +33,12 @@ import java.util.Map;
  */
 public class ArgumentsCodec implements JsonSerializer<Arguments>, JsonDeserializer<Arguments> {
 
-  private static final Type MAP_STRING_STRING_TYPE = new TypeToken<Map<String, String>>() { }.getType();
+  private static final Type MAP_STRING_STRING_TYPE = new TypeToken<Map<String, String>>() {
+  }.getType();
 
   @Override
   public Arguments deserialize(JsonElement json, Type typeOfT,
-                               JsonDeserializationContext context) throws JsonParseException {
+      JsonDeserializationContext context) throws JsonParseException {
     Map<String, String> args = context.deserialize(json, MAP_STRING_STRING_TYPE);
     return new BasicArguments(args);
   }

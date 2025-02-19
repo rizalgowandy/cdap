@@ -20,7 +20,6 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.securestore.spi.SecretManagerContext;
 import io.cdap.cdap.securestore.spi.SecretStore;
-
 import java.util.Collections;
 import java.util.Map;
 
@@ -28,6 +27,7 @@ import java.util.Map;
  * Default implementation of {@link SecretManagerContext}.
  */
 public class DefaultSecretManagerContext implements SecretManagerContext {
+
   private final CConfiguration cConf;
   private final SecretStore store;
 
@@ -39,7 +39,7 @@ public class DefaultSecretManagerContext implements SecretManagerContext {
   @Override
   public Map<String, String> getProperties() {
     String prefix = String.format("%s%s.", Constants.Security.Store.PROPERTY_PREFIX,
-                                  cConf.get(Constants.Security.Store.PROVIDER));
+        cConf.get(Constants.Security.Store.PROVIDER));
     return Collections.unmodifiableMap(cConf.getPropsWithPrefix(prefix));
   }
 

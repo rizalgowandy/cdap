@@ -17,6 +17,7 @@
 package io.cdap.cdap.datastreams;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.cdap.cdap.api.ProgramStatus;
@@ -32,6 +33,7 @@ import io.cdap.cdap.etl.common.plugin.PipelinePluginContext;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
 import io.cdap.cdap.etl.spark.plugin.SparkPipelinePluginContext;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.spark.SparkConf;
 import org.slf4j.Logger;
@@ -96,10 +98,38 @@ public class DataStreamsSparkLauncher extends AbstractSpark {
       }
     }
 
+    // Add warning message to discourage users from using multiple streaming sources.
+    if (numSources > 1) {
+      LOG.warn("Using multiple streaming sources in a pipeline is not recommended.");
+      getContext().getMetrics().count(Constants.Metrics.STREAMING_MULTI_SOURCE_PIPELINE_RUNS_COUNT, 1);
+    }
+
     SparkConf sparkConf = new SparkConf();
+    // we do not do checkpointing during preview. Skip enabling write-ahead logs in that case to avoid spark exception
+    if (!spec.isPreviewEnabled(context) && spec.getStateSpec()
+      .getMode() == DataStreamsStateSpec.Mode.SPARK_CHECKPOINTING) {
+      // required spark configs to prevent data loss during real-time pipeline upgrades
+      sparkConf.set("spark.streaming.receiver.writeAheadLog.enable", "true");
+
+      String checkpointDir = spec.getStateSpec().getCheckpointDir();
+      String checkpointScheme = null;
+
+      if (!Strings.isNullOrEmpty(checkpointDir)) {
+        checkpointScheme = new Path(checkpointDir).toUri().getScheme();
+      }
+
+      // For non-local file or HDFS, assuming the FS doesn't support flush (e.g. GCS or S3), hence set
+      // the following configurations
+      if (!"file".equals(checkpointScheme) && !"hdfs".equals(checkpointScheme)) {
+        sparkConf.set("spark.streaming.receiver.writeAheadLog.closeFileAfterWrite", "true");
+        sparkConf.set("spark.streaming.driver.writeAheadLog.closeFileAfterWrite", "true");
+      }
+    }
     sparkConf.set("spark.streaming.backpressure.enabled", "true");
     sparkConf.set("spark.spark.streaming.blockInterval", String.valueOf(spec.getBatchIntervalMillis() / 5));
-    sparkConf.set("spark.maxRemoteBlockSizeFetchToMem", String.valueOf(Integer.MAX_VALUE - 512));
+    // NOTE: If you change this value, also update io.netty.maxDirectMemory in
+    // KubeMasterEnvironment
+    sparkConf.set("spark.network.maxRemoteBlockSizeFetchToMem", String.valueOf(Integer.MAX_VALUE - 512));
 
     // spark... makes you set this to at least the number of receivers (streaming sources)
     // because it holds one thread per receiver, or one core in distributed mode.
@@ -127,8 +157,8 @@ public class DataStreamsSparkLauncher extends AbstractSpark {
         try {
           int numExecutors = Integer.parseInt(property.getValue());
           if (numExecutors < minExecutors) {
-            LOG.warn("Number of executors {} is less than the minimum number required to run the pipeline. " +
-                       "Automatically increasing it to {}", numExecutors, minExecutors);
+            LOG.warn("Number of executors {} is less than the minimum number required to run the pipeline. "
+                       + "Automatically increasing it to {}", numExecutors, minExecutors);
             numExecutors = minExecutors;
           }
           sparkConf.set(property.getKey(), String.valueOf(numExecutors));
@@ -139,9 +169,17 @@ public class DataStreamsSparkLauncher extends AbstractSpark {
       } else {
         sparkConf.set(property.getKey(), property.getValue());
       }
+      if ("spark.streaming.receiver.writeAheadLog.enable".equals(property.getKey())) {
+        boolean isWriteAheadLogEnabled = Boolean.parseBoolean(property.getValue());
+        if (spec.getStateSpec().getMode() != DataStreamsStateSpec.Mode.SPARK_CHECKPOINTING && isWriteAheadLogEnabled) {
+          throw new IllegalArgumentException(
+            "Checkpointing should be enabled when write-ahead logs are enabled for the pipeline.");
+        }
+        sparkConf.set(property.getKey(), property.getValue());
+      }
     }
     context.setSparkConf(sparkConf);
-
+    emitMetrics(spec);
     WRAPPERLOGGER.info("Pipeline '{}' running", context.getApplicationSpecification().getName());
   }
 
@@ -153,5 +191,18 @@ public class DataStreamsSparkLauncher extends AbstractSpark {
     WRAPPERLOGGER.info("Pipeline '{}' {}", getContext().getApplicationSpecification().getName(),
                        status == ProgramStatus.COMPLETED ? "succeeded" : status.name().toLowerCase());
 
+  }
+
+  private void emitMetrics(DataStreamsPipelineSpec spec) {
+    if (spec.getStateSpec().getMode() == DataStreamsStateSpec.Mode.NONE) {
+      getContext().getMetrics().count(
+        Constants.Metrics.AtleastOnceProcessing.STREAMING_ATLEASTONCE_DISABLED_COUNT, 1);
+    } else if (spec.getStateSpec().getMode() == DataStreamsStateSpec.Mode.SPARK_CHECKPOINTING) {
+      getContext().getMetrics().count(
+        Constants.Metrics.AtleastOnceProcessing.STREAMING_ATLEASTONCE_CHECKPOINTING_COUNT, 1);
+    } else {
+      getContext().getMetrics().count(
+        Constants.Metrics.AtleastOnceProcessing.STREAMING_ATLEASTONCE_STORE_COUNT, 1);
+    }
   }
 }

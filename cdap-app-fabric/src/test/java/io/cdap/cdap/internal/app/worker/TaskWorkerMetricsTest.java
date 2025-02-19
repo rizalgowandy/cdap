@@ -27,17 +27,12 @@ import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.metrics.collect.AggregatedMetricsCollectionService;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.discovery.InMemoryDiscoveryService;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
@@ -46,6 +41,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.apache.twill.discovery.InMemoryDiscoveryService;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Tests for TaskWorker Metrics
@@ -64,7 +64,7 @@ public class TaskWorkerMetricsTest {
     cConf.set(Constants.TaskWorker.ADDRESS, "localhost");
     cConf.setInt(Constants.TaskWorker.PORT, 0);
     cConf.setBoolean(Constants.Security.SSL.INTERNAL_ENABLED, false);
-    cConf.set(Constants.TaskWorker.PRELOAD_ARTIFACTS, "");
+    cConf.setInt(Constants.ArtifactLocalizer.PORT, -1);
     cConf.setInt(Constants.TaskWorker.CONTAINER_KILL_AFTER_REQUEST_COUNT, 1);
     return cConf;
   }
@@ -81,10 +81,13 @@ public class TaskWorkerMetricsTest {
         Iterators.addAll(published, metrics);
       }
     };
+
     mockMetricsCollector.startAndWait();
-    taskWorkerService = new TaskWorkerService(cConf, sConf, new InMemoryDiscoveryService(),
-                                                                (namespaceId, retryStrategy) -> null,
-                                                                mockMetricsCollector);
+    InMemoryDiscoveryService discoveryService = new InMemoryDiscoveryService();
+    taskWorkerService = new TaskWorkerService(cConf, sConf, discoveryService, discoveryService,
+                                              mockMetricsCollector,
+                                              new CommonNettyHttpServiceFactory(cConf, mockMetricsCollector,
+                                                                                auditLogContexts -> {}));
     taskWorkerStateFuture = TaskWorkerTestUtil.getServiceCompletionFuture(taskWorkerService);
     // start the service
     taskWorkerService.startAndWait();
@@ -103,8 +106,7 @@ public class TaskWorkerMetricsTest {
   public void testSimpleRequest() throws IOException {
     String taskClassName = TaskWorkerServiceTest.TestRunnableClass.class.getName();
     RunnableTaskRequest req = RunnableTaskRequest.getBuilder(taskClassName)
-      .withParam("100")
-      .build();
+      .withParam("100").withNamespace("testNamespace").build();
     String reqBody = GSON.toJson(req);
     HttpResponse response = HttpRequests.execute(
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
@@ -112,10 +114,11 @@ public class TaskWorkerMetricsTest {
       new DefaultHttpRequestConfig(false));
     TaskWorkerTestUtil.waitForServiceCompletion(taskWorkerStateFuture);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
-    Assert.assertSame(1, published.size());
+    MetricValues metricValues =
+      published.stream().filter(mv -> taskClassName.equals(mv.getTags().get("clz"))).findFirst()
+        .orElseThrow(() -> new AssertionError("Metric was not found in response"));
 
     //check the metrics are present
-    MetricValues metricValues = published.get(0);
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS));
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_COUNT));
     //check the clz tag is set correctly
@@ -128,7 +131,8 @@ public class TaskWorkerMetricsTest {
     String wrappedClassName = "testClassName";
     RunnableTaskRequest req = RunnableTaskRequest.getBuilder(
       taskClassName).withParam("100")
-      .withEmbeddedTaskRequest(RunnableTaskRequest.getBuilder(wrappedClassName).build()).build();
+      .withEmbeddedTaskRequest(RunnableTaskRequest.getBuilder(wrappedClassName)
+          .withNamespace("testNamespace").build()).build();
     String reqBody = GSON.toJson(req);
     HttpResponse response = HttpRequests.execute(
       HttpRequest.post(uri.resolve("/v3Internal/worker/run").toURL())
@@ -136,10 +140,11 @@ public class TaskWorkerMetricsTest {
       new DefaultHttpRequestConfig(false));
     TaskWorkerTestUtil.waitForServiceCompletion(taskWorkerStateFuture);
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
-    Assert.assertSame(1, published.size());
+    MetricValues metricValues =
+      published.stream().filter(mv -> "testClassName".equals(mv.getTags().get("clz"))).findFirst()
+        .orElseThrow(() -> new AssertionError("Metric was not found in response"));
 
     //check the metrics are present
-    MetricValues metricValues = published.get(0);
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_COUNT));
     Assert.assertTrue(hasMetric(metricValues, Constants.Metrics.TaskWorker.REQUEST_LATENCY_MS));
     //check the clz tag is set correctly

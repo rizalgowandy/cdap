@@ -29,7 +29,6 @@ import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Optional;
@@ -38,6 +37,7 @@ import java.util.Optional;
  * Fetch preview requests from remote server.
  */
 public class RemotePreviewRequestFetcher implements PreviewRequestFetcher {
+
   private static final Gson GSON = new Gson();
 
   private final RemoteClient remoteClientInternal;
@@ -45,30 +45,32 @@ public class RemotePreviewRequestFetcher implements PreviewRequestFetcher {
 
   @Inject
   RemotePreviewRequestFetcher(PreviewRequestPollerInfoProvider pollerInfoProvider,
-                              RemoteClientFactory remoteClientFactory) {
+      RemoteClientFactory remoteClientFactory) {
     this.remoteClientInternal = remoteClientFactory.createRemoteClient(
-      Constants.Service.PREVIEW_HTTP,
-      new DefaultHttpRequestConfig(false),
-      Constants.Gateway.INTERNAL_API_VERSION_3 + "/previews");
+        Constants.Service.PREVIEW_HTTP,
+        new DefaultHttpRequestConfig(false),
+        Constants.Gateway.INTERNAL_API_VERSION_3 + "/previews");
     this.pollerInfoProvider = pollerInfoProvider;
   }
 
   @Override
   public Optional<PreviewRequest> fetch() throws IOException, UnauthorizedException {
     HttpRequest request = remoteClientInternal.requestBuilder(HttpMethod.POST, "requests/pull")
-      .withBody(ByteBuffer.wrap(pollerInfoProvider.get()))
-      .build();
+        .withBody(ByteBuffer.wrap(pollerInfoProvider.get()))
+        .build();
 
     HttpResponse httpResponse = remoteClientInternal.execute(request);
     if (httpResponse.getResponseCode() == 200) {
-      PreviewRequest previewRequest = GSON.fromJson(httpResponse.getResponseBodyAsString(), PreviewRequest.class);
+      PreviewRequest previewRequest = GSON.fromJson(httpResponse.getResponseBodyAsString(),
+          PreviewRequest.class);
       if (previewRequest != null && previewRequest.getPrincipal() != null) {
         SecurityRequestContext.setUserId(previewRequest.getPrincipal().getName());
         SecurityRequestContext.setUserCredential(previewRequest.getPrincipal().getFullCredential());
       }
       return Optional.ofNullable(previewRequest);
     }
-    throw new IOException(String.format("Received status code:%s and body: %s", httpResponse.getResponseCode(),
-                                        httpResponse.getResponseBodyAsString(Charsets.UTF_8)));
+    throw new IOException(
+        String.format("Received status code:%s and body: %s", httpResponse.getResponseCode(),
+            httpResponse.getResponseBodyAsString(Charsets.UTF_8)));
   }
 }

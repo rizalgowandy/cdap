@@ -16,15 +16,14 @@
 package io.cdap.cdap.etl.api.action;
 
 import io.cdap.cdap.etl.api.Arguments;
-
 import java.util.Map;
 import javax.annotation.Nullable;
 
 /**
- * Arguments that can be updated. Arguments set when preparing a run will be visible to all pipeline stages
- * at execution time, and will be visible to any stages after the current one. Arguments can also
- * overwrite each other, so plugins should prefix their arguments by their stage name if they don't want the argument
- * to be clobbered by other instances of the plugin.
+ * Arguments that can be updated. Arguments set when preparing a run will be visible to all pipeline
+ * stages at execution time, and will be visible to any stages after the current one. Arguments can
+ * also overwrite each other, so plugins should prefix their arguments by their stage name if they
+ * don't want the argument to be clobbered by other instances of the plugin.
  */
 public interface SettableArguments extends Arguments {
 

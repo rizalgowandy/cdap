@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.proto.connection;
 
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.proto.ArtifactSelectorConfig;
-
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -28,10 +27,12 @@ import javax.annotation.Nullable;
  * Plugin detail
  */
 public class PluginDetail extends PluginMeta {
+
   private final Schema schema;
 
-  public PluginDetail(String name, String type, Map<String, String> properties, ArtifactSelectorConfig artifact,
-                      @Nullable Schema schema) {
+  public PluginDetail(String name, String type, Map<String, String> properties,
+      ArtifactSelectorConfig artifact,
+      @Nullable Schema schema) {
     super(name, type, properties, artifact);
     this.schema = schema;
   }

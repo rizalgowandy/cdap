@@ -44,6 +44,13 @@ import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.test.XSlowTests;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.twill.common.Threads;
 import org.junit.After;
 import org.junit.Assert;
@@ -53,14 +60,6 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 
 /**
  *
@@ -184,9 +183,11 @@ public class WorkflowTest {
 
     // try deploying app containing workflow with non-unique programs
     try {
-      AppFabricTestHelper.deployApplicationWithManager(NonUniqueProgramsInWorkflowApp.class, TEMP_FOLDER_SUPPLIER);
-      Assert.fail("Should have thrown Exception because 'NoOpMR' added multiple times in the workflow " +
-                    "'NonUniqueProgramsInWorkflow'.");
+      AppFabricTestHelper.deployApplicationWithManager(NonUniqueProgramsInWorkflowApp.class,
+          TEMP_FOLDER_SUPPLIER);
+      Assert.fail(
+          "Should have thrown Exception because 'NoOpMR' added multiple times in the workflow "
+              + "'NonUniqueProgramsInWorkflow'.");
     } catch (Exception ex) {
       Assert.assertEquals("Node 'NoOpMR' already exists in workflow 'NonUniqueProgramsInWorkflow'.",
                           ex.getCause().getMessage());
@@ -195,9 +196,10 @@ public class WorkflowTest {
     // try deploying app containing workflow fork with non-unique programs
     try {
       AppFabricTestHelper.deployApplicationWithManager(NonUniqueProgramsInWorkflowWithForkApp.class,
-                                                       TEMP_FOLDER_SUPPLIER);
-      Assert.fail("Should have thrown Exception because 'MyTestPredicate' added multiple times in the workflow " +
-                    "'NonUniqueProgramsInWorkflowWithFork'");
+          TEMP_FOLDER_SUPPLIER);
+      Assert.fail(
+          "Should have thrown Exception because 'MyTestPredicate' added multiple times in the workflow "
+              + "'NonUniqueProgramsInWorkflowWithFork'");
     } catch (Exception ex) {
       Assert.assertEquals("Node 'MyTestPredicate' already exists in workflow 'NonUniqueProgramsInWorkflowWithFork'.",
                           ex.getCause().getMessage());

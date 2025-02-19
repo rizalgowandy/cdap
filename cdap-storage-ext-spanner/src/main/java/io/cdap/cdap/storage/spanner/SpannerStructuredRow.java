@@ -23,7 +23,6 @@ import io.cdap.cdap.spi.data.table.StructuredTableSchema;
 import io.cdap.cdap.spi.data.table.field.Field;
 import io.cdap.cdap.spi.data.table.field.FieldType;
 import io.cdap.cdap.spi.data.table.field.Fields;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
@@ -53,6 +52,12 @@ public class SpannerStructuredRow implements StructuredRow {
   @Override
   public Long getLong(String fieldName) throws InvalidFieldException {
     return isNull(fieldName) ? null : struct.getLong(fieldName);
+  }
+
+  @Nullable
+  @Override
+  public Boolean getBoolean(String fieldName) throws InvalidFieldException {
+    return isNull(fieldName) ? null : struct.getBoolean(fieldName);
   }
 
   @Nullable
@@ -113,7 +118,8 @@ public class SpannerStructuredRow implements StructuredRow {
             // this should never happen since all the keys are from the table schema
             // and should never contain other types
             throw new IllegalStateException(
-              String.format("The type %s of the primary key %s is not a valid key type", type, key));
+                String.format("The type %s of the primary key %s is not a valid key type", type,
+                    key));
         }
       }
 
@@ -124,9 +130,9 @@ public class SpannerStructuredRow implements StructuredRow {
 
   @Override
   public String toString() {
-    return "SpannerStructuredRow{" +
-      "struct=" + struct +
-      '}';
+    return "SpannerStructuredRow{"
+        + "struct=" + struct
+        + '}';
   }
 
   private boolean isNull(String fieldName) {

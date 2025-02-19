@@ -19,7 +19,6 @@ package io.cdap.cdap.app.mapreduce;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.proto.MRJobInfo;
-
 import java.io.IOException;
 
 /**
@@ -28,7 +27,6 @@ import java.io.IOException;
 public interface MRJobInfoFetcher {
 
   /**
-   *
    * @param runId for which information will be returned.
    * @return a {@link MRJobInfo} containing information about a particular MapReduce program run.
    * @throws IOException if there is failure to communicate through the JobClient.

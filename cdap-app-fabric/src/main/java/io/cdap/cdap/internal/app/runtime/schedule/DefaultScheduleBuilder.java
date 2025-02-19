@@ -32,7 +32,6 @@ import io.cdap.cdap.internal.app.runtime.schedule.trigger.TriggerBuilder;
 import io.cdap.cdap.internal.schedule.ScheduleCreationSpec;
 import io.cdap.cdap.internal.schedule.constraint.Constraint;
 import io.cdap.cdap.proto.ProtoConstraint;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -99,7 +98,8 @@ public class DefaultScheduleBuilder implements ConstraintProgramScheduleBuilder 
   }
 
   @Override
-  public ConstraintProgramScheduleBuilder withTimeWindow(String startTime, String endTime, TimeZone timeZone) {
+  public ConstraintProgramScheduleBuilder withTimeWindow(String startTime, String endTime,
+      TimeZone timeZone) {
     constraints.add(new TimeRangeConstraint(startTime, endTime, timeZone));
     return this;
   }
@@ -122,45 +122,49 @@ public class DefaultScheduleBuilder implements ConstraintProgramScheduleBuilder 
 
   @Override
   public ScheduleCreationSpec triggerOnPartitions(String datasetNamespace, String datasetName,
-                                                  int numPartitions) {
+      int numPartitions) {
     return triggerOn(triggerFactory.onPartitions(datasetNamespace, datasetName, numPartitions));
   }
 
   @Override
   public ScheduleCreationSpec triggerOnProgramStatus(String programNamespace, String application,
-                                                     String appVersion, ProgramType programType, String program,
-                                                     ProgramStatus... programStatuses) {
+      String appVersion, ProgramType programType, String program,
+      ProgramStatus... programStatuses) {
     return triggerOn(triggerFactory.onProgramStatus(programNamespace, application, appVersion,
-                                                    programType, program, programStatuses));
+        programType, program, programStatuses));
   }
 
   @Override
   public ScheduleCreationSpec triggerOnProgramStatus(String programNamespace, String application,
-                                                     ProgramType programType, String program,
-                                                     ProgramStatus... programStatuses) {
+      ProgramType programType, String program,
+      ProgramStatus... programStatuses) {
     return triggerOn(triggerFactory.onProgramStatus(programNamespace, application,
-                                                    programType, program, programStatuses));
+        programType, program, programStatuses));
   }
 
   @Override
-  public ScheduleCreationSpec triggerOnProgramStatus(String application, ProgramType programType, String program,
-                                                     ProgramStatus... programStatuses) {
-    return triggerOn(triggerFactory.onProgramStatus(application, programType, program, programStatuses));
+  public ScheduleCreationSpec triggerOnProgramStatus(String application, ProgramType programType,
+      String program,
+      ProgramStatus... programStatuses) {
+    return triggerOn(
+        triggerFactory.onProgramStatus(application, programType, program, programStatuses));
   }
 
   @Override
   public ScheduleCreationSpec triggerOnProgramStatus(ProgramType programType, String program,
-                                                     ProgramStatus... programStatuses) {
+      ProgramStatus... programStatuses) {
     return triggerOn(triggerFactory.onProgramStatus(programType, program, programStatuses));
   }
 
   @Override
   public ScheduleCreationSpec triggerOn(Trigger trigger) {
     if (trigger instanceof TriggerBuilder) {
-      return new ScheduleCreationBuilder(name, description, programName, properties, constraints, timeoutMillis,
-                                         (TriggerBuilder) trigger);
+      return new ScheduleCreationBuilder(name, description, programName, properties, constraints,
+          timeoutMillis,
+          (TriggerBuilder) trigger);
     }
-    return new ScheduleCreationSpec(name, description, programName, properties, trigger, constraints, timeoutMillis);
+    return new ScheduleCreationSpec(name, description, programName, properties, trigger,
+        constraints, timeoutMillis);
   }
 
   @Override
@@ -181,26 +185,31 @@ public class DefaultScheduleBuilder implements ConstraintProgramScheduleBuilder 
    * Inner class that creates a ScheduleCreationSpec from the deployed properties
    */
   public class ScheduleCreationBuilder extends ScheduleCreationSpec {
+
     private final TriggerBuilder triggerBuilder;
 
-    private ScheduleCreationBuilder(String name, String description, String programName, Map<String, String> properties,
-                                   List<? extends Constraint> constraints, long timeoutMillis,
-                                   TriggerBuilder triggerBuilder) {
+    private ScheduleCreationBuilder(String name, String description, String programName,
+        Map<String, String> properties,
+        List<? extends Constraint> constraints, long timeoutMillis,
+        TriggerBuilder triggerBuilder) {
       super(name, description, programName, properties, null, constraints, timeoutMillis);
       this.triggerBuilder = triggerBuilder;
     }
 
     @Override
     public Trigger getTrigger() {
-      throw new UnsupportedOperationException(String.format("Schedule %s does not have a trigger because it is  " +
-                                                            "missing a defined namespace and application environment",
-                                                            getName()));
+      throw new UnsupportedOperationException(
+          String.format("Schedule %s does not have a trigger because it is  "
+                  + "missing a defined namespace and application environment",
+              getName()));
     }
 
-    public ScheduleCreationSpec build(String namespace, String applicationName, String applicationVersion) {
-      return new ScheduleCreationSpec(getName(), getDescription(), getProgramName(), getProperties(),
-                                      triggerBuilder.build(namespace, applicationName, applicationVersion),
-                                      getConstraints(), getTimeoutMillis());
+    public ScheduleCreationSpec build(String namespace, String applicationName,
+        String applicationVersion) {
+      return new ScheduleCreationSpec(getName(), getDescription(), getProgramName(),
+          getProperties(),
+          triggerBuilder.build(namespace, applicationName, applicationVersion),
+          getConstraints(), getTimeoutMillis());
     }
   }
 }

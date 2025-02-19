@@ -34,17 +34,18 @@ import io.cdap.cdap.internal.dataset.DatasetCreationSpec;
 import io.cdap.cdap.internal.schedule.ScheduleCreationSpec;
 import io.cdap.cdap.proto.codec.AbstractSpecificationCodec;
 import io.cdap.cdap.proto.id.ApplicationId;
-
 import java.lang.reflect.Type;
 import java.util.Map;
 
 /**
  * TODO: Move to cdap-proto
  */
-final class ApplicationSpecificationCodec extends AbstractSpecificationCodec<ApplicationSpecification> {
+final class ApplicationSpecificationCodec extends
+    AbstractSpecificationCodec<ApplicationSpecification> {
 
   @Override
-  public JsonElement serialize(ApplicationSpecification src, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(ApplicationSpecification src, Type typeOfSrc,
+      JsonSerializationContext context) {
     JsonObject jsonObj = new JsonObject();
 
     jsonObj.add("name", new JsonPrimitive(src.getName()));
@@ -58,12 +59,16 @@ final class ApplicationSpecificationCodec extends AbstractSpecificationCodec<App
     jsonObj.add("artifactId", context.serialize(src.getArtifactId()));
     jsonObj.add("description", new JsonPrimitive(src.getDescription()));
     jsonObj.add("datasetModules", serializeMap(src.getDatasetModules(), context, String.class));
-    jsonObj.add("datasetInstances", serializeMap(src.getDatasets(), context, DatasetCreationSpec.class));
-    jsonObj.add("mapReduces", serializeMap(src.getMapReduce(), context, MapReduceSpecification.class));
+    jsonObj.add("datasetInstances",
+        serializeMap(src.getDatasets(), context, DatasetCreationSpec.class));
+    jsonObj.add("mapReduces",
+        serializeMap(src.getMapReduce(), context, MapReduceSpecification.class));
     jsonObj.add("sparks", serializeMap(src.getSpark(), context, SparkSpecification.class));
-    jsonObj.add("workflows", serializeMap(src.getWorkflows(), context, WorkflowSpecification.class));
+    jsonObj.add("workflows",
+        serializeMap(src.getWorkflows(), context, WorkflowSpecification.class));
     jsonObj.add("services", serializeMap(src.getServices(), context, ServiceSpecification.class));
-    jsonObj.add("programSchedules", serializeMap(src.getProgramSchedules(), context, ScheduleCreationSpec.class));
+    jsonObj.add("programSchedules",
+        serializeMap(src.getProgramSchedules(), context, ScheduleCreationSpec.class));
     jsonObj.add("workers", serializeMap(src.getWorkers(), context, WorkerSpecification.class));
     jsonObj.add("plugins", serializeMap(src.getPlugins(), context, Plugin.class));
 
@@ -71,8 +76,9 @@ final class ApplicationSpecificationCodec extends AbstractSpecificationCodec<App
   }
 
   @Override
-  public ApplicationSpecification deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+  public ApplicationSpecification deserialize(JsonElement json, Type typeOfT,
+      JsonDeserializationContext context)
+      throws JsonParseException {
     JsonObject jsonObj = json.getAsJsonObject();
 
     String name = jsonObj.get("name").getAsString();
@@ -81,8 +87,8 @@ final class ApplicationSpecificationCodec extends AbstractSpecificationCodec<App
       appVersion = jsonObj.get("appVersion").getAsString();
     }
     String appCDAPVersion = jsonObj.has("appCDAPVersion")
-      ? jsonObj.get("appCDAPVersion").getAsString()
-      : null;
+        ? jsonObj.get("appCDAPVersion").getAsString()
+        : null;
 
     String description = jsonObj.get("description").getAsString();
     String configuration = null;
@@ -92,30 +98,34 @@ final class ApplicationSpecificationCodec extends AbstractSpecificationCodec<App
 
     ArtifactId artifactId = context.deserialize(jsonObj.get("artifactId"), ArtifactId.class);
 
-    Map<String, String> datasetModules = deserializeMap(jsonObj.get("datasetModules"), context, String.class);
-    Map<String, DatasetCreationSpec> datasetInstances = deserializeMap(jsonObj.get("datasetInstances"),
-                                                                       context,
-                                                                       DatasetCreationSpec.class);
+    Map<String, String> datasetModules = deserializeMap(jsonObj.get("datasetModules"), context,
+        String.class);
+    Map<String, DatasetCreationSpec> datasetInstances = deserializeMap(
+        jsonObj.get("datasetInstances"),
+        context,
+        DatasetCreationSpec.class);
     Map<String, MapReduceSpecification> mapReduces = deserializeMap(jsonObj.get("mapReduces"),
-                                                                    context, MapReduceSpecification.class);
+        context, MapReduceSpecification.class);
     Map<String, SparkSpecification> sparks = deserializeMap(jsonObj.get("sparks"),
-                                                            context, SparkSpecification.class);
+        context, SparkSpecification.class);
     Map<String, WorkflowSpecification> workflows = deserializeMap(jsonObj.get("workflows"),
-                                                                  context, WorkflowSpecification.class);
+        context, WorkflowSpecification.class);
 
     Map<String, ServiceSpecification> services = deserializeMap(jsonObj.get("services"),
-                                                                context, ServiceSpecification.class);
+        context, ServiceSpecification.class);
 
-    Map<String, ScheduleCreationSpec> programSchedules = deserializeMap(jsonObj.get("programSchedules"),
-                                                                        context, ScheduleCreationSpec.class);
+    Map<String, ScheduleCreationSpec> programSchedules = deserializeMap(
+        jsonObj.get("programSchedules"),
+        context, ScheduleCreationSpec.class);
 
     Map<String, WorkerSpecification> workers = deserializeMap(jsonObj.get("workers"), context,
-                                                              WorkerSpecification.class);
+        WorkerSpecification.class);
     Map<String, Plugin> plugins = deserializeMap(jsonObj.get("plugins"), context, Plugin.class);
 
-    return new DefaultApplicationSpecification(name, appVersion, appCDAPVersion, description, configuration, artifactId,
-                                               datasetModules, datasetInstances,
-                                               mapReduces, sparks,
-                                               workflows, services, programSchedules, workers, plugins);
+    return new DefaultApplicationSpecification(name, appVersion, appCDAPVersion, description,
+        configuration, artifactId,
+        datasetModules, datasetInstances,
+        mapReduces, sparks,
+        workflows, services, programSchedules, workers, plugins);
   }
 }

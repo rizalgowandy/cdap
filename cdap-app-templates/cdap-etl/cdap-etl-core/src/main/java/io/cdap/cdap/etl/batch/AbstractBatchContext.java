@@ -22,7 +22,6 @@ import io.cdap.cdap.api.data.DatasetInstantiationException;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.dataset.DatasetManagementException;
 import io.cdap.cdap.api.dataset.DatasetProperties;
-import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.etl.api.batch.BatchContext;
 import io.cdap.cdap.etl.api.lineage.field.FieldOperation;
 import io.cdap.cdap.etl.common.AbstractTransformContext;
@@ -31,7 +30,6 @@ import io.cdap.cdap.etl.common.PipelineRuntime;
 import io.cdap.cdap.etl.common.plugin.Caller;
 import io.cdap.cdap.etl.common.plugin.NoStageLoggingCaller;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,14 +38,16 @@ import java.util.Map;
 /**
  * Base Batch Context.
  */
-public abstract class AbstractBatchContext extends AbstractTransformContext implements BatchContext {
+public abstract class AbstractBatchContext extends AbstractTransformContext implements
+    BatchContext {
+
   private static final Caller CALLER = NoStageLoggingCaller.wrap(Caller.DEFAULT);
   private final DatasetContext datasetContext;
   protected final Admin admin;
   private final List<FieldOperation> fieldOperations;
 
   protected AbstractBatchContext(PipelineRuntime pipelineRuntime, StageSpec stageSpec,
-                                 DatasetContext datasetContext, Admin admin) {
+      DatasetContext datasetContext, Admin admin) {
     super(pipelineRuntime, stageSpec, new DatasetContextLookupProvider(datasetContext));
     this.datasetContext = datasetContext;
     this.admin = admin;
@@ -56,7 +56,7 @@ public abstract class AbstractBatchContext extends AbstractTransformContext impl
 
   @Override
   public void createDataset(String datasetName, String typeName, DatasetProperties properties)
-    throws DatasetManagementException {
+      throws DatasetManagementException {
     admin.createDataset(datasetName, typeName, properties);
   }
 
@@ -72,19 +72,19 @@ public abstract class AbstractBatchContext extends AbstractTransformContext impl
 
   @Override
   public <T extends Dataset> T getDataset(final String namespace, final String name)
-    throws DatasetInstantiationException {
+      throws DatasetInstantiationException {
     return CALLER.callUnchecked(() -> datasetContext.getDataset(namespace, name));
   }
 
   @Override
   public <T extends Dataset> T getDataset(final String name,
-                                          final Map<String, String> arguments) throws DatasetInstantiationException {
+      final Map<String, String> arguments) throws DatasetInstantiationException {
     return CALLER.callUnchecked(() -> datasetContext.getDataset(name, arguments));
   }
 
   @Override
   public <T extends Dataset> T getDataset(final String namespace, final String name,
-                                          final Map<String, String> arguments) throws DatasetInstantiationException {
+      final Map<String, String> arguments) throws DatasetInstantiationException {
     return CALLER.callUnchecked(() -> datasetContext.getDataset(namespace, name, arguments));
   }
 

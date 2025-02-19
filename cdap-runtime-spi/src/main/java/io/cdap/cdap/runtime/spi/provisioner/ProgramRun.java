@@ -17,7 +17,6 @@
 package io.cdap.cdap.runtime.spi.provisioner;
 
 import io.cdap.cdap.runtime.spi.ProgramRunInfo;
-
 import java.util.Objects;
 
 /**
@@ -27,6 +26,7 @@ import java.util.Objects;
  */
 @Deprecated
 public class ProgramRun {
+
   private final String namespace;
   private final String application;
   private final String program;
@@ -66,10 +66,10 @@ public class ProgramRun {
 
     ProgramRun that = (ProgramRun) o;
 
-    return Objects.equals(namespace, that.namespace) &&
-      Objects.equals(application, that.application) &&
-      Objects.equals(program, that.program) &&
-      Objects.equals(run, that.run);
+    return Objects.equals(namespace, that.namespace)
+        && Objects.equals(application, that.application)
+        && Objects.equals(program, that.program)
+        && Objects.equals(run, that.run);
   }
 
   @Override

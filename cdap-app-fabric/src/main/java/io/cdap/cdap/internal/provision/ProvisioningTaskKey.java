@@ -17,13 +17,13 @@
 package io.cdap.cdap.internal.provision;
 
 import io.cdap.cdap.proto.id.ProgramRunId;
-
 import java.util.Objects;
 
 /**
  * Key to identify a provisioning task.
  */
 public class ProvisioningTaskKey {
+
   private final ProgramRunId programRunId;
   private final ProvisioningOp.Type type;
 

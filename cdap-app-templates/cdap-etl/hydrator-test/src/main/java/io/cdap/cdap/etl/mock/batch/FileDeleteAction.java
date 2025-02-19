@@ -24,9 +24,8 @@ import io.cdap.cdap.api.plugin.PluginConfig;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.batch.BatchActionContext;
 import io.cdap.cdap.etl.api.batch.PostAction;
-import org.apache.twill.filesystem.Location;
-
 import java.util.regex.Pattern;
+import org.apache.twill.filesystem.Location;
 
 /**
  * Post run action that deletes files in a FileSet that match a configurable regex.
@@ -35,6 +34,7 @@ import java.util.regex.Pattern;
 @Name(FileDeleteAction.NAME)
 @Description("Post run action that deletes files in a FileSet that match a configurable regex.")
 public class FileDeleteAction extends PostAction {
+
   public static final String NAME = "FileDelete";
   private final Conf conf;
 
@@ -67,6 +67,7 @@ public class FileDeleteAction extends PostAction {
    * Conf for the token writer.
    */
   public static class Conf extends PluginConfig {
+
     @Description("The fileset to delete files from.")
     private String filesetName;
 

@@ -17,7 +17,6 @@
 package io.cdap.cdap.data2.metadata.lineage;
 
 import com.google.common.collect.ImmutableSet;
-
 import java.util.Objects;
 import java.util.Set;
 
@@ -25,6 +24,7 @@ import java.util.Set;
  * Represents the data access relations between Programs and Datasets.
  */
 public class Lineage {
+
   private final Set<Relation> relations;
 
   public Lineage(Iterable<? extends Relation> relations) {
@@ -54,8 +54,8 @@ public class Lineage {
 
   @Override
   public String toString() {
-    return "Lineage{" +
-      "relations=" + relations +
-      '}';
+    return "Lineage{"
+        + "relations=" + relations
+        + '}';
   }
 }

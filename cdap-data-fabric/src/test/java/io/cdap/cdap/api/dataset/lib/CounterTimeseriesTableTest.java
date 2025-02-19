@@ -16,21 +16,20 @@
 
 package io.cdap.cdap.api.dataset.lib;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.dataset.DatasetProperties;
 import io.cdap.cdap.data2.dataset2.DatasetFrameworkTestUtil;
 import io.cdap.cdap.proto.id.DatasetId;
+import java.util.Iterator;
 import org.apache.tephra.TransactionExecutor;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-
-import java.util.Iterator;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Tests covering the {@link io.cdap.cdap.api.dataset.lib.CounterTimeseriesTable} class.
@@ -39,7 +38,7 @@ public class CounterTimeseriesTableTest {
   @ClassRule
   public static DatasetFrameworkTestUtil dsFrameworkUtil = new DatasetFrameworkTestUtil();
 
-  private static CounterTimeseriesTable table = null;
+  private static CounterTimeseriesTable table;
   private static DatasetId counterTable = DatasetFrameworkTestUtil.NAMESPACE_ID.dataset("counterTable");
 
   @BeforeClass

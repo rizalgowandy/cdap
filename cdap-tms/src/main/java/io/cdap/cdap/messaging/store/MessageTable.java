@@ -17,16 +17,15 @@
 package io.cdap.cdap.messaging.store;
 
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
-import io.cdap.cdap.messaging.RollbackDetail;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.spi.RollbackDetail;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.data.MessageId;
 import io.cdap.cdap.proto.id.TopicId;
-import org.apache.tephra.Transaction;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import javax.annotation.Nullable;
+import org.apache.tephra.Transaction;
 
 /**
  * An interface defining the Message Table operations.
@@ -67,8 +66,8 @@ public interface MessageTable extends Closeable {
     long getTransactionWritePointer();
 
     /**
-     * Returns the message payload if {@link #isPayloadReference()} return {@code false}; otherwise {@code null}
-     * will be returned.
+     * Returns the message payload if {@link #isPayloadReference()} return {@code false}; otherwise
+     * {@code null} will be returned.
      */
     @Nullable
     byte[] getPayload();
@@ -85,7 +84,8 @@ public interface MessageTable extends Closeable {
   }
 
   /**
-   * Fetches message table entries in the given topic that were publish on or after the given start time.
+   * Fetches message table entries in the given topic that were publish on or after the given start
+   * time.
    *
    * @param metadata metadata of the topic to fetch from
    * @param startTime the publish time to start from
@@ -94,32 +94,34 @@ public interface MessageTable extends Closeable {
    * @return a {@link CloseableIterator} of {@link Entry}.
    */
   CloseableIterator<Entry> fetch(TopicMetadata metadata, long startTime,
-                                 int limit, @Nullable Transaction transaction) throws IOException;
+      int limit, @Nullable Transaction transaction) throws IOException;
 
   /**
    * Fetches message table entries in the given topic, starting from the given {@link MessageId}.
    *
    * @param metadata {@link TopicMetadata} of the the topic to fetch from
    * @param messageId the message id to start fetching from
-   * @param inclusive indicate whether to include the given {@link MessageId} as the first message (if still available)
-   *                  or not.
+   * @param inclusive indicate whether to include the given {@link MessageId} as the first
+   *     message (if still available) or not.
    * @param limit maximum number of messages to fetch
    * @param transaction an optional {@link Transaction} to use for fetching
    * @return a {@link CloseableIterator} of {@link Entry}.
    */
   CloseableIterator<Entry> fetch(TopicMetadata metadata, MessageId messageId, boolean inclusive,
-                                 int limit, @Nullable Transaction transaction) throws IOException;
+      int limit, @Nullable Transaction transaction) throws IOException;
 
   /**
    * Stores a list of entries to the message table under the given topic.
    *
-   * @param entries a list of entries to store. This method guarantees each {@link Entry} will be consumed right away,
-   *                hence it is safe for the {@link Iterator} to reuse the same {@link Entry} instance.
+   * @param entries a list of entries to store. This method guarantees each {@link Entry} will
+   *     be consumed right away, hence it is safe for the {@link Iterator} to reuse the same {@link
+   *     Entry} instance.
    */
   void store(Iterator<? extends Entry> entries) throws IOException;
 
   /**
-   * Rollback entries stored earlier, as deleted, under the given topic based on the given information.
+   * Rollback entries stored earlier, as deleted, under the given topic based on the given
+   * information.
    *
    * @param metadata {@link TopicMetadata} of the topic to rollback from
    * @param rollbackDetail {@link RollbackDetail} information required to rollback entries

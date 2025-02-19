@@ -26,7 +26,6 @@ import io.cdap.cdap.cli.util.AbstractAuthCommand;
 import io.cdap.cdap.client.DatasetClient;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
@@ -44,7 +43,8 @@ public class DeleteDatasetInstanceCommand extends AbstractAuthCommand {
 
   @Override
   public void perform(Arguments arguments, PrintStream output) throws Exception {
-    DatasetId dataset = cliConfig.getCurrentNamespace().dataset(arguments.get(ArgumentName.DATASET.toString()));
+    DatasetId dataset = cliConfig.getCurrentNamespace()
+        .dataset(arguments.get(ArgumentName.DATASET.toString()));
 
     datasetClient.delete(dataset);
     output.printf("Successfully deleted dataset instance '%s'\n", dataset.getEntityName());

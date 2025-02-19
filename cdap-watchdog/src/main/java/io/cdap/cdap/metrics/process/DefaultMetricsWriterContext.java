@@ -16,14 +16,11 @@
 
 package io.cdap.cdap.metrics.process;
 
-import io.cdap.cdap.api.PlatformInfo;
 import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.api.metrics.MetricsWriterContext;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -34,13 +31,12 @@ public class DefaultMetricsWriterContext implements MetricsWriterContext {
   private final MetricsContext metricsContext;
   private final Map<String, String> properties;
 
-  public DefaultMetricsWriterContext(MetricsContext metricsContext, CConfiguration cConf, String metricsWriterId) {
+  public DefaultMetricsWriterContext(MetricsContext metricsContext, CConfiguration cConf,
+      String metricsWriterId) {
     this.metricsContext = metricsContext;
-    String prefix = String.format("%s%s.", Constants.Metrics.METRICS_WRITER_PREFIX, metricsWriterId);
-    Map<String, String> metricProperties = new HashMap<>(cConf.getPropsWithPrefix(prefix));
-    //Add additional system configurations
-    metricProperties.put(CDAP_VERSION, PlatformInfo.getVersion().toString());
-    this.properties = Collections.unmodifiableMap(metricProperties);
+    String prefix = String.format("%s%s.", Constants.Metrics.METRICS_WRITER_PREFIX,
+        metricsWriterId);
+    this.properties = Collections.unmodifiableMap(cConf.getPropsWithPrefix(prefix));
   }
 
   public MetricsContext getMetricsContext() {

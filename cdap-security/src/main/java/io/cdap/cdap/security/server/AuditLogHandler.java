@@ -17,17 +17,16 @@
 package io.cdap.cdap.security.server;
 
 import io.cdap.cdap.common.logging.AuditLogEntry;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Response;
-import org.eclipse.jetty.server.handler.DefaultHandler;
-import org.slf4j.Logger;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Response;
+import org.eclipse.jetty.server.handler.DefaultHandler;
+import org.slf4j.Logger;
 
 /**
  * Handler for audit logging for the {@link ExternalAuthenticationServer}.
@@ -42,11 +41,12 @@ public class AuditLogHandler extends DefaultHandler {
 
   @Override
   public void handle(String target, Request baseRequest, HttpServletRequest request,
-                     HttpServletResponse response) throws IOException, ServletException {
-    String requestLine = request.getMethod() + " " + request.getRequestURI() + " " + request.getProtocol();
+      HttpServletResponse response) throws IOException, ServletException {
+    String requestLine =
+        request.getMethod() + " " + request.getRequestURI() + " " + request.getProtocol();
     AuditLogEntry logEntry = new AuditLogEntry(requestLine, request.getRemoteUser(),
-                                               InetAddress.getByName(request.getRemoteAddr()).getHostAddress(),
-                                               Collections.<String, String>emptyMap());
+        InetAddress.getByName(request.getRemoteAddr()).getHostAddress(),
+        Collections.<String, String>emptyMap());
     logEntry.setResponse(response.getStatus(), ((Response) response).getContentCount());
     logger.trace(logEntry.toString());
   }

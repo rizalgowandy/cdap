@@ -17,6 +17,11 @@
 package io.cdap.cdap.report.main;
 
 import com.google.common.io.Closeables;
+import java.io.Closeable;
+import java.io.Flushable;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.EnumSet;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -26,17 +31,12 @@ import org.apache.twill.filesystem.Location;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.io.Flushable;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.EnumSet;
-
 /**
  * Represents output stream for the run meta avro file.
  */
 
 class RunMetaFileOutputStream implements Closeable, Flushable {
+
   private static final Logger LOG = LoggerFactory.getLogger(RunMetaFileOutputStream.class);
 
   private final Location location;
@@ -48,13 +48,14 @@ class RunMetaFileOutputStream implements Closeable, Flushable {
   private long fileSize;
 
   RunMetaFileOutputStream(Location location, String filePermissions,
-                          int syncIntervalBytes, long createTime, Closeable closeable) throws IOException {
+      int syncIntervalBytes, long createTime, Closeable closeable) throws IOException {
     this.location = location;
     this.closeable = closeable;
     Schema schema = ProgramRunInfoSerializer.SCHEMA;
     try {
       this.outputStream =
-        filePermissions.isEmpty() ? location.getOutputStream() : location.getOutputStream(filePermissions);
+          filePermissions.isEmpty() ? location.getOutputStream()
+              : location.getOutputStream(filePermissions);
       this.dataFileWriter = new DataFileWriter<>(new GenericDatumWriter<>(schema));
       this.dataFileWriter.create(schema, outputStream);
       this.dataFileWriter.setSyncInterval(syncIntervalBytes);
@@ -73,6 +74,7 @@ class RunMetaFileOutputStream implements Closeable, Flushable {
 
   /**
    * get create time of the file
+   *
    * @return create time
    */
   long getCreateTime() {
@@ -81,6 +83,7 @@ class RunMetaFileOutputStream implements Closeable, Flushable {
 
   /**
    * get the number of bytes written to output stream
+   *
    * @return file size
    */
   long getSize() {
@@ -95,7 +98,8 @@ class RunMetaFileOutputStream implements Closeable, Flushable {
   public void sync() throws IOException {
     flush();
     if (outputStream instanceof HdfsDataOutputStream) {
-      ((HdfsDataOutputStream) outputStream).hsync(EnumSet.of(HdfsDataOutputStream.SyncFlag.UPDATE_LENGTH));
+      ((HdfsDataOutputStream) outputStream).hsync(
+          EnumSet.of(HdfsDataOutputStream.SyncFlag.UPDATE_LENGTH));
     } else {
       outputStream.flush();
     }

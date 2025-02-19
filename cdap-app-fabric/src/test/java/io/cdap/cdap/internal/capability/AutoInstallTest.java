@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -16,6 +16,9 @@
 
 package io.cdap.cdap.internal.capability;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -31,18 +34,6 @@ import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.capability.autoinstall.HubPackage;
 import io.cdap.cdap.internal.capability.autoinstall.Spec;
 import io.cdap.cdap.proto.artifact.ArtifactRanges;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.BlockJUnit4ClassRunner;
-import org.mockito.Mockito;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
-import org.powermock.modules.junit4.PowerMockRunnerDelegate;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -54,9 +45,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.BlockJUnit4ClassRunner;
+import org.mockito.Mockito;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 
 /**
  * Tests for Auto install
@@ -78,8 +77,7 @@ public class AutoInstallTest {
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TEMP_FOLDER.newFolder().getAbsolutePath());
     cConf.setInt(Constants.Capability.AUTO_INSTALL_THREADS, 5);
     ArtifactRepository artifactRepository = PowerMockito.mock(ArtifactRepository.class);
-    RemoteClientFactory remoteClientFactory = new RemoteClientFactory(null,
-                                                                      new NoOpInternalAuthenticator());
+    RemoteClientFactory remoteClientFactory = new RemoteClientFactory(null, new NoOpInternalAuthenticator());
     CapabilityApplier capabilityApplier = new CapabilityApplier(null, null,
                                                                 null, null, null,
                                                                 artifactRepository, cConf, remoteClientFactory);
@@ -154,7 +152,6 @@ public class AutoInstallTest {
                                                    ImmutableSet.of());
     Mockito.verify(artifactRepository, Mockito.times(1)).writeArtifactProperties(artifact, properties);
     // Verify that temp file was deleted
-    PowerMockito.verifyStatic();
     java.nio.file.Files.deleteIfExists(mockPath);
   }
 
@@ -189,7 +186,7 @@ public class AutoInstallTest {
   }
 
   @Test
-  public void testDeserializeSpecJson() throws Exception {
+  public void testDeserializePluginSpecJson() throws Exception {
     Spec deserializedSpec = readFile("spec.json", Spec.class);
     List<Spec.Action.Argument> arguments = Arrays.asList(
       new Spec.Action.Argument("name", "my-plugin", false),
@@ -204,4 +201,21 @@ public class AutoInstallTest {
                                  Collections.singletonList("hydrator-plugin"), true, actions);
     Assert.assertEquals(expectedSpec, deserializedSpec);
   }
+
+  @Test
+  public void testDeserializePipelineSpecJson() throws Exception {
+    Spec deserializedSpec = readFile("spec2.json", Spec.class);
+    Map<String, String> artifactDetails = ImmutableMap.of("scope", "system", "name", "cdap-data-pipeline",
+        "version", "[6.4.0,7.0.0-SNAPSHOT)");
+    List<Spec.Action.Argument> arguments = Arrays.asList(
+        new Spec.Action.Argument("name", "my-pipeline", false),
+        new Spec.Action.Argument("config", "pipeline.json", false),
+        new Spec.Action.Argument("artifact", artifactDetails, false));
+    List<Spec.Action> actions = Collections.singletonList(
+        new Spec.Action("create_pipeline_draft", "Label", arguments));
+    Spec expectedSpec = new Spec("1.0", "Label", "Description", "Author",
+        "Org", 1603825065, "[6.1.1,7.0.0-SNAPSHOT)",
+        Collections.singletonList("hydrator-plugin"), true, actions);
+    Assert.assertEquals(expectedSpec, deserializedSpec);
+    }
 }

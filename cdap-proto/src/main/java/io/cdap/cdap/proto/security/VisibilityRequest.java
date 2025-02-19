@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto.security;
 
 import io.cdap.cdap.proto.id.EntityId;
-
 import java.util.Collections;
 import java.util.Set;
 
@@ -47,9 +46,9 @@ public class VisibilityRequest {
 
   @Override
   public String toString() {
-    return "VisibilityRequest {" +
-      "entityIds=" + entityIds +
-      ", principal=" + principal +
-      '}';
+    return "VisibilityRequest {"
+        + "entityIds=" + entityIds
+        + ", principal=" + principal
+        + '}';
   }
 }

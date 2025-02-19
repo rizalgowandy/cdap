@@ -28,22 +28,24 @@ import io.cdap.cdap.api.metrics.MetricValues;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.common.io.BinaryDecoder;
 import io.cdap.cdap.internal.io.ReflectionDatumReader;
-import io.cdap.cdap.messaging.data.RawMessage;
+import io.cdap.cdap.messaging.DefaultMessageFetchRequest;
+import io.cdap.cdap.messaging.spi.RawMessage;
 import io.cdap.cdap.metrics.MetricsTestBase;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Testing the basic properties of the {@link MessagingMetricsCollectionService}.
@@ -85,7 +87,9 @@ public class MessagingMetricsCollectionServiceTest extends MetricsTestBase {
     final Map<String, MetricValues> metrics = Maps.newHashMap();
     for (int i = 0; i < cConf.getInt(Constants.Metrics.MESSAGING_TOPIC_NUM); i++) {
     TopicId topicId = NamespaceId.SYSTEM.topic(TOPIC_PREFIX + i);
-      try (CloseableIterator<RawMessage> iterator = messagingService.prepareFetch(topicId).fetch()) {
+      try (CloseableIterator<RawMessage> iterator =
+          messagingService.fetch(
+              new DefaultMessageFetchRequest.Builder().setTopicId(topicId).build())) {
         while (iterator.hasNext()) {
           RawMessage message = iterator.next();
           MetricValues metricsRecord = (MetricValues) recordReader.read(
@@ -133,6 +137,10 @@ public class MessagingMetricsCollectionServiceTest extends MetricsTestBase {
 
   @Override
   protected List<Module> getAdditionalModules() {
-    return Collections.emptyList();
+    List<Module> modules = new ArrayList<>();
+    modules.add(new AuthorizationEnforcementModule().getNoOpModules());
+    modules.add(new NoOpAuditLogModule());
+
+    return modules;
   }
 }

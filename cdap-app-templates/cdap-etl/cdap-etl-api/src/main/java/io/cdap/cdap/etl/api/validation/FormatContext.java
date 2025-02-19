@@ -18,13 +18,13 @@ package io.cdap.cdap.etl.api.validation;
 
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.api.FailureCollector;
-
 import javax.annotation.Nullable;
 
 /**
  * Format context.
  */
 public class FormatContext {
+
   private final FailureCollector collector;
   private final Schema inputSchema;
 

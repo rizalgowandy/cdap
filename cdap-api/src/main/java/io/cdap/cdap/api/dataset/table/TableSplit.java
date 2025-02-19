@@ -18,7 +18,6 @@ package io.cdap.cdap.api.dataset.table;
 
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.data.batch.Split;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -54,10 +53,10 @@ public class TableSplit extends Split {
 
   @Override
   public String toString() {
-    return "TableSplit{" +
-      "start=" + Bytes.toStringBinary(start) +
-      ", stop=" + Bytes.toStringBinary(stop) +
-      '}';
+    return "TableSplit{"
+        + "start=" + Bytes.toStringBinary(start)
+        + ", stop=" + Bytes.toStringBinary(stop)
+        + '}';
   }
 
   @Override

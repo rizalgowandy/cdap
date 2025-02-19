@@ -44,6 +44,10 @@ import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.store.StoreDefinition;
 import io.cdap.cdap.test.SlowTests;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.apache.tephra.TransactionManager;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -52,11 +56,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests Distributed Log Reader.
@@ -83,8 +82,8 @@ public class TestDistributedLogReader extends KafkaTestBase {
     cConf.setInt(LoggingConfiguration.LOG_MAX_FILE_SIZE_BYTES, 20 * 1024);
     cConf.set(Constants.Logging.NUM_PARTITIONS, "2");
     cConf.set(LoggingConfiguration.KAFKA_PRODUCER_TYPE, "sync");
-    String logBaseDir = cConf.get(LoggingConfiguration.LOG_BASE_DIR) + "/" +
-      TestDistributedLogReader.class.getSimpleName();
+    String logBaseDir = cConf.get(LoggingConfiguration.LOG_BASE_DIR) + "/"
+        + TestDistributedLogReader.class.getSimpleName();
     cConf.set(LoggingConfiguration.LOG_BASE_DIR, logBaseDir);
 
     injector = KAFKA_TESTER.getInjector();
@@ -94,7 +93,8 @@ public class TestDistributedLogReader extends KafkaTestBase {
     // Unless the partitioner has changed, or more logging contexts added there should be no issue.
     Assert.assertEquals(1, stringPartitioner.partition(LOGGING_CONTEXT_BOTH.getLogPartition(), -1));
     Assert.assertEquals(0, stringPartitioner.partition(LOGGING_CONTEXT_FILE.getLogPartition(), -1));
-    Assert.assertEquals(1, stringPartitioner.partition(LOGGING_CONTEXT_KAFKA.getLogPartition(), -1));
+    Assert.assertEquals(1,
+        stringPartitioner.partition(LOGGING_CONTEXT_KAFKA.getLogPartition(), -1));
 
     txManager = injector.getInstance(TransactionManager.class);
     txManager.startAndWait();

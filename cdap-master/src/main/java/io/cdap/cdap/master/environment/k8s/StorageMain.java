@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Cask Data, Inc.
+ * Copyright © 2019-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -28,7 +28,8 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.data.runtime.ConstantTransactionSystemClient;
 import io.cdap.cdap.data.runtime.DataSetsModules;
@@ -43,17 +44,17 @@ import io.cdap.cdap.security.spi.authorization.NoOpAccessController;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.tephra.TransactionSystemClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.tephra.TransactionSystemClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * The main class for creating store definition. It can be used as a initialization step for each container.
+ * The main class for creating store definition. It can be used as a initialization step for each
+ * container.
  */
 public class StorageMain {
 
@@ -69,31 +70,33 @@ public class StorageMain {
 
     CoreSecurityModule coreSecurityModule = CoreSecurityRuntimeModule.getDistributedModule(cConf);
     List<Module> modules = new ArrayList<>(Arrays.asList(
-      new ConfigModule(cConf),
-      new SystemDatasetRuntimeModule().getStandaloneModules(),
-      // We actually only need the MetadataStore createIndex.
-      // But due to the DataSetsModules, we need to pull in more modules.
-      new DataSetsModules().getStandaloneModules(),
-      new InMemoryDiscoveryModule(),
-      new StorageModule(),
-      new DFSLocationModule(),
-      new IOModule(),
-      coreSecurityModule,
-      new AuthenticationContextModules().getMasterModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(AccessEnforcer.class).to(NoOpAccessController.class);
-          bind(TransactionSystemClient.class).to(ConstantTransactionSystemClient.class);
-          // The metrics collection service might not get started at this moment,
-          // so inject a NoopMetricsCollectionService.
-          bind(MetricsCollectionService.class).to(NoOpMetricsCollectionService.class).in(Scopes.SINGLETON);
+        new ConfigModule(cConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new SystemDatasetRuntimeModule().getStandaloneModules(),
+        // We actually only need the MetadataStore createIndex.
+        // But due to the DataSetsModules, we need to pull in more modules.
+        new DataSetsModules().getStandaloneModules(),
+        new InMemoryDiscoveryModule(),
+        new StorageModule(),
+        new DFSLocationModule(),
+        new IOModule(),
+        coreSecurityModule,
+        new AuthenticationContextModules().getMasterModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(AccessEnforcer.class).to(NoOpAccessController.class);
+            bind(TransactionSystemClient.class).to(ConstantTransactionSystemClient.class);
+            // The metrics collection service might not get started at this moment,
+            // so inject a NoopMetricsCollectionService.
+            bind(MetricsCollectionService.class).to(NoOpMetricsCollectionService.class)
+                .in(Scopes.SINGLETON);
+          }
         }
-      }
     ));
 
     if (coreSecurityModule.requiresZKClient()) {
-      modules.add(new ZKClientModule());
+      modules.add(new ZkClientModule());
     }
 
     Injector injector = Guice.createInjector(modules);

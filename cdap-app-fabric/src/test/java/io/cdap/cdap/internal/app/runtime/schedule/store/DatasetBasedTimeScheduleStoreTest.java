@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -28,6 +28,7 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.NamespaceAdminTestModule;
 import io.cdap.cdap.common.guice.NonCustomLocationUnitTestModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.data.runtime.DataFabricModules;
 import io.cdap.cdap.data.runtime.DataSetServiceModules;
 import io.cdap.cdap.data.runtime.DataSetsModules;
@@ -35,7 +36,6 @@ import io.cdap.cdap.data2.datafabric.dataset.service.DatasetService;
 import io.cdap.cdap.data2.datafabric.dataset.service.executor.DatasetOpExecutorService;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.internal.app.scheduler.LogPrintingJob;
 import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.proto.id.ApplicationId;
@@ -51,6 +51,12 @@ import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
 import io.cdap.cdap.store.StoreDefinition;
 import io.cdap.cdap.test.SlowTests;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.tephra.TransactionManager;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -72,13 +78,6 @@ import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.simpl.RAMJobStore;
 import org.quartz.simpl.SimpleThreadPool;
 import org.quartz.spi.JobStore;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 
 /**
  * Tests {@link DatasetBasedTimeScheduleStore} across scheduler restarts to verify we retain scheduler information
@@ -105,13 +104,13 @@ public class DatasetBasedTimeScheduleStoreTest {
     CConfiguration conf = CConfiguration.create();
     conf.set(Constants.CFG_LOCAL_DATA_DIR, TEMP_FOLDER.newFolder("data").getAbsolutePath());
     injector = Guice.createInjector(new ConfigModule(conf),
+                                    RemoteAuthenticatorModules.getNoOpModule(),
                                     new NonCustomLocationUnitTestModule(),
                                     new InMemoryDiscoveryModule(),
                                     new MetricsClientRuntimeModule().getInMemoryModules(),
                                     new DataFabricModules().getInMemoryModules(),
                                     new DataSetsModules().getStandaloneModules(),
                                     new DataSetServiceModules().getInMemoryModules(),
-                                    new ExploreClientModule(),
                                     new NamespaceAdminTestModule(),
                                     new AuthorizationTestModule(),
                                     new AuthorizationEnforcementModule().getInMemoryModules(),
@@ -418,14 +417,14 @@ public class DatasetBasedTimeScheduleStoreTest {
   }
 
   private JobDetail getJobDetail(String jobGroup, String jobName, @Nullable String appVersion) {
-    String identity = Strings.isNullOrEmpty(appVersion) ?
-      String.format("developer:application1:flow:%s", jobName) :
-      String.format("developer:application1:%s:flow:%s", appVersion, jobName);
+    String identity = Strings.isNullOrEmpty(appVersion)
+        ? String.format("developer:application1:flow:%s", jobName) :
+        String.format("developer:application1:%s:flow:%s", appVersion, jobName);
 
     return JobBuilder.newJob(LogPrintingJob.class)
-      .withIdentity(identity, jobGroup)
-      .storeDurably()
-      .build();
+        .withIdentity(identity, jobGroup)
+        .storeDurably()
+        .build();
   }
 
   @AfterClass

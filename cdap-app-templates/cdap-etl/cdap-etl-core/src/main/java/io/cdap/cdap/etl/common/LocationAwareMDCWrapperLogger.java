@@ -16,15 +16,15 @@
 
 package io.cdap.cdap.etl.common;
 
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 import org.slf4j.Marker;
 import org.slf4j.spi.LocationAwareLogger;
 
-import javax.annotation.Nullable;
-
 /**
- * {@link LocationAwareLogger} which wraps the emitting of log messages with MDC put and remove operations.
+ * {@link LocationAwareLogger} which wraps the emitting of log messages with MDC put and remove
+ * operations.
  */
 public class LocationAwareMDCWrapperLogger implements Logger, LocationAwareLogger {
 
@@ -523,7 +523,7 @@ public class LocationAwareMDCWrapperLogger implements Logger, LocationAwareLogge
 
   @Override
   public void log(@Nullable Marker marker, String fqcn, int level,
-                  String message, @Nullable Object[] args, @Nullable Throwable t) {
+      String message, @Nullable Object[] args, @Nullable Throwable t) {
     if (logger instanceof LocationAwareLogger) {
       ((LocationAwareLogger) logger).log(marker, fqcn, level, message, args, t);
       return;

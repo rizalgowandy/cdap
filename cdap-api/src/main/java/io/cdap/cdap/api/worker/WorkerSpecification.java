@@ -21,7 +21,6 @@ import io.cdap.cdap.api.Resources;
 import io.cdap.cdap.api.common.PropertyProvider;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.plugin.Plugin;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,14 +30,17 @@ import java.util.Set;
 /**
  * Specification for {@link Worker}s.
  */
-public final class WorkerSpecification extends AbstractProgramSpecification implements PropertyProvider {
+public final class WorkerSpecification extends AbstractProgramSpecification implements
+    PropertyProvider {
+
   private final Map<String, String> properties;
   private final Set<String> datasets;
   private final Resources resources;
   private final int instances;
 
-  public WorkerSpecification(String className, String name, String description, Map<String, String> properties,
-                             Set<String> datasets, Resources resources, int instances, Map<String, Plugin> plugins) {
+  public WorkerSpecification(String className, String name, String description,
+      Map<String, String> properties,
+      Set<String> datasets, Resources resources, int instances, Map<String, Plugin> plugins) {
     super(className, name, description, plugins);
     this.properties = Collections.unmodifiableMap(new HashMap<>(properties));
     this.datasets = Collections.unmodifiableSet(new HashSet<>(datasets));

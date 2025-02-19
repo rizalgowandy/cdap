@@ -22,14 +22,12 @@ import io.cdap.cdap.data2.dataset2.DatasetFrameworkTestUtil;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.StructuredTableConcurrencyTest;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.tephra.TransactionManager;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-
-import java.io.IOException;
 
 /**
  * Tests concurrent operations on {@link NoSqlStructuredTable}.
@@ -54,7 +52,7 @@ public class NoSqlStructuredTableConcurrencyTest extends StructuredTableConcurre
 
   @BeforeClass
   public static void beforeClass() throws IOException {
-    Configuration txConf = HBaseConfiguration.create();
+    Configuration txConf = new Configuration();
     txManager = new TransactionManager(txConf);
     txManager.startAndWait();
 

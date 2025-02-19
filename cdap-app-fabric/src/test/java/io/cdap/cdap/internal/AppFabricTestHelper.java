@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2020 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -70,29 +70,24 @@ import io.cdap.cdap.internal.app.runtime.SimpleProgramOptions;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.runtime.artifact.Artifacts;
 import io.cdap.cdap.internal.app.services.ProgramNotificationSubscriberService;
+import io.cdap.cdap.internal.app.services.ProgramStopSubscriberService;
 import io.cdap.cdap.internal.guice.AppFabricTestModule;
-import io.cdap.cdap.messaging.MessagingService;
 import io.cdap.cdap.messaging.data.MessageId;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.metadata.MetadataService;
 import io.cdap.cdap.metadata.MetadataSubscriberService;
+import io.cdap.cdap.proto.ApplicationDetail;
 import io.cdap.cdap.proto.NamespaceMeta;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
+import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.scheduler.CoreSchedulerService;
 import io.cdap.cdap.scheduler.Scheduler;
-import io.cdap.cdap.security.authorization.InMemoryAccessController;
+import io.cdap.cdap.security.authorization.InMemoryAccessControllerV2;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
-import io.cdap.cdap.spi.data.TableAlreadyExistsException;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.tephra.TransactionManager;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.Assert;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -103,6 +98,13 @@ import java.util.function.BiConsumer;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import javax.annotation.Nullable;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.tephra.TransactionManager;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.Assert;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * This is helper class to make calls to AppFabricHttpHandler methods directly.
@@ -127,6 +129,15 @@ public class AppFabricTestHelper {
         // no overrides
       }
     });
+  }
+
+  public static <T extends Service> T getService(Class<T> clazz) {
+    for (Service service : services) {
+      if (clazz.isAssignableFrom(service.getClass())) {
+        return (T) service;
+      }
+    }
+    return null;
   }
 
   public static Injector getInjector(CConfiguration cConf, Module overrides) {
@@ -182,6 +193,7 @@ public class AppFabricTestHelper {
       startService(injector, MetricsCollectionService.class);
       startService(injector, MetadataSubscriberService.class);
       startService(injector, ProgramNotificationSubscriberService.class);
+      startService(injector, ProgramStopSubscriberService.class);
 
       Scheduler programScheduler = startService(injector, Scheduler.class);
 
@@ -246,15 +258,6 @@ public class AppFabricTestHelper {
     ensureNamespaceExists(namespaceId, CConfiguration.create());
   }
 
-  private static <T> T startService(Injector injector, Class<T> cls) {
-    T instance = injector.getInstance(cls);
-    if (instance instanceof Service) {
-      services.add((Service) instance);
-      ((Service) instance).startAndWait();
-    }
-    return instance;
-  }
-
   private static void ensureNamespaceExists(NamespaceId namespaceId, CConfiguration cConf) throws Exception {
     NamespaceAdmin namespaceAdmin = getInjector(cConf).getInstance(NamespaceAdmin.class);
     try {
@@ -267,6 +270,15 @@ public class AppFabricTestHelper {
         throw new IllegalStateException("Failed to create namespace " + namespaceId.getNamespace(), e);
       }
     }
+  }
+
+  private static <T> T startService(Injector injector, Class<T> cls) {
+    T instance = injector.getInstance(cls);
+    if (instance instanceof Service) {
+      services.add((Service) instance);
+      ((Service) instance).startAndWait();
+    }
+    return instance;
   }
 
   public static void deployApplication(Id.Namespace namespace, Class<?> applicationClz,
@@ -283,6 +295,13 @@ public class AppFabricTestHelper {
     deployedJar.delete(true);
   }
 
+  public static ApplicationDetail getAppInfo(Id.Namespace namespace, String appName, CConfiguration cConf)
+    throws Exception {
+    ensureNamespaceExists(namespace.toEntityId(), cConf);
+    AppFabricClient appFabricClient = getInjector(cConf).getInstance(AppFabricClient.class);
+    ApplicationId appId = new ApplicationId(namespace.getId(), appName);
+    return appFabricClient.getInfo(appId);
+  }
 
   public static ApplicationWithPrograms deployApplicationWithManager(Class<?> appClass,
                                                                      Supplier<File> folderSupplier) throws Exception {
@@ -312,10 +331,13 @@ public class AppFabricTestHelper {
     artifactRepository.addArtifact(Id.Artifact.fromEntityId(Artifacts.toProtoArtifactId(namespaceId, artifactId)),
                                    new File(deployedJar.toURI()));
     ApplicationClass applicationClass = new ApplicationClass(appClass.getName(), "", null);
-    AppDeploymentInfo info = new AppDeploymentInfo(Artifacts.toProtoArtifactId(namespaceId, artifactId),
-                                                   deployedJar, namespaceId,
-                                                   applicationClass, null, null,
-                                                   config == null ? null : new Gson().toJson(config));
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(Artifacts.toProtoArtifactId(namespaceId, artifactId))
+      .setArtifactLocation(deployedJar)
+      .setNamespaceId(namespaceId).setApplicationClass(applicationClass)
+      .setConfigString(config == null ? null : new Gson().toJson(config))
+      .setChangeDetail(new ChangeDetail(null, null, null, System.currentTimeMillis()))
+      .build();
     return getLocalManager().deploy(info).get();
   }
 
@@ -401,10 +423,10 @@ public class AppFabricTestHelper {
     confSetter.accept(Constants.Security.KERBEROS_ENABLED, Boolean.toString(false));
     confSetter.accept(Constants.Security.Authorization.ENABLED, Boolean.toString(true));
     Manifest manifest = new Manifest();
-    manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, InMemoryAccessController.class.getName());
+    manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, InMemoryAccessControllerV2.class.getName());
     LocationFactory locationFactory = new LocalLocationFactory(temporaryFolder.newFolder());
     Location externalAuthJar = AppJarHelper.createDeploymentJar(
-      locationFactory, InMemoryAccessController.class, manifest);
+      locationFactory, InMemoryAccessControllerV2.class, manifest);
     confSetter.accept(Constants.Security.Authorization.EXTENSION_JAR_PATH, externalAuthJar.toString());
     confSetter.accept(Constants.Security.Authorization.EXTENSION_CONFIG_PREFIX + "superusers",
               UserGroupInformation.getCurrentUser().getShortUserName());

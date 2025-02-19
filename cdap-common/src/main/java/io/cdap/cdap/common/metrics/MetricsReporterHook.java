@@ -20,9 +20,12 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
+import io.cdap.cdap.api.feature.FeatureFlagsProvider;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.metrics.MetricsContext;
+import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.feature.DefaultFeatureFlagsProvider;
 import io.cdap.cdap.common.http.HttpHeaderNames;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.http.AbstractHandlerHook;
@@ -30,34 +33,41 @@ import io.cdap.http.HttpResponder;
 import io.cdap.http.internal.HandlerInfo;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Records gateway requests/response metrics.
  */
 public class MetricsReporterHook extends AbstractHandlerHook {
+
   private static final Logger LOG = LoggerFactory.getLogger(MetricsReporterHook.class);
+  private static final Pattern NAMESPACE_PATTERN = Pattern.compile("/namespaces/([^/]+)");
   private static final String LATENCY_METRIC_NAME = "response.latency";
 
   private final String serviceName;
   private final LoadingCache<Map<String, String>, MetricsContext> collectorCache;
 
-  public MetricsReporterHook(MetricsCollectionService metricsCollectionService, String serviceName) {
-    this.serviceName = serviceName;
+  private final FeatureFlagsProvider featureFlagsProvider;
 
+  public MetricsReporterHook(CConfiguration cConf,
+      MetricsCollectionService metricsCollectionService, String serviceName) {
+    this.serviceName = serviceName;
+    this.featureFlagsProvider = new DefaultFeatureFlagsProvider(cConf);
     if (metricsCollectionService != null) {
       this.collectorCache = CacheBuilder.newBuilder()
-        .expireAfterAccess(1, TimeUnit.HOURS)
-        .build(new CacheLoader<Map<String, String>, MetricsContext>() {
-          @Override
-          public MetricsContext load(Map<String, String> key) {
-            return metricsCollectionService.getContext(key);
-          }
-        });
+          .expireAfterAccess(1, TimeUnit.HOURS)
+          .build(new CacheLoader<Map<String, String>, MetricsContext>() {
+            @Override
+            public MetricsContext load(Map<String, String> key) {
+              return metricsCollectionService.getContext(key);
+            }
+          });
     } else {
       collectorCache = null;
     }
@@ -65,11 +75,12 @@ public class MetricsReporterHook extends AbstractHandlerHook {
 
   @Override
   public boolean preCall(HttpRequest request, HttpResponder responder, HandlerInfo handlerInfo) {
+
     if (collectorCache == null) {
       return true;
     }
     try {
-      MetricsContext collector = collectorCache.get(createContext(handlerInfo));
+      MetricsContext collector = collectorCache.get(createContext(request, handlerInfo));
       collector.increment("request.received", 1);
       request.headers().add(HttpHeaderNames.CDAP_REQ_TIMESTAMP_HDR, System.nanoTime());
     } catch (Throwable e) {
@@ -84,7 +95,7 @@ public class MetricsReporterHook extends AbstractHandlerHook {
       return;
     }
     try {
-      MetricsContext collector = collectorCache.get(createContext(handlerInfo));
+      MetricsContext collector = collectorCache.get(createContext(request, handlerInfo));
       String name;
       int code = status.code();
       if (code < 100) {
@@ -119,17 +130,30 @@ public class MetricsReporterHook extends AbstractHandlerHook {
     }
   }
 
-  private Map<String, String> createContext(HandlerInfo handlerInfo) {
+  private Map<String, String> createContext(HttpRequest request, HandlerInfo handlerInfo) {
     // todo: really inefficient to call this on the intense data flow path
     return ImmutableMap.of(
-      Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getEntityName(),
-      Constants.Metrics.Tag.COMPONENT, serviceName,
-      Constants.Metrics.Tag.HANDLER, getSimpleName(handlerInfo.getHandlerName()),
-      Constants.Metrics.Tag.METHOD, handlerInfo.getMethodName());
+        Constants.Metrics.Tag.NAMESPACE, getNamespaceFromUriIfPresent(request.uri()),
+        Constants.Metrics.Tag.COMPONENT, serviceName,
+        Constants.Metrics.Tag.HANDLER, getSimpleName(handlerInfo.getHandlerName()),
+        Constants.Metrics.Tag.METHOD, handlerInfo.getMethodName());
   }
 
   private String getSimpleName(String className) {
     int ind = className.lastIndexOf('.');
     return className.substring(ind + 1);
+  }
+
+  private static String getNamespaceFromUriIfPresent(@Nullable final String uri) {
+    if (uri == null || uri.isEmpty()) {
+      return NamespaceId.SYSTEM.getEntityName();
+    }
+
+    Matcher matcher = NAMESPACE_PATTERN.matcher(uri);
+    if (matcher.find()) {
+      return matcher.group(1);
+    }
+
+    return NamespaceId.SYSTEM.getEntityName();
   }
 }

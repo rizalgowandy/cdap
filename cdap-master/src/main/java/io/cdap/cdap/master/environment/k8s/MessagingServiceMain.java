@@ -29,18 +29,15 @@ import io.cdap.cdap.common.logging.ServiceLoggingContext;
 import io.cdap.cdap.common.namespace.guice.NamespaceQueryAdminModule;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
 import io.cdap.cdap.messaging.server.MessagingHttpService;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
-import io.cdap.cdap.security.impersonation.SecurityUtil;
-import org.apache.twill.zookeeper.ZKClientService;
-
 import java.util.Arrays;
 import java.util.List;
 import javax.annotation.Nullable;
+import org.apache.twill.zookeeper.ZKClientService;
 
 /**
  * Main class for running {@link MessagingService} in Kubernetes.
@@ -56,33 +53,30 @@ public class MessagingServiceMain extends AbstractServiceMain<EnvironmentOptions
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options, CConfiguration cConf) {
+      EnvironmentOptions options, CConfiguration cConf) {
     // We use the "local" module in K8s, as PV will be used as the persistent storage.
     return Arrays.asList(
-      new NamespaceQueryAdminModule(),
-      new AuthorizationEnforcementModule().getDistributedModules(),
-      new MessagingServerRuntimeModule().getStandaloneModules(),
-      new DFSLocationModule()
+        new NamespaceQueryAdminModule(),
+        new AuthorizationEnforcementModule().getDistributedModules(),
+        new MessagingServerRuntimeModule().getStandaloneModules(),
+        new DFSLocationModule()
     );
   }
 
   @Override
   protected void addServices(Injector injector, List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources,
-                             MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
-                             EnvironmentOptions options) {
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
+      EnvironmentOptions options) {
     MessagingService messagingService = injector.getInstance(MessagingService.class);
     if (messagingService instanceof Service) {
       services.add((Service) messagingService);
     }
     services.add(injector.getInstance(MessagingHttpService.class));
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
-    }
-    CConfiguration cConf = injector.getInstance(CConfiguration.class);
-    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
-      services.add(injector.getInstance(TokenManager.class));
     }
   }
 
@@ -90,7 +84,7 @@ public class MessagingServiceMain extends AbstractServiceMain<EnvironmentOptions
   @Override
   protected LoggingContext getLoggingContext(EnvironmentOptions options) {
     return new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                     Constants.Logging.COMPONENT_NAME,
-                                     Constants.Service.MESSAGING_SERVICE);
+        Constants.Logging.COMPONENT_NAME,
+        Constants.Service.MESSAGING_SERVICE);
   }
 }

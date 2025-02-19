@@ -16,6 +16,11 @@
 
 package io.cdap.cdap.internal.app.runtime.batch.dataset.input;
 
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
@@ -27,12 +32,6 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringInterner;
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.DataOutputStream;
-import java.io.IOException;
-
 /**
  * An {@link InputSplit} that tags another InputSplit with extra data.
  */
@@ -41,7 +40,8 @@ public abstract class TaggedInputSplit extends InputSplit implements Configurabl
   private InputSplit inputSplit;
   private Configuration conf;
 
-  TaggedInputSplit() { }
+  TaggedInputSplit() {
+  }
 
   /**
    * Creates a new TaggedInputSplit.
@@ -55,22 +55,20 @@ public abstract class TaggedInputSplit extends InputSplit implements Configurabl
   }
 
   /**
-   * Implemented by subclasses to deserialize additional fields from this TaggedInputSplit.
-   * Note that the order of fields read must be the same as they are written
-   * by {@link #writeAdditionalFields(DataOutput)}
+   * Implemented by subclasses to deserialize additional fields from this TaggedInputSplit. Note
+   * that the order of fields read must be the same as they are written by {@link
+   * #writeAdditionalFields(DataOutput)}
    *
    * @param in the DataInput to read the fields from
-   * @throws IOException
    */
   protected abstract void readAdditionalFields(DataInput in) throws IOException;
 
   /**
-   * Implemented by subclasses to serialize additional fields to this TaggedInputSplit.
-   * Note that the order of fields written must be the same as they are read
-   * by {@link #readAdditionalFields(DataInput)}.
+   * Implemented by subclasses to serialize additional fields to this TaggedInputSplit. Note that
+   * the order of fields written must be the same as they are read by {@link
+   * #readAdditionalFields(DataInput)}.
    *
    * @param out the DataOutput to write the fields to
-   * @throws IOException
    */
   protected abstract void writeAdditionalFields(DataOutput out) throws IOException;
 

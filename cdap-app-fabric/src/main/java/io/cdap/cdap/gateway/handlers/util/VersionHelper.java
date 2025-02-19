@@ -20,18 +20,18 @@ import com.google.common.io.Resources;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.internal.app.spark.SparkCompatReader;
 import io.cdap.cdap.proto.ClientVersion;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.apache.hadoop.util.VersionInfo;
 import org.apache.zookeeper.version.Info;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
 /**
  * Util class to determine version of clients CDAP is using
  */
 public class VersionHelper {
+
   private static final Logger LOG = LoggerFactory.getLogger(VersionHelper.class);
 
   private VersionHelper() {
@@ -55,7 +55,7 @@ public class VersionHelper {
 
   public static ClientVersion getZooKeeperVersion() {
     return new ClientVersion("zookeeper",
-                             String.format("%d.%d.%d.%d", Info.MAJOR, Info.MINOR, Info.MICRO, Info.REVISION));
+        String.format("%d.%d.%d.%d", Info.MAJOR, Info.MINOR, Info.MICRO, Info.REVISION));
   }
 
   public static ClientVersion getSparkVersion(CConfiguration cConf) {

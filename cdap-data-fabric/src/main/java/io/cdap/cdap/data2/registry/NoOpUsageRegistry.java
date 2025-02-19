@@ -20,7 +20,6 @@ import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.ProgramId;
-
 import java.util.Collections;
 import java.util.Set;
 
@@ -30,16 +29,20 @@ import java.util.Set;
 public class NoOpUsageRegistry implements UsageRegistry {
 
   @Override
-  public void registerAll(final Iterable<? extends EntityId> users, final DatasetId datasetId) { }
+  public void registerAll(final Iterable<? extends EntityId> users, final DatasetId datasetId) {
+  }
 
   @Override
-  public void register(EntityId user, DatasetId datasetId) { }
+  public void register(EntityId user, DatasetId datasetId) {
+  }
 
   @Override
-  public void register(final ProgramId programId, final DatasetId datasetInstanceId) { }
+  public void register(final ProgramId programId, final DatasetId datasetInstanceId) {
+  }
 
   @Override
-  public void unregister(final ApplicationId applicationId) { }
+  public void unregister(final ApplicationId applicationId) {
+  }
 
   @Override
   public Set<DatasetId> getDatasets(final ApplicationId id) {

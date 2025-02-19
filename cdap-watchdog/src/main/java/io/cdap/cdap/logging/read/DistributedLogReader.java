@@ -23,22 +23,22 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.logging.appender.kafka.StringPartitioner;
 import io.cdap.cdap.logging.filter.Filter;
-import io.cdap.cdap.logging.meta.CheckpointManager;
-import io.cdap.cdap.logging.meta.CheckpointManagerFactory;
+import io.cdap.cdap.logging.meta.KafkaCheckpointManager;
+import io.cdap.cdap.spi.data.transaction.TransactionRunner;
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 
 /**
  * Reads logs in a distributed setup, using kafka for latest logs and files for older logs.
  */
 public final class DistributedLogReader implements LogReader {
+
   private static final Logger LOG = LoggerFactory.getLogger(DistributedLogReader.class);
 
   private final KafkaLogReader kafkaLogReader;
   private final FileLogReader fileLogReader;
-  private final CheckpointManager checkpointManager;
+  private final KafkaCheckpointManager checkpointManager;
   private final StringPartitioner partitioner;
 
   /**
@@ -46,19 +46,21 @@ public final class DistributedLogReader implements LogReader {
    */
   @Inject
   DistributedLogReader(CConfiguration cConf,
-                       KafkaLogReader kafkaLogReader, FileLogReader fileLogReader,
-                       CheckpointManagerFactory checkpointManagerFactory, StringPartitioner partitioner) {
+      KafkaLogReader kafkaLogReader, FileLogReader fileLogReader,
+      StringPartitioner partitioner,
+      TransactionRunner txRunner) {
     this.kafkaLogReader = kafkaLogReader;
     this.fileLogReader = fileLogReader;
-    this.checkpointManager = checkpointManagerFactory.create(Constants.Logging.SYSTEM_PIPELINE_CHECKPOINT_PREFIX +
-                                                             cConf.get(Constants.Logging.KAFKA_TOPIC),
-                                                             CheckpointManagerFactory.Type.KAFKA);
+    String prefix = Constants.Logging.SYSTEM_PIPELINE_CHECKPOINT_PREFIX + cConf.get(
+        Constants.Logging.KAFKA_TOPIC);
+    this.checkpointManager = new KafkaCheckpointManager(txRunner, prefix);
     this.partitioner = partitioner;
   }
 
   @Override
-  public void getLogNext(final LoggingContext loggingContext, final ReadRange readRange, final int maxEvents,
-                         final Filter filter, final Callback callback) {
+  public void getLogNext(final LoggingContext loggingContext, final ReadRange readRange,
+      final int maxEvents,
+      final Filter filter, final Callback callback) {
     // If latest logs are not requested, try reading from file.
     if (readRange != ReadRange.LATEST) {
       long checkpointTime = getCheckpointTime(loggingContext);
@@ -86,8 +88,9 @@ public final class DistributedLogReader implements LogReader {
   }
 
   @Override
-  public void getLogPrev(final LoggingContext loggingContext, final ReadRange readRange, final int maxEvents,
-                              final Filter filter, final Callback callback) {
+  public void getLogPrev(final LoggingContext loggingContext, final ReadRange readRange,
+      final int maxEvents,
+      final Filter filter, final Callback callback) {
     // If latest logs are not requested, try reading from file.
     if (readRange != ReadRange.LATEST) {
       long checkpointTime = getCheckpointTime(loggingContext);
@@ -112,8 +115,9 @@ public final class DistributedLogReader implements LogReader {
   }
 
   @Override
-  public CloseableIterator<LogEvent> getLog(LoggingContext loggingContext, long fromTimeMs, long toTimeMs,
-                                            Filter filter) {
+  public CloseableIterator<LogEvent> getLog(LoggingContext loggingContext, long fromTimeMs,
+      long toTimeMs,
+      Filter filter) {
     return fileLogReader.getLog(loggingContext, fromTimeMs, toTimeMs, filter);
   }
 

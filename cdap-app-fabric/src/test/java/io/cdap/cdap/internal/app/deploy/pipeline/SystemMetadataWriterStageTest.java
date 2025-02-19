@@ -44,6 +44,13 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.spi.metadata.MetadataKind;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.spi.metadata.Read;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.twill.filesystem.LocalLocationFactory;
 import org.apache.twill.filesystem.Location;
 import org.apache.twill.filesystem.LocationFactory;
@@ -53,14 +60,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Tests for {@link MetadataWriterStage}.
@@ -101,20 +100,24 @@ public class SystemMetadataWriterStageTest {
     systemMetadataWriterStage.process(stageContext);
     systemMetadataWriterStage.process(appWithPrograms);
 
-    Assert.assertEquals(false, metadataStorage.read(new Read(appId.workflow(workflowName).toMetadataEntity(),
-                                                             MetadataScope.SYSTEM, MetadataKind.TAG)).isEmpty());
+    Assert.assertEquals(false,
+        metadataStorage.read(new Read(appId.workflow(workflowName).toMetadataEntity(),
+            MetadataScope.SYSTEM, MetadataKind.TAG)).isEmpty());
     Set<String> workflowSystemTags = metadataStorage
-      .read(new Read(appId.workflow(workflowName).toMetadataEntity())).getTags(MetadataScope.SYSTEM);
-    Sets.SetView<String> intersection = Sets.intersection(workflowSystemTags, getWorkflowForkNodes(workflowSpec));
-    Assert.assertTrue("Workflows should not be tagged with fork node names, but found the following fork nodes " +
-                        "in the workflow's system tags: " + intersection, intersection.isEmpty());
+        .read(new Read(appId.workflow(workflowName).toMetadataEntity()))
+        .getTags(MetadataScope.SYSTEM);
+    Sets.SetView<String> intersection = Sets.intersection(workflowSystemTags,
+        getWorkflowForkNodes(workflowSpec));
+    Assert.assertTrue(
+        "Workflows should not be tagged with fork node names, but found the following fork nodes "
+            + "in the workflow's system tags: " + intersection, intersection.isEmpty());
 
     Assert.assertEquals(false, metadataStorage.read(new Read(appId.toMetadataEntity(),
-                                                             MetadataScope.SYSTEM, MetadataKind.PROPERTY)).isEmpty());
+        MetadataScope.SYSTEM, MetadataKind.PROPERTY)).isEmpty());
     Map<String, String> metadataProperties = metadataStorage
-      .read(new Read(appId.toMetadataEntity())).getProperties(MetadataScope.SYSTEM);
+        .read(new Read(appId.toMetadataEntity())).getProperties(MetadataScope.SYSTEM);
     Assert.assertEquals(WorkflowAppWithFork.SCHED_NAME + ":testDescription",
-                        metadataProperties.get("schedule:" + WorkflowAppWithFork.SCHED_NAME));
+        metadataProperties.get("schedule:" + WorkflowAppWithFork.SCHED_NAME));
   }
 
   @Test

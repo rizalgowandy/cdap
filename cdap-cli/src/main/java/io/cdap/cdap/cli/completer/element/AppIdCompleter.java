@@ -23,7 +23,6 @@ import io.cdap.cdap.client.ApplicationClient;
 import io.cdap.cdap.proto.ApplicationRecord;
 import io.cdap.cdap.security.spi.authentication.UnauthenticatedException;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +40,8 @@ public class AppIdCompleter extends StringsCompleter {
       @Override
       public Collection<String> get() {
         try {
-          List<ApplicationRecord> appsList = applicationClient.list(cliConfig.getCurrentNamespace());
+          List<ApplicationRecord> appsList = applicationClient.list(
+              cliConfig.getCurrentNamespace());
           List<String> appIds = new ArrayList<>();
           for (ApplicationRecord item : appsList) {
             appIds.add(item.getName());

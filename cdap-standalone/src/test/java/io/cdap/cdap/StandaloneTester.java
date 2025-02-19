@@ -25,15 +25,8 @@ import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.common.utils.Networks;
 import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
-import io.cdap.cdap.internal.app.runtime.artifact.DefaultArtifactRepository;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.apache.hadoop.conf.Configuration;
-import org.junit.rules.ExternalResource;
-import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
@@ -46,6 +39,11 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class helps writing tests that needs {@link StandaloneMain} up and running.
@@ -75,8 +73,6 @@ public class StandaloneTester extends ExternalResource {
     cConf.set(Constants.Router.ADDRESS, getLocalHostname());
     cConf.setInt(Constants.Router.ROUTER_PORT, Networks.getRandomPort());
     cConf.setBoolean(Constants.Dangerous.UNRECOVERABLE_RESET, true);
-    cConf.setBoolean(Constants.Explore.EXPLORE_ENABLED, true);
-    cConf.setBoolean(Constants.Explore.START_ON_DEMAND, false);
     cConf.setBoolean(StandaloneMain.DISABLE_UI, true);
     cConf.setBoolean(Constants.Audit.ENABLED, false);
 

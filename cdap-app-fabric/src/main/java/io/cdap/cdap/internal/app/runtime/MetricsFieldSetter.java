@@ -17,7 +17,6 @@ package io.cdap.cdap.internal.app.runtime;
 
 import io.cdap.cdap.api.metrics.Metrics;
 import io.cdap.cdap.internal.lang.FieldVisitor;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 
@@ -33,7 +32,8 @@ public final class MetricsFieldSetter extends FieldVisitor {
   }
 
   @Override
-  public void visit(Object instance, Type inspectType, Type declareType, Field field) throws Exception {
+  public void visit(Object instance, Type inspectType, Type declareType, Field field)
+      throws Exception {
     if (Metrics.class.equals(field.getType())) {
       field.set(instance, metrics);
     }

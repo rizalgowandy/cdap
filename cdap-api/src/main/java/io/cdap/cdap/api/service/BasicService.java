@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.service;
 
 import io.cdap.cdap.api.service.http.HttpServiceHandler;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -30,7 +29,7 @@ public class BasicService extends AbstractService {
   private final String name;
   private final List<HttpServiceHandler> handlers;
 
-  public BasicService(String name, HttpServiceHandler handler, HttpServiceHandler...handlers) {
+  public BasicService(String name, HttpServiceHandler handler, HttpServiceHandler... handlers) {
     this.name = name;
     this.handlers = new ArrayList<>();
     this.handlers.add(handler);

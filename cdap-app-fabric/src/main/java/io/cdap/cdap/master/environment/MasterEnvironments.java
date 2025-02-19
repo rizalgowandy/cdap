@@ -26,9 +26,8 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import org.apache.hadoop.conf.Configuration;
-
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
 
 /**
  * Utility class for {@link MasterEnvironment} operations.
@@ -45,7 +44,8 @@ public final class MasterEnvironments {
    * @return a new, initialized instance
    * @throws NotFoundException if the master environment of the given name does not exist
    */
-  public static MasterEnvironment create(CConfiguration cConf, String envName) throws NotFoundException {
+  public static MasterEnvironment create(CConfiguration cConf, String envName)
+      throws NotFoundException {
     MasterEnvironmentExtensionLoader loader = new MasterEnvironmentExtensionLoader(cConf);
     MasterEnvironment masterEnv = loader.get(envName);
     if (masterEnv == null) {
@@ -55,7 +55,8 @@ public final class MasterEnvironments {
   }
 
   /**
-   * Sets the given {@link MasterEnvironment} to a inheritable thread local, or pass in {@code null} to unset it.
+   * Sets the given {@link MasterEnvironment} to a inheritable thread local, or pass in {@code null}
+   * to unset it.
    *
    * @return the provided {@link MasterEnvironment}
    */
@@ -69,8 +70,8 @@ public final class MasterEnvironments {
   }
 
   /**
-   * Gets the {@link MasterEnvironment} that was set earlier by the {@link #setMasterEnvironment(MasterEnvironment)}
-   * method.
+   * Gets the {@link MasterEnvironment} that was set earlier by the {@link
+   * #setMasterEnvironment(MasterEnvironment)} method.
    *
    * @return the {@link MasterEnvironment} that was set earlier or {@code null} if it was not set
    */
@@ -83,17 +84,18 @@ public final class MasterEnvironments {
    * Creates a new {@link MasterEnvironmentContext} from the given configurations.
    */
   public static MasterEnvironmentContext createContext(CConfiguration cConf, Configuration hConf,
-                                                       String masterEnvName) {
+      String masterEnvName) {
     Injector injector = Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new DFSLocationModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bindConstant().annotatedWith(Names.named(DefaultMasterEnvironmentContext.MASTER_ENV_NAME)).to(masterEnvName);
-          bind(MasterEnvironmentContext.class).to(DefaultMasterEnvironmentContext.class);
-        }
-      });
+        new ConfigModule(cConf, hConf),
+        new DFSLocationModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bindConstant().annotatedWith(
+                Names.named(DefaultMasterEnvironmentContext.MASTER_ENV_NAME)).to(masterEnvName);
+            bind(MasterEnvironmentContext.class).to(DefaultMasterEnvironmentContext.class);
+          }
+        });
     return injector.getInstance(MasterEnvironmentContext.class);
   }
 

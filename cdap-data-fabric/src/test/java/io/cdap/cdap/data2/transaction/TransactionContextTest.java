@@ -19,6 +19,11 @@ package io.cdap.cdap.data2.transaction;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionAware;
@@ -34,12 +39,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Unit test for {@link AbstractTransactionContext}.
@@ -590,11 +589,11 @@ public class TransactionContextTest {
   static class DummyTxAware implements TransactionAware {
 
     Transaction tx;
-    boolean started = false;
-    boolean committed = false;
-    boolean checked = false;
-    boolean rolledBack = false;
-    boolean postCommitted = false;
+    boolean started;
+    boolean committed;
+    boolean checked;
+    boolean rolledBack;
+    boolean postCommitted;
     List<byte[]> changes = Lists.newArrayList();
 
     InduceFailure failStartTxOnce = InduceFailure.NoFailure;

@@ -18,7 +18,6 @@ package io.cdap.cdap.data2.metadata.system;
 
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.proto.id.NamespacedEntityId;
-
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -31,8 +30,8 @@ public class DelegateSystemMetadataWriter extends AbstractSystemMetadataWriter {
   private final SystemMetadataProvider metadataProvider;
 
   public DelegateSystemMetadataWriter(MetadataServiceClient metadataServiceClient,
-                                      NamespacedEntityId entity,
-                                      SystemMetadataProvider metadataProvider) {
+      NamespacedEntityId entity,
+      SystemMetadataProvider metadataProvider) {
     super(metadataServiceClient, entity);
     this.metadataProvider = metadataProvider;
   }

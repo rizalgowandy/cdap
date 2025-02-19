@@ -24,18 +24,20 @@ import io.cdap.cdap.etl.api.batch.BatchActionContext;
 import io.cdap.cdap.etl.api.lineage.field.FieldOperation;
 import io.cdap.cdap.etl.common.PipelineRuntime;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-
 import java.util.List;
 import java.util.Map;
 
 /**
  * Implementation of {@link BatchActionContext} within a pipeline.
  */
-public class WorkflowBackedActionContext extends AbstractBatchContext implements BatchActionContext {
+public class WorkflowBackedActionContext extends AbstractBatchContext implements
+    BatchActionContext {
+
   private final WorkflowContext workflowContext;
 
-  public WorkflowBackedActionContext(WorkflowContext workflowContext, PipelineRuntime pipelineRuntime,
-                                     StageSpec stageSpec) {
+  public WorkflowBackedActionContext(WorkflowContext workflowContext,
+      PipelineRuntime pipelineRuntime,
+      StageSpec stageSpec) {
     super(pipelineRuntime, stageSpec, workflowContext, workflowContext.getAdmin());
     this.workflowContext = workflowContext;
   }

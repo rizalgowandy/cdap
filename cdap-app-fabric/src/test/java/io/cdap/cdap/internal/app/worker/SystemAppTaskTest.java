@@ -19,17 +19,17 @@ package io.cdap.cdap.internal.app.worker;
 import com.google.inject.Injector;
 import io.cdap.cdap.api.security.store.SecureStore;
 import io.cdap.cdap.common.conf.CConfiguration;
+import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactManagerFactory;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepositoryReader;
 import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
-import io.cdap.cdap.internal.app.runtime.distributed.MockMasterEnvironment;
-import io.cdap.cdap.master.environment.MasterEnvironments;
 import io.cdap.cdap.metadata.PreferencesFetcher;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.impersonation.Impersonator;
 import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.apache.twill.discovery.InMemoryDiscoveryService;
 import org.junit.Test;
 
 /**
@@ -39,9 +39,9 @@ public class SystemAppTaskTest {
 
   @Test
   public void testInjector() {
-    MasterEnvironments.setMasterEnvironment(new MockMasterEnvironment());
-
-    Injector injector = SystemAppTask.createInjector(CConfiguration.create());
+    InMemoryDiscoveryService discoveryService = new InMemoryDiscoveryService();
+    Injector injector = SystemAppTask.createInjector(CConfiguration.create(),
+        discoveryService, discoveryService, new NoOpMetricsCollectionService());
 
     injector.getInstance(ArtifactRepositoryReader.class);
     injector.getInstance(ArtifactRepository.class);

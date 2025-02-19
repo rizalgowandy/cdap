@@ -18,16 +18,16 @@ package io.cdap.cdap.internal.app.runtime.batch;
 
 import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.app.metrics.MapReduceMetrics;
+import java.util.Map;
 import org.apache.hadoop.mapreduce.TaskCounter;
 import org.apache.hadoop.mapreduce.TaskInputOutputContext;
 
-import java.util.Map;
-
 /**
- * Base class for gathering statistics from a running map/reduce task through its counters and for writing the data to
- * the metrics system.
+ * Base class for gathering statistics from a running map/reduce task through its counters and for
+ * writing the data to the metrics system.
  */
 public abstract class TaskMetricsWriter {
+
   private final MetricsContext metricsContext;
   private final TaskInputOutputContext taskContext;
 
@@ -37,7 +37,8 @@ public abstract class TaskMetricsWriter {
   }
 
   public void reportMetrics() {
-    metricsContext.gauge(MapReduceMetrics.METRIC_TASK_COMPLETION, (long) (taskContext.getProgress() * 100));
+    metricsContext.gauge(MapReduceMetrics.METRIC_TASK_COMPLETION,
+        (long) (taskContext.getProgress() * 100));
     for (Map.Entry<String, TaskCounter> counterEntry : getTaskCounters().entrySet()) {
       metricsContext.gauge(counterEntry.getKey(), getTaskCounter(counterEntry.getValue()));
     }

@@ -23,7 +23,6 @@ import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
-
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * LogReader callback that sends JSON objects.
  */
 public abstract class AbstractJSONCallback extends AbstractChunkedCallback {
+
   protected static final Gson GSON = new Gson();
   private final AtomicBoolean started = new AtomicBoolean();
 

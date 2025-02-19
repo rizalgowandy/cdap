@@ -16,6 +16,8 @@
 
 package io.cdap.cdap.common.io;
 
+import java.io.File;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.filesystem.FileContextLocationFactory;
 import org.apache.twill.filesystem.LocalLocationFactory;
@@ -23,9 +25,6 @@ import org.apache.twill.filesystem.Location;
 import org.apache.twill.filesystem.LocationFactory;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * Unit test for {@link Locations}
@@ -107,6 +106,25 @@ public class LocationsTest {
     location1 = locationFactory.create(TEST_PATH);
     location2 = Locations.getLocationFromAbsolutePath(locationFactory, location1.toURI().getPath());
     Assert.assertEquals(location1.toURI(), location2.toURI());
+  }
+
+  @Test
+  public void testLocationComparator() {
+    LocationFactory locationFactory = new LocalLocationFactory(new File(File.separator));
+    Object[][] testCases = new Object[][] {
+        {"/parent1/child1", "/parent1/child1", 0},
+        {"/parent1/child1/", "/parent1/child1/", 0},
+        {"/parent1/child1", "/parent1/child1/", 0},
+        {"/parent1/child1/", "/parent1/child1", 0},
+        {"/parent1/child", "/parent1/child1", -1},
+        {"/parent1/child1", "/parent1/child", 1}};
+
+    for (Object[] testCase : testCases) {
+      Location location1 = locationFactory.create((String) testCase[0]);
+      Location location2 = locationFactory.create((String) testCase[1]);
+      int expected = (int) testCase[2];
+      Assert.assertEquals(expected, Locations.LOCATION_COMPARATOR.compare(location1, location2));
+    }
   }
 }
 

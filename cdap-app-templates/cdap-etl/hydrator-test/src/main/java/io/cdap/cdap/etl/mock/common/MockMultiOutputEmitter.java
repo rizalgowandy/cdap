@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.mock.common;
 
 import io.cdap.cdap.etl.api.InvalidEntry;
 import io.cdap.cdap.etl.api.MultiOutputEmitter;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +30,7 @@ import java.util.Map;
  * @param <E> type of error object
  */
 public class MockMultiOutputEmitter<E> implements MultiOutputEmitter<E> {
+
   private final Map<String, List<Object>> emitted = new HashMap<>();
   private final List<InvalidEntry<E>> errors = new ArrayList<>();
   private final List<Map<String, String>> alerts = new ArrayList<>();

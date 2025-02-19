@@ -20,28 +20,27 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.Service;
 import com.google.inject.Inject;
-import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
 import io.cdap.cdap.common.discovery.URIScheme;
-import io.cdap.cdap.common.http.CommonNettyHttpServiceBuilder;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
-import io.cdap.cdap.common.metrics.MetricsReporterHook;
 import io.cdap.cdap.common.security.HttpsEnabler;
 import io.cdap.cdap.internal.app.services.AppFabricServer;
 import io.cdap.cdap.proto.id.NamespaceId;
+import io.cdap.http.ChannelPipelineModifier;
 import io.cdap.http.HttpHandler;
 import io.cdap.http.NettyHttpService;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import java.util.Set;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.DiscoveryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Collections;
-import java.util.Set;
 
 /**
  * HTTP Server for preview.
@@ -57,20 +56,24 @@ public class PreviewHttpServer extends AbstractIdleService {
 
   @Inject
   PreviewHttpServer(CConfiguration cConf, SConfiguration sConf,
-                    DiscoveryService discoveryService, Set<HttpHandler> httpHandlers,
-                    MetricsCollectionService metricsCollectionService,
-                    PreviewManager previewManager) {
+      DiscoveryService discoveryService, Set<HttpHandler> httpHandlers,
+      PreviewManager previewManager, CommonNettyHttpServiceFactory commonNettyHttpServiceFactory) {
     this.discoveryService = discoveryService;
-    NettyHttpService.Builder builder = new CommonNettyHttpServiceBuilder(cConf, Constants.Service.PREVIEW_HTTP)
-      .setHost(cConf.get(Constants.Preview.ADDRESS))
-      .setPort(cConf.getInt(Constants.Preview.PORT))
-      .setHttpHandlers(httpHandlers)
-      .setConnectionBacklog(cConf.getInt(Constants.Preview.BACKLOG_CONNECTIONS))
-      .setExecThreadPoolSize(cConf.getInt(Constants.Preview.EXEC_THREADS))
-      .setBossThreadPoolSize(cConf.getInt(Constants.Preview.BOSS_THREADS))
-      .setWorkerThreadPoolSize(cConf.getInt(Constants.Preview.WORKER_THREADS))
-      .setHandlerHooks(Collections.singletonList(
-        new MetricsReporterHook(metricsCollectionService, Constants.Service.PREVIEW_HTTP)));
+    NettyHttpService.Builder builder = commonNettyHttpServiceFactory.builder(
+            Constants.Service.PREVIEW_HTTP)
+        .setHost(cConf.get(Constants.Preview.ADDRESS))
+        .setPort(cConf.getInt(Constants.Preview.PORT))
+        .setHttpHandlers(httpHandlers)
+        .setConnectionBacklog(cConf.getInt(Constants.Preview.BACKLOG_CONNECTIONS))
+        .setExecThreadPoolSize(cConf.getInt(Constants.Preview.EXEC_THREADS))
+        .setBossThreadPoolSize(cConf.getInt(Constants.Preview.BOSS_THREADS))
+        .setWorkerThreadPoolSize(cConf.getInt(Constants.Preview.WORKER_THREADS))
+        .setChannelPipelineModifier(new ChannelPipelineModifier() {
+          @Override
+          public void modify(ChannelPipeline pipeline) {
+            pipeline.addAfter("compressor", "decompressor", new HttpContentDecompressor());
+          }
+        });
 
     if (cConf.getBoolean(Constants.Security.SSL.INTERNAL_ENABLED)) {
       new HttpsEnabler().configureKeyStore(cConf, sConf).enable(builder);
@@ -93,9 +96,10 @@ public class PreviewHttpServer extends AbstractIdleService {
    */
   @Override
   protected void startUp() throws Exception {
-    LoggingContextAccessor.setLoggingContext(new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                                                       Constants.Logging.COMPONENT_NAME,
-                                                                       Constants.Service.PREVIEW_HTTP));
+    LoggingContextAccessor.setLoggingContext(
+        new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
+            Constants.Logging.COMPONENT_NAME,
+            Constants.Service.PREVIEW_HTTP));
     if (previewManager instanceof Service) {
       ((Service) previewManager).startAndWait();
     }
@@ -103,7 +107,8 @@ public class PreviewHttpServer extends AbstractIdleService {
     httpService.start();
 
     cancelHttpService = discoveryService.register(
-      ResolvingDiscoverable.of(URIScheme.createDiscoverable(Constants.Service.PREVIEW_HTTP, httpService)));
+        ResolvingDiscoverable.of(
+            URIScheme.createDiscoverable(Constants.Service.PREVIEW_HTTP, httpService)));
     LOG.info("Preview HTTP server started on {}", httpService.getBindAddress());
   }
 

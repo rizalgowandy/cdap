@@ -18,10 +18,9 @@ package io.cdap.cdap.cli;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
-import org.apache.commons.cli.Options;
-
 import java.util.Arrays;
 import java.util.List;
+import org.apache.commons.cli.Options;
 
 /**
  * Represents the command line arguments for {@link CLIMain}.
@@ -58,14 +57,14 @@ public class CLIMainArgs {
       return false;
     }
     final CLIMainArgs other = (CLIMainArgs) obj;
-    return Arrays.equals(this.optionTokens, other.optionTokens) &&
-      Arrays.equals(this.commandTokens, other.commandTokens);
+    return Arrays.equals(this.optionTokens, other.optionTokens)
+        && Arrays.equals(this.commandTokens, other.commandTokens);
   }
 
   @Override
   public String toString() {
     return Objects.toStringHelper(this).add("optionTokens", Arrays.toString(optionTokens))
-      .add("commandTokens", Arrays.toString(commandTokens)).toString();
+        .add("commandTokens", Arrays.toString(commandTokens)).toString();
   }
 
   public static CLIMainArgs parse(String[] args, Options options) {
@@ -100,6 +99,6 @@ public class CLIMainArgs {
       }
     }
     return new CLIMainArgs(optionsPart.toArray(new String[optionsPart.size()]),
-                           commandPart.toArray(new String[commandPart.size()]));
+        commandPart.toArray(new String[commandPart.size()]));
   }
 }

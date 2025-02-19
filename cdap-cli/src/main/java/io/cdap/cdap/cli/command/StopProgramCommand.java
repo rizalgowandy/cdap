@@ -25,7 +25,6 @@ import io.cdap.cdap.cli.util.AbstractAuthCommand;
 import io.cdap.cdap.client.ProgramClient;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
@@ -36,7 +35,8 @@ public class StopProgramCommand extends AbstractAuthCommand {
   private final ProgramClient programClient;
   private final ElementType elementType;
 
-  public StopProgramCommand(ElementType elementType, ProgramClient programClient, CLIConfig cliConfig) {
+  public StopProgramCommand(ElementType elementType, ProgramClient programClient,
+      CLIConfig cliConfig) {
     super(cliConfig);
     this.elementType = elementType;
     this.programClient = programClient;
@@ -50,14 +50,16 @@ public class StopProgramCommand extends AbstractAuthCommand {
     String programName = programId.getProgram();
 
     programClient.stop(programId);
-    output.printf("Successfully stopped %s '%s' of application '%s.%s'\n", elementType.getName(), programName,
-                  appName, appVersion);
+    output.printf("Successfully stopped %s '%s' of application '%s.%s'\n", elementType.getName(),
+        programName,
+        appName, appVersion);
   }
 
   @Override
   public String getPattern() {
-    return String.format("stop %s <%s> [version <%s>]", elementType.getShortName(), elementType.getArgumentName(),
-                         ArgumentName.APP_VERSION);
+    return String.format("stop %s <%s> [version <%s>]", elementType.getShortName(),
+        elementType.getArgumentName(),
+        ArgumentName.APP_VERSION);
   }
 
   @Override

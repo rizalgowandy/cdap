@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2017 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,6 +13,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package io.cdap.cdap.app.guice;
 
 import com.google.inject.Inject;
@@ -32,14 +33,15 @@ import org.apache.twill.filesystem.LocationFactory;
 import org.apache.twill.yarn.YarnTwillRunnerService;
 
 /**
- * Guice module for providing bindings for Twill. This module requires accessible bindings to
- * {@link CConfiguration}, {@link YarnConfiguration}, {@link LocationFactory}, and {@link Impersonator}
+ * Guice module for providing bindings for Twill. This module requires accessible bindings to {@link
+ * CConfiguration}, {@link YarnConfiguration}, {@link LocationFactory}, and {@link Impersonator}
  */
 public class TwillModule extends PrivateModule {
 
   @Override
   protected void configure() {
-    bind(TwillRunnerService.class).toProvider(TwillRunnerServiceProvider.class).in(Scopes.SINGLETON);
+    bind(TwillRunnerService.class).toProvider(TwillRunnerServiceProvider.class)
+        .in(Scopes.SINGLETON);
     bind(TwillRunner.class).to(TwillRunnerService.class);
 
     expose(TwillRunnerService.class);
@@ -59,8 +61,8 @@ public class TwillModule extends PrivateModule {
 
     @Inject
     TwillRunnerServiceProvider(CConfiguration cConf, YarnConfiguration yarnConf,
-                               LocationFactory locationFactory, Impersonator impersonator,
-                               TokenSecureStoreRenewer secureStoreRenewer) {
+        LocationFactory locationFactory, Impersonator impersonator,
+        TokenSecureStoreRenewer secureStoreRenewer) {
       this.cConf = cConf;
       this.yarnConf = yarnConf;
       this.locationFactory = locationFactory;
@@ -70,7 +72,8 @@ public class TwillModule extends PrivateModule {
 
     @Override
     public TwillRunnerService get() {
-      String zkConnectStr = Constants.Zookeeper.getZKQuorum(cConf) + cConf.get(Constants.CFG_TWILL_ZK_NAMESPACE);
+      String zkConnectStr =
+          Constants.Zookeeper.getZkQuorum(cConf) + cConf.get(Constants.CFG_TWILL_ZK_NAMESPACE);
 
       // Copy the yarn config and setup twill configs
       YarnConfiguration yarnConfig = new YarnConfiguration(yarnConf);
@@ -78,8 +81,8 @@ public class TwillModule extends PrivateModule {
       yarnConfig.setBoolean(Configs.Keys.SECURE_STORE_UPDATE_LOCATION_ENABLED, false);
 
       YarnTwillRunnerService runner = new YarnTwillRunnerService(yarnConfig,
-                                                                 zkConnectStr,
-                                                                 LocationFactories.namespace(locationFactory, "twill"));
+          zkConnectStr,
+          LocationFactories.namespace(locationFactory, "twill"));
 
       return new ImpersonatedTwillRunnerService(yarnConf, runner, impersonator, secureStoreRenewer);
     }

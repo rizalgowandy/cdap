@@ -25,23 +25,24 @@ import io.cdap.cdap.internal.app.runtime.schedule.ProgramSchedule;
 import io.cdap.cdap.internal.app.runtime.schedule.store.Schedulers;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.ProtoTrigger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Trigger that schedules a ProgramSchedule, based upon a particular cron expression.
  */
 public class TimeTrigger extends ProtoTrigger.TimeTrigger implements SatisfiableTrigger {
+
   private static final Logger LOG =
-    LoggerFactory.getLogger(io.cdap.cdap.internal.app.runtime.schedule.trigger.TimeTrigger.class);
+      LoggerFactory.getLogger(io.cdap.cdap.internal.app.runtime.schedule.trigger.TimeTrigger.class);
   private static final Gson GSON = new Gson();
-  private static final java.lang.reflect.Type STRING_STRING_MAP = new TypeToken<Map<String, String>>() { }.getType();
+  private static final java.lang.reflect.Type STRING_STRING_MAP = new TypeToken<Map<String, String>>() {
+  }.getType();
 
   public TimeTrigger(String cronExpression) {
     super(cronExpression);
@@ -77,8 +78,9 @@ public class TimeTrigger extends ProtoTrigger.TimeTrigger implements Satisfiable
 
       Long logicalStartTime = getLogicalStartTime(notification);
       if (logicalStartTime == null) {
-        LOG.warn("The notification '{}' in the job of schedule '{}' does not contain logical start time",
-                 notification, context.getSchedule());
+        LOG.warn(
+            "The notification '{}' in the job of schedule '{}' does not contain logical start time",
+            notification, context.getSchedule());
         continue;
       }
 
@@ -90,14 +92,16 @@ public class TimeTrigger extends ProtoTrigger.TimeTrigger implements Satisfiable
 
   @Override
   public void updateLaunchArguments(ProgramSchedule schedule, List<Notification> notifications,
-                                    Map<String, String> systemArgs, Map<String, String> userArgs) {
+      Map<String, String> systemArgs, Map<String, String> userArgs) {
     for (Notification notification : notifications) {
       if (!isSatisfied(schedule, notification)) {
         continue;
       }
 
-      String systemOverridesJson = notification.getProperties().get(ProgramOptionConstants.SYSTEM_OVERRIDES);
-      String userOverridesJson = notification.getProperties().get(ProgramOptionConstants.USER_OVERRIDES);
+      String systemOverridesJson = notification.getProperties()
+          .get(ProgramOptionConstants.SYSTEM_OVERRIDES);
+      String userOverridesJson = notification.getProperties()
+          .get(ProgramOptionConstants.USER_OVERRIDES);
       if (userOverridesJson == null || systemOverridesJson == null) {
         // Ignore the malformed notification
         continue;
@@ -111,7 +115,8 @@ public class TimeTrigger extends ProtoTrigger.TimeTrigger implements Satisfiable
 
   @Nullable
   private Long getLogicalStartTime(Notification notification) {
-    String userOverridesJson = notification.getProperties().get(ProgramOptionConstants.USER_OVERRIDES);
+    String userOverridesJson = notification.getProperties()
+        .get(ProgramOptionConstants.USER_OVERRIDES);
     if (userOverridesJson == null) {
       return null;
     }
@@ -125,7 +130,7 @@ public class TimeTrigger extends ProtoTrigger.TimeTrigger implements Satisfiable
     } catch (NumberFormatException e) {
       // This shouldn't happen
       LOG.warn("Unable to parse property '{}' as long from notification properties {}.",
-               ProgramOptionConstants.LOGICAL_START_TIME, args);
+          ProgramOptionConstants.LOGICAL_START_TIME, args);
       return null;
     }
   }
@@ -138,7 +143,8 @@ public class TimeTrigger extends ProtoTrigger.TimeTrigger implements Satisfiable
       return false;
     }
 
-    String systemOverridesJson = notification.getProperties().get(ProgramOptionConstants.SYSTEM_OVERRIDES);
+    String systemOverridesJson = notification.getProperties()
+        .get(ProgramOptionConstants.SYSTEM_OVERRIDES);
     if (systemOverridesJson == null) {
       return false;
     }
@@ -149,6 +155,7 @@ public class TimeTrigger extends ProtoTrigger.TimeTrigger implements Satisfiable
     // See if the notification is from pre 4.3 system, which doesn't have the cron expression in the notification.
     // The checking is done by the fact that in pre 4.3 system, composite trigger is not supported,
     // hence if there is a time notification, it must be matching with this trigger.
-    return getCronExpression().equals(cronExpr) || (cronExpr == null && schedule.getTrigger().getType() == Type.TIME);
+    return getCronExpression().equals(cronExpr) || (cronExpr == null
+        && schedule.getTrigger().getType() == Type.TIME);
   }
 }

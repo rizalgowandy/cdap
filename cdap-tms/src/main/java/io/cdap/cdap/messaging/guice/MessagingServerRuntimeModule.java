@@ -21,17 +21,14 @@ import com.google.inject.Binder;
 import com.google.inject.Inject;
 import com.google.inject.Module;
 import com.google.inject.PrivateModule;
-import com.google.inject.Provider;
 import com.google.inject.Scopes;
 import com.google.inject.multibindings.Multibinder;
 import com.google.inject.name.Names;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.runtime.RuntimeModule;
-import io.cdap.cdap.data2.util.hbase.HBaseTableUtil;
-import io.cdap.cdap.data2.util.hbase.HBaseTableUtilFactory;
 import io.cdap.cdap.gateway.handlers.CommonHandlers;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.cache.MessageCache;
 import io.cdap.cdap.messaging.distributed.LeaderElectionMessagingService;
 import io.cdap.cdap.messaging.server.FetchHandler;
@@ -44,11 +41,9 @@ import io.cdap.cdap.messaging.store.TableFactory;
 import io.cdap.cdap.messaging.store.cache.CachingTableFactory;
 import io.cdap.cdap.messaging.store.cache.DefaultMessageTableCacheProvider;
 import io.cdap.cdap.messaging.store.cache.MessageTableCacheProvider;
-import io.cdap.cdap.messaging.store.hbase.HBaseTableFactory;
 import io.cdap.cdap.messaging.store.leveldb.LevelDBTableFactory;
 import io.cdap.cdap.proto.id.TopicId;
 import io.cdap.http.HttpHandler;
-
 import javax.annotation.Nullable;
 
 /**
@@ -71,13 +66,13 @@ public class MessagingServerRuntimeModule extends RuntimeModule {
     return new PrivateModule() {
       @Override
       protected void configure() {
-        bind(HBaseTableUtil.class).toProvider(HBaseTableUtilProvider.class);
         bind(TableFactory.class)
-          .annotatedWith(Names.named(CachingTableFactory.DELEGATE_TABLE_FACTORY))
-          .to(HBaseTableFactory.class);
+            .annotatedWith(Names.named(CachingTableFactory.DELEGATE_TABLE_FACTORY))
+            .to(LevelDBTableFactory.class); //TODO : Check if this correct ?
 
         // The cache must be in singleton scope
-        bind(MessageTableCacheProvider.class).to(DefaultMessageTableCacheProvider.class).in(Scopes.SINGLETON);
+        bind(MessageTableCacheProvider.class).to(DefaultMessageTableCacheProvider.class)
+            .in(Scopes.SINGLETON);
         bind(TableFactory.class).to(CachingTableFactory.class);
 
         // Bind http handlers
@@ -92,7 +87,7 @@ public class MessagingServerRuntimeModule extends RuntimeModule {
   @VisibleForTesting
   public static void bindHandlers(Binder binder, String bindingName) {
     Multibinder<HttpHandler> handlerBinder =
-      Multibinder.newSetBinder(binder, HttpHandler.class, Names.named(bindingName));
+        Multibinder.newSetBinder(binder, HttpHandler.class, Names.named(bindingName));
 
     handlerBinder.addBinding().to(MetadataHandler.class);
     handlerBinder.addBinding().to(StoreHandler.class);
@@ -135,26 +130,6 @@ public class MessagingServerRuntimeModule extends RuntimeModule {
       bind(MessagingHttpService.class).in(Scopes.SINGLETON);
       expose(MessagingHttpService.class);
       // End workaround for CDAP-7688
-    }
-  }
-
-  /**
-   * A guice provider for {@link HBaseTableUtil}. We don't use {@link HBaseTableUtilFactory} as a provider
-   * directly because the {@code @Inject} constructor of {@link HBaseTableUtilFactory} requires a
-   * injection of NamespaceQueryAdmin, which is unnecessary for Messaging service purpose.
-   */
-  private static final class HBaseTableUtilProvider implements Provider<HBaseTableUtil> {
-
-    private final HBaseTableUtilFactory hBaseTableUtilFactory;
-
-    @Inject
-    HBaseTableUtilProvider(CConfiguration cConf) {
-      this.hBaseTableUtilFactory = new HBaseTableUtilFactory(cConf);
-    }
-
-    @Override
-    public HBaseTableUtil get() {
-      return hBaseTableUtilFactory.get();
     }
   }
 }

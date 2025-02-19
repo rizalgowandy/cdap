@@ -17,13 +17,13 @@
 package io.cdap.cdap.metadata.elastic;
 
 import io.cdap.cdap.spi.metadata.Metadata;
-
 import javax.annotation.Nullable;
 
 /**
  * A metadata and it version in the index. Used for optimistic concurrency control.
  */
 public class VersionedMetadata {
+
   private final Metadata metadata;
   private final Long version;
 

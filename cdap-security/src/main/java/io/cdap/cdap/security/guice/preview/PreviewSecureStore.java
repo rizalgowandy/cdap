@@ -19,7 +19,6 @@ import io.cdap.cdap.api.security.store.SecureStore;
 import io.cdap.cdap.api.security.store.SecureStoreData;
 import io.cdap.cdap.api.security.store.SecureStoreManager;
 import io.cdap.cdap.api.security.store.SecureStoreMetadata;
-
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -46,8 +45,18 @@ public class PreviewSecureStore implements SecureStore, SecureStoreManager {
   }
 
   @Override
+  public SecureStoreMetadata getMetadata(String namespace, String name) throws Exception {
+    return delegate.getMetadata(namespace, name);
+  }
+
+  @Override
+  public byte[] getData(String namespace, String name) throws Exception {
+    return delegate.getData(namespace, name);
+  }
+
+  @Override
   public void put(String namespace, String name, String data, @Nullable String description,
-                  Map<String, String> properties) throws Exception {
+      Map<String, String> properties) throws Exception {
     //TODO put data in in-mempry map
   }
 

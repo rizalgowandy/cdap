@@ -23,12 +23,11 @@ import com.google.gson.reflect.TypeToken;
 import io.cdap.cdap.api.macro.InvalidMacroException;
 import io.cdap.cdap.api.macro.MacroEvaluator;
 import io.cdap.cdap.api.macro.MacroParserOptions;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class MacroParserTest {
 
@@ -460,24 +459,24 @@ public class MacroParserTest {
       .put("o", "o")
       .put("c", "c")
       .put("a", "a")
-      .put("hostSuffix", "host")
-      .put("two", "${filename${fileTypeMacro}}")
-      .put("three", "${firstPortDigit}${secondPortDigit}")
-      .put("filename", "index")
-      .put("fileTypeMacro", "-html")
-      .put("filename-html", "index.html")
-      .put("filename-php", "index.php")
-      .put("firstPortDigit", "8")
-      .put("secondPortDigit", "0")
-      .build();
-    assertSubstitution("${simpleHostnameTree}${simpleHostnameTree}${simpleHostnameTree}" +
-                       "${advancedHostnameTree}${advancedHostnameTree}${advancedHostnameTree}" +
-                       "${expansiveHostnameTree}${expansiveHostnameTree}${expansiveHostnameTree}" +
-                       "${simpleHostnameTree}${advancedHostnameTree}${expansiveHostnameTree}",
-                       "localhost/index.html:80localhost/index.html:80localhost/index.html:80localhost/index.html:80" +
-                       "localhost/index.html:80localhost/index.html:80localhost/index.html:80localhost/index.html:80" +
-                       "localhost/index.html:80localhost/index.html:80localhost/index.html:80localhost/index.html:80",
-                       properties, new HashMap<>());
+        .put("hostSuffix", "host")
+        .put("two", "${filename${fileTypeMacro}}")
+        .put("three", "${firstPortDigit}${secondPortDigit}")
+        .put("filename", "index")
+        .put("fileTypeMacro", "-html")
+        .put("filename-html", "index.html")
+        .put("filename-php", "index.php")
+        .put("firstPortDigit", "8")
+        .put("secondPortDigit", "0")
+        .build();
+    assertSubstitution("${simpleHostnameTree}${simpleHostnameTree}${simpleHostnameTree}"
+            + "${advancedHostnameTree}${advancedHostnameTree}${advancedHostnameTree}"
+            + "${expansiveHostnameTree}${expansiveHostnameTree}${expansiveHostnameTree}"
+            + "${simpleHostnameTree}${advancedHostnameTree}${expansiveHostnameTree}",
+        "localhost/index.html:80localhost/index.html:80localhost/index.html:80localhost/index.html:80"
+            + "localhost/index.html:80localhost/index.html:80localhost/index.html:80localhost/index.html:80"
+            + "localhost/index.html:80localhost/index.html:80localhost/index.html:80localhost/index.html:80",
+        properties, new HashMap<>());
   }
 
   @Test
@@ -562,5 +561,29 @@ public class MacroParserTest {
     MacroEvaluator macroEvaluator = new TestMacroEvaluator(propertySubstitutions, macroFunctionSubstitutions);
     MacroParser macroParser = new MacroParser(macroEvaluator);
     Assert.assertEquals(expected, macroParser.parse(macro));
+  }
+
+  @Test
+  public void testDoNotSkipInvalidMacrosInMacroFunctions() {
+    MacroEvaluator evaluator = new TestMacroEvaluator(Collections.emptyMap(), Collections.emptyMap(), false);
+
+    //TestMacroEvaluator will throw InvalidMacroException if macro function is other than 't' or 'test'
+    // but skip invalid flag will suppress this exception.
+    MacroParser parser = new MacroParser(evaluator, MacroParserOptions.builder().skipInvalidMacros().build());
+    Assert.assertEquals("${oauthAccessToken(provider,credentials)}",
+                        parser.parse("${oauthAccessToken(provider,credentials)}"));
+    
+    // If doNotSkipInvalidMacroForFunctions set has that macro, it will not skip validation and will throw Exception
+    MacroParser parserWithDoNotSkipInvalidSet = new MacroParser(evaluator,
+                                                                MacroParserOptions.builder().skipInvalidMacros()
+                                                                  .setDoNotSkipInvalidMacroForFunctions(
+                                                                    "oauthAccessToken", "oauth").build());
+    boolean exceptionThrown = false;
+    try {
+      parserWithDoNotSkipInvalidSet.parse("${oauthAccessToken(provider,credentials)}");
+    } catch (InvalidMacroException e) {
+      exceptionThrown = true;
+    }
+    Assert.assertTrue(exceptionThrown);
   }
 }

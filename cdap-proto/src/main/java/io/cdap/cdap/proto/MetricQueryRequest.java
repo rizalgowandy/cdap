@@ -18,7 +18,6 @@ package io.cdap.cdap.proto;
 
 import io.cdap.cdap.api.dataset.lib.cube.AggregationOption;
 import io.cdap.cdap.api.dataset.lib.cube.Interpolator;
-
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -27,6 +26,7 @@ import javax.annotation.Nullable;
  * Metrics Query Request format
  */
 public class MetricQueryRequest {
+
   /**
    * Format for metrics query in batched queries
    */
@@ -58,8 +58,8 @@ public class MetricQueryRequest {
   }
 
   public void setTimeRange(@Nullable Long start, @Nullable Long end, @Nullable Integer count,
-                           @Nullable Integer resolution,  @Nullable Interpolator interpolator,
-                           AggregationOption aggregation) {
+      @Nullable Integer resolution, @Nullable Interpolator interpolator,
+      AggregationOption aggregation) {
     timeRange = new TimeRange(start, end, count, resolution, interpolator, aggregation);
   }
 
@@ -67,6 +67,7 @@ public class MetricQueryRequest {
    * Represents the time range of the query request
    */
   public class TimeRange {
+
     private final Long startTs;
     private final Long endTs;
     private final Integer count;
@@ -74,8 +75,9 @@ public class MetricQueryRequest {
     private final Interpolator interpolator;
     private final AggregationOption aggregation;
 
-    public TimeRange(Long start, Long end, Integer count, Integer resolutionInSeconds, Interpolator interpolator,
-                     AggregationOption aggregation) {
+    public TimeRange(Long start, Long end, Integer count, Integer resolutionInSeconds,
+        Interpolator interpolator,
+        AggregationOption aggregation) {
       this.startTs = start;
       this.endTs = end;
       this.count = count;

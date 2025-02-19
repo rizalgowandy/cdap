@@ -34,16 +34,16 @@ import io.cdap.cdap.spi.data.table.field.Field;
 import io.cdap.cdap.spi.data.table.field.Fields;
 import io.cdap.cdap.spi.data.table.field.Range;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.twill.api.RunId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import org.apache.twill.api.RunId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Dataset to store/retrieve Dataset accesses of a Program.
@@ -67,6 +67,41 @@ public class LineageTable {
     return new LineageTable(context);
   }
 
+  /**
+   * Deletes all completed run lineage records with a start time before {@code timeUpperBound},
+   * throwing {@code IOException} if the delete operation fails.
+   * <p>
+   * Assumption is that lineage records are added only after run is completed, so we don't need to
+   * check completed run statuses.
+   * </p>
+   *
+   * <p>
+   * This function will not work with the in memory no-sql DB and will return
+   * {@code InvalidFieldException}. This is because of the way we need to query and will only be
+   * used in the managed instances controlled by a flag.
+   * </p>
+   *
+   * @param timeUpperBound is the end time before which all records should be deleted.
+   */
+  public void deleteCompletedLineageRecordsStartedBefore(Instant timeUpperBound)
+      throws IOException {
+    // While converting from Run we are using Millis hence we need to get epoch millis.
+    long maxTimeEpoch = timeUpperBound.toEpochMilli();
+    // Data should be deleted from both the lineage tables.
+    getDatasetTable()
+        .scanDeleteAll(createStartTimeEndRange(maxTimeEpoch));
+    getProgramTable()
+        .scanDeleteAll(createStartTimeEndRange(maxTimeEpoch));
+  }
+
+  private Range createStartTimeEndRange(long endTime) {
+    ImmutableList<Field<?>> end = ImmutableList.of(
+        Fields.longField(StoreDefinition.LineageStore.START_TIME_FIELD, invertTime(endTime)));
+    // Since the times are inverted the end time will be the start of the range.
+    return Range.from(end, Range.Bound.EXCLUSIVE);
+  }
+
+
   private LineageTable(StructuredTableContext structuredTableContext) {
     this.structuredTableContext = structuredTableContext;
   }
@@ -74,7 +109,8 @@ public class LineageTable {
   private StructuredTable getDatasetTable() {
     if (datasetTable == null) {
       try {
-        datasetTable = structuredTableContext.getTable(StoreDefinition.LineageStore.DATASET_LINEAGE_TABLE);
+        datasetTable = structuredTableContext.getTable(
+            StoreDefinition.LineageStore.DATASET_LINEAGE_TABLE);
       } catch (TableNotFoundException e) {
         throw new RuntimeException(e);
       }
@@ -85,7 +121,8 @@ public class LineageTable {
   private StructuredTable getProgramTable() {
     if (programTable == null) {
       try {
-        programTable = structuredTableContext.getTable(StoreDefinition.LineageStore.PROGRAM_LINEAGE_TABLE);
+        programTable = structuredTableContext.getTable(
+            StoreDefinition.LineageStore.PROGRAM_LINEAGE_TABLE);
       } catch (TableNotFoundException e) {
         throw new RuntimeException(e);
       }
@@ -107,10 +144,11 @@ public class LineageTable {
    * @param accessType access type
    * @param accessTimeMillis time of access
    */
-  public void addAccess(ProgramRunId run, DatasetId datasetInstance, AccessType accessType, long accessTimeMillis)
-  throws IOException {
+  public void addAccess(ProgramRunId run, DatasetId datasetInstance, AccessType accessType,
+      long accessTimeMillis)
+      throws IOException {
     LOG.trace("Recording access run={}, dataset={}, accessType={}, accessTime={}",
-              run, datasetInstance, accessType, accessTimeMillis);
+        run, datasetInstance, accessType, accessTimeMillis);
     List<Field<?>> datasetFields = getDatasetKey(datasetInstance, run, accessType);
     addAccessTime(datasetFields, accessTimeMillis);
     getDatasetTable().upsert(datasetFields);
@@ -126,7 +164,8 @@ public class LineageTable {
     ImmutableSet.Builder<NamespacedEntityId> builder = ImmutableSet.builder();
     List<Field<?>> prefix = getRunScanStartKey(run);
     try (
-      CloseableIterator<StructuredRow> iterator = getProgramTable().scan(Range.singleton(prefix), Integer.MAX_VALUE)) {
+        CloseableIterator<StructuredRow> iterator = getProgramTable().scan(Range.singleton(prefix),
+            Integer.MAX_VALUE)) {
       while (iterator.hasNext()) {
         StructuredRow row = iterator.next();
         if (run.getRun().equals(row.getString(StoreDefinition.LineageStore.RUN_FIELD))) {
@@ -147,12 +186,13 @@ public class LineageTable {
    * @param filter filter to be applied on result set
    * @return program-dataset access information
    */
-  public Set<Relation> getRelations(DatasetId datasetInstance, long start, long end, Predicate<Relation> filter)
-    throws IOException {
+  public Set<Relation> getRelations(DatasetId datasetInstance, long start, long end,
+      Predicate<Relation> filter)
+      throws IOException {
     return scanRelations(getDatasetTable(),
-                         getDatasetScanStartKey(datasetInstance, end),
-                         getDatasetScanEndKey(datasetInstance, start),
-                         filter);
+        getDatasetScanStartKey(datasetInstance, end),
+        getDatasetScanEndKey(datasetInstance, start),
+        filter);
   }
 
   /**
@@ -164,12 +204,13 @@ public class LineageTable {
    * @param filter filter to be applied on result set
    * @return program-dataset access information
    */
-  public Set<Relation> getRelations(ProgramId program, long start, long end, Predicate<Relation> filter)
-    throws IOException {
+  public Set<Relation> getRelations(ProgramId program, long start, long end,
+      Predicate<Relation> filter)
+      throws IOException {
     return scanRelations(getProgramTable(),
-                         getProgramScanStartKey(program, end),
-                         getProgramScanEndKey(program, start),
-                         filter);
+        getProgramScanStartKey(program, end),
+        getProgramScanEndKey(program, start),
+        filter);
   }
 
   /**
@@ -180,7 +221,8 @@ public class LineageTable {
     ImmutableList.Builder<Long> builder = ImmutableList.builder();
     List<Field<?>> prefix = getRunScanStartKey(run);
     try (
-      CloseableIterator<StructuredRow> iterator = getProgramTable().scan(Range.singleton(prefix), Integer.MAX_VALUE)) {
+        CloseableIterator<StructuredRow> iterator = getProgramTable().scan(Range.singleton(prefix),
+            Integer.MAX_VALUE)) {
       while (iterator.hasNext()) {
         StructuredRow row = iterator.next();
         if (run.getRun().equals(row.getString(StoreDefinition.LineageStore.RUN_FIELD))) {
@@ -191,11 +233,13 @@ public class LineageTable {
     return builder.build();
   }
 
-  private Set<Relation> scanRelations(StructuredTable table, List<Field<?>> startKey, List<Field<?>> endKey,
-                                      Predicate<Relation> filter) throws IOException {
+  private Set<Relation> scanRelations(StructuredTable table, List<Field<?>> startKey,
+      List<Field<?>> endKey,
+      Predicate<Relation> filter) throws IOException {
     ImmutableSet.Builder<Relation> builder = ImmutableSet.builder();
     try (CloseableIterator<StructuredRow> iterator =
-      table.scan(Range.create(startKey, Range.Bound.INCLUSIVE, endKey, Range.Bound.INCLUSIVE), Integer.MAX_VALUE)) {
+        table.scan(Range.create(startKey, Range.Bound.INCLUSIVE, endKey, Range.Bound.INCLUSIVE),
+            Integer.MAX_VALUE)) {
       while (iterator.hasNext()) {
         StructuredRow row = iterator.next();
         Relation relation = toRelation(row);
@@ -207,7 +251,8 @@ public class LineageTable {
     return builder.build();
   }
 
-  private List<Field<?>> getDatasetKey(DatasetId datasetInstance, ProgramRunId run, AccessType accessType) {
+  private List<Field<?>> getDatasetKey(DatasetId datasetInstance, ProgramRunId run,
+      AccessType accessType) {
     List<Field<?>> fields = new ArrayList<>();
     addDataset(fields, datasetInstance);
     addDataKey(fields, run, accessType);
@@ -220,10 +265,11 @@ public class LineageTable {
     addProgram(fields, run.getParent());
     fields.add(Fields.stringField(StoreDefinition.LineageStore.RUN_FIELD, run.getEntityName()));
     fields.add(Fields.stringField(StoreDefinition.LineageStore.ACCESS_TYPE_FIELD,
-                                  Character.toString(accessType.getType())));
+        Character.toString(accessType.getType())));
   }
 
-  private List<Field<?>> getProgramKey(ProgramRunId run, DatasetId datasetInstance, AccessType accessType) {
+  private List<Field<?>> getProgramKey(ProgramRunId run, DatasetId datasetInstance,
+      AccessType accessType) {
     long invertedStartTime = getInvertedStartTime(run);
     List<Field<?>> fields = new ArrayList<>();
     addProgram(fields, run.getParent());
@@ -231,7 +277,7 @@ public class LineageTable {
     addDataset(fields, datasetInstance);
     fields.add(Fields.stringField(StoreDefinition.LineageStore.RUN_FIELD, run.getEntityName()));
     fields.add(Fields.stringField(StoreDefinition.LineageStore.ACCESS_TYPE_FIELD,
-                                  Character.toString(accessType.getType())));
+        Character.toString(accessType.getType())));
 
     return fields;
   }
@@ -284,35 +330,40 @@ public class LineageTable {
   private List<Field<?>> getRunScanStartKey(ProgramRunId run) {
     List<Field<?>> fields = new ArrayList<>();
     addProgram(fields, run.getParent());
-    fields.add(Fields.longField(StoreDefinition.LineageStore.START_TIME_FIELD, getInvertedStartTime(run)));
+    fields.add(
+        Fields.longField(StoreDefinition.LineageStore.START_TIME_FIELD, getInvertedStartTime(run)));
     return fields;
   }
 
   private void addDataset(List<Field<?>> fields, DatasetId datasetInstance) {
-      fields.add(Fields.stringField(StoreDefinition.LineageStore.NAMESPACE_FIELD, datasetInstance.getNamespace()));
-      fields.add(Fields.stringField(StoreDefinition.LineageStore.DATASET_FIELD, datasetInstance.getEntityName()));
+    fields.add(Fields.stringField(StoreDefinition.LineageStore.NAMESPACE_FIELD,
+        datasetInstance.getNamespace()));
+    fields.add(Fields.stringField(StoreDefinition.LineageStore.DATASET_FIELD,
+        datasetInstance.getEntityName()));
   }
 
   private void addProgram(List<Field<?>> fields, ProgramId program) {
-      fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_NAMESPACE_FIELD, program.getNamespace()));
-      fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_APPLICATION_FIELD,
-                                    program.getParent().getEntityName()));
-      fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_TYPE_FIELD,
-                                    program.getType().getCategoryName()));
-      fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_FIELD, program.getEntityName()));
+    fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_NAMESPACE_FIELD,
+        program.getNamespace()));
+    fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_APPLICATION_FIELD,
+        program.getParent().getEntityName()));
+    fields.add(Fields.stringField(StoreDefinition.LineageStore.PROGRAM_TYPE_FIELD,
+        program.getType().getCategoryName()));
+    fields.add(
+        Fields.stringField(StoreDefinition.LineageStore.PROGRAM_FIELD, program.getEntityName()));
   }
 
   private ProgramId getProgramFromRow(StructuredRow row) {
     return new ProgramId(row.getString(StoreDefinition.LineageStore.PROGRAM_NAMESPACE_FIELD),
-                         row.getString(StoreDefinition.LineageStore.PROGRAM_APPLICATION_FIELD),
-                         ProgramType.valueOfCategoryName(
-                           row.getString(StoreDefinition.LineageStore.PROGRAM_TYPE_FIELD)),
-                         row.getString(StoreDefinition.LineageStore.PROGRAM_FIELD));
+        row.getString(StoreDefinition.LineageStore.PROGRAM_APPLICATION_FIELD),
+        ProgramType.valueOfCategoryName(
+            row.getString(StoreDefinition.LineageStore.PROGRAM_TYPE_FIELD)),
+        row.getString(StoreDefinition.LineageStore.PROGRAM_FIELD));
   }
 
   private DatasetId getDatasetFromRow(StructuredRow row) {
     return new DatasetId(row.getString(StoreDefinition.LineageStore.NAMESPACE_FIELD),
-                         row.getString(StoreDefinition.LineageStore.DATASET_FIELD));
+        row.getString(StoreDefinition.LineageStore.DATASET_FIELD));
   }
 
   private long invertTime(long time) {
@@ -327,7 +378,8 @@ public class LineageTable {
     RunId runId = RunIds.fromString(row.getString(StoreDefinition.LineageStore.RUN_FIELD));
     LOG.trace("Got runId {}", runId);
     AccessType accessType =
-      AccessType.fromType(row.getString(StoreDefinition.LineageStore.ACCESS_TYPE_FIELD).charAt(0));
+        AccessType.fromType(
+            row.getString(StoreDefinition.LineageStore.ACCESS_TYPE_FIELD).charAt(0));
     LOG.trace("Got access type {}", accessType);
 
     DatasetId datasetInstance = getDatasetFromRow(row);

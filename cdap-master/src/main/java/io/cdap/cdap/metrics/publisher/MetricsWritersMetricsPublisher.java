@@ -22,26 +22,31 @@ import io.cdap.cdap.api.metrics.MetricsPublisher;
 import io.cdap.cdap.api.metrics.MetricsWriter;
 import io.cdap.cdap.api.metrics.NoopMetricsContext;
 import io.cdap.cdap.common.conf.CConfiguration;
+import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.metrics.process.DefaultMetricsWriterContext;
 import io.cdap.cdap.metrics.process.loader.MetricsWriterProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 /**
  * A {@link MetricsPublisher} that writes the published metrics to multiple {@link MetricsWriter}s
  */
 public class MetricsWritersMetricsPublisher extends AbstractMetricsPublisher {
+
   private static final Logger LOG = LoggerFactory.getLogger(MetricsWritersMetricsPublisher.class);
   private Map<String, MetricsWriter> metricsWriters;
   private final CConfiguration cConf;
   private final MetricsWriterProvider writerProvider;
+  private static final String METRICSWRITERS = "metricswriters";
 
   @Inject
-  public MetricsWritersMetricsPublisher(MetricsWriterProvider writerProvider, CConfiguration cConf) {
+  public MetricsWritersMetricsPublisher(MetricsWriterProvider writerProvider,
+      CConfiguration cConf) {
     this.writerProvider = writerProvider;
     this.cConf = cConf;
   }
@@ -61,14 +66,38 @@ public class MetricsWritersMetricsPublisher extends AbstractMetricsPublisher {
     return this.metricsWriters != null;
   }
 
-  private void initializeMetricWriters(Map<String, MetricsWriter> metricsWriters, CConfiguration cConf) {
+  private void initializeMetricWriters(Map<String, MetricsWriter> metricsWriters,
+      CConfiguration cConf) {
+    File baseDir = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR), METRICSWRITERS);
     for (Map.Entry<String, MetricsWriter> entry : metricsWriters.entrySet()) {
       MetricsWriter writer = entry.getValue();
-      // Metrics context used by MetricsStoreMetricsWriter only, which we don't use here
-      // So we can pass no-op context
-      DefaultMetricsWriterContext metricsWriterContext =
-        new DefaultMetricsWriterContext(new NoopMetricsContext(), cConf, writer.getID());
-      writer.initialize(metricsWriterContext);
+      File initStateFile = new File(baseDir, writer.getID());
+      try {
+        // Metrics context used by MetricsStoreMetricsWriter only, which we don't use here
+        // So we can pass no-op context
+        DefaultMetricsWriterContext metricsWriterContext =
+            new DefaultMetricsWriterContext(new NoopMetricsContext(), cConf, writer.getID());
+        writer.initialize(metricsWriterContext);
+        if (!initStateFile.exists()) {
+          if (!baseDir.exists()) {
+            baseDir.mkdirs();
+          }
+          boolean result = initStateFile.createNewFile();
+          LOG.info(
+              "Initialization for metric writer {} succeeded. Result of creating initStateFile {} is {}.",
+              writer.getID(), initStateFile.getName(), result);
+        }
+      } catch (Exception e) {
+        //enforce at least one correct initialization
+        if (!initStateFile.exists()) {
+          throw new RuntimeException(
+              "Initialization for metric writer " + writer.getID() + " failed. Please fix the "
+                  + "errors " + "to proceed.", e);
+        } else {
+          LOG.error("Initialization for metric writer {} failed. Recheck the configuration.",
+              writer.getID(), e);
+        }
+      }
     }
   }
 
@@ -85,7 +114,8 @@ public class MetricsWritersMetricsPublisher extends AbstractMetricsPublisher {
       try {
         writer.write(metrics);
       } catch (Exception e) {
-        LOG.error("Error encountered while writing metrics to {} metrics writer", writer.getID(), e);
+        LOG.error("Error encountered while writing metrics to {} metrics writer", writer.getID(),
+            e);
         continue;
       }
       LOG.trace("{} metrics persisted using {} metrics writer.", metrics.size(), writer.getID());

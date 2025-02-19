@@ -29,11 +29,10 @@ import io.netty.handler.codec.socksx.v5.Socks5InitialRequest;
 import io.netty.handler.codec.socksx.v5.Socks5PasswordAuthRequest;
 import io.netty.handler.codec.socksx.v5.Socks5PasswordAuthRequestDecoder;
 import io.netty.handler.codec.socksx.v5.Socks5PasswordAuthStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.annotation.Nullable;
 import javax.ws.rs.NotSupportedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract base class for implementing SOCKS proxy handler.
@@ -102,7 +101,7 @@ abstract class AbstractSocksServerHandler extends SimpleChannelInboundHandler<So
           Socks5PasswordAuthRequest authRequest = (Socks5PasswordAuthRequest) msg;
           if (!authenticate(authRequest.username(), authRequest.password())) {
             ctx.write(new DefaultSocks5PasswordAuthResponse(Socks5PasswordAuthStatus.FAILURE))
-              .addListener(ChannelFutureListener.CLOSE);
+                .addListener(ChannelFutureListener.CLOSE);
           } else {
             ctx.pipeline().remove("auth");
             ctx.pipeline().remove(this);
@@ -131,7 +130,8 @@ abstract class AbstractSocksServerHandler extends SimpleChannelInboundHandler<So
     if (LOG.isTraceEnabled()) {
       LOG.trace("Exception raised while handling socks request for {}", ctx.channel(), cause);
     } else {
-      LOG.debug("Exception raised while handling socks request for {} due to {}", ctx.channel(), cause);
+      LOG.debug("Exception raised while handling socks request for {} due to {}", ctx.channel(),
+          cause);
     }
 
     // Just close the channel if there is exception

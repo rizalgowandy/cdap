@@ -21,24 +21,25 @@ import io.cdap.cdap.etl.api.MultiOutputPipelineConfigurer;
 import io.cdap.cdap.etl.api.SplitterTransform;
 import io.cdap.cdap.etl.api.StageSubmitterContext;
 import io.cdap.cdap.etl.api.TransformContext;
-
 import java.util.concurrent.Callable;
 
 /**
- * Wrapper around a {@link SplitterTransform} that makes sure logging, classloading, and other pipeline capabilities are
- * setup correctly.
+ * Wrapper around a {@link SplitterTransform} that makes sure logging, classloading, and other
+ * pipeline capabilities are setup correctly.
  *
  * @param <T> type of input record
  * @param <E> type of error records emitted. Usually the same as the input record type
  */
-public class WrappedSplitterTransform<T, E> extends SplitterTransform<T, E> {
+public class WrappedSplitterTransform<T, E>
+    extends SplitterTransform<T, E>
+    implements PluginWrapper<SplitterTransform<T, E>> {
 
   private final SplitterTransform<T, E> transform;
   private final Caller caller;
   private final OperationTimer operationTimer;
 
   public WrappedSplitterTransform(SplitterTransform<T, E> transform, Caller caller,
-                                  OperationTimer operationTimer) {
+      OperationTimer operationTimer) {
     this.transform = transform;
     this.caller = caller;
     this.operationTimer = operationTimer;
@@ -56,6 +57,22 @@ public class WrappedSplitterTransform<T, E> extends SplitterTransform<T, E> {
   public void initialize(TransformContext context) throws Exception {
     caller.call((Callable<Void>) () -> {
       transform.initialize(context);
+      return null;
+    });
+  }
+
+  @Override
+  public void prepareRun(StageSubmitterContext context) throws Exception {
+    caller.call((Callable<Void>) () -> {
+      transform.prepareRun(context);
+      return null;
+    });
+  }
+
+  @Override
+  public void onRunFinish(boolean succeeded, StageSubmitterContext context) {
+    caller.callUnchecked((Callable<Void>) () -> {
+      transform.onRunFinish(succeeded, context);
       return null;
     });
   }
@@ -79,5 +96,10 @@ public class WrappedSplitterTransform<T, E> extends SplitterTransform<T, E> {
     } finally {
       operationTimer.reset();
     }
+  }
+
+  @Override
+  public SplitterTransform<T, E> getWrapped() {
+    return transform;
   }
 }

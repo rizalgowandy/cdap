@@ -16,7 +16,6 @@
 package io.cdap.cdap.proto.id;
 
 import io.cdap.cdap.proto.element.EntityType;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -26,6 +25,7 @@ import java.util.Objects;
  * Uniquely identifies a system app entity.
  */
 public class SystemAppEntityId extends NamespacedEntityId implements ParentedId<NamespaceId> {
+
   // defines the type of the system app entity, i.e, connection, draft, workspace...
   private String type;
   // the name of the entity
@@ -61,7 +61,7 @@ public class SystemAppEntityId extends NamespacedEntityId implements ParentedId<
   public static SystemAppEntityId fromIdParts(Iterable<String> idString) {
     Iterator<String> iterator = idString.iterator();
     return new SystemAppEntityId(next(iterator, "namespace"), next(iterator, "appName"),
-                             next(iterator, "type"), nextAndEnd(iterator, "name"));
+        next(iterator, "type"), nextAndEnd(iterator, "name"));
   }
 
   @Override
@@ -101,10 +101,10 @@ public class SystemAppEntityId extends NamespacedEntityId implements ParentedId<
       return false;
     }
     SystemAppEntityId that = (SystemAppEntityId) o;
-    return Objects.equals(namespace, that.namespace) &&
-      Objects.equals(appName, that.appName) &&
-      Objects.equals(type, that.type) &&
-      Objects.equals(name, that.name);
+    return Objects.equals(namespace, that.namespace)
+        && Objects.equals(appName, that.appName)
+        && Objects.equals(type, that.type)
+        && Objects.equals(name, that.name);
   }
 
   public static SystemAppEntityId fromString(String string) {

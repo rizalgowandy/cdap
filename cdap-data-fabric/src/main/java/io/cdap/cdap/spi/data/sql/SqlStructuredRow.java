@@ -22,7 +22,6 @@ import io.cdap.cdap.spi.data.table.StructuredTableSchema;
 import io.cdap.cdap.spi.data.table.field.Field;
 import io.cdap.cdap.spi.data.table.field.FieldType;
 import io.cdap.cdap.spi.data.table.field.Fields;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,6 +60,13 @@ public class SqlStructuredRow implements StructuredRow {
   public Long getLong(String fieldName) throws InvalidFieldException {
     validateField(fieldName, EnumSet.of(FieldType.Type.INTEGER, FieldType.Type.LONG));
     return (Long) columns.get(fieldName);
+  }
+
+  @Nullable
+  @Override
+  public Boolean getBoolean(String fieldName) throws InvalidFieldException {
+    validateField(fieldName, EnumSet.of(FieldType.Type.BOOLEAN));
+    return (Boolean) columns.get(fieldName);
   }
 
   @Nullable
@@ -117,13 +123,15 @@ public class SqlStructuredRow implements StructuredRow {
         default:
           // this should never happen since all the keys are from the table schema and should never contain other types
           throw new IllegalStateException(
-            String.format("The type %s of the primary key %s is not a valid key type", type, key));
+              String.format("The type %s of the primary key %s is not a valid key type", type,
+                  key));
       }
     }
     return result;
   }
 
-  private void validateField(String fieldName, Set<FieldType.Type> validTypes) throws InvalidFieldException {
+  private void validateField(String fieldName, Set<FieldType.Type> validTypes)
+      throws InvalidFieldException {
     FieldType.Type type = tableSchema.getType(fieldName);
     if (type == null || !validTypes.contains(type)) {
       throw new InvalidFieldException(tableSchema.getTableId(), fieldName);

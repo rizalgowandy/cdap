@@ -14,13 +14,8 @@
 
 package io.cdap.cdap.internal.app.worker.sidecar;
 
-import io.cdap.cdap.common.conf.CConfiguration;
-import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.utils.DirUtils;
 import io.cdap.cdap.common.utils.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,35 +24,40 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import javax.validation.constraints.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Artifact cleaner that will deleted out-of-date cache entries that were localized by {@link ArtifactLocalizer}
+ * Artifact cleaner that will deleted out-of-date cache entries that were localized by {@link
+ * ArtifactLocalizer}
  */
 public class ArtifactLocalizerCleaner implements Runnable {
+
   private static final Logger LOG = LoggerFactory.getLogger(ArtifactLocalizerCleaner.class);
 
   private final Path cacheDir;
   private final int cacheCleanupInterval;
 
-  public ArtifactLocalizerCleaner(CConfiguration cConf) {
-    cacheDir = Paths.get(cConf.get(Constants.CFG_LOCAL_DATA_DIR));
-    cacheCleanupInterval = cConf.getInt(Constants.ArtifactLocalizer.CACHE_CLEANUP_INTERVAL_MIN);
+  public ArtifactLocalizerCleaner(Path cacheDir, int cacheCleanupInterval) {
+    this.cacheDir = cacheDir;
+    this.cacheCleanupInterval = cacheCleanupInterval;
   }
 
   @Override
   public void run() {
     try {
-      cleanupArtifactCache(cacheDir.resolve("artifacts").toFile());
+      cleanupArtifactCache(cacheDir.toFile());
     } catch (Exception e) {
-      LOG.warn("ArtifactLocalizerService failed to clean up cache. Will retry again in {} minutes: {}",
-               cacheCleanupInterval, e);
+      LOG.warn(
+          "ArtifactLocalizerService failed to clean up cache. Will retry again in {} minutes: {}",
+          cacheCleanupInterval, e);
     }
   }
 
   /**
-   * Recursively looks for out of date artifact jar files in cacheDir. Once a jar file is found, we will first attempt
-   * to delete the unpacked directory for this jar (if it exists) and then delete the jar if and only if that was
-   * successful.
+   * Recursively looks for out of date artifact jar files in cacheDir. Once a jar file is found, we
+   * will first attempt to delete the unpacked directory for this jar (if it exists) and then delete
+   * the jar if and only if that was successful.
    *
    * @param cacheDir The directory that contains the cached jar files
    */
@@ -81,7 +81,9 @@ public class ArtifactLocalizerCleaner implements Runnable {
         timestamps.add(Long.parseLong(FileUtils.getNameWithoutExtension(fileName)));
       } catch (NumberFormatException e) {
         // If we encounter a file that doesn't have a timestamp as the filename
-        LOG.warn("Encountered unexpected file during artifact cache cleanup: {}. This file will be deleted.", file);
+        LOG.warn(
+            "Encountered unexpected file during artifact cache cleanup: {}. This file will be deleted.",
+            file);
         Files.deleteIfExists(file.toPath());
       }
     }
@@ -93,7 +95,8 @@ public class ArtifactLocalizerCleaner implements Runnable {
 
     // Only keep the file that has the highest timestamp (the newest file)
     String maxTimestamp = timestamps.stream().max(Long::compare).get().toString();
-    List<File> filesToDelete = DirUtils.listFiles(cacheDir, (dir, name) -> !name.startsWith(maxTimestamp));
+    List<File> filesToDelete = DirUtils.listFiles(cacheDir,
+        (dir, name) -> !name.startsWith(maxTimestamp));
     for (File file : filesToDelete) {
       // Only delete the jar file if we successfully deleted the unpacked directory for this artifact
       if (deleteUnpackedCacheDir(file)) {
@@ -106,8 +109,10 @@ public class ArtifactLocalizerCleaner implements Runnable {
   /**
    * Deletes the unpacked directory that corresponds to the given jar file
    *
-   * @param jarPath the artifact jar file which will be used to construct the unpacked directory path
-   * @return true if the delete was successful or the unpacked directory does not exist, false otherwise
+   * @param jarPath the artifact jar file which will be used to construct the unpacked directory
+   *     path
+   * @return true if the delete was successful or the unpacked directory does not exist, false
+   *     otherwise
    */
   private boolean deleteUnpackedCacheDir(@NotNull File jarPath) {
     String unpackedPath = jarPath.getParentFile().getPath().replaceFirst("artifacts", "unpacked");
@@ -125,7 +130,8 @@ public class ArtifactLocalizerCleaner implements Runnable {
       LOG.debug("Successfully deleted unpacked directory {}", dirPath.getPath());
       return true;
     } catch (IOException e) {
-      LOG.warn("Encountered error when attempting to delete unpacked dir {}: {}", dirPath.getPath(), e);
+      LOG.warn("Encountered error when attempting to delete unpacked dir {}: {}", dirPath.getPath(),
+          e);
     }
     return false;
   }

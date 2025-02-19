@@ -25,7 +25,6 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import io.cdap.cdap.api.metadata.MetadataScope;
 import io.cdap.cdap.internal.guava.reflect.TypeToken;
-
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
@@ -33,18 +32,20 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * JSON Type adapter for Metadata objects. This is needed because the properties of the metadata
- * are a map from ScopedName (scope + name) to value. Since Json only allows string values as
- * map keys, we serialize the map as a list of its entries.
+ * JSON Type adapter for Metadata objects. This is needed because the properties of the metadata are
+ * a map from ScopedName (scope + name) to value. Since Json only allows string values as map keys,
+ * we serialize the map as a list of its entries.
  */
 public class MetadataCodec implements JsonSerializer<Metadata>, JsonDeserializer<Metadata> {
 
-  private static final Type SET_SCOPED_NAME_TYPE = new TypeToken<Set<ScopedName>>() { }.getType();
-  private static final Type LIST_PROPERTY_TYPE = new TypeToken<List<Property>>() { }.getType();
+  private static final Type SET_SCOPED_NAME_TYPE = new TypeToken<Set<ScopedName>>() {
+  }.getType();
+  private static final Type LIST_PROPERTY_TYPE = new TypeToken<List<Property>>() {
+  }.getType();
 
   @Override
   public Metadata deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+      throws JsonParseException {
     if (!typeOfT.equals(Metadata.class)) {
       return context.deserialize(json, typeOfT);
     }
@@ -54,7 +55,7 @@ public class MetadataCodec implements JsonSerializer<Metadata>, JsonDeserializer
     Set<ScopedName> tags = context.deserialize(tagsJson, SET_SCOPED_NAME_TYPE);
     List<Property> props = context.deserialize(propsJson, LIST_PROPERTY_TYPE);
     Map<ScopedName, String> properties = props.stream().collect(Collectors.toMap(
-      x -> new ScopedName(x.getScope(), x.getName()), Property::getValue));
+        x -> new ScopedName(x.getScope(), x.getName()), Property::getValue));
     return new Metadata(tags, properties);
   }
 
@@ -62,7 +63,7 @@ public class MetadataCodec implements JsonSerializer<Metadata>, JsonDeserializer
   public JsonElement serialize(Metadata src, Type typeOfSrc, JsonSerializationContext context) {
     JsonElement tags = context.serialize(src.getTags());
     JsonElement props = context.serialize(src.getProperties().entrySet().stream().map(
-      entry -> new Property(entry.getKey().getScope(), entry.getKey().getName(), entry.getValue())
+        entry -> new Property(entry.getKey().getScope(), entry.getKey().getName(), entry.getValue())
     ).collect(Collectors.toList()));
     JsonObject object = new JsonObject();
     object.add("tags", tags);
@@ -71,6 +72,7 @@ public class MetadataCodec implements JsonSerializer<Metadata>, JsonDeserializer
   }
 
   static class Property {
+
     private final MetadataScope scope;
     private final String name;
     private final String value;

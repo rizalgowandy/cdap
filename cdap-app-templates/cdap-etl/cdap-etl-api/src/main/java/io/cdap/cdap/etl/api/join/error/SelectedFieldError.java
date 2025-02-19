@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.api.join.error;
 
 import io.cdap.cdap.etl.api.join.JoinField;
-
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -25,6 +24,7 @@ import javax.annotation.Nullable;
  * An error with one of the selected output fields.
  */
 public class SelectedFieldError extends JoinError {
+
   private final JoinField field;
 
   public SelectedFieldError(JoinField field, String message) {

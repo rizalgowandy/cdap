@@ -20,15 +20,15 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.dataset.lib.PartitionKey;
-
 import java.nio.ByteBuffer;
 
 /**
  * Default implementation of {@link ConsumablePartition}.
  */
 public final class DefaultConsumablePartition implements ConsumablePartition {
+
   private static final Gson GSON =
-    new GsonBuilder().registerTypeAdapter(PartitionKey.class, new PartitionKeyCodec()).create();
+      new GsonBuilder().registerTypeAdapter(PartitionKey.class, new PartitionKeyCodec()).create();
 
   private final PartitionKey partitionKey;
 
@@ -42,7 +42,7 @@ public final class DefaultConsumablePartition implements ConsumablePartition {
   }
 
   public DefaultConsumablePartition(PartitionKey partitionKey, ProcessState processState,
-                                    long timestamp, int numFailures) {
+      long timestamp, int numFailures) {
     this.partitionKey = partitionKey;
     this.processState = processState;
     this.timestamp = timestamp;
@@ -118,8 +118,9 @@ public final class DefaultConsumablePartition implements ConsumablePartition {
 
   private void assertState(ProcessState expectedState) {
     if (processState != expectedState) {
-      throw new IllegalStateException(String.format("Expected process state to be '%s', but was '%s' for key '%s'",
-                                                    expectedState, processState, partitionKey));
+      throw new IllegalStateException(
+          String.format("Expected process state to be '%s', but was '%s' for key '%s'",
+              expectedState, processState, partitionKey));
     }
   }
 
@@ -132,8 +133,9 @@ public final class DefaultConsumablePartition implements ConsumablePartition {
     bb.get(stringBytes, 0, keyLength);
     long timestamp = bb.getLong();
     int numFailures = bb.getInt();
-    return new DefaultConsumablePartition(GSON.fromJson(Bytes.toString(stringBytes), PartitionKey.class),
-                                   processState, timestamp, numFailures);
+    return new DefaultConsumablePartition(
+        GSON.fromJson(Bytes.toString(stringBytes), PartitionKey.class),
+        processState, timestamp, numFailures);
   }
 
   public byte[] toBytes() {
@@ -168,7 +170,7 @@ public final class DefaultConsumablePartition implements ConsumablePartition {
     DefaultConsumablePartition that = (DefaultConsumablePartition) o;
 
     return numFailures == that.numFailures && timestamp == that.timestamp
-      && partitionKey.equals(that.partitionKey) && processState == that.processState;
+        && partitionKey.equals(that.partitionKey) && processState == that.processState;
   }
 
   @Override

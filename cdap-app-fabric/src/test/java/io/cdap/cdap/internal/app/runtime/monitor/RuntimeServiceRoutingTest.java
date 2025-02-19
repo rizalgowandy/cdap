@@ -1,5 +1,5 @@
 /*
- * Copyright © 2020 Cask Data, Inc.
+ * Copyright © 2020-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -22,6 +22,8 @@ import com.google.common.util.concurrent.Service;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.PrivateModule;
+import com.google.inject.Provider;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.app.guice.RuntimeServerModule;
 import io.cdap.cdap.common.app.RunIds;
@@ -31,30 +33,37 @@ import io.cdap.cdap.common.discovery.URIScheme;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.LocalLocationModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
-import io.cdap.cdap.common.internal.remote.RemoteAuthenticator;
+import io.cdap.cdap.common.internal.remote.NoOpRemoteAuthenticator;
 import io.cdap.cdap.common.internal.remote.RemoteClient;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.gateway.handlers.PingHandler;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import io.cdap.cdap.proto.security.Credential;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.spi.authentication.UnauthenticatedException;
+import io.cdap.cdap.security.spi.authenticator.RemoteAuthenticator;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpResponse;
-import io.cdap.http.AbstractHttpHandler;
-import io.cdap.http.HttpResponder;
 import io.cdap.http.NettyHttpService;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.EnumSet;
+import javax.annotation.Nullable;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.DiscoveryService;
 import org.junit.After;
@@ -63,20 +72,6 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.EnumSet;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 
 /**
  * Unit test for the {@link RuntimeServiceRoutingHandler}.
@@ -88,34 +83,44 @@ public class RuntimeServiceRoutingTest {
 
   private static final String MOCK_SERVICE = "mock";
 
+  private Injector injector;
   private MessagingService messagingService;
   private RuntimeServer runtimeServer;
   private NettyHttpService mockService;
   private Cancellable mockServiceCancellable;
-  private RemoteClientFactory remoteClientFactory;
+  private MockRemoteAuthenticatorProvider mockRemoteAuthenticatorProvider;
 
   @Before
   public void beforeTest() throws Exception {
     CConfiguration cConf = CConfiguration.create();
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TEMP_FOLDER.newFolder().getAbsolutePath());
+    mockRemoteAuthenticatorProvider = new MockRemoteAuthenticatorProvider();
 
-    Injector injector = Guice.createInjector(
+    injector = Guice.createInjector(
       new ConfigModule(cConf),
+      new PrivateModule() {
+        @Override
+        protected void configure() {
+          bind(RemoteAuthenticator.class).toProvider(mockRemoteAuthenticatorProvider);
+          expose(RemoteAuthenticator.class);
+        }
+      },
       new LocalLocationModule(),
       new InMemoryDiscoveryModule(),
       new MessagingServerRuntimeModule().getInMemoryModules(),
+      new AuthorizationEnforcementModule().getNoOpModules(),
       new AuthenticationContextModules().getNoOpModule(),
       new RuntimeServerModule() {
         @Override
         protected void bindRequestValidator() {
           bind(RuntimeRequestValidator.class).toInstance((programRunId, request) -> {
             String authHeader = request.headers().get(HttpHeaderNames.AUTHORIZATION);
-            String expected = "test " + Base64.getEncoder().encodeToString(
+            String expected = "Bearer " + Base64.getEncoder().encodeToString(
               Hashing.md5().hashString(programRunId.toString()).asBytes());
             if (!expected.equals(authHeader)) {
               throw new UnauthenticatedException("Program run " + programRunId + " is not authorized");
             }
-            return new ProgramRunInfo(ProgramRunStatus.COMPLETED, null);
+            return new ProgramRunInfo(ProgramRunStatus.COMPLETED);
           });
         }
 
@@ -130,14 +135,15 @@ public class RuntimeServiceRoutingTest {
         protected void configure() {
           bind(MetricsCollectionService.class).to(NoOpMetricsCollectionService.class);
         }
-      }
+      },
+      new NoOpAuditLogModule()
     );
 
     messagingService = injector.getInstance(MessagingService.class);
     if (messagingService instanceof Service) {
       ((Service) messagingService).startAndWait();
     }
-    messagingService.createTopic(new TopicMetadata(NamespaceId.SYSTEM.topic("topic")));
+    messagingService.createTopic(new DefaultTopicMetadata(NamespaceId.SYSTEM.topic("topic")));
 
     runtimeServer = injector.getInstance(RuntimeServer.class);
     runtimeServer.startAndWait();
@@ -150,8 +156,6 @@ public class RuntimeServiceRoutingTest {
     mockService.start();
     mockServiceCancellable = injector.getInstance(DiscoveryService.class)
       .register(URIScheme.createDiscoverable(MOCK_SERVICE, mockService));
-
-    remoteClientFactory = injector.getInstance(RemoteClientFactory.class);
   }
 
   @After
@@ -162,21 +166,20 @@ public class RuntimeServiceRoutingTest {
     if (messagingService instanceof Service) {
       ((Service) messagingService).stopAndWait();
     }
-    RemoteAuthenticator.setDefaultAuthenticator(null);
   }
 
   @Test
   public void testGetAndDelete() throws IOException, UnauthorizedException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app", "1.0").workflow("workflow").run(RunIds.generate());
-    RemoteAuthenticator.setDefaultAuthenticator(new MockRemoteAuthenticator(programRunId));
+    mockRemoteAuthenticatorProvider.setAuthenticator(new MockRemoteAuthenticator(programRunId));
 
-    RemoteClient remoteClient = remoteClientFactory.createRemoteClient(
+    RemoteClient remoteClient = injector.getInstance(RemoteClientFactory.class).createRemoteClient(
       Constants.Service.RUNTIME,
       DefaultHttpRequestConfig.DEFAULT,
       Constants.Gateway.INTERNAL_API_VERSION_3 + "/runtime/namespaces");
 
     for (HttpMethod method : EnumSet.of(HttpMethod.GET, HttpMethod.DELETE)) {
-      for (int status : Arrays.asList(200, 400, 404, 500)) {
+      for (int status : Arrays.asList(200, 400, 404, 501)) {
         io.cdap.common.http.HttpRequest request =
           remoteClient.requestBuilder(method,
                                       String.format("%s/apps/%s/versions/%s/%s/%s/runs/%s/services/%s/mock/%s/%d",
@@ -195,9 +198,9 @@ public class RuntimeServiceRoutingTest {
   @Test
   public void testPutAndPost() throws IOException, UnauthorizedException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app", "1.0").workflow("workflow").run(RunIds.generate());
-    RemoteAuthenticator.setDefaultAuthenticator(new MockRemoteAuthenticator(programRunId));
+    mockRemoteAuthenticatorProvider.setAuthenticator(new MockRemoteAuthenticator(programRunId));
 
-    RemoteClient remoteClient = remoteClientFactory.createRemoteClient(
+    RemoteClient remoteClient = injector.getInstance(RemoteClientFactory.class).createRemoteClient(
       Constants.Service.RUNTIME,
       DefaultHttpRequestConfig.DEFAULT,
       Constants.Gateway.INTERNAL_API_VERSION_3 + "/runtime/namespaces");
@@ -205,7 +208,7 @@ public class RuntimeServiceRoutingTest {
 
     for (String content : Arrays.asList("", "Small content", largeContent)) {
       for (HttpMethod method : EnumSet.of(HttpMethod.PUT, HttpMethod.POST)) {
-        for (int status : Arrays.asList(200, 400, 404, 500)) {
+        for (int status : Arrays.asList(200, 400, 404, 501)) {
           io.cdap.common.http.HttpRequest request =
             remoteClient.requestBuilder(method,
                                         String.format("%s/apps/%s/versions/%s/%s/%s/runs/%s/services/%s/mock/%s/%d",
@@ -228,7 +231,7 @@ public class RuntimeServiceRoutingTest {
   @Test
   public void testUnauthorized() throws IOException, UnauthorizedException {
     ProgramRunId programRunId = NamespaceId.DEFAULT.app("app", "1.0").workflow("workflow").run(RunIds.generate());
-    RemoteClient remoteClient = remoteClientFactory.createRemoteClient(
+    RemoteClient remoteClient = injector.getInstance(RemoteClientFactory.class).createRemoteClient(
       Constants.Service.RUNTIME,
       DefaultHttpRequestConfig.DEFAULT,
       Constants.Gateway.INTERNAL_API_VERSION_3 + "/runtime/namespaces");
@@ -247,40 +250,9 @@ public class RuntimeServiceRoutingTest {
   }
 
   /**
-   * A mock handler for testing service routing. It provides service endpoints for testing.
-   */
-  @Path("/mock")
-  public static final class MockServiceHandler extends AbstractHttpHandler {
-
-    @Path("/get/{status}")
-    @GET
-    public void get(HttpRequest request, HttpResponder responder, @PathParam("status") int statusCode) {
-      responder.sendString(HttpResponseStatus.valueOf(statusCode), "Status is " + statusCode);
-    }
-
-    @Path("/delete/{status}")
-    @DELETE
-    public void delete(HttpRequest request, HttpResponder responder, @PathParam("status") int statusCode) {
-      responder.sendString(HttpResponseStatus.valueOf(statusCode), "Status is " + statusCode);
-    }
-
-    @Path("/put/{status}")
-    @PUT
-    public void put(FullHttpRequest request, HttpResponder responder, @PathParam("status") int statusCode) {
-      responder.sendString(HttpResponseStatus.valueOf(statusCode), request.content().toString(StandardCharsets.UTF_8));
-    }
-
-    @Path("/post/{status}")
-    @POST
-    public void post(FullHttpRequest request, HttpResponder responder, @PathParam("status") int statusCode) {
-      responder.sendString(HttpResponseStatus.valueOf(statusCode), request.content().toString(StandardCharsets.UTF_8));
-    }
-  }
-
-  /**
    * A {@link RemoteAuthenticator} for testing. It generates a md5 signature from the program run id.
    */
-  private static final class MockRemoteAuthenticator extends RemoteAuthenticator {
+  private static final class MockRemoteAuthenticator implements RemoteAuthenticator {
 
     private final ProgramRunId programRunId;
 
@@ -289,13 +261,41 @@ public class RuntimeServiceRoutingTest {
     }
 
     @Override
-    public String getType() {
-      return "test";
+    public String getName() {
+      return "mock-remote-authenticator";
     }
 
     @Override
-    public String getCredentials() {
-      return Base64.getEncoder().encodeToString(Hashing.md5().hashString(programRunId.toString()).asBytes());
+    public Credential getCredentials() {
+      String credentialValue = Base64.getEncoder().encodeToString(Hashing.md5().hashString(programRunId.toString())
+                                                                    .asBytes());
+      return new Credential(credentialValue, Credential.CredentialType.EXTERNAL_BEARER);
+    }
+
+    /**
+     * Returns the credentials for the authentication with scopes.
+     */
+    @Nullable
+    @Override
+    public Credential getCredentials(String scopes) throws IOException {
+      return getCredentials();
+    }
+  }
+
+  /**
+   * A {@link RemoteAuthenticator} provider for testing.
+   */
+  private static final class MockRemoteAuthenticatorProvider implements Provider<RemoteAuthenticator> {
+
+    private RemoteAuthenticator remoteAuthenticator = new NoOpRemoteAuthenticator();
+
+    public void setAuthenticator(RemoteAuthenticator remoteAuthenticator) {
+      this.remoteAuthenticator = remoteAuthenticator;
+    }
+
+    @Override
+    public RemoteAuthenticator get() {
+      return remoteAuthenticator;
     }
   }
 }

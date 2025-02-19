@@ -21,27 +21,30 @@ import io.cdap.cdap.api.workflow.Condition;
 import io.cdap.cdap.api.workflow.WorkflowConditionNode;
 import io.cdap.cdap.api.workflow.WorkflowContext;
 import io.cdap.cdap.api.workflow.WorkflowNode;
-
 import java.util.List;
 
 /**
  * Defines an interface for adding {@link WorkflowConditionNode} to the Workflow.
  */
 public interface WorkflowConditionAdder {
+
   /**
    * Adds a {@link WorkflowConditionNode} to the Workflow.
+   *
    * @param predicate the predicate representing condition.
    * @param ifBranch the branch that is executed when the predicate evaluates to the true
    * @param elseBranch the branch that is executed when the predicate evaluates to the false
    */
   void addWorkflowConditionNode(Predicate<WorkflowContext> predicate, List<WorkflowNode> ifBranch,
-                                List<WorkflowNode> elseBranch);
+      List<WorkflowNode> elseBranch);
 
   /**
    * Adds a {@link WorkflowConditionNode} to the Workflow.
+   *
    * @param condition the condition in the Workflow
    * @param ifBranch the branch that is executed when the predicate evaluates to the true
    * @param elseBranch the branch that is executed when the predicate evaluates to the false
    */
-  void addWorkflowConditionNode(Condition condition, List<WorkflowNode> ifBranch, List<WorkflowNode> elseBranch);
+  void addWorkflowConditionNode(Condition condition, List<WorkflowNode> ifBranch,
+      List<WorkflowNode> elseBranch);
 }

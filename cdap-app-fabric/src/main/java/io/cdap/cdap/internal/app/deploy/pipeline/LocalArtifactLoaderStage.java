@@ -27,6 +27,7 @@ import io.cdap.cdap.app.deploy.Configurator;
 import io.cdap.cdap.app.store.Store;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.internal.app.deploy.ConfiguratorFactory;
+import io.cdap.cdap.internal.app.store.ApplicationMeta;
 import io.cdap.cdap.internal.capability.CapabilityReader;
 import io.cdap.cdap.metadata.MetadataValidator;
 import io.cdap.cdap.pipeline.AbstractStage;
@@ -34,16 +35,16 @@ import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.security.StandardPermission;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
-import org.apache.twill.filesystem.Location;
-
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.filesystem.Location;
 
 /**
  * LocalArtifactLoaderStage gets a {@link Location} and emits a {@link ApplicationDeployable}.
  * <p>
- * This stage is responsible for reading the JAR and generating an ApplicationSpecification that is forwarded to the
- * next stage of processing.
+ * This stage is responsible for reading the JAR and generating an ApplicationSpecification that is
+ * forwarded to the next stage of processing.
  * </p>
  */
 public class LocalArtifactLoaderStage extends AbstractStage<AppDeploymentInfo> {
@@ -59,10 +60,10 @@ public class LocalArtifactLoaderStage extends AbstractStage<AppDeploymentInfo> {
    * Constructor with hit for handling type.
    */
   public LocalArtifactLoaderStage(CConfiguration cConf, Store store,
-                                  AccessEnforcer accessEnforcer,
-                                  AuthenticationContext authenticationContext,
-                                  CapabilityReader capabilityReader,
-                                  ConfiguratorFactory configuratorFactory) {
+      AccessEnforcer accessEnforcer,
+      AuthenticationContext authenticationContext,
+      CapabilityReader capabilityReader,
+      ConfiguratorFactory configuratorFactory) {
     super(TypeToken.of(AppDeploymentInfo.class));
     this.store = store;
     this.accessEnforcer = accessEnforcer;
@@ -73,10 +74,11 @@ public class LocalArtifactLoaderStage extends AbstractStage<AppDeploymentInfo> {
   }
 
   /**
-   * Instantiates the Application class and calls configure() on it to generate the {@link ApplicationSpecification}.
+   * Instantiates the Application class and calls configure() on it to generate the {@link
+   * ApplicationSpecification}.
    *
-   * @param deploymentInfo information needed to deploy the application, such as the artifact to create it from and
-   *                       the application config to use.
+   * @param deploymentInfo information needed to deploy the application, such as the artifact to
+   *     create it from and the application config to use.
    */
   @Override
   public void process(AppDeploymentInfo deploymentInfo) throws Exception {
@@ -101,7 +103,8 @@ public class LocalArtifactLoaderStage extends AbstractStage<AppDeploymentInfo> {
     } else {
       applicationId = deploymentInfo.getNamespaceId().app(specification.getName(), appVersion);
     }
-    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(), StandardPermission.CREATE);
+    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(),
+        StandardPermission.CREATE);
     capabilityReader.checkAllEnabled(specification);
 
     Map<MetadataScope, Metadata> metadatas = appSpecInfo.getMetadata();
@@ -113,10 +116,17 @@ public class LocalArtifactLoaderStage extends AbstractStage<AppDeploymentInfo> {
         metadataValidator.validateTags(appEntity, metadata.getTags());
       }
     }
-    emit(new ApplicationDeployable(deploymentInfo.getArtifactId(), deploymentInfo.getArtifactLocation(),
-                                   applicationId, specification, store.getApplication(applicationId),
-                                   ApplicationDeployScope.USER, deploymentInfo.getApplicationClass(),
-                                   deploymentInfo.getOwnerPrincipal(), deploymentInfo.canUpdateSchedules(),
-                                   appSpecInfo.getSystemTables(), metadatas));
+    ApplicationSpecification appSpec = Optional.ofNullable(
+            store.getLatest(applicationId.getAppReference()))
+        .map(ApplicationMeta::getSpec)
+        .orElse(null);
+    emit(new ApplicationDeployable(deploymentInfo.getArtifactId(),
+        deploymentInfo.getArtifactLocation(),
+        applicationId, specification, appSpec,
+        ApplicationDeployScope.USER, deploymentInfo.getApplicationClass(),
+        deploymentInfo.getOwnerPrincipal(), deploymentInfo.canUpdateSchedules(),
+        appSpecInfo.getSystemTables(), metadatas, deploymentInfo.getChangeDetail(),
+        deploymentInfo.getSourceControlMeta(), deploymentInfo.isUpgrade(),
+        deploymentInfo.isSkipMarkingLatest()));
   }
 }

@@ -20,7 +20,6 @@ import com.google.common.io.Closeables;
 import io.cdap.cdap.common.io.FileSeekableInputStream;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,8 +27,8 @@ import java.nio.file.Path;
 import javax.annotation.Nullable;
 
 /**
- * An {@link InputStream} that reads from an in-memory {@link ByteBuf} and optionally a file.
- * It is used by the {@link SpillableBodyConsumer} to combine in-memory data with spilled data.
+ * An {@link InputStream} that reads from an in-memory {@link ByteBuf} and optionally a file. It is
+ * used by the {@link SpillableBodyConsumer} to combine in-memory data with spilled data.
  */
 final class CombineInputStream extends InputStream {
 
@@ -38,7 +37,8 @@ final class CombineInputStream extends InputStream {
 
   CombineInputStream(ByteBuf buffer, @Nullable Path spillPath) throws IOException {
     this.bufferStream = new ByteBufInputStream(buffer);
-    this.spillStream = spillPath == null ? null : new FileSeekableInputStream(new FileInputStream(spillPath.toFile()));
+    this.spillStream = spillPath == null ? null
+        : new FileSeekableInputStream(new FileInputStream(spillPath.toFile()));
   }
 
   @Override

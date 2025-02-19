@@ -19,7 +19,6 @@ package io.cdap.cdap.data2.dataset2.lib.timeseries;
 import com.google.common.collect.ImmutableList;
 import io.cdap.cdap.api.dataset.lib.cube.DimensionValue;
 import io.cdap.cdap.api.dataset.lib.cube.Measurement;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -28,12 +27,16 @@ import java.util.List;
  * Represents measure in time with dimension values assigned to it
  */
 public final class Fact {
-  /** in seconds */
+
+  /**
+   * in seconds
+   */
   private final long timestamp;
   private final List<DimensionValue> dimensionValues;
   private final Collection<Measurement> measurements;
 
-  public Fact(long timestamp, List<DimensionValue> dimensionValues, Collection<Measurement> measurements) {
+  public Fact(long timestamp, List<DimensionValue> dimensionValues,
+      Collection<Measurement> measurements) {
     this.timestamp = timestamp;
     this.dimensionValues = ImmutableList.copyOf(dimensionValues);
     this.measurements = measurements;

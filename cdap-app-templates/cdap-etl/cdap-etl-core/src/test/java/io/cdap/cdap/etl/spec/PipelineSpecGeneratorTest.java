@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.spec;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.cdap.cdap.api.Resources;
 import io.cdap.cdap.api.artifact.ArtifactId;
 import io.cdap.cdap.api.artifact.ArtifactScope;
 import io.cdap.cdap.api.artifact.ArtifactVersion;
@@ -67,15 +66,14 @@ import io.cdap.cdap.etl.proto.v2.spec.PipelineSpec;
 import io.cdap.cdap.etl.proto.v2.spec.PluginSpec;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Tests for converting a {@link ETLConfig} into a {@link PipelineSpec}.
@@ -304,10 +302,11 @@ public class PipelineSpecGeneratorTest {
           .build())
       .addConnections(etlConfig.getConnections())
       .setResources(etlConfig.getResources())
-      .setDriverResources(new Resources(1024, 1))
-      .setClientResources(new Resources(1024, 1))
+      .setDriverResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
+      .setClientResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
       .setStageLoggingEnabled(etlConfig.isStageLoggingEnabled())
       .setNumOfRecordsPreview(etlConfig.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
     Assert.assertEquals(expected, actual);
   }
@@ -340,10 +339,11 @@ public class PipelineSpecGeneratorTest {
           .build())
       .addConnections(etlConfig.getConnections())
       .setResources(etlConfig.getResources())
-      .setDriverResources(new Resources(1024, 1))
-      .setClientResources(new Resources(1024, 1))
+      .setDriverResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
+      .setClientResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
       .setStageLoggingEnabled(etlConfig.isStageLoggingEnabled())
       .setNumOfRecordsPreview(etlConfig.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     PipelineSpec actual = specGenerator.generateSpec(etlConfig);
@@ -512,6 +512,7 @@ public class PipelineSpecGeneratorTest {
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
       .setNumOfRecordsPreview(config.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     Assert.assertEquals(expected, actual);
@@ -533,6 +534,7 @@ public class PipelineSpecGeneratorTest {
       .setDriverResources(config.getDriverResources())
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     Assert.assertEquals(expected, actual);
@@ -599,6 +601,7 @@ public class PipelineSpecGeneratorTest {
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
       .setNumOfRecordsPreview(config.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     PipelineSpec actual = specGenerator.generateSpec(config);
@@ -681,6 +684,7 @@ public class PipelineSpecGeneratorTest {
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
       .setNumOfRecordsPreview(config.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     PipelineSpec actual = specGenerator.generateSpec(config);
@@ -748,6 +752,7 @@ public class PipelineSpecGeneratorTest {
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
       .setNumOfRecordsPreview(config.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     PipelineSpec actual = specGenerator.generateSpec(config);
@@ -914,10 +919,11 @@ public class PipelineSpecGeneratorTest {
       .addStage(StageSpec.builder("a2", new PluginSpec(Action.PLUGIN_TYPE, "action2", empty, ARTIFACT_ID))
                   .addInputSchema("a1", null)
                   .build())
-      .setResources(new Resources(1024))
-      .setDriverResources(new Resources(1024))
-      .setClientResources(new Resources(1024))
+      .setResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
+      .setDriverResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
+      .setClientResources(ETLConfig.Builder.DEFAULT_TEST_RESOURCES)
       .setNumOfRecordsPreview(config.getNumOfRecordsPreview())
+      .setEngine(Engine.MAPREDUCE)
       .build();
     Assert.assertEquals(expected, actual);
   }
@@ -940,6 +946,7 @@ public class PipelineSpecGeneratorTest {
       .setDriverResources(config.getDriverResources())
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
+      .setEngine(Engine.MAPREDUCE)
       .setSqlEngineStageSpec(
         StageSpec.builder("sqlengine_mocksqlengine",
                           new PluginSpec(BatchSQLEngine.PLUGIN_TYPE, "mocksqlengine", emptyMap, ARTIFACT_ID)).build())
@@ -967,6 +974,7 @@ public class PipelineSpecGeneratorTest {
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
       .setSqlEngineStageSpec(null)
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     Assert.assertEquals(expected, actual);
@@ -991,6 +999,7 @@ public class PipelineSpecGeneratorTest {
       .setClientResources(config.getClientResources())
       .setStageLoggingEnabled(config.isStageLoggingEnabled())
       .setSqlEngineStageSpec(null)
+      .setEngine(Engine.MAPREDUCE)
       .build();
 
     Assert.assertEquals(expected, actual);

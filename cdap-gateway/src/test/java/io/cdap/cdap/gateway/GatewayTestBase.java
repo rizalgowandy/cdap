@@ -38,11 +38,12 @@ import io.cdap.cdap.data2.datafabric.dataset.service.DatasetService;
 import io.cdap.cdap.data2.datafabric.dataset.service.executor.DatasetOpExecutorService;
 import io.cdap.cdap.gateway.handlers.log.MockLogReader;
 import io.cdap.cdap.gateway.router.NettyRouter;
+import io.cdap.cdap.internal.app.services.AppFabricProcessorService;
 import io.cdap.cdap.internal.app.services.AppFabricServer;
 import io.cdap.cdap.internal.guice.AppFabricTestModule;
 import io.cdap.cdap.logging.read.LogReader;
 import io.cdap.cdap.logging.service.LogQueryService;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.metadata.MetadataService;
 import io.cdap.cdap.metrics.query.MetricsQueryService;
 import io.cdap.cdap.proto.NamespaceMeta;
@@ -58,6 +59,14 @@ import io.cdap.cdap.security.spi.authorization.PermissionManager;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.store.StoreDefinition;
+import java.lang.reflect.Type;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.message.BasicHeader;
@@ -67,15 +76,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.TemporaryFolder;
-
-import java.lang.reflect.Type;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -107,6 +107,7 @@ public abstract class GatewayTestBase {
 
   private static Injector injector;
   private static AppFabricServer appFabricServer;
+  private static AppFabricProcessorService appFabricProcessorService;
   private static NettyRouter router;
   private static LogQueryService logQueryService;
   private static MetricsQueryService metricsQueryService;
@@ -195,6 +196,8 @@ public abstract class GatewayTestBase {
     datasetService.startAndWait();
     appFabricServer = injector.getInstance(AppFabricServer.class);
     appFabricServer.startAndWait();
+    appFabricProcessorService = injector.getInstance(AppFabricProcessorService.class);
+    appFabricProcessorService.startAndWait();
     logQueryService = injector.getInstance(LogQueryService.class);
     logQueryService.startAndWait();
     metricsQueryService = injector.getInstance(MetricsQueryService.class);
@@ -218,6 +221,7 @@ public abstract class GatewayTestBase {
     namespaceAdmin.delete(new NamespaceId(TEST_NAMESPACE2));
     namespaceAdmin.delete(NamespaceId.DEFAULT);
     appFabricServer.stopAndWait();
+    appFabricProcessorService.stopAndWait();
     metricsCollectionService.stopAndWait();
     metricsQueryService.stopAndWait();
     logQueryService.stopAndWait();

@@ -23,7 +23,6 @@ import io.cdap.cdap.api.customaction.CustomActionContext;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.dataset.DatasetManagementException;
 import io.cdap.cdap.api.lineage.field.Operation;
-import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.api.security.store.SecureStoreData;
 import io.cdap.cdap.api.security.store.SecureStoreMetadata;
 import io.cdap.cdap.etl.api.action.ActionContext;
@@ -33,27 +32,28 @@ import io.cdap.cdap.etl.common.AbstractStageContext;
 import io.cdap.cdap.etl.common.ExternalDatasets;
 import io.cdap.cdap.etl.common.PipelineRuntime;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-import org.apache.tephra.TransactionFailureException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.apache.tephra.TransactionFailureException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Default implementation for the {@link ActionContext}.
  */
-public class BasicActionContext extends AbstractStageContext implements ActionContext  {
+public class BasicActionContext extends AbstractStageContext implements ActionContext {
+
   private static final Logger LOG = LoggerFactory.getLogger(BasicActionContext.class);
   private static final String EXTERNAL_DATASET_TYPE = "externalDataset";
 
   private final CustomActionContext context;
   private final Admin admin;
 
-  public BasicActionContext(CustomActionContext context, PipelineRuntime pipelineRuntime, StageSpec stageSpec) {
+  public BasicActionContext(CustomActionContext context, PipelineRuntime pipelineRuntime,
+      StageSpec stageSpec) {
     super(pipelineRuntime, stageSpec);
     this.context = context;
     this.admin = context.getAdmin();
@@ -80,8 +80,18 @@ public class BasicActionContext extends AbstractStageContext implements ActionCo
   }
 
   @Override
+  public SecureStoreMetadata getMetadata(String namespace, String name) throws Exception {
+    return context.getMetadata(namespace, name);
+  }
+
+  @Override
+  public byte[] getData(String namespace, String name) throws Exception {
+    return context.getData(namespace, name);
+  }
+
+  @Override
   public void put(String namespace, String name, String data, @Nullable String description,
-                  Map<String, String> properties) throws Exception {
+      Map<String, String> properties) throws Exception {
     context.getAdmin().put(namespace, name, data, description, properties);
   }
 
@@ -97,9 +107,10 @@ public class BasicActionContext extends AbstractStageContext implements ActionCo
 
   @Override
   public void registerLineage(String referenceName, AccessType accessType)
-    throws DatasetManagementException {
+      throws DatasetManagementException {
     Supplier<Dataset> datasetSupplier =
-      () -> Transactionals.execute(context, (TxCallable<Dataset>) ctx -> ctx.getDataset(referenceName));
+        () -> Transactionals.execute(context,
+            (TxCallable<Dataset>) ctx -> ctx.getDataset(referenceName));
     ExternalDatasets.registerLineage(admin, referenceName, accessType, null, datasetSupplier);
   }
 

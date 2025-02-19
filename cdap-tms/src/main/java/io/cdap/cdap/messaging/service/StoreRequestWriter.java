@@ -20,9 +20,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.util.concurrent.Uninterruptibles;
 import io.cdap.cdap.common.utils.TimeProvider;
-import io.cdap.cdap.messaging.StoreRequest;
-import io.cdap.cdap.messaging.TopicMetadata;
-
+import io.cdap.cdap.messaging.spi.StoreRequest;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
@@ -32,8 +31,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * An abstract base class to abstract out writing of {@link Iterator} of {@link StoreRequest} to underlying
- * storage table.
+ * An abstract base class to abstract out writing of {@link Iterator} of {@link StoreRequest} to
+ * underlying storage table.
  *
  * @param <T> Type of the internal entry that can be written by this writer.
  */
@@ -55,9 +54,10 @@ abstract class StoreRequestWriter<T> implements Closeable {
   /**
    * Constructor.
    *
-   * @param timeProvider the {@link TimeProvider} for generating timestamp to be used for write timestamp
-   * @param generateNullPayloadEntry {@code true} to generate table entry with {@code null} payload if
-   *                                 a {@link PendingStoreRequest} has an empty iterator of payload.
+   * @param timeProvider the {@link TimeProvider} for generating timestamp to be used for write
+   *     timestamp
+   * @param generateNullPayloadEntry {@code true} to generate table entry with {@code null}
+   *     payload if a {@link PendingStoreRequest} has an empty iterator of payload.
    */
   StoreRequestWriter(TimeProvider timeProvider, boolean generateNullPayloadEntry) {
     this.timeProvider = timeProvider;
@@ -100,14 +100,15 @@ abstract class StoreRequestWriter<T> implements Closeable {
    *
    * @param metadata {@link TopicMetadata}
    * @param transactional whether a store request is transactional or not
-   * @param transactionWritePointer the transaction write pointer if the request is transactional
+   * @param transactionWritePointer the transaction write pointer if the request is
+   *     transactional
    * @param writeTimestamp the timestamp to be used as the write timestamp
    * @param sequenceId the sequence id to be used
    * @param payload the message payload
    * @return an entry of type {@code <T>}.
    */
   abstract T getEntry(TopicMetadata metadata, boolean transactional, long transactionWritePointer,
-                      long writeTimestamp, short sequenceId, @Nullable byte[] payload);
+      long writeTimestamp, short sequenceId, @Nullable byte[] payload);
 
   /**
    * Writes the given list of entries of type {@code <T>}.
@@ -115,8 +116,8 @@ abstract class StoreRequestWriter<T> implements Closeable {
   abstract void doWrite(Iterator<T> entries) throws IOException;
 
   /**
-   * Advances the sequence id. If the sequence id exceeded the max limit, the timestamp will get updated and the
-   * sequence id will get reset to 0.
+   * Advances the sequence id. If the sequence id exceeded the max limit, the timestamp will get
+   * updated and the sequence id will get reset to 0.
    */
   private void incrementSequenceId() {
     seqId++;
@@ -126,8 +127,8 @@ abstract class StoreRequestWriter<T> implements Closeable {
   }
 
   /**
-   * Acquires a new timestamp and optionally reset the sequence id if the new timestamp is different than the last
-   * used one.
+   * Acquires a new timestamp and optionally reset the sequence id if the new timestamp is different
+   * than the last used one.
    */
   private void updateTimeSequence() {
     writeTimestamp = timeProvider.currentTimeMillis();
@@ -144,8 +145,8 @@ abstract class StoreRequestWriter<T> implements Closeable {
   }
 
   /**
-   * A resettable {@link Iterator} to transform payloads in a {@link PendingStoreRequest} to entries using
-   * the {@link #getEntry(TopicMetadata, boolean, long, long, short, byte[])} method.
+   * A resettable {@link Iterator} to transform payloads in a {@link PendingStoreRequest} to entries
+   * using the {@link #getEntry(TopicMetadata, boolean, long, long, short, byte[])} method.
    */
   private final class PayloadTransformIterator implements Iterator<T> {
 
@@ -174,7 +175,7 @@ abstract class StoreRequestWriter<T> implements Closeable {
       if (payloadIterator.hasNext() || (generateNullPayloadEntry && !computedFirst)) {
         byte[] payload = payloadIterator.hasNext() ? payloadIterator.next() : null;
         nextEntry = getEntry(storeRequest.getTopicMetadata(), storeRequest.isTransactional(),
-                             storeRequest.getTransactionWritePointer(), writeTimestamp, (short) seqId, payload);
+            storeRequest.getTransactionWritePointer(), writeTimestamp, (short) seqId, payload);
       }
       computedFirst = true;
       completed = nextEntry == null;

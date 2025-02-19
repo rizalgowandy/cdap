@@ -22,15 +22,17 @@ import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.Role;
-
 import java.util.Properties;
 import java.util.Set;
 import java.util.jar.Attributes;
 
 /**
- * Interface for managing {@link Principal principals'} authorization for {@link Permission permissions} on
- * {@link EntityId CDAP entities}. Authorization extensions must implement this interface to delegate authorization
- * to appropriate authorization back-ends. The contract with Authorization extensions is as below:
+ * This is deprecated , for SPI please use {@link AccessControllerSpi}
+ * for API use {@link ContextAccessEnforcer}.
+ * Interface for managing {@link Principal principals'} authorization for {@link Permission
+ * permissions} on {@link EntityId CDAP entities}. Authorization extensions must implement this
+ * interface to delegate authorization to appropriate authorization back-ends. The contract with
+ * Authorization extensions is as below:
  *
  * <ul>
  *   <li>Authorization is enabled setting the parameter {@code security.authorization.enabled} to true in
@@ -52,11 +54,13 @@ import java.util.jar.Attributes;
  * </ul>
  */
 @Beta
+@Deprecated
 public interface AccessController extends GrantFetcher, PermissionManager, AccessEnforcer {
+
   /**
-   * Initialize the {@link AccessController}. Authorization extensions can use this method to access an
-   * {@link AuthorizationContext} that allows them to interact with CDAP for operations such as creating and accessing
-   * datasets, executing dataset operations in transactions, etc.
+   * Initialize the {@link AccessController}. Authorization extensions can use this method to access
+   * an {@link AuthorizationContext} that allows them to interact with CDAP for operations such as
+   * creating and accessing datasets, executing dataset operations in transactions, etc.
    *
    * @param context the {@link AuthorizationContext} that can be used to interact with CDAP
    */
@@ -114,7 +118,8 @@ public interface AccessController extends GrantFetcher, PermissionManager, Acces
   Set<Role> listAllRoles() throws AccessException;
 
   /**
-   * Destroys an {@link AccessController}. Authorization extensions can use this method to write any cleanup code.
+   * Destroys an {@link AccessController}. Authorization extensions can use this method to write any
+   * cleanup code.
    */
   default void destroy() {
     // default no-op implementation

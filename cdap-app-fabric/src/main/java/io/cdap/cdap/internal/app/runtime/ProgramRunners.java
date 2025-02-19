@@ -18,6 +18,7 @@ package io.cdap.cdap.internal.app.runtime;
 
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.joran.util.ConfigurationWatchListUtil;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
@@ -35,39 +36,45 @@ import io.cdap.cdap.app.runtime.ProgramRunner;
 import io.cdap.cdap.common.app.RunIds;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.io.Locations;
+import io.cdap.cdap.common.lang.jar.BundleJarUtil;
 import io.cdap.cdap.common.metrics.ProgramTypeMetricTag;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.PrivilegedExceptionAction;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import javax.annotation.Nullable;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.twill.api.RunId;
 import org.apache.twill.filesystem.Location;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.security.PrivilegedExceptionAction;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
-import javax.annotation.Nullable;
-
 /**
  * Utility class to provide common functionality that shares among different {@link ProgramRunner}.
  */
 public final class ProgramRunners {
+  public static final String PLUGIN_DIR = "artifacts";
+  public static final String PLUGIN_ARCHIVE = "artifacts_archive.jar";
 
   /**
    * Impersonates as the given user to start a guava service
    *
    * @param user user to impersonate
-   * @param service guava service start start
+   * @param service guava service to start
    */
-  public static void startAsUser(String user, final Service service) throws IOException, InterruptedException {
+  public static void startAsUser(String user, final Service service)
+      throws IOException, InterruptedException {
     runAsUser(user, new Callable<ListenableFuture<Service.State>>() {
       @Override
       public ListenableFuture<Service.State> call() throws Exception {
@@ -82,14 +89,15 @@ public final class ProgramRunners {
    * @param user user to impersonate
    * @param callable action to perform
    */
-  public static <T> T runAsUser(String user, final Callable<T> callable) throws IOException, InterruptedException {
+  public static <T> T runAsUser(String user, final Callable<T> callable)
+      throws IOException, InterruptedException {
     return UserGroupInformation.createRemoteUser(user)
-      .doAs(new PrivilegedExceptionAction<T>() {
-        @Override
-        public T run() throws Exception {
-          return callable.call();
-        }
-      });
+        .doAs(new PrivilegedExceptionAction<T>() {
+          @Override
+          public T run() throws Exception {
+            return callable.call();
+          }
+        });
   }
 
   /**
@@ -102,13 +110,14 @@ public final class ProgramRunners {
     String value = arguments.get(ProgramOptionConstants.LOGICAL_START_TIME);
     try {
       // value is only empty/null in in some unit tests
-      long logicalStartTime = Strings.isNullOrEmpty(value) ? System.currentTimeMillis() : Long.parseLong(value);
+      long logicalStartTime =
+          Strings.isNullOrEmpty(value) ? System.currentTimeMillis() : Long.parseLong(value);
       arguments.put(ProgramOptionConstants.LOGICAL_START_TIME, Long.toString(logicalStartTime));
       return logicalStartTime;
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException(String.format(
-        "%s is set to an invalid value %s. Please ensure it is a timestamp in milliseconds.",
-        ProgramOptionConstants.LOGICAL_START_TIME, value));
+          "%s is set to an invalid value %s. Please ensure it is a timestamp in milliseconds.",
+          ProgramOptionConstants.LOGICAL_START_TIME, value));
     }
   }
 
@@ -119,7 +128,8 @@ public final class ProgramRunners {
    */
   public static RunId getRunId(ProgramOptions programOptions) {
     String id = programOptions.getArguments().getOption(ProgramOptionConstants.RUN_ID);
-    Preconditions.checkArgument(id != null, "Missing " + ProgramOptionConstants.RUN_ID + " in program options");
+    Preconditions.checkArgument(id != null,
+        "Missing " + ProgramOptionConstants.RUN_ID + " in program options");
     return RunIds.fromString(id);
   }
 
@@ -132,12 +142,15 @@ public final class ProgramRunners {
   @Nullable
   public static KerberosPrincipalId getApplicationPrincipal(ProgramOptions programOptions) {
     Arguments systemArgs = programOptions.getArguments();
-    boolean hasAppPrincipal = Boolean.parseBoolean(systemArgs.getOption(ProgramOptionConstants.APP_PRINCIPAL_EXISTS));
-    return hasAppPrincipal ? new KerberosPrincipalId(systemArgs.getOption(ProgramOptionConstants.PRINCIPAL)) : null;
+    boolean hasAppPrincipal = Boolean.parseBoolean(
+        systemArgs.getOption(ProgramOptionConstants.APP_PRINCIPAL_EXISTS));
+    return hasAppPrincipal ? new KerberosPrincipalId(
+        systemArgs.getOption(ProgramOptionConstants.PRINCIPAL)) : null;
   }
 
   /**
-   * Same as {@link #createLogbackJar(Location)} except this method uses local {@link File} instead.
+   * Same as {@link #createLogbackJar(Location)} except this method uses local {@link File}
+   * instead.
    */
   @Nullable
   public static File createLogbackJar(File targetFile) throws IOException {
@@ -149,18 +162,13 @@ public final class ProgramRunners {
    * Creates a jar that contains a logback.xml configured for the current process
    *
    * @param targetLocation the jar location
-   * @return the {@link Location} where the jar was created to or {@code null} if "logback.xml" is not found
-   *         in the current ClassLoader.
+   * @return the {@link Location} where the jar was created to or {@code null} if "logback.xml" is
+   *     not found in the current ClassLoader.
    * @throws IOException if failed in reading the logback xml or writing out the jar
    */
   @Nullable
   public static Location createLogbackJar(Location targetLocation) throws IOException {
-    ILoggerFactory loggerFactory = LoggerFactory.getILoggerFactory();
-    if (!(loggerFactory instanceof Context)) {
-      return null;
-    }
-
-    URL logbackURL = ConfigurationWatchListUtil.getMainWatchURL((Context) loggerFactory);
+    URL logbackURL = getLogbackURL(System.getProperties());
     if (logbackURL == null) {
       return null;
     }
@@ -174,12 +182,29 @@ public final class ProgramRunners {
     }
   }
 
+  @VisibleForTesting
+  @Nullable
+  static URL getLogbackURL(Properties properties) throws MalformedURLException {
+    String configurationFile = properties.getProperty("logback.configurationFile");
+    if (configurationFile != null) {
+      return new File(configurationFile).toURI().toURL();
+    }
+
+    ILoggerFactory loggerFactory = LoggerFactory.getILoggerFactory();
+    if (!(loggerFactory instanceof Context)) {
+      return null;
+    }
+
+    return ConfigurationWatchListUtil.getMainWatchURL((Context) loggerFactory);
+  }
+
   /**
    * Returns the {@link ArtifactId} stored inside the given {@link ProgramOptions#getArguments()}.
    */
   public static ArtifactId getArtifactId(ProgramOptions programOptions) {
     String id = programOptions.getArguments().getOption(ProgramOptionConstants.ARTIFACT_ID);
-    Preconditions.checkArgument(id != null, "Missing " + ProgramOptionConstants.ARTIFACT_ID + " in program options");
+    Preconditions.checkArgument(id != null,
+        "Missing " + ProgramOptionConstants.ARTIFACT_ID + " in program options");
     return ArtifactId.fromIdParts(Splitter.on(':').split(id));
   }
 
@@ -187,30 +212,54 @@ public final class ProgramRunners {
    * Returns the {@link ClusterMode} stored inside the given {@link ProgramOptions#getArguments()}.
    */
   public static ClusterMode getClusterMode(ProgramOptions programOptions) {
-    String clusterMode = programOptions.getArguments().getOption(ProgramOptionConstants.CLUSTER_MODE);
+    String clusterMode = programOptions.getArguments()
+        .getOption(ProgramOptionConstants.CLUSTER_MODE);
 
     // Default to ON_PREMISE for backward compatibility.
     return clusterMode == null ? ClusterMode.ON_PREMISE : ClusterMode.valueOf(clusterMode);
   }
 
   /**
+   * Create a jar containing all the plugin artifacts contained in the local plugin directory.
+   *
+   * @param options program options, which should contain the path to the local plugin directory
+   * @return jar file containing all the local plugin artifacts
+   * @throws IOException if there was an error creating the plugin archive.
+   */
+  public static File createPluginArchive(ProgramOptions options, File tempDir) throws IOException {
+    Arguments systemArgs = options.getArguments();
+    File localDir = new File(systemArgs.getOption(ProgramOptionConstants.PLUGIN_DIR));
+    File archiveFile = new File(tempDir, PLUGIN_DIR + ".jar");
+
+    // Store all artifact jars into a new jar file for localization without compression
+    try (JarOutputStream jarOut = new JarOutputStream(new FileOutputStream(archiveFile))) {
+      jarOut.setLevel(0);
+      BundleJarUtil.addToArchive(localDir, jarOut);
+    }
+
+    return archiveFile;
+  }
+
+  /**
    * Create a {@link MetricsContext} for emitting program metrics.
+   *
    * @param programRunId the {@link ProgramRunId} of the current execution
    * @param metricsTags a set of extra tags to be used for creating the {@link MetricsContext}
-   * @param metricsCollectionService the underlying service for metrics publishing or {@code null} to suppress metrics
-   *                                 publishing
+   * @param metricsCollectionService the underlying service for metrics publishing or {@code
+   *     null} to suppress metrics publishing
    * @return a {@link MetricsContext} for emitting metrics for the current program context.
    */
   public static MetricsContext createProgramMetricsContext(ProgramRunId programRunId,
-                                                            Map<String, String> metricsTags,
-                                                            @Nullable MetricsCollectionService
-                                                             metricsCollectionService) {
+      Map<String, String> metricsTags,
+      @Nullable MetricsCollectionService
+          metricsCollectionService) {
     Map<String, String> tags = Maps.newHashMap(metricsTags);
     tags.put(Constants.Metrics.Tag.NAMESPACE, programRunId.getNamespace());
     tags.put(Constants.Metrics.Tag.APP, programRunId.getApplication());
     tags.put(ProgramTypeMetricTag.getTagName(programRunId.getType()), programRunId.getProgram());
     tags.put(Constants.Metrics.Tag.RUN_ID, programRunId.getRun());
-    return metricsCollectionService == null ? new NoopMetricsContext(tags) : metricsCollectionService.getContext(tags);
+    return metricsCollectionService == null ? new NoopMetricsContext(tags)
+        : metricsCollectionService.getContext(tags);
   }
 
   private ProgramRunners() {

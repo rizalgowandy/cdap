@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.mock.common;
 
 import io.cdap.cdap.etl.api.action.SettableArguments;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,6 +25,7 @@ import java.util.Map;
  * Mock version of {@link SettableArguments}.
  */
 public class MockArguments implements SettableArguments {
+
   private final Map<String, String> options;
 
   public MockArguments() {

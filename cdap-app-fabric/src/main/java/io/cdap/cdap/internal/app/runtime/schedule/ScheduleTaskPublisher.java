@@ -18,12 +18,11 @@ package io.cdap.cdap.internal.app.runtime.schedule;
 
 import com.google.gson.Gson;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.id.ScheduleId;
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,14 +43,16 @@ public final class ScheduleTaskPublisher {
 
   /**
    * Publish notification for the triggered schedule
-   *  @param notificationType type of the notification
-   * @param scheduleId       {@link ScheduleId} of the triggered schedule
-   * @param systemOverrides Arguments that would be supplied as system runtime arguments for the program.
+   *
+   * @param notificationType type of the notification
+   * @param scheduleId {@link ScheduleId} of the triggered schedule
+   * @param systemOverrides Arguments that would be supplied as system runtime arguments for the
+   *     program.
    * @param userOverrides Arguments to add to the user runtime arguments for the program.
    */
   public void publishNotification(Notification.Type notificationType, ScheduleId scheduleId,
-                                  Map<String, String> systemOverrides, Map<String, String> userOverrides)
-    throws Exception {
+      Map<String, String> systemOverrides, Map<String, String> userOverrides)
+      throws Exception {
 
     Map<String, String> properties = new HashMap<>();
     properties.put(ProgramOptionConstants.SCHEDULE_ID, GSON.toJson(scheduleId));
@@ -59,6 +60,7 @@ public final class ScheduleTaskPublisher {
     properties.put(ProgramOptionConstants.USER_OVERRIDES, GSON.toJson(userOverrides));
 
     Notification notification = new Notification(notificationType, properties);
-    messagingService.publish(StoreRequestBuilder.of(topicId).addPayload(GSON.toJson(notification)).build());
+    messagingService.publish(
+        StoreRequestBuilder.of(topicId).addPayload(GSON.toJson(notification)).build());
   }
 }

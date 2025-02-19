@@ -18,9 +18,8 @@ package io.cdap.cdap.app.program;
 import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramId;
-import org.apache.twill.filesystem.Location;
-
 import java.io.Closeable;
+import org.apache.twill.filesystem.Location;
 
 /**
  * Abstraction of a executable program.
@@ -34,6 +33,7 @@ public interface Program extends Closeable {
 
   /**
    * Loads and returns the main class of the program
+   *
    * @throws ClassNotFoundException If fails to load the class.
    */
   <T> Class<T> getMainClass() throws ClassNotFoundException;

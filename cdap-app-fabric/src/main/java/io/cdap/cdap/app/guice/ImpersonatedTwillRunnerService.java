@@ -23,6 +23,10 @@ import io.cdap.cdap.internal.app.runtime.distributed.ProgramTwillApplication;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.TokenSecureStoreRenewer;
 import io.cdap.cdap.security.impersonation.Impersonator;
+import java.io.IOException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.api.ResourceSpecification;
 import org.apache.twill.api.RunId;
@@ -36,23 +40,19 @@ import org.apache.twill.api.security.SecureStoreRenewer;
 import org.apache.twill.api.security.SecureStoreWriter;
 import org.apache.twill.common.Cancellable;
 
-import java.io.IOException;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
-
 /**
  * A {@link TwillRunnerService} wrapper that provides impersonation support.
  */
-final class ImpersonatedTwillRunnerService implements TwillRunnerService {
+public final class ImpersonatedTwillRunnerService implements TwillRunnerService {
 
   private final Configuration hConf;
   private final TwillRunnerService delegate;
   private final Impersonator impersonator;
   private final TokenSecureStoreRenewer secureStoreRenewer;
 
-  ImpersonatedTwillRunnerService(Configuration hConf, TwillRunnerService delegate, Impersonator impersonator,
-                                 TokenSecureStoreRenewer secureStoreRenewer) {
+  public ImpersonatedTwillRunnerService(Configuration hConf, TwillRunnerService delegate,
+      Impersonator impersonator,
+      TokenSecureStoreRenewer secureStoreRenewer) {
     this.hConf = hConf;
     this.delegate = delegate;
     this.impersonator = impersonator;
@@ -76,7 +76,8 @@ final class ImpersonatedTwillRunnerService implements TwillRunnerService {
   }
 
   @Override
-  public TwillPreparer prepare(TwillRunnable runnable, ResourceSpecification resourceSpecification) {
+  public TwillPreparer prepare(TwillRunnable runnable,
+      ResourceSpecification resourceSpecification) {
     // CDAP doesn't use this method, hence not impersonating
     return delegate.prepare(runnable, resourceSpecification);
   }
@@ -86,7 +87,7 @@ final class ImpersonatedTwillRunnerService implements TwillRunnerService {
     if (application instanceof ProgramTwillApplication) {
       ProgramId programId = ((ProgramTwillApplication) application).getProgramRunId().getParent();
       return new ImpersonatedTwillPreparer(hConf, delegate.prepare(application), impersonator,
-                                           secureStoreRenewer, programId);
+          secureStoreRenewer, programId);
     }
     return delegate.prepare(application);
   }
@@ -98,7 +99,8 @@ final class ImpersonatedTwillRunnerService implements TwillRunnerService {
       return controller;
     }
     try {
-      return new ImpersonatedTwillController(controller, impersonator, TwillAppNames.fromTwillAppName(applicationName));
+      return new ImpersonatedTwillController(controller, impersonator,
+          TwillAppNames.fromTwillAppName(applicationName));
     } catch (IllegalArgumentException e) {
       // If the conversion from twill app name to programId failed, don't wrap
       return controller;
@@ -112,34 +114,37 @@ final class ImpersonatedTwillRunnerService implements TwillRunnerService {
 
   @Override
   public Iterable<LiveInfo> lookupLive() {
-    return StreamSupport.stream(delegate.lookupLive().spliterator(), false).<LiveInfo>map(info -> new LiveInfo() {
-        @Override
-        public String getApplicationName() {
-          return info.getApplicationName();
-        }
+    return StreamSupport.stream(delegate.lookupLive().spliterator(), false)
+        .<LiveInfo>map(info -> new LiveInfo() {
+          @Override
+          public String getApplicationName() {
+            return info.getApplicationName();
+          }
 
-        @Override
-        public Iterable<TwillController> getControllers() {
-          return wrapControllers(info.getControllers(), info.getApplicationName());
-        }
-      })::iterator;
+          @Override
+          public Iterable<TwillController> getControllers() {
+            return wrapControllers(info.getControllers(), info.getApplicationName());
+          }
+        })::iterator;
   }
 
   @Deprecated
   @Override
   public Cancellable scheduleSecureStoreUpdate(SecureStoreUpdater updater, long initialDelay,
-                                               long delay, TimeUnit unit) {
-    throw new UnsupportedOperationException("The scheduleSecureStoreUpdate method is deprecated, " +
-                                              "it shouldn't be used.");
+      long delay, TimeUnit unit) {
+    throw new UnsupportedOperationException("The scheduleSecureStoreUpdate method is deprecated, "
+        + "it shouldn't be used.");
   }
 
   @Override
   public Cancellable setSecureStoreRenewer(SecureStoreRenewer renewer, long initialDelay,
-                                           long delay, long retryDelay, TimeUnit unit) {
-    return delegate.setSecureStoreRenewer(wrapSecureStoreRenewer(renewer), initialDelay, delay, retryDelay, unit);
+      long delay, long retryDelay, TimeUnit unit) {
+    return delegate.setSecureStoreRenewer(wrapSecureStoreRenewer(renewer), initialDelay, delay,
+        retryDelay, unit);
   }
 
-  private Iterable<TwillController> wrapControllers(Iterable<TwillController> controllers, String applicationName) {
+  private Iterable<TwillController> wrapControllers(Iterable<TwillController> controllers,
+      String applicationName) {
     if (isMasterService(applicationName)) {
       return controllers;
     }
@@ -147,8 +152,8 @@ final class ImpersonatedTwillRunnerService implements TwillRunnerService {
     try {
       ProgramId programId = TwillAppNames.fromTwillAppName(applicationName);
       return StreamSupport.stream(controllers.spliterator(), false)
-        .<TwillController>map(controller -> new ImpersonatedTwillController(controller,
-                                                                            impersonator, programId))::iterator;
+          .<TwillController>map(controller -> new ImpersonatedTwillController(controller,
+              impersonator, programId))::iterator;
     } catch (IllegalArgumentException e) {
       // If the conversion from twill app name to programId failed, don't wrap
       return controllers;
@@ -159,7 +164,7 @@ final class ImpersonatedTwillRunnerService implements TwillRunnerService {
     return new SecureStoreRenewer() {
       @Override
       public void renew(final String application, final RunId runId,
-                        final SecureStoreWriter secureStoreWriter) throws IOException {
+          final SecureStoreWriter secureStoreWriter) throws IOException {
         if (isMasterService(application)) {
           renewer.renew(application, runId, secureStoreWriter);
           return;

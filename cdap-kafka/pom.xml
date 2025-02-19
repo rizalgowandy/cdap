@@ -23,7 +23,7 @@
   <parent>
     <groupId>io.cdap.cdap</groupId>
     <artifactId>cdap</artifactId>
-    <version>6.7.0-SNAPSHOT</version>
+    <version>6.12.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>cdap-kafka</artifactId>
@@ -33,7 +33,7 @@
   <dependencies>
     <dependency>
       <groupId>org.apache.kafka</groupId>
-      <artifactId>kafka_2.11</artifactId>
+      <artifactId>kafka_2.12</artifactId>
     </dependency>
     <dependency>
       <groupId>io.cdap.cdap</groupId>
@@ -85,7 +85,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-antrun-plugin</artifactId>
-            <version>1.7</version>
+            <version>3.1.0</version>
           </plugin>
         </plugins>
       </build>
@@ -103,7 +103,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-antrun-plugin</artifactId>
-            <version>1.7</version>
+            <version>3.1.0</version>
           </plugin>
         </plugins>
       </build>

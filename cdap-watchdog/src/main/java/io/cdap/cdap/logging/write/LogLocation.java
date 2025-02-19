@@ -34,14 +34,6 @@ import io.cdap.cdap.logging.serialize.LogSchema;
 import io.cdap.cdap.logging.serialize.LoggingEvent;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.impersonation.Impersonator;
-import org.apache.avro.file.DataFileReader;
-import org.apache.avro.file.SeekableInput;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.twill.filesystem.Location;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,13 +42,22 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Callable;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.SeekableInput;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.twill.filesystem.Location;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * LogLocation representing a log file and methods to read the file's contents.
  */
 public class LogLocation {
+
   private static final Logger LOG = LoggerFactory.getLogger(LogLocation.class);
-  private static final Logger READ_FAILURE_LOG = Loggers.sampling(LOG, LogSamplers.limitRate(60000));
+  private static final Logger READ_FAILURE_LOG = Loggers.sampling(LOG,
+      LogSamplers.limitRate(60000));
 
   private static final long DEFAULT_SKIP_LEN = 10 * 1024 * 1024;
   // old version
@@ -70,8 +71,9 @@ public class LogLocation {
   private final NamespaceId namespaceId;
   private final Impersonator impersonator;
 
-  public LogLocation(String frameworkVersion, long eventTimeMs, long fileCreationTimeMs, Location location,
-                     String namespaceId, Impersonator impersonator) {
+  public LogLocation(String frameworkVersion, long eventTimeMs, long fileCreationTimeMs,
+      Location location,
+      String namespaceId, Impersonator impersonator) {
     this.frameworkVersion = frameworkVersion;
     this.eventTimeMs = eventTimeMs;
     this.fileCreationTimeMs = fileCreationTimeMs;
@@ -82,6 +84,7 @@ public class LogLocation {
 
   /**
    * get logging framework version
+   *
    * @return version string, currently V0 or V1
    */
   public String getFrameworkVersion() {
@@ -90,6 +93,7 @@ public class LogLocation {
 
   /**
    * get start eventTimeMs for this logging file
+   *
    * @return eventTimeMs in long
    */
   public long getEventTimeMs() {
@@ -98,6 +102,7 @@ public class LogLocation {
 
   /**
    * get location of log file
+   *
    * @return Location
    */
   public Location getLocation() {
@@ -106,7 +111,6 @@ public class LogLocation {
 
   /**
    * get the timestamp associated with the file
-   * @return
    */
   public long getFileCreationTimeMs() {
     return fileCreationTimeMs;
@@ -114,13 +118,15 @@ public class LogLocation {
 
   /**
    * Return closeable iterator of {@link LogEvent}
+   *
    * @param logFilter filter for filtering log events
    * @param fromTimeMs start timestamp in millis
    * @param toTimeMs end timestamp in millis
    * @param maxEvents max events to return
    * @return closeable iterator of log events
    */
-  public CloseableIterator<LogEvent> readLog(Filter logFilter, long fromTimeMs, long toTimeMs, int maxEvents) {
+  public CloseableIterator<LogEvent> readLog(Filter logFilter, long fromTimeMs, long toTimeMs,
+      int maxEvents) {
     return new LogEventIterator(logFilter, fromTimeMs, toTimeMs, maxEvents);
   }
 
@@ -132,9 +138,9 @@ public class LogLocation {
    * @param callback callback to call with log event
    */
   public void readLog(Filter logFilter, long fromTimeMs, long toTimeMs, int maxEvents,
-                      Callback callback) {
+      Callback callback) {
     try (CloseableIterator<LogEvent> logEventIter =
-           readLog(logFilter, fromTimeMs, toTimeMs, maxEvents)) {
+        readLog(logFilter, fromTimeMs, toTimeMs, maxEvents)) {
       while (logEventIter.hasNext()) {
         callback.handle(logEventIter.next());
       }
@@ -143,13 +149,15 @@ public class LogLocation {
 
   /**
    * Return closeable iterator of {@link LogEvent}
+   *
    * @param logFilter filter for filtering log events
    * @param fromTimeMs start timestamp in millis
    * @param maxEvents max events to return
    * @return closeable iterator of previous log events
    */
   @SuppressWarnings("WeakerAccess")
-  public Collection<LogEvent> readLogPrev(Filter logFilter, long fromTimeMs, final int maxEvents) throws IOException {
+  public Collection<LogEvent> readLogPrev(Filter logFilter, long fromTimeMs, final int maxEvents)
+      throws IOException {
     Deque<Collection<LogEvent>> logSegments = new LinkedList<>();
     int count = 0;
     try {
@@ -170,7 +178,8 @@ public class LogLocation {
         // For open file, endPosition sync marker is unknown so start from file length and read up to the actual EOF
         dataFileReader.sync(length);
         long finalSync = dataFileReader.previousSync();
-        List<LogEvent> logSegment = readToEndSyncPosition(dataFileReader, logFilter, fromTimeMs, -1);
+        List<LogEvent> logSegment = readToEndSyncPosition(dataFileReader, logFilter, fromTimeMs,
+            -1);
 
         if (!logSegment.isEmpty()) {
           logSegments.addFirst(logSegment);
@@ -193,7 +202,8 @@ public class LogLocation {
             logSegments.addFirst(logSegment);
             count = count + logSegment.size();
           }
-          LOG.trace("Read log events {} from position {} to endPosition {}", count, currentSync, endPosition);
+          LOG.trace("Read log events {} from position {} to endPosition {}", count, currentSync,
+              endPosition);
 
           endPosition = currentSync;
         }
@@ -207,16 +217,18 @@ public class LogLocation {
   }
 
   /**
-   *  Read current block in Avro file from current block sync marker to next block sync marker
+   * Read current block in Avro file from current block sync marker to next block sync marker
    */
-  private List<LogEvent> readToEndSyncPosition(DataFileReader<GenericRecord> dataFileReader, Filter logFilter,
-                                               long fromTimeMs, long endSyncPosition) throws IOException {
+  private List<LogEvent> readToEndSyncPosition(DataFileReader<GenericRecord> dataFileReader,
+      Filter logFilter,
+      long fromTimeMs, long endSyncPosition) throws IOException {
 
     List<LogEvent> logSegment = new ArrayList<>();
     long currentSyncPosition = dataFileReader.previousSync();
     // Read up to the end if endSyncPosition is not known (in case of an open file)
     // or read until endSyncPosition has been reached
-    while (dataFileReader.hasNext() && (endSyncPosition == -1 || (currentSyncPosition < endSyncPosition))) {
+    while (dataFileReader.hasNext() && (endSyncPosition == -1 || (currentSyncPosition
+        < endSyncPosition))) {
       ILoggingEvent loggingEvent = new LoggingEvent(dataFileReader.next());
       loggingEvent.prepareForDeferredProcessing();
 
@@ -227,7 +239,7 @@ public class LogLocation {
 
       if (logFilter.match(loggingEvent)) {
         logSegment.add(new LogEvent(loggingEvent,
-                                    new LogOffset(LogOffset.INVALID_KAFKA_OFFSET, loggingEvent.getTimeStamp())));
+            new LogOffset(LogOffset.INVALID_KAFKA_OFFSET, loggingEvent.getTimeStamp())));
       }
       currentSyncPosition = dataFileReader.previousSync();
     }
@@ -236,17 +248,18 @@ public class LogLocation {
   }
 
   /**
-   * Starting from currentSyncPosition, move backwards by skipLen number of positions in each iteration to
-   * find out a sync position less than currentSyncPosition
+   * Starting from currentSyncPosition, move backwards by skipLen number of positions in each
+   * iteration to find out a sync position less than currentSyncPosition
    */
   private long skipToPosition(DataFileReader<GenericRecord> dataFileReader,
-                              long startPosition, long endSyncPosition, long skipLen) throws IOException {
+      long startPosition, long endSyncPosition, long skipLen) throws IOException {
     long currentSync = endSyncPosition;
     while (startPosition > 0 && currentSync == endSyncPosition) {
       startPosition = startPosition < skipLen ? 0 : startPosition - skipLen;
       dataFileReader.sync(startPosition);
       currentSync = dataFileReader.previousSync();
-      LOG.trace("Got position {} after skipping {} positions from currentSync {}", startPosition, skipLen, currentSync);
+      LOG.trace("Got position {} after skipping {} positions from currentSync {}", startPosition,
+          skipLen, currentSync);
     }
     return startPosition;
   }
@@ -263,7 +276,7 @@ public class LogLocation {
     private ILoggingEvent loggingEvent;
     private GenericRecord datum;
 
-    private int count = 0;
+    private int count;
     private long prevTimestamp = -1;
 
     private LogEvent next;
@@ -322,11 +335,11 @@ public class LogLocation {
           if (loggingEvent.getTimeStamp() >= fromTimeMs && logFilter.match(loggingEvent)) {
             ++count;
             if ((count > maxEvents || loggingEvent.getTimeStamp() >= toTimeMs)
-              && loggingEvent.getTimeStamp() != prevTimestamp) {
+                && loggingEvent.getTimeStamp() != prevTimestamp) {
               break;
             }
             next = new LogEvent(loggingEvent,
-                                new LogOffset(LogOffset.INVALID_KAFKA_OFFSET, loggingEvent.getTimeStamp()));
+                new LogOffset(LogOffset.INVALID_KAFKA_OFFSET, loggingEvent.getTimeStamp()));
           }
           prevTimestamp = loggingEvent.getTimeStamp();
         }
@@ -373,8 +386,9 @@ public class LogLocation {
 
   private DataFileReader<GenericRecord> createReader() throws IOException {
     boolean shouldImpersonate = this.getFrameworkVersion().equals(VERSION_0);
-    return new DataFileReader<>(new LocationSeekableInput(location, namespaceId, impersonator, shouldImpersonate),
-                                new GenericDatumReader<GenericRecord>(LogSchema.LoggingEvent.SCHEMA));
+    return new DataFileReader<>(
+        new LocationSeekableInput(location, namespaceId, impersonator, shouldImpersonate),
+        new GenericDatumReader<GenericRecord>(LogSchema.LoggingEvent.SCHEMA));
   }
 
   /**
@@ -386,8 +400,8 @@ public class LogLocation {
     private final long len;
 
     LocationSeekableInput(final Location location,
-                          NamespaceId namespaceId, Impersonator impersonator,
-                          boolean shouldImpersonate) throws IOException {
+        NamespaceId namespaceId, Impersonator impersonator,
+        boolean shouldImpersonate) throws IOException {
       try {
         if (shouldImpersonate) {
           this.is = impersonator.doAs(namespaceId, new Callable<SeekableInputStream>() {

@@ -27,6 +27,10 @@ import com.google.inject.Injector;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.logging.common.UncaughtExceptionHandler;
+import java.io.File;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.twill.api.AbstractTwillRunnable;
@@ -41,15 +45,11 @@ import org.apache.twill.zookeeper.ZKClientService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-
 /**
  * Abstract TwillRunnable class for Master system service.
  */
 public abstract class AbstractMasterTwillRunnable extends AbstractTwillRunnable {
+
   private static final Logger LOG = LoggerFactory.getLogger(AbstractMasterTwillRunnable.class);
 
   protected String name;
@@ -69,9 +69,9 @@ public abstract class AbstractMasterTwillRunnable extends AbstractTwillRunnable 
   @Override
   public TwillRunnableSpecification configure() {
     return TwillRunnableSpecification.Builder.with()
-      .setName(name)
-      .withConfigs(ImmutableMap.of("cConf", cConfName, "hConf", hConfName))
-      .build();
+        .setName(name)
+        .withConfigs(ImmutableMap.of("cConf", cConfName, "hConf", hConfName))
+        .build();
   }
 
   @Override
@@ -126,7 +126,8 @@ public abstract class AbstractMasterTwillRunnable extends AbstractTwillRunnable 
     }
 
     Futures.getUnchecked(
-      Services.chainStart(services.get(0), services.subList(1, services.size()).toArray(new Service[0])));
+        Services.chainStart(services.get(0),
+            services.subList(1, services.size()).toArray(new Service[0])));
 
     LOG.info("Runnable started {}", name);
 
@@ -144,12 +145,14 @@ public abstract class AbstractMasterTwillRunnable extends AbstractTwillRunnable 
   public void destroy() {
     List<Service> reverse = Lists.reverse(services);
     Futures.getUnchecked(
-      Services.chainStop(reverse.get(0), reverse.subList(1, reverse.size()).toArray(new Service[0])));
+        Services.chainStop(reverse.get(0),
+            reverse.subList(1, reverse.size()).toArray(new Service[0])));
 
     LOG.info("Runnable stopped {}", name);
   }
 
-  private Service.Listener createServiceListener(final String name, final SettableFuture<String> future) {
+  private Service.Listener createServiceListener(final String name,
+      final SettableFuture<String> future) {
     return new ServiceListenerAdapter() {
       @Override
       public void terminated(Service.State from) {
@@ -181,9 +184,9 @@ public abstract class AbstractMasterTwillRunnable extends AbstractTwillRunnable 
   }
 
   /**
-   * Class extending AbstractMasterTwillRunnable should populate services
-   * with a list of Services which will be started in increasing order of index.
-   * The services will be stopped in the reverse order.
+   * Class extending AbstractMasterTwillRunnable should populate services with a list of Services
+   * which will be started in increasing order of index. The services will be stopped in the reverse
+   * order.
    */
   protected abstract void addServices(List<? super Service> services);
 

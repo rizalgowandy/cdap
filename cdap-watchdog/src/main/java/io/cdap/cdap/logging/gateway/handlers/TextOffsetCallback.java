@@ -20,23 +20,28 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.PatternLayout;
 import io.cdap.cdap.logging.read.LogEvent;
 import io.cdap.http.HttpResponder;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * LogReader callback to encode log events, as {@link FormattedTextLogEvent} that contains log text and log offset
+ * LogReader callback to encode log events, as {@link FormattedTextLogEvent} that contains log text
+ * and log offset.
  */
 public class TextOffsetCallback extends AbstractJSONCallback {
+
   private final PatternLayout patternLayout;
   private final boolean escape;
 
+  /**
+   * Simple Constructor for {@TextOffsetCallback}.
+   */
   public TextOffsetCallback(HttpResponder responder, String logPattern, boolean escape) {
     super(responder);
     this.escape = escape;
 
     ch.qos.logback.classic.Logger rootLogger =
-      (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
     LoggerContext loggerContext = rootLogger.getLoggerContext();
 
     this.patternLayout = new PatternLayout();
@@ -59,7 +64,7 @@ public class TextOffsetCallback extends AbstractJSONCallback {
   @Override
   protected Object encodeSend(LogEvent event) {
     String log = patternLayout.doLayout(event.getLoggingEvent());
-    log = escape ? StringEscapeUtils.escapeHtml(log) : log;
+    log = escape ? StringEscapeUtils.escapeHtml4(log) : log;
     return new FormattedTextLogEvent(log, event.getOffset());
   }
 }

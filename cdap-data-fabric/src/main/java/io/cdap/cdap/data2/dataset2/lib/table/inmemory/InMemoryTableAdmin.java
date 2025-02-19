@@ -19,13 +19,13 @@ package io.cdap.cdap.data2.dataset2.lib.table.inmemory;
 import io.cdap.cdap.api.dataset.DatasetAdmin;
 import io.cdap.cdap.api.dataset.DatasetContext;
 import io.cdap.cdap.common.conf.CConfiguration;
-
 import java.io.IOException;
 
 /**
  *
  */
 public class InMemoryTableAdmin implements DatasetAdmin {
+
   private final String name;
 
   public InMemoryTableAdmin(DatasetContext datasetContext, String name, CConfiguration cConf) {

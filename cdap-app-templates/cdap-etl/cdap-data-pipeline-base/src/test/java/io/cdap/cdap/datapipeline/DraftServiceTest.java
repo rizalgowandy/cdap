@@ -1,5 +1,5 @@
 /*
- * Copyright © 2020 Cask Data, Inc.
+ * Copyright © 2020-2022 Cask Data, Inc.
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
@@ -40,7 +40,6 @@ import io.cdap.cdap.etl.proto.v2.ETLConfig;
 import io.cdap.cdap.etl.proto.v2.ETLStage;
 import io.cdap.cdap.internal.guava.reflect.TypeToken;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
-import io.cdap.cdap.proto.element.EntityType;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.security.Authorizable;
 import io.cdap.cdap.proto.security.Principal;
@@ -178,14 +177,14 @@ public class DraftServiceTest extends DataPipelineServiceTest {
     listDrafts(NamespaceId.DEFAULT.getNamespace(), false, "", "", "");
     // Grant her nesessary privilidges
     Authorizable namespaceAuthorizable = Authorizable.fromEntityId(NamespaceId.DEFAULT);
-    getAccessController().grant(namespaceAuthorizable,
+    getPermissionManager().grant(namespaceAuthorizable,
                                 ALICE_PRINCIPAL,
                                 EnumSet.of(StandardPermission.GET));
 
     // Check Alice can list requests now
     expectedCode = HttpURLConnection.HTTP_OK;
     listDrafts(NamespaceId.DEFAULT.getNamespace(), false, "", "", "");
-    // Check Bob still can't do it
+    // Check Bob still can't do itDelegatingPermissionManager
     user = "bob";
     expectedCode = HttpURLConnection.HTTP_FORBIDDEN;
     listDrafts(NamespaceId.DEFAULT.getNamespace(), false, "", "", "");
@@ -201,7 +200,7 @@ public class DraftServiceTest extends DataPipelineServiceTest {
     createBatchPipelineDraft(draftId, "TestPipeline1", "This is a test pipeline.");
     // Grant Alice create priviledge. Note that we don't differenciate create and update,
     // so update is used in both cases
-    getAccessController().grant(namespaceAuthorizable,
+    getPermissionManager().grant(namespaceAuthorizable,
                                 ALICE_PRINCIPAL,
                                 EnumSet.of(StandardPermission.UPDATE));
     // Now Alice should be able to create draft
@@ -366,12 +365,13 @@ public class DraftServiceTest extends DataPipelineServiceTest {
         .addConnection("src", "sink")
         .setEngine(Engine.SPARK)
         .build();
+    String parentVersion = "dummyParentVersion";
 
-    DraftStoreRequest<ETLBatchConfig> batchDraftStoreRequest = new DraftStoreRequest<>(config, "", name,
-                                                                                       description, 0, artifact);
+    DraftStoreRequest<ETLBatchConfig> batchDraftStoreRequest =
+      new DraftStoreRequest<>(config, "", name, description, 0, artifact, parentVersion);
 
     long now = System.currentTimeMillis();
-    Draft expectedDraft = new Draft(config, name, description, artifact, draftId.getId(), now, now);
+    Draft expectedDraft = new Draft(config, name, description, artifact, draftId.getId(), now, now, parentVersion);
 
     createPipelineDraft(draftId, batchDraftStoreRequest);
     return expectedDraft;
@@ -387,11 +387,11 @@ public class DraftServiceTest extends DataPipelineServiceTest {
         .setCheckpointDir("temp/dir")
         .build();
 
-    DraftStoreRequest<DataStreamsConfig> batchDraftStoreRequest = new DraftStoreRequest<>(config, "", name,
-                                                                                          description, 0, artifact);
+    DraftStoreRequest<DataStreamsConfig> batchDraftStoreRequest =
+      new DraftStoreRequest<>(config, "", name, description, 0, artifact, null);
 
     long now = System.currentTimeMillis();
-    Draft expectedDraft = new Draft(config, name, description, artifact, draftId.getId(), now, now);
+    Draft expectedDraft = new Draft(config, name, description, artifact, draftId.getId(), now, now, null);
 
     createPipelineDraft(draftId, batchDraftStoreRequest);
     return expectedDraft;
@@ -419,13 +419,13 @@ public class DraftServiceTest extends DataPipelineServiceTest {
   private boolean sameDraft(Draft d1, Draft d2) {
     boolean sameCreateTime = Math.abs(d1.getCreatedTimeMillis() - d2.getCreatedTimeMillis()) < 1000;
     boolean sameUpdateTime = Math.abs(d1.getUpdatedTimeMillis() - d2.getUpdatedTimeMillis()) < 1000;
-    boolean sameProperties = d1.getRevision() == d2.getRevision() &&
-        Objects.equals(d1.getConfig(), d2.getConfig()) &&
-        Objects.equals(d1.getPreviousHash(), d2.getPreviousHash()) &&
-        Objects.equals(d1.getName(), d2.getName()) &&
-        Objects.equals(d1.getDescription(), d2.getDescription()) &&
-        Objects.equals(d1.getId(), d2.getId()) &&
-        Objects.equals(d1.getArtifact(), d2.getArtifact());
+    boolean sameProperties = d1.getRevision() == d2.getRevision()
+        && Objects.equals(d1.getConfig(), d2.getConfig())
+        && Objects.equals(d1.getPreviousHash(), d2.getPreviousHash())
+        && Objects.equals(d1.getName(), d2.getName())
+        && Objects.equals(d1.getDescription(), d2.getDescription())
+        && Objects.equals(d1.getId(), d2.getId())
+        && Objects.equals(d1.getArtifact(), d2.getArtifact());
 
     return sameProperties && sameCreateTime && sameUpdateTime;
   }
@@ -486,7 +486,8 @@ public class DraftServiceTest extends DataPipelineServiceTest {
                 StudioUtil.ARTIFACT_STREAMING_NAME));
       }
       return new Draft(config, draft.getName(), draft.getDescription(), draft.getArtifact(),
-          draft.getId(),          draft.getCreatedTimeMillis(), draft.getUpdatedTimeMillis());
+                       draft.getId(), draft.getCreatedTimeMillis(), draft.getUpdatedTimeMillis(),
+                       draft.getParentVersion());
     }
   }
 }

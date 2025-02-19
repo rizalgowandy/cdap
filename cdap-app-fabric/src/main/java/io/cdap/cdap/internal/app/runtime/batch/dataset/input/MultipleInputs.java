@@ -19,32 +19,33 @@ package io.cdap.cdap.internal.app.runtime.batch.dataset.input;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.Map;
-
 /**
- * This utility class supports MapReduce jobs that have multiple inputs with
- * a different {@link InputFormat} and {@link Mapper} for each path
+ * This utility class supports MapReduce jobs that have multiple inputs with a different {@link
+ * InputFormat} and {@link Mapper} for each path
  */
 public final class MultipleInputs {
+
   private static final String INPUT_CONFIGS = "mapreduce.input.multipleinputs.inputs";
 
   private static final Gson GSON = new GsonBuilder().enableComplexMapKeySerialization().create();
-  private static final Type STRING_MAPPER_INPUT_MAP_TYPE = new TypeToken<Map<String, MapperInput>>() { }.getType();
+  private static final Type STRING_MAPPER_INPUT_MAP_TYPE = new TypeToken<Map<String, MapperInput>>() {
+  }.getType();
 
   private MultipleInputs() {
   }
 
   /**
-   * Add a {@link Path} with a custom {@link InputFormat} and
-   * {@link Mapper} to the list of inputs for the map-reduce job.
+   * Add a {@link Path} with a custom {@link InputFormat} and {@link Mapper} to the list of inputs
+   * for the map-reduce job.
    *
    * @param job The {@link Job}
    * @param namedInput name of the input
@@ -53,8 +54,9 @@ public final class MultipleInputs {
    * @param mapperClass {@link Mapper} class to use for this path
    */
   @SuppressWarnings("unchecked")
-  public static void addInput(Job job, String namedInput, String inputFormatClass, Map<String, String> inputConfigs,
-                              Class<? extends Mapper> mapperClass) {
+  public static void addInput(Job job, String namedInput, String inputFormatClass,
+      Map<String, String> inputConfigs,
+      Class<? extends Mapper> mapperClass) {
     Configuration conf = job.getConfiguration();
 
     Map<String, MapperInput> map = getInputMap(conf);
@@ -81,17 +83,18 @@ public final class MultipleInputs {
   }
 
   /**
-   * A simple POJO for encapsulating information for an input. We don't use
-   * {@link io.cdap.cdap.internal.app.runtime.batch.dataset.input.MapperInput}, because that consists of an Interface,
-   * which doesn't serialize well.
+   * A simple POJO for encapsulating information for an input. We don't use {@link
+   * io.cdap.cdap.internal.app.runtime.batch.dataset.input.MapperInput}, because that consists of an
+   * Interface, which doesn't serialize well.
    */
   public static final class MapperInput {
+
     private final String inputFormatClassName;
     private final Map<String, String> inputFormatConfiguration;
     private final String mapperClassName;
 
     public MapperInput(String inputFormatClassName, Map<String, String> inputFormatConfiguration,
-                       Class<? extends Mapper> mapper) {
+        Class<? extends Mapper> mapper) {
       this.inputFormatClassName = inputFormatClassName;
       this.inputFormatConfiguration = inputFormatConfiguration;
       this.mapperClassName = mapper.getName();

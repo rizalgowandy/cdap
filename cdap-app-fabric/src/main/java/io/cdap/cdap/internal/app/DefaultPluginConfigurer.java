@@ -37,7 +37,6 @@ import io.cdap.cdap.internal.app.runtime.plugin.PluginNotExistsException;
 import io.cdap.cdap.internal.lang.CallerClassSecurityManager;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,12 +44,15 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract base implementation of {@link PluginConfigurer}.
  */
 public class DefaultPluginConfigurer implements PluginConfigurer {
 
+  private static final Logger LOG = LoggerFactory.getLogger(DefaultPluginConfigurer.class);
   protected final PluginInstantiator pluginInstantiator;
   protected final Map<String, PluginWithLocation> plugins;
   protected final NamespaceId pluginNamespaceId;
@@ -58,7 +60,7 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
   private final PluginFinder pluginFinder;
 
   public DefaultPluginConfigurer(ArtifactId artifactId, NamespaceId pluginNamespaceId,
-                                 PluginInstantiator pluginInstantiator, PluginFinder pluginFinder) {
+      PluginInstantiator pluginInstantiator, PluginFinder pluginFinder) {
     this.artifactId = artifactId;
     this.pluginNamespaceId = pluginNamespaceId;
     this.pluginInstantiator = pluginInstantiator;
@@ -77,11 +79,14 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
   @Nullable
   @Override
   public final <T> T usePlugin(String pluginType, String pluginName, String pluginId,
-                               PluginProperties properties, PluginSelector selector) {
+      PluginProperties properties, PluginSelector selector) {
     try {
       Plugin plugin = addPlugin(pluginType, pluginName, pluginId, properties, selector);
       return pluginInstantiator.newInstance(plugin);
-    } catch (PluginNotExistsException | IOException e) {
+    } catch (PluginNotExistsException e) {
+      return null;
+    } catch (IOException e) {
+      LOG.error("Unexpected error while instantiating {} plugin {}", pluginType, pluginName, e);
       return null;
     } catch (ClassNotFoundException e) {
       // Shouldn't happen
@@ -92,11 +97,14 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
   @Nullable
   @Override
   public final <T> Class<T> usePluginClass(String pluginType, String pluginName, String pluginId,
-                                           PluginProperties properties, PluginSelector selector) {
+      PluginProperties properties, PluginSelector selector) {
     try {
       Plugin plugin = addPlugin(pluginType, pluginName, pluginId, properties, selector);
       return pluginInstantiator.loadClass(plugin);
-    } catch (PluginNotExistsException | IOException e) {
+    } catch (PluginNotExistsException e) {
+      return null;
+    } catch (IOException e) {
+      LOG.error("Unexpected error while instantiating {} plugin {}", pluginType, pluginName, e);
       return null;
     } catch (ClassNotFoundException e) {
       // Shouldn't happen
@@ -105,8 +113,9 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
   }
 
   @Override
-  public Map<String, String> evaluateMacros(Map<String, String> properties, MacroEvaluator evaluator,
-                                            MacroParserOptions options) throws InvalidMacroException {
+  public Map<String, String> evaluateMacros(Map<String, String> properties,
+      MacroEvaluator evaluator,
+      MacroParserOptions options) throws InvalidMacroException {
     MacroParser macroParser = new MacroParser(evaluator, options);
     Map<String, String> evaluated = new HashMap<>();
     properties.forEach((key, val) -> evaluated.put(key, macroParser.parse(val)));
@@ -114,7 +123,7 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
   }
 
   protected Plugin addPlugin(String pluginType, String pluginName, String pluginId,
-                             PluginProperties properties, PluginSelector selector) throws PluginNotExistsException {
+      PluginProperties properties, PluginSelector selector) throws PluginNotExistsException {
     validateExistingPlugin(pluginId);
 
     final Class[] callerClasses = CallerClassSecurityManager.getCallerClasses();
@@ -133,19 +142,23 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
       if (classloader instanceof PluginClassLoader) {
         // if this is the first time we've seen this plugin artifact, it must be a new plugin parent.
         io.cdap.cdap.api.artifact.ArtifactId pluginCallerArtifactId = ((PluginClassLoader) classloader).getArtifactId();
-        parents.add((pluginCallerArtifactId.getScope() == ArtifactScope.SYSTEM ? NamespaceId.SYSTEM : pluginNamespaceId)
-                      .artifact(pluginCallerArtifactId.getName(), pluginCallerArtifactId.getVersion().getVersion()));
+        parents.add((pluginCallerArtifactId.getScope() == ArtifactScope.SYSTEM ? NamespaceId.SYSTEM
+            : pluginNamespaceId)
+            .artifact(pluginCallerArtifactId.getName(),
+                pluginCallerArtifactId.getVersion().getVersion()));
       }
     }
 
     PluginNotExistsException exception = null;
     for (ArtifactId parentId : Iterables.concat(parents, Collections.singleton(artifactId))) {
       try {
-        Map.Entry<ArtifactDescriptor, PluginClass> pluginEntry = pluginFinder.findPlugin(pluginNamespaceId, parentId,
-                                                                                         pluginType, pluginName,
-                                                                                         selector);
-        Plugin plugin = FindPluginHelper.getPlugin(Iterables.transform(parents, ArtifactId::toApiArtifactId),
-                                                   pluginEntry, properties, pluginInstantiator);
+        Map.Entry<ArtifactDescriptor, PluginClass> pluginEntry = pluginFinder.findPlugin(
+            pluginNamespaceId, parentId,
+            pluginType, pluginName,
+            selector);
+        Plugin plugin = FindPluginHelper.getPlugin(
+            Iterables.transform(parents, ArtifactId::toApiArtifactId),
+            pluginEntry, properties, pluginInstantiator);
         plugins.put(pluginId, new PluginWithLocation(plugin, pluginEntry.getKey().getLocation()));
         return plugin;
       } catch (PluginNotExistsException e) {
@@ -157,15 +170,17 @@ public class DefaultPluginConfigurer implements PluginConfigurer {
       }
     }
 
-    throw exception == null ? new PluginNotExistsException(pluginNamespaceId, pluginType, pluginName) : exception;
+    throw exception == null ? new PluginNotExistsException(pluginNamespaceId, pluginType,
+        pluginName) : exception;
   }
 
   protected void validateExistingPlugin(String pluginId) {
     PluginWithLocation existing = plugins.get(pluginId);
     if (existing != null) {
-      throw new IllegalArgumentException(String.format("Plugin of type %s, name %s was already added as id %s.",
-                                                       existing.getPlugin().getPluginClass().getType(),
-                                                       existing.getPlugin().getPluginClass().getName(), pluginId));
+      throw new IllegalArgumentException(
+          String.format("Plugin of type %s, name %s was already added as id %s.",
+              existing.getPlugin().getPluginClass().getType(),
+              existing.getPlugin().getPluginClass().getName(), pluginId));
     }
   }
 }

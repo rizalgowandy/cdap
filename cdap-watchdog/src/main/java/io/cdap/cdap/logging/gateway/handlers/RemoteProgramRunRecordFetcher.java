@@ -24,13 +24,13 @@ import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.common.internal.remote.RemoteClient;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
+import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 
@@ -38,49 +38,71 @@ import java.net.HttpURLConnection;
  * Fetch {@link RunRecordDetail} via internal REST API calls
  */
 public class RemoteProgramRunRecordFetcher implements ProgramRunRecordFetcher {
+
   private static final Gson GSON = new Gson();
 
   private final RemoteClient remoteClient;
 
   @Inject
   public RemoteProgramRunRecordFetcher(RemoteClientFactory remoteClientFactory) {
+    // TODO (CDAP-21112): Move HTTP handler from Appfabric processor to server after fixing
+    //  ProgramRuntimeService and RunRecordMonitorService.
+    // Use APP_FABRIC_HTTP instead of APP_FABRIC_PROCESSOR after the fix.
     this.remoteClient = remoteClientFactory.createRemoteClient(
-      Constants.Service.APP_FABRIC_HTTP,
-      new DefaultHttpRequestConfig(false),
-      Constants.Gateway.INTERNAL_API_VERSION_3);
+        Constants.Service.APP_FABRIC_HTTP,
+        new DefaultHttpRequestConfig(false),
+        Constants.Gateway.INTERNAL_API_VERSION_3);
   }
 
   /**
    * Return {@link RunRecordDetail} for the given {@link ProgramRunId}
+   *
    * @param runId for which to fetch {@link RunRecordDetail}
    * @return {@link RunRecordDetail}
    * @throws IOException if failed to fetch {@link RunRecordDetail}
    * @throws NotFoundException if the program or runid is not found
    */
   public RunRecordDetail getRunRecordMeta(ProgramRunId runId)
-    throws IOException, NotFoundException, UnauthorizedException {
+      throws IOException, NotFoundException, UnauthorizedException {
     String url = String.format("namespaces/%s/apps/%s/versions/%s/%s/%s/runs/%s",
-                               runId.getNamespace(),
-                               runId.getApplication(),
-                               runId.getVersion(),
-                               runId.getType().getCategoryName(),
-                               runId.getProgram(),
-                               runId.getRun());
+        runId.getNamespace(),
+        runId.getApplication(),
+        runId.getVersion(),
+        runId.getType().getCategoryName(),
+        runId.getProgram(),
+        runId.getRun());
     HttpRequest.Builder requestBuilder = remoteClient.requestBuilder(HttpMethod.GET, url);
     HttpResponse httpResponse;
     httpResponse = execute(requestBuilder.build());
-    return RunRecordDetail.builder(GSON.fromJson(httpResponse.getResponseBodyAsString(), RunRecordDetail.class))
-      .setProgramRunId(runId)
-      .build();
+    return RunRecordDetail.builder(
+            GSON.fromJson(httpResponse.getResponseBodyAsString(), RunRecordDetail.class))
+        .setProgramRunId(runId)
+        .build();
   }
 
-  private HttpResponse execute(HttpRequest request) throws IOException, NotFoundException, UnauthorizedException {
+  /**
+   * Return {@link RunRecordDetail} for the given {@link ProgramReference} and run id
+   *
+   * @param programRef for which to fetch {@link RunRecordDetail}
+   * @param runId for which to fetch {@link RunRecordDetail}
+   * @return {@link RunRecordDetail}
+   * @throws IOException if failed to fetch {@link RunRecordDetail}
+   * @throws NotFoundException if the program or run ref is not found
+   */
+  public RunRecordDetail getRunRecordMeta(ProgramReference programRef, String runId)
+      throws IOException, NotFoundException, UnauthorizedException {
+    return getRunRecordMeta(programRef.id(ApplicationId.DEFAULT_VERSION).run(runId));
+  }
+
+  private HttpResponse execute(HttpRequest request)
+      throws IOException, NotFoundException, UnauthorizedException {
     HttpResponse httpResponse = remoteClient.execute(request);
     if (httpResponse.getResponseCode() == HttpURLConnection.HTTP_NOT_FOUND) {
       throw new NotFoundException(httpResponse.getResponseBodyAsString());
     }
     if (httpResponse.getResponseCode() != HttpURLConnection.HTTP_OK) {
-      throw new IOException(String.format("Request failed %s", httpResponse.getResponseBodyAsString()));
+      throw new IOException(
+          String.format("Request failed %s", httpResponse.getResponseBodyAsString()));
     }
     return httpResponse;
   }

@@ -19,17 +19,16 @@ package io.cdap.cdap.security.auth;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
 import io.cdap.cdap.common.io.Codec;
+import java.io.IOException;
+import java.util.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.Base64;
-
 /**
- * This class validates the accessToken and returns the different states
- * of accessToken validation.
+ * This class validates the accessToken and returns the different states of accessToken validation.
  */
 public class AccessTokenValidator extends AbstractIdleService implements TokenValidator {
+
   private static final Logger LOG = LoggerFactory.getLogger(AccessTokenValidator.class);
   private final TokenManager tokenManager;
   private final Codec<AccessToken> accessTokenCodec;

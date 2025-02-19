@@ -18,13 +18,12 @@ package io.cdap.cdap.common.collect;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-
 import java.util.Collection;
 import java.util.List;
 
 /**
- * This collector is used for collecting the first N elements, it returns
- * false after N elements have been collected.
+ * This collector is used for collecting the first N elements, it returns false after N elements
+ * have been collected.
  *
  * @param <Element> Type of element.
  */

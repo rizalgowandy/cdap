@@ -27,8 +27,9 @@ import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.metrics.NoopMetricsContext;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.utils.TimeProvider;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
 import io.cdap.cdap.messaging.MessagingUtils;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.cache.MessageCache;
 import io.cdap.cdap.messaging.data.MessageId;
 import io.cdap.cdap.messaging.store.ImmutableMessageTableEntry;
@@ -36,15 +37,14 @@ import io.cdap.cdap.messaging.store.MessageTable;
 import io.cdap.cdap.messaging.store.leveldb.LevelDBMessageTableTest;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
-import org.apache.tephra.Transaction;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.tephra.Transaction;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Unit test for {@link CachingMessageTable}.
@@ -100,9 +100,13 @@ public class CachingMessageTableTest extends LevelDBMessageTableTest {
     cConf.setLong(CachingMessageTable.PRUNE_GRACE_PERIOD, txGracePeriod);
 
     // Insert 10 entries, with different publish time
-    TopicMetadata metadata = new TopicMetadata(NamespaceId.DEFAULT.topic("test"),
-                                               TopicMetadata.GENERATION_KEY, 1,
-                                               TopicMetadata.TTL_KEY, 86400);
+    TopicMetadata metadata =
+        new DefaultTopicMetadata(
+            NamespaceId.DEFAULT.topic("test"),
+            DefaultTopicMetadata.GENERATION_KEY,
+            1,
+            DefaultTopicMetadata.TTL_KEY,
+            86400);
 
     // Creates a CachingMessageTable with a controlled time provider
     final AtomicLong currentTimeMillis = new AtomicLong(0);

@@ -18,7 +18,6 @@ package io.cdap.cdap.proto.id;
 
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.proto.element.EntityType;
-
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
@@ -54,6 +53,10 @@ public class NamespaceId extends NamespacedEntityId {
 
   public ApplicationId app(String application) {
     return new ApplicationId(namespace, application);
+  }
+
+  public ApplicationReference appReference(String application) {
+    return new ApplicationReference(namespace, application);
   }
 
   public ApplicationId app(String application, String version) {
@@ -118,8 +121,8 @@ public class NamespaceId extends NamespacedEntityId {
   }
 
   public static boolean isReserved(String namespaceId) {
-    return DEFAULT.getNamespace().equals(namespaceId) ||
-      SYSTEM.getNamespace().equals(namespaceId) ||
-      CDAP.getNamespace().equals(namespaceId);
+    return DEFAULT.getNamespace().equals(namespaceId)
+        || SYSTEM.getNamespace().equals(namespaceId)
+        || CDAP.getNamespace().equals(namespaceId);
   }
 }

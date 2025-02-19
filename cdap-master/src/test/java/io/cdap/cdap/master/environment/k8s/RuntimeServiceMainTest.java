@@ -42,7 +42,7 @@ import io.cdap.cdap.internal.app.runtime.monitor.RuntimeClient;
 import io.cdap.cdap.internal.app.store.AppMetadataStore;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.internal.provision.NativeProvisioner;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.data.MessageId;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.ProgramRunStatus;
@@ -52,14 +52,13 @@ import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.id.TopicId;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Unit test for {@link RuntimeServiceMain}.
@@ -94,9 +93,11 @@ public class RuntimeServiceMainTest extends MasterServiceMainTestBase {
     // Write out program state events to simulate program start
     Injector appFabricInjector = getServiceMainInstance(AppFabricServiceMain.class).getInjector();
     CConfiguration cConf = appFabricInjector.getInstance(CConfiguration.class);
+    // We publish to the record event topic here directly, bypassing ProgramNotificationSubscriberService
     ProgramStatePublisher programStatePublisher = new MessagingProgramStatePublisher(
       appFabricInjector.getInstance(MessagingService.class),
-      NamespaceId.SYSTEM.topic(cConf.get(Constants.AppFabric.PROGRAM_STATUS_RECORD_EVENT_TOPIC)),
+      cConf.get(Constants.AppFabric.PROGRAM_STATUS_RECORD_EVENT_TOPIC),
+      1,
       RetryStrategies.fromConfiguration(cConf, "system.program.state.")
     );
     new MessagingProgramStateWriter(programStatePublisher).start(programRunId, programOptions, null,

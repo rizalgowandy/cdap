@@ -21,7 +21,6 @@ import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
-import io.cdap.cdap.api.dataset.DatasetManagementException;
 import io.cdap.cdap.app.preview.PreviewRequest;
 import io.cdap.cdap.app.preview.PreviewRunner;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -31,10 +30,6 @@ import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-import org.apache.twill.common.Cancellable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -43,6 +38,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
+import org.apache.twill.common.Cancellable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A scheduled service that periodically poll for new preview request and execute it.
@@ -50,7 +48,8 @@ import javax.annotation.Nullable;
 public class PreviewRunnerService extends AbstractExecutionThreadService {
 
   private static final Logger LOG = LoggerFactory.getLogger(PreviewRunnerService.class);
-  private static final Cancellable DUMMY_CANCELLABLE = () -> { };
+  private static final Cancellable DUMMY_CANCELLABLE = () -> {
+  };
 
   private final PreviewRunner previewRunner;
   private final PreviewRequestFetcher requestFetcher;
@@ -63,7 +62,7 @@ public class PreviewRunnerService extends AbstractExecutionThreadService {
 
   @Inject
   PreviewRunnerService(CConfiguration cConf, PreviewRequestFetcher previewRequestFetcher,
-                       @Assisted PreviewRunner previewRunner) {
+      @Assisted PreviewRunner previewRunner) {
     this.previewRunner = previewRunner;
     this.requestFetcher = previewRequestFetcher;
     this.pollDelayMillis = cConf.getLong(Constants.Preview.REQUEST_POLL_DELAY_MILLIS);
@@ -96,7 +95,8 @@ public class PreviewRunnerService extends AbstractExecutionThreadService {
         PreviewRequest request = getPreviewRequest();
         if (request == null) {
           // If there is no preview request, sleep for a while and poll again.
-          terminated = Uninterruptibles.awaitUninterruptibly(stopLatch, pollDelayMillis, TimeUnit.MILLISECONDS);
+          terminated = Uninterruptibles.awaitUninterruptibly(stopLatch, pollDelayMillis,
+              TimeUnit.MILLISECONDS);
           continue;
         }
 
@@ -151,7 +151,8 @@ public class PreviewRunnerService extends AbstractExecutionThreadService {
     }
   }
 
-  private void waitForCompletion(PreviewRequest request, Future<?> future, Cancellable cancelPreview) {
+  private void waitForCompletion(PreviewRequest request, Future<?> future,
+      Cancellable cancelPreview) {
     try {
       Uninterruptibles.getUninterruptibly(future);
     } catch (ExecutionException e) {
@@ -164,7 +165,8 @@ public class PreviewRunnerService extends AbstractExecutionThreadService {
   }
 
   /**
-   * Optionally return the application id of the preview if it is currently being run by this service.
+   * Optionally return the application id of the preview if it is currently being run by this
+   * service.
    */
   public Optional<ApplicationId> getPreviewApplication() {
     return Optional.ofNullable(previewApp);

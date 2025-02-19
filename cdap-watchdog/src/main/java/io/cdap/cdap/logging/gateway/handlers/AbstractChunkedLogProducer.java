@@ -23,24 +23,24 @@ import io.cdap.http.BodyProducer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaders;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * LogReader BodyProducer class that delegates to subclasses for how to encode log events.
  */
 public abstract class AbstractChunkedLogProducer extends BodyProducer {
+
   private static final Logger LOG = LoggerFactory.getLogger(AbstractChunkedLogProducer.class);
 
   protected static final int BUFFER_BYTES = 8192;
 
   private final CloseableIterator<LogEvent> logEventIter;
 
-  private boolean hasStarted = false;
-  private boolean hasFinished = false;
+  private boolean hasStarted;
+  private boolean hasFinished;
 
   AbstractChunkedLogProducer(CloseableIterator<LogEvent> logEventIter) {
     this.logEventIter = logEventIter;
@@ -52,7 +52,10 @@ public abstract class AbstractChunkedLogProducer extends BodyProducer {
   protected abstract HttpHeaders getResponseHeaders();
 
   protected abstract ByteBuf onWriteStart() throws IOException;
-  protected abstract ByteBuf writeLogEvents(CloseableIterator<LogEvent> logEvent) throws IOException;
+
+  protected abstract ByteBuf writeLogEvents(CloseableIterator<LogEvent> logEvent)
+      throws IOException;
+
   protected abstract ByteBuf onWriteFinish() throws IOException;
 
   public void close() {
@@ -69,7 +72,8 @@ public abstract class AbstractChunkedLogProducer extends BodyProducer {
 
     if (logEventIter.hasNext()) {
       ByteBuf eventsBuffer = writeLogEvents(logEventIter);
-      return startBuffer.isReadable() ? Unpooled.wrappedBuffer(startBuffer, eventsBuffer) : eventsBuffer;
+      return startBuffer.isReadable() ? Unpooled.wrappedBuffer(startBuffer, eventsBuffer)
+          : eventsBuffer;
     }
 
     if (!hasFinished) {
@@ -92,5 +96,4 @@ public abstract class AbstractChunkedLogProducer extends BodyProducer {
     LOG.error("Received error while chunking logs.", throwable);
     close();
   }
-
 }

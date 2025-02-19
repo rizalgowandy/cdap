@@ -38,7 +38,7 @@ import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.LineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MessagingLineageWriter;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.store.TableFactory;
 import io.cdap.cdap.messaging.store.leveldb.LevelDBTableFactory;
 import io.cdap.cdap.proto.ProgramType;
@@ -48,10 +48,6 @@ import io.cdap.cdap.proto.id.NamespacedEntityId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.metadata.lineage.ProgramRunOperations;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,6 +57,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Unit test for limiting lineage publishing for large lineages using {@link MessagingLineageWriter}.
@@ -75,7 +74,7 @@ public class LineageLimitingTest extends AppFabricTestBase {
 
   @BeforeClass
   public static void beforeClass() throws Throwable {
-    CConfiguration cConfiguration = createBasicCConf();
+    CConfiguration cConfiguration = createBasicCconf();
     // use a fast retry strategy with not too many retries, to speed up the test
     String prefix = "system.metadata.";
     cConfiguration.set(prefix + Constants.Retry.TYPE, RetryStrategyType.FIXED_DELAY.toString());

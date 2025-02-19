@@ -18,7 +18,6 @@
 package io.cdap.cdap.etl.proto.connection;
 
 import io.cdap.cdap.etl.proto.ArtifactSelectorConfig;
-
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -30,8 +29,9 @@ public class PluginInfo extends PluginMeta {
 
   private final String category;
 
-  public PluginInfo(String name, String type, @Nullable String category, Map<String, String> properties,
-                    ArtifactSelectorConfig artifact) {
+  public PluginInfo(String name, String type, @Nullable String category,
+      Map<String, String> properties,
+      ArtifactSelectorConfig artifact) {
     super(name, type, properties, artifact);
     this.category = category;
   }

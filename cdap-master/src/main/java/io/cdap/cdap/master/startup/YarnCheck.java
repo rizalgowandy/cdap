@@ -21,14 +21,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.api.records.NodeId;
-import org.apache.hadoop.yarn.api.records.NodeReport;
-import org.apache.hadoop.yarn.api.records.Resource;
-import org.apache.hadoop.yarn.client.api.YarnClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +29,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.NodeReport;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.client.api.YarnClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Checks that YARN is available and has enough resources to run all system services.
@@ -44,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 // class is picked up through classpath examination
 @SuppressWarnings("unused")
 class YarnCheck extends AbstractMasterCheck {
+
   private static final Logger LOG = LoggerFactory.getLogger(YarnCheck.class);
   private final Configuration hConf;
 
@@ -64,7 +64,7 @@ class YarnCheck extends AbstractMasterCheck {
     List<NodeReport> nodeReports;
     // if yarn is not up, yarnClient.start() will hang.
     ExecutorService executorService = Executors.newSingleThreadExecutor(
-      new ThreadFactoryBuilder().setNameFormat("startup-checker").build());
+        new ThreadFactoryBuilder().setNameFormat("startup-checker").build());
     try {
       Future<List<NodeReport>> result = executorService.submit(new Callable<List<NodeReport>>() {
         @Override
@@ -77,10 +77,11 @@ class YarnCheck extends AbstractMasterCheck {
       LOG.info("  YARN availability successfully verified.");
     } catch (Exception e) {
       throw new RuntimeException(
-        "Unable to get status of YARN nodemanagers. " +
-          "Please check that YARN is running " +
-          "and that the correct Hadoop configuration (core-site.xml, yarn-site.xml) and libraries " +
-          "are included in the CDAP master classpath.", e);
+          "Unable to get status of YARN nodemanagers. "
+              + "Please check that YARN is running "
+              + "and that the correct Hadoop configuration (core-site.xml, yarn-site.xml) and libraries "
+
+              + "are included in the CDAP master classpath.", e);
     } finally {
       try {
         yarnClient.stop();
@@ -111,14 +112,14 @@ class YarnCheck extends AbstractMasterCheck {
         // some versions of hadoop return null, others do not
         if (nodeCapability != null) {
           LOG.debug("node {} resource capability: memory = {}, vcores = {}", nodeId,
-                    nodeCapability.getMemory(), nodeCapability.getVirtualCores());
+              nodeCapability.getMemory(), nodeCapability.getVirtualCores());
           memoryCapacity += nodeCapability.getMemory();
           vcoresCapacity += nodeCapability.getVirtualCores();
         }
 
         if (nodeUsed != null) {
           LOG.debug("node {} resources used: memory = {}, vcores = {}", nodeId,
-                    nodeUsed.getMemory(), nodeUsed.getVirtualCores());
+              nodeUsed.getMemory(), nodeUsed.getVirtualCores());
           memoryUsed += nodeUsed.getMemory();
           vcoresUsed += nodeUsed.getVirtualCores();
         }
@@ -126,7 +127,8 @@ class YarnCheck extends AbstractMasterCheck {
         availableNodes++;
       }
     }
-    LOG.debug("YARN resource capacity: {} MB of memory and {} virtual cores.", memoryCapacity, vcoresCapacity);
+    LOG.debug("YARN resource capacity: {} MB of memory and {} virtual cores.", memoryCapacity,
+        vcoresCapacity);
     LOG.debug("YARN resources used: {} MB of memory and {} virtual cores.", memoryUsed, vcoresUsed);
 
     // calculate memory and vcores required by CDAP
@@ -160,10 +162,10 @@ class YarnCheck extends AbstractMasterCheck {
 
       if (!hasConfigError) {
         LOG.debug("Resource settings for system service {}: {}={}, {}={}, {}={}",
-                  serviceResourceKeys.getServiceName(),
-                  serviceResourceKeys.getInstancesKey(), instances,
-                  serviceResourceKeys.getMemoryKey(), memoryMB,
-                  serviceResourceKeys.getVcoresKey(), vcores);
+            serviceResourceKeys.getServiceName(),
+            serviceResourceKeys.getInstancesKey(), instances,
+            serviceResourceKeys.getMemoryKey(), memoryMB,
+            serviceResourceKeys.getVcoresKey(), vcores);
         requiredMemoryMB += memoryMB * instances;
         requiredVCores += vcores * instances;
       }
@@ -171,17 +173,20 @@ class YarnCheck extends AbstractMasterCheck {
 
     if (!invalidKeys.isEmpty()) {
       throw new RuntimeException(
-        "YARN resources check failed to invalid config settings for keys: " + Joiner.on(',').join(invalidKeys));
+          "YARN resources check failed to invalid config settings for keys: " + Joiner.on(',')
+              .join(invalidKeys));
     }
 
-    LOG.debug("{} MB of memory and {} virtual cores are required.", requiredMemoryMB, requiredVCores);
+    LOG.debug("{} MB of memory and {} virtual cores are required.", requiredMemoryMB,
+        requiredVCores);
 
     checkResources(requiredMemoryMB, requiredVCores, memoryCapacity, vcoresCapacity, "in capacity");
 
     int availableMemoryMB = memoryCapacity - memoryUsed;
     int availableVCores = vcoresCapacity - vcoresUsed;
     try {
-      checkResources(requiredMemoryMB, requiredVCores, availableMemoryMB, availableVCores, "available");
+      checkResources(requiredMemoryMB, requiredVCores, availableMemoryMB, availableVCores,
+          "available");
     } catch (Exception e) {
       LOG.warn(e.getMessage());
     }
@@ -190,23 +195,23 @@ class YarnCheck extends AbstractMasterCheck {
   }
 
   private void checkResources(int requiredMemoryMB, int requiredVCores,
-                              int actualMemoryMB, int actualVCores,
-                              String errorSuffix) {
+      int actualMemoryMB, int actualVCores,
+      String errorSuffix) {
     boolean memoryBad = requiredMemoryMB > actualMemoryMB;
     boolean vcoresBad = requiredVCores > actualVCores;
 
     if (memoryBad && vcoresBad) {
       throw new RuntimeException(String.format(
-        "Services require %d MB of memory and %d vcores, but the cluster only has %d memory and %d vcores %s.",
-        requiredMemoryMB, requiredVCores, actualMemoryMB, actualVCores, errorSuffix));
+          "Services require %d MB of memory and %d vcores, but the cluster only has %d memory and %d vcores %s.",
+          requiredMemoryMB, requiredVCores, actualMemoryMB, actualVCores, errorSuffix));
     } else if (memoryBad) {
       throw new RuntimeException(String.format(
-        "Services require %d MB of memory but the cluster only has %d MB of memory %s.",
-        requiredMemoryMB, actualMemoryMB, errorSuffix));
+          "Services require %d MB of memory but the cluster only has %d MB of memory %s.",
+          requiredMemoryMB, actualMemoryMB, errorSuffix));
     } else if (vcoresBad) {
       throw new RuntimeException(String.format(
-        "Services require %d vcores but the cluster only has %d vcores %s.",
-        requiredVCores, actualVCores, errorSuffix));
+          "Services require %d vcores but the cluster only has %d vcores %s.",
+          requiredVCores, actualVCores, errorSuffix));
     }
   }
 }

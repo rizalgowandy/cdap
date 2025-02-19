@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -33,6 +33,8 @@ import io.cdap.cdap.common.discovery.EndpointStrategy;
 import io.cdap.cdap.common.discovery.RandomEndpointStrategy;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.data.dataset.SystemDatasetInstantiatorFactory;
@@ -57,8 +59,6 @@ import io.cdap.cdap.data2.dataset2.DefaultDatasetDefinitionRegistryFactory;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
 import io.cdap.cdap.data2.transaction.DelegatingTransactionSystemClientService;
 import io.cdap.cdap.data2.transaction.TransactionSystemClientService;
-import io.cdap.cdap.explore.client.DiscoveryExploreClient;
-import io.cdap.cdap.explore.client.ExploreFacade;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
@@ -72,8 +72,9 @@ import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.store.StoreDefinition;
 import io.cdap.http.HttpHandler;
+import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.tephra.TransactionManager;
 import org.apache.tephra.inmemory.InMemoryTxSystemClient;
 import org.apache.tephra.runtime.TransactionInMemoryModule;
@@ -84,9 +85,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.HashSet;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for {@link RemoteDatasetFramework}
@@ -102,7 +100,7 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
     cConf.set(Constants.Service.MASTER_SERVICES_BIND_ADDRESS, "localhost");
     cConf.setBoolean(Constants.Dangerous.UNRECOVERABLE_RESET, true);
 
-    Configuration txConf = HBaseConfiguration.create();
+    Configuration txConf = new Configuration();
     CConfigurationUtil.copyTxProperties(cConf, txConf);
 
     // ok to pass null, since the impersonator won't actually be called, if kerberos security is not enabled
@@ -111,6 +109,7 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
     // TODO: Refactor to use injector for everything
     Injector injector = Guice.createInjector(
       new ConfigModule(cConf, txConf),
+      RemoteAuthenticatorModules.getNoOpModule(),
       new InMemoryDiscoveryModule(),
       new AuthorizationTestModule(),
       new StorageModule(),
@@ -141,7 +140,8 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
 
     DiscoveryService discoveryService = injector.getInstance(DiscoveryService.class);
     DiscoveryServiceClient discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
-    MetricsCollectionService metricsCollectionService = injector.getInstance(MetricsCollectionService.class);
+    CommonNettyHttpServiceFactory commonNettyHttpServiceFactory =
+      injector.getInstance(CommonNettyHttpServiceFactory.class);
     AuthenticationContext authenticationContext = injector.getInstance(AuthenticationContext.class);
     RemoteClientFactory remoteClientFactory = injector.getInstance(RemoteClientFactory.class);
 
@@ -154,11 +154,9 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
     ImmutableSet<HttpHandler> handlers =
       ImmutableSet.of(new DatasetAdminOpHTTPHandler(datasetAdminService));
     opExecutorService = new DatasetOpExecutorService(cConf, SConfiguration.create(),
-                                                     discoveryService, metricsCollectionService, handlers);
+                                                     discoveryService, commonNettyHttpServiceFactory, handlers);
     opExecutorService.startAndWait();
 
-    DiscoveryExploreClient exploreClient = new DiscoveryExploreClient(discoveryServiceClient, authenticationContext);
-    ExploreFacade exploreFacade = new ExploreFacade(exploreClient, cConf);
     AccessEnforcer accessEnforcer = injector.getInstance(AccessEnforcer.class);
 
     DatasetTypeManager typeManager = new DatasetTypeManager(cConf, locationFactory, impersonator, transactionRunner);
@@ -174,13 +172,13 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
     DatasetOpExecutor opExecutor = new RemoteDatasetOpExecutor(authenticationContext, remoteClientFactory);
     DatasetInstanceService instanceService = new DatasetInstanceService(typeService, noAuthTypeService,
                                                                         instanceManager, opExecutor,
-                                                                        exploreFacade, namespaceQueryAdmin, ownerAdmin,
+                                                                        namespaceQueryAdmin, ownerAdmin,
                                                                         accessEnforcer, authenticationContext,
                                                                         new NoOpMetadataServiceClient());
     instanceService.setAuditPublisher(inMemoryAuditPublisher);
 
     service = new DatasetService(cConf, SConfiguration.create(),
-                                 discoveryService, discoveryServiceClient, metricsCollectionService,
+                                 discoveryService, discoveryServiceClient, commonNettyHttpServiceFactory,
                                  new HashSet<>(),
                                  typeService, instanceService);
     // Start dataset service, wait for it to be discoverable

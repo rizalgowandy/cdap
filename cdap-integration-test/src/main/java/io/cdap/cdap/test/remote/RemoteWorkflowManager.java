@@ -34,7 +34,6 @@ import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.cdap.test.AbstractProgramManager;
 import io.cdap.cdap.test.ScheduleManager;
 import io.cdap.cdap.test.WorkflowManager;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -43,14 +42,16 @@ import javax.annotation.Nullable;
 /**
  * Remote implementation of {@link WorkflowManager}.
  */
-public class RemoteWorkflowManager extends AbstractProgramManager<WorkflowManager> implements WorkflowManager {
+public class RemoteWorkflowManager extends AbstractProgramManager<WorkflowManager> implements
+    WorkflowManager {
 
   private final ScheduleClient scheduleClient;
   private final WorkflowClient workflowClient;
   private final WorkflowId workflowId;
 
-  public RemoteWorkflowManager(WorkflowId programId, ClientConfig clientConfig, RESTClient restClient,
-                               RemoteApplicationManager applicationManager) {
+  public RemoteWorkflowManager(WorkflowId programId, ClientConfig clientConfig,
+      RESTClient restClient,
+      RemoteApplicationManager applicationManager) {
     super(programId, applicationManager);
     this.workflowId = programId;
     this.workflowClient = new WorkflowClient(clientConfig, restClient);
@@ -68,7 +69,7 @@ public class RemoteWorkflowManager extends AbstractProgramManager<WorkflowManage
 
   @Override
   public WorkflowTokenDetail getToken(String runId, @Nullable WorkflowToken.Scope scope,
-                                      @Nullable String key) throws NotFoundException {
+      @Nullable String key) throws NotFoundException {
     try {
       return workflowClient.getWorkflowToken(workflowId.run(runId), scope, key);
     } catch (IOException | UnauthenticatedException | UnauthorizedException e) {
@@ -77,8 +78,9 @@ public class RemoteWorkflowManager extends AbstractProgramManager<WorkflowManage
   }
 
   @Override
-  public WorkflowTokenNodeDetail getTokenAtNode(String runId, String nodeName, @Nullable WorkflowToken.Scope scope,
-                                                @Nullable String key) throws NotFoundException {
+  public WorkflowTokenNodeDetail getTokenAtNode(String runId, String nodeName,
+      @Nullable WorkflowToken.Scope scope,
+      @Nullable String key) throws NotFoundException {
     try {
       return workflowClient.getWorkflowTokenAtNode(workflowId.run(runId), nodeName, scope, key);
     } catch (IOException | UnauthenticatedException | UnauthorizedException e) {
@@ -88,7 +90,7 @@ public class RemoteWorkflowManager extends AbstractProgramManager<WorkflowManage
 
   @Override
   public Map<String, WorkflowNodeStateDetail> getWorkflowNodeStates(String workflowRunId)
-    throws NotFoundException {
+      throws NotFoundException {
     try {
       ProgramRunId programRunId = workflowId.run(workflowRunId);
       return workflowClient.getWorkflowNodeStates(programRunId);

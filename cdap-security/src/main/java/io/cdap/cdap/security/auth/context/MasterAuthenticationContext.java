@@ -21,13 +21,12 @@ import io.cdap.cdap.proto.security.Credential;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authentication.SecurityRequestContext;
+import java.io.IOException;
 import org.apache.hadoop.security.UserGroupInformation;
 
-import java.io.IOException;
-
 /**
- * An {@link AuthenticationContext} for HTTP requests in the Master. The authentication details in this context are
- * derived from:
+ * An {@link AuthenticationContext} for HTTP requests in the Master. The authentication details in
+ * this context are derived from:
  * <ol>
  *   <li>{@link SecurityRequestContext}, when the request; or</li>
  *   <li>{@link UserGroupInformation}, when the master itself is asynchronously updating privileges in the
@@ -38,6 +37,7 @@ import java.io.IOException;
  * @see UserGroupInformation
  */
 public class MasterAuthenticationContext implements AuthenticationContext {
+
   @Override
   public Principal getPrincipal() {
     // When requests come in via rest endpoints, the userId is updated inside SecurityRequestContext, so give that

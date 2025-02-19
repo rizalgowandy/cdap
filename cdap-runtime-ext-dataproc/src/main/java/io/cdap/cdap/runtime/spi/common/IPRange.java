@@ -17,7 +17,6 @@
 package io.cdap.cdap.runtime.spi.common;
 
 import com.google.common.net.InetAddresses;
-
 import java.net.InetAddress;
 
 /**
@@ -32,7 +31,8 @@ public final class IPRange {
     String[] parts = cidrBlock.split("/");
     int size = parts.length == 1 ? 0 : Integer.parseInt(parts[1]);
     this.lower = InetAddresses.forString(parts[0]);
-    this.upper = InetAddresses.fromInteger(InetAddresses.coerceToInteger(lower) + (1 << (32 - size)) - 1);
+    this.upper = InetAddresses.fromInteger(
+        InetAddresses.coerceToInteger(lower) + (1 << (32 - size)) - 1);
   }
 
   /**
@@ -49,9 +49,9 @@ public final class IPRange {
 
   @Override
   public String toString() {
-    return "IPRange{" +
-      "lower=" + lower +
-      ", upper=" + upper +
-      '}';
+    return "IPRange{"
+        + "lower=" + lower
+        + ", upper=" + upper
+        + '}';
   }
 }

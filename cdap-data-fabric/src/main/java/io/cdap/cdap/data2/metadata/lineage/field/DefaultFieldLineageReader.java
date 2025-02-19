@@ -21,19 +21,21 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import io.cdap.cdap.api.lineage.field.EndPoint;
 import io.cdap.cdap.api.lineage.field.Operation;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.metadata.lineage.ProgramRunOperations;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.apache.twill.api.RunId;
 
 /**
- * Implementation of {@link FieldLineageReader} for reading the field lineage information
- * from {@link FieldLineageTable}.
+ * Implementation of {@link FieldLineageReader} for reading the field lineage information from
+ * {@link FieldLineageTable}.
  */
 public class DefaultFieldLineageReader implements FieldLineageReader {
+
   private final TransactionRunner transactionRunner;
 
   @Inject
@@ -67,32 +69,48 @@ public class DefaultFieldLineageReader implements FieldLineageReader {
   }
 
   @Override
-  public List<ProgramRunOperations> getIncomingOperations(EndPointField endPointField, long start, long end) {
+  public List<ProgramRunOperations> getIncomingOperations(EndPointField endPointField, long start,
+      long end) {
     return computeFieldOperations(true, endPointField, start, end);
   }
 
   @Override
-  public List<ProgramRunOperations> getOutgoingOperations(EndPointField endPointField, long start, long end) {
+  public List<ProgramRunOperations> getOutgoingOperations(EndPointField endPointField, long start,
+      long end) {
     return computeFieldOperations(false, endPointField, start, end);
   }
 
-  private List<ProgramRunOperations> computeFieldOperations(boolean incoming, EndPointField endPointField,
-                                                            long start, long end) {
-    Set<ProgramRunOperations> endPointOperations = TransactionRunners.run(transactionRunner, context -> {
+  @Override
+  public List<EndPoint> getEndpoints(String namespaceId, ProgramReference programReference,
+      RunId runId) {
+    return TransactionRunners.run(transactionRunner, context -> {
       FieldLineageTable fieldLineageTable = FieldLineageTable.create(context);
-
-      return incoming ? fieldLineageTable.getIncomingOperations(endPointField.getEndPoint(), start, end)
-        : fieldLineageTable.getOutgoingOperations(endPointField.getEndPoint(), start, end);
+      return fieldLineageTable.getEndpoints(namespaceId, programReference, runId);
     });
+  }
+
+  private List<ProgramRunOperations> computeFieldOperations(boolean incoming,
+      EndPointField endPointField,
+      long start, long end) {
+    Set<ProgramRunOperations> endPointOperations = TransactionRunners.run(transactionRunner,
+        context -> {
+          FieldLineageTable fieldLineageTable = FieldLineageTable.create(context);
+
+          return incoming ? fieldLineageTable.getIncomingOperations(endPointField.getEndPoint(),
+              start, end)
+              : fieldLineageTable.getOutgoingOperations(endPointField.getEndPoint(), start, end);
+        });
 
     List<ProgramRunOperations> endPointFieldOperations = new ArrayList<>();
     for (ProgramRunOperations programRunOperation : endPointOperations) {
       try {
         // No need to compute summaries here.
         FieldLineageInfo info = new FieldLineageInfo(programRunOperation.getOperations(), false);
-        Set<Operation> fieldOperations = incoming ?
-          info.getIncomingOperationsForField(endPointField) : info.getOutgoingOperationsForField(endPointField);
-        ProgramRunOperations result = new ProgramRunOperations(programRunOperation.getProgramRunIds(), fieldOperations);
+        Set<Operation> fieldOperations = incoming
+            ? info.getIncomingOperationsForField(endPointField)
+            : info.getOutgoingOperationsForField(endPointField);
+        ProgramRunOperations result = new ProgramRunOperations(
+            programRunOperation.getProgramRunIds(), fieldOperations);
         endPointFieldOperations.add(result);
       } catch (Throwable e) {
         // TODO: possibly relax validation logic when info object created from here

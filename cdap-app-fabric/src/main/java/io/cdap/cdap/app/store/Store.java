@@ -26,10 +26,15 @@ import io.cdap.cdap.api.workflow.WorkflowToken;
 import io.cdap.cdap.app.program.Program;
 import io.cdap.cdap.app.program.ProgramDescriptor;
 import io.cdap.cdap.common.ApplicationNotFoundException;
+import io.cdap.cdap.common.BadRequestException;
+import io.cdap.cdap.common.ConflictException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.ProgramNotFoundException;
+import io.cdap.cdap.internal.app.store.ApplicationMeta;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.internal.app.store.WorkflowTable;
+import io.cdap.cdap.internal.app.store.state.AppStateKey;
+import io.cdap.cdap.internal.app.store.state.AppStateKeyValue;
 import io.cdap.cdap.proto.BasicThrowable;
 import io.cdap.cdap.proto.ProgramHistory;
 import io.cdap.cdap.proto.ProgramRunClusterStatus;
@@ -38,26 +43,28 @@ import io.cdap.cdap.proto.RunCountResult;
 import io.cdap.cdap.proto.WorkflowNodeStateDetail;
 import io.cdap.cdap.proto.WorkflowStatistics;
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.id.WorkflowId;
-import org.apache.twill.api.RunId;
-
+import io.cdap.cdap.proto.sourcecontrol.SourceControlMeta;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
+import org.apache.twill.api.RunId;
 
 /**
  * Responsible for managing {@link Program} and {@link Application} metadata.
- *
  * TODO: set state methods are only called from unit tests. They should be removed in favor of using AppMetadataStore.
  */
 public interface Store {
@@ -102,10 +109,22 @@ public interface Store {
    *
    * @param id run id of the program
    * @param twillRunId Twill run id
+   * @param runTime start timestamp in seconds
    * @param sourceId id of the source of program run status, which is proportional to the timestamp of
    *                 when the current program run status is reached
    */
   void setRunning(ProgramRunId id, long runTime, @Nullable String twillRunId, byte[] sourceId);
+
+  /**
+   * Logs stopping of a program run and persists program status to {@link ProgramRunStatus#STOPPING}.
+   *
+   * @param id run id of the program
+   * @param sourceId id of the source of program run status, which is proportional to the timestamp of
+   *                 when the current program run status is reached
+   * @param stoppingTime stopping timestamp in seconds
+   * @param terminateTs timestamp at which program should be in an end state calculated using graceful shutdown period
+   */
+  void setStopping(ProgramRunId id, byte[] sourceId, long stoppingTime, long terminateTs);
 
   /**
    * Logs end of program run and sets the run status to one of: {@link ProgramRunStatus#COMPLETED},
@@ -157,9 +176,33 @@ public interface Store {
    *
    * @param program id of the program
    * @return An instance of {@link ProgramDescriptor} if found.
-   * @throws IOException
+   * @throws IOException when Store fails to get application
    */
   ProgramDescriptor loadProgram(ProgramId program) throws IOException, NotFoundException;
+
+  /**
+   * Loads a given versionless program.
+   *
+   * @param programReference reference of the program
+   * @return An instance of {@link ProgramDescriptor} if found.
+   * @throws IOException when Store fails to get application
+   */
+  ProgramDescriptor loadProgram(ProgramReference programReference) throws IOException, NotFoundException;
+
+  /**
+   * Fetches all run records for all versions of a program.
+   * Returned ProgramRunRecords are sorted by their startTime.
+   *
+   * @param programReference programReference of the program
+   * @param status           status of the program running/completed/failed or all
+   * @param startTime        fetch run history that has started after the startTime in seconds
+   * @param endTime          fetch run history that has started before the endTime in seconds
+   * @param limit            max number of entries to fetch for this history call
+   * @return                 map of logged runs
+   */
+  Map<ProgramRunId, RunRecordDetail> getAllRuns(ProgramReference programReference, ProgramRunStatus status,
+      long startTime, long endTime, int limit,
+      Predicate<RunRecordDetail> filter);
 
   /**
    * Fetches run records for particular program.
@@ -194,6 +237,7 @@ public interface Store {
    */
   Map<ProgramRunId, RunRecordDetail> getRuns(ProgramRunStatus status, long startTime,
                                              long endTime, int limit, Predicate<RunRecordDetail> filter);
+
   /**
    * Fetches run records for the particular status.
    *
@@ -208,10 +252,24 @@ public interface Store {
 
   /**
    * Fetches the run records for given ProgramRunIds.
+   *
    * @param programRunIds  list of program RunIds to match against
    * @return        map of logged runs
    */
   Map<ProgramRunId, RunRecordDetail> getRuns(Set<ProgramRunId> programRunIds);
+
+  /**
+   * Fetches run records for multiple programs.
+   *
+   * @param programs  the programs to get run records for
+   * @param status    status of the program running/completed/failed or all
+   * @param startTime fetch run history that has started after the startTime in seconds
+   * @param endTime   fetch run history that has started before the endTime in seconds
+   * @param limitPerProgram     max number of runs to fetch for each program
+   * @return          runs for each program
+   */
+  List<ProgramHistory> getRuns(Collection<ProgramReference> programs, ProgramRunStatus status,
+      long startTime, long endTime, int limitPerProgram);
 
   /**
    * Fetches the active (i.e STARTING or RUNNING or SUSPENDED) run records across all namespaces.
@@ -232,6 +290,7 @@ public interface Store {
 
   /**
    * Fetches the active (i.e STARTING or RUNNING or SUSPENDED) run records against a given NamespaceId.
+   *
    * @param namespaceId the namespace id to match against
    * @return map of logged runs
    */
@@ -239,6 +298,7 @@ public interface Store {
 
   /**
    * Fetches the active (i.e STARTING or RUNNING or SUSPENDED) run records from the given NamespaceId's.
+   *
    * @param namespaces the namespace id's to get active run records from
    * @param filter predicate to be passed to filter the records
    * @return map of logged runs
@@ -247,6 +307,7 @@ public interface Store {
 
   /**
    * Fetches the active (i.e STARTING or RUNNING or SUSPENDED) run records against a given ApplicationId.
+   *
    * @param applicationId the application id to match against
    * @return map of logged runs
    */
@@ -254,19 +315,53 @@ public interface Store {
 
   /**
    * Fetches the active (i.e STARTING or RUNNING or SUSPENDED) run records against a given ProgramId.
+   *
    * @param programId the program id to match against
    * @return map of logged runs
    */
   Map<ProgramRunId, RunRecordDetail> getActiveRuns(ProgramId programId);
 
   /**
-   * Fetches active runs for a set of programs.
+   * Fetches the number of active (i.e PENDING or STARTING or RUNNING or SUSPENDED or STOPPING)
+   * run records against a given {@link ProgramReference} across versions of the program.
+   * If the number of active runs is higher than limit, then the limit value is returned.
    *
-   * @param programIds collection of program ids for fetching active run records.
-   * @return a {@link Map} from the {@link ProgramId} to the list of run records; there will be no entry for programs
-   * that do not exist.
+   * @param programRef the {@link ProgramReference} to match against
+   * @param limit int value acting as an upper bound for the active runs count, useful when we
+   *     only want to check if the number of active runs is lower than the limit. It ensures
+   *     that we do not scan more than limit number of active run records.
+   * @return int number of logged runs
    */
-  Map<ProgramId, Collection<RunRecordDetail>> getActiveRuns(Collection<ProgramId> programIds);
+  int getProgramActiveRunsCount(ProgramReference programRef, int limit);
+
+  /**
+   * Fetches the number of active (i.e PENDING or STARTING or RUNNING or SUSPENDED or STOPPING)
+   * run records against a given {@link ProgramReference} across versions of the program.
+   *
+   * @param programRef the {@link ProgramReference} to match against
+   * @return int number of logged runs
+   */
+  default int getProgramActiveRunsCount(ProgramReference programRef) {
+    return getProgramActiveRunsCount(programRef, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Fetches the latest active runs for a set of programs.
+   *
+   * @param programRefs collection of program ids for fetching active run records.
+   * @return a {@link Map} from the {@link ProgramId} to the list of run records; there will be no entry for programs
+   *     that do not exist.
+   */
+  Map<ProgramId, Collection<RunRecordDetail>> getActiveRuns(Collection<ProgramReference> programRefs);
+
+  /**
+   * Fetches the active (i.e STARTING or RUNNING or SUSPENDED) run records for the
+   * given application.
+   *
+   * @param applicationReference versionless reference of the application
+   * @return map of logged runs. If no active run exists, return an empty map.
+   */
+  Map<ProgramRunId, RunRecordDetail> getAllActiveRuns(ApplicationReference applicationReference);
 
   /**
    * Fetches the run record for particular run of a program.
@@ -278,24 +373,70 @@ public interface Store {
   RunRecordDetail getRun(ProgramRunId id);
 
   /**
+   * Fetches the run record for particular run of a program without version.
+   *
+   * @param programRef    versionless program id of the run
+   * @param runId         the run id
+   * @return          run record for the specified program and runRef, null if not found
+   */
+  @Nullable
+  RunRecordDetail getRun(ProgramReference programRef, String runId);
+
+  /**
    * Creates new application if it doesn't exist. Updates existing one otherwise.
+   * Always marks the added application as latest.
    *
    * @param id            application id
-   * @param specification application specification to store
+   * @param meta          application metadata to store
+   * @return              the number of edits to the application. A new application will return 0.
+   * @throws ConflictException if the app cannot be deployed when the user provided parent-version doesn't match the
+   *     current latest version
    */
-  void addApplication(ApplicationId id, ApplicationSpecification specification);
+  int addLatestApplication(ApplicationId id, ApplicationMeta meta) throws ConflictException;
 
+  /**
+   * Creates new application if it doesn't exist. Updates existing one otherwise.
+   * Marks the application as latest based on the isLatest param.
+   *
+   * @param id            application id
+   * @param meta          application metadata to store
+   * @param isLatest      boolean, indicating if the application should be marked latest
+   * @return              the number of edits to the application. A new application will return 0.
+   * @throws ConflictException if the app cannot be deployed when the user provided parent-version doesn't match the
+   *     current latest version
+   */
+  int addApplication(ApplicationId id, ApplicationMeta meta, boolean isLatest) throws ConflictException;
+
+  /**
+   * Marks existing applications as latest.
+   *
+   * @param applicationIds List of application ids
+   * @throws IOException if the apps cannot be marked latest because of any IO failure
+   * @throws ApplicationNotFoundException when any of the applications is not found
+   */
+  void markApplicationsLatest(Collection<ApplicationId> applicationIds)
+      throws IOException, ApplicationNotFoundException;
 
   /**
    * Return a list of program specifications that are deleted comparing the specification in the store with the
    * spec that is passed.
    *
-   * @param id                   ApplicationId
+   * @param appRef               ApplicationReference
    * @param specification        Application specification
    * @return                     List of ProgramSpecifications that are deleted
    */
-  List<ProgramSpecification> getDeletedProgramSpecifications(ApplicationId id,
+  List<ProgramSpecification> getDeletedProgramSpecifications(ApplicationReference appRef,
                                                              ApplicationSpecification specification);
+
+  /**
+   * Updates source control metadata for one or more applications.
+   * If any of the applications in the given collection are not found, this method ignores them.
+   *
+   * @param updateRequests Map of {@link ApplicationId} to {@link SourceControlMeta}
+   * @throws IOException if scm meta update fails
+   */
+  void updateApplicationSourceControlMeta(Map<ApplicationId, SourceControlMeta> updateRequests)
+      throws IOException;
 
   /**
    * Returns application specification by id.
@@ -307,24 +448,44 @@ public interface Store {
   ApplicationSpecification getApplication(ApplicationId id);
 
   /**
-   * Returns a collection of all application specs in the specified namespace
+   * Returns application metadata information by id.
    *
-   * @param id the namespace to get application specs from
-   * @return collection of all application specs in the namespace
+   * @param id application id
+   * @return application metadata
    */
-  Collection<ApplicationSpecification> getAllApplications(NamespaceId id);
+  @Nullable
+  ApplicationMeta getApplicationMetadata(ApplicationId id);
 
   /**
-   * Scans for applications across all namespaces.
+   * Returns the latest version of an application in a namespace.
+   *
+   * @param appRef application reference
+   * @return The metadata information of the latest application version.
+   */
+  @Nullable
+  ApplicationMeta getLatest(ApplicationReference appRef);
+
+  /**
+   * Gets the ApplicationId with the latest version for the given ApplicationReference.
+   *
+   * @param appRef ApplicationReference
+   * @return ApplicationId for the latest version
+   *
+   * @throws ApplicationNotFoundException if the app was not found for the given application reference.
+   */
+  ApplicationId getLatestApp(ApplicationReference appRef) throws ApplicationNotFoundException;
+
+  /**
+   * Scans for the latest applications across all namespaces.
    *
    * @param txBatchSize maximum number of applications to scan in one transaction to
    *                    prevent holding a single transaction for too long
    * @param consumer a {@link BiConsumer} to consume each application being scanned
    */
-  void scanApplications(int txBatchSize, BiConsumer<ApplicationId, ApplicationSpecification> consumer);
+  void scanApplications(int txBatchSize, BiConsumer<ApplicationId, ApplicationMeta> consumer);
 
   /**
-   * Scans for applications according to the parameters passed in request
+   * Scans for applications according to the parameters passed in request.
    *
    * @param request  parameters defining filters and sorting
    * @param txBatchSize maximum number of applications to scan in one transaction to
@@ -333,31 +494,47 @@ public interface Store {
    * @return if limit was reached (true) or all items were scanned before reaching the limit (false)
    */
   boolean scanApplications(ScanApplicationsRequest request, int txBatchSize,
-                        BiConsumer<ApplicationId, ApplicationSpecification> consumer);
+                           BiConsumer<ApplicationId, ApplicationMeta> consumer);
 
   /**
-   * Returns a Map of {@link ApplicationSpecification} for the given set of {@link ApplicationId}.
+   * Returns a Map of {@link ApplicationMeta} for the given set of {@link ApplicationId}.
    *
    * @param ids the list of application ids to get the specs
-   * @return collection of application specs. For applications that don't exist, there will be no entry in the result.
+   * @return collection of application metas. For applications that don't exist, there will be no entry in the result.
    */
-  Map<ApplicationId, ApplicationSpecification> getApplications(Collection<ApplicationId> ids);
+  Map<ApplicationId, ApplicationMeta> getApplications(Collection<ApplicationId> ids);
 
   /**
-   * Returns a collection of all application specs of all the versions of the application by id
+   * Update an applications with provided SourceControlMeta.
    *
-   * @param id application id
-   * @return collection of all application specs of all the application versions
+   * @param appId the application ID
+   * @param sourceControlMeta the source control metadata of the application synced with linked repository.
    */
-  Collection<ApplicationSpecification> getAllAppVersions(ApplicationId id);
+  void setAppSourceControlMeta(ApplicationId appId, SourceControlMeta sourceControlMeta);
 
   /**
-   * Returns a list of all versions' ApplicationId's of the application by id
+   * Get source control metadata of provided application.
    *
-   * @param id application id
+   * @param appRef the application reference
+   * @return {@link SourceControlMeta}
+   */
+  SourceControlMeta getAppSourceControlMeta(ApplicationReference appRef);
+
+  /**
+   * Returns a map of latest programIds given programReferences.
+   *
+   * @param references the list of programReferences to get the latest programIds
+   * @return collection of programIds. For applications that don't exist, there will be no entry in the result.
+   */
+  Map<ProgramReference, ProgramId> getPrograms(Collection<ProgramReference> references);
+
+  /**
+   * Returns a list of all versions' ApplicationId's of the application by reference.
+   *
+   * @param appRef application reference
    * @return collection of versionIds of the application's versions
    */
-  Collection<ApplicationId> getAllAppVersionsAppIds(ApplicationId id);
+  Collection<ApplicationId> getAllAppVersionsAppIds(ApplicationReference appRef);
 
   /**
    * Sets the number of instances of a service.
@@ -369,13 +546,14 @@ public interface Store {
 
   /**
    * Returns the number of instances of a service.
+   *
    * @param id id of the program
    * @return number of instances
    */
   int getServiceInstances(ProgramId id);
 
   /**
-   * Sets the number of instances of a {@link Worker}
+   * Sets the number of instances of a {@link Worker}.
    *
    * @param id id of the program
    * @param instances number of instances
@@ -383,7 +561,7 @@ public interface Store {
   void setWorkerInstances(ProgramId id, int instances);
 
   /**
-   * Gets the number of instances of a {@link Worker}
+   * Gets the number of instances of a {@link Worker}.
    *
    * @param id id of the program
    * @return number of instances
@@ -393,9 +571,16 @@ public interface Store {
   /**
    * Removes all program under the given application and also the application itself.
    *
-   * @param id Application id
+   * @param appRef Application reference
    */
-  void removeApplication(ApplicationId id);
+  void removeApplication(ApplicationReference appRef);
+
+  /**
+   * Removes all program under the given application and also the application itself.
+   *
+   * @param appId Application Id
+   */
+  void removeApplication(ApplicationId appId);
 
   /**
    * Remove all metadata associated with the given namespace.
@@ -413,7 +598,8 @@ public interface Store {
   Map<String, String> getRuntimeArguments(ProgramRunId runId);
 
   /**
-   * Deletes data for an application from the WorkflowTable table
+   * Deletes data for an application from the WorkflowTable table.
+   *
    * @param id id of application to be deleted
    */
   void deleteWorkflowStats(ApplicationId id);
@@ -439,13 +625,15 @@ public interface Store {
    * Used by {@link io.cdap.cdap.gateway.handlers.WorkflowStatsSLAHttpHandler} to get the statistics of all completed
    * workflows in a time range.
    *
-   * @param workflowId Workflow that needs to have its statistics returned
+   * @param namespaceId The namespace that the workflow belongs to
+   * @param appName The application that the workflow belongs to
+   * @param workflowName The name of the workflow
    * @param startTime StartTime of the range
    * @param endTime EndTime of the range
    * @param percentiles List of percentiles that the user wants to see
    * @return the statistics for a given workflow
    */
-  WorkflowStatistics getWorkflowStatistics(WorkflowId workflowId, long startTime,
+  WorkflowStatistics getWorkflowStatistics(NamespaceId namespaceId, String appName, String workflowName, long startTime,
                                            long endTime, List<Double> percentiles);
 
   /**
@@ -458,18 +646,35 @@ public interface Store {
   WorkflowTable.WorkflowRunRecord getWorkflowRun(WorkflowId workflowId, String runId);
 
   /**
+   * Returns the record that represents the run of a workflow.
+   *
+   * @param namespaceId The namespace that the workflow belongs to
+   * @param appName The application that the workflow belongs to
+   * @param workflowName The Workflow whose run needs to be queried
+   * @param runId RunId of the workflow run
+   * @return A workflow run record corresponding to the runId
+   */
+  WorkflowTable.WorkflowRunRecord getWorkflowRun(NamespaceId namespaceId, String appName, String workflowName,
+                                                 String runId);
+
+  /**
    * Get a list of workflow runs that are spaced apart by time interval in both directions from the run id provided.
    *
-   * @param workflowId The workflow whose statistics need to be obtained
+   * @param namespaceId The namespace that the workflow belongs to
+   * @param appName The application that the workflow belongs to
+   * @param workflowName The name of the workflow
    * @param runId The run id of the workflow
    * @param limit The number of the records that the user wants to compare against on either side of the run
    * @param timeInterval The timeInterval with which the user wants to space out the runs
    * @return Map of runId of Workflow to DetailedStatistics of the run
    */
-  Collection<WorkflowTable.WorkflowRunRecord> retrieveSpacedRecords(WorkflowId workflowId, String runId,
-                                                                    int limit, long timeInterval);
+  Collection<WorkflowTable.WorkflowRunRecord> retrieveSpacedRecords(NamespaceId namespaceId, String appName,
+                                                                    String workflowName,  String runId, int limit,
+                                                                    long timeInterval);
 
   /**
+   * Get the running Ids in a time range.
+   *
    * @return programs that were running between given start and end time.
    */
   Set<RunId> getRunningInRange(long startTimeInSecs, long endTimeInSecs);
@@ -484,25 +689,55 @@ public interface Store {
   long getProgramRunCount(ProgramId programId) throws NotFoundException;
 
   /**
-   * Get the run count of the given program collection
+   * Get the run count of the given program across all versions.
    *
-   * @param programIds collection of program ids to get the count
-   * @return the run count result of each program in the collection
+   * @param programReference the program to get the count
+   * @return the number of run count
+   * @throws NotFoundException if the app or the program does not exist
    */
-  List<RunCountResult> getProgramRunCounts(Collection<ProgramId> programIds);
+  long getProgramTotalRunCount(ProgramReference programReference) throws NotFoundException;
 
   /**
-   * Fetches run records for multiple programs.
+   * Get the run count of the given program collection.
    *
-   * @param programs  the programs to get run records for
-   * @param status    status of the program running/completed/failed or all
-   * @param startTime fetch run history that has started after the startTime in seconds
-   * @param endTime   fetch run history that has started before the endTime in seconds
-   * @param limitPerProgram     max number of runs to fetch for each program
-   * @return          runs for each program
+   * @param programRefs collection of program ids to get the count
+   * @return the run count result of each program in the collection
    */
-  List<ProgramHistory> getRuns(Collection<ProgramId> programs, ProgramRunStatus status,
-                               long startTime, long endTime, int limitPerProgram);
+  List<RunCountResult> getProgramTotalRunCounts(Collection<ProgramReference> programRefs);
+
+  /**
+   * Get application state.
+   *
+   * @param request a {@link AppStateKey} object.
+   * @return state of application
+   * @throws ApplicationNotFoundException if application with request.appName is not found.
+   */
+  Optional<byte[]> getState(AppStateKey request) throws ApplicationNotFoundException;
+
+  /**
+   * Save application state.
+   *
+   * @param request a {@link AppStateKeyValue} object.
+   * @throws ApplicationNotFoundException if application with request.appName is not found.
+   */
+  void saveState(AppStateKeyValue request) throws ApplicationNotFoundException;
+
+  /**
+   * Delete application state.
+   *
+   * @param request a {@link AppStateKey} object.
+   * @throws ApplicationNotFoundException if application with request.appName is not found.
+   */
+  void deleteState(AppStateKey request) throws ApplicationNotFoundException;
+
+  /**
+   * Delete all states related to an application.
+   *
+   * @param namespaceId NamespaceId of the application.
+   * @param appName AppName of the application.
+   * @throws ApplicationNotFoundException if application with appName is not found.
+   */
+  void deleteAllStates(NamespaceId namespaceId, String appName) throws ApplicationNotFoundException;
 
   /**
    * Ensures the given program exists in the given application spec.
@@ -516,8 +751,8 @@ public interface Store {
     }
     if (!Objects.equals(programId.getApplication(), appSpec.getName())
       || !Objects.equals(programId.getVersion(), appSpec.getAppVersion())) {
-      throw new IllegalArgumentException("Program " + programId + " does not belong to application " +
-                                           appSpec.getName() + ":" + appSpec.getAppVersion());
+      throw new IllegalArgumentException("Program " + programId + " does not belong to application "
+          + appSpec.getName() + ":" + appSpec.getAppVersion());
     }
 
     if (!appSpec.getProgramsByType(programId.getType().getApiProgramType()).contains(programId.getProgram())) {

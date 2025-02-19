@@ -23,7 +23,6 @@ import io.cdap.cdap.api.macro.MacroParserOptions;
 import io.cdap.cdap.api.plugin.PluginProperties;
 import io.cdap.cdap.api.plugin.PluginSelector;
 import io.cdap.cdap.etl.api.connector.ConnectorConfigurer;
-
 import java.util.Collections;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -32,6 +31,7 @@ import javax.annotation.Nullable;
  * Mock connector configurer
  */
 public class MockConnectorConfigurer implements ConnectorConfigurer {
+
   private final Map<String, Object> plugins;
 
   public MockConnectorConfigurer() {
@@ -44,21 +44,24 @@ public class MockConnectorConfigurer implements ConnectorConfigurer {
 
   @Nullable
   @Override
-  public <T> T usePlugin(String pluginType, String pluginName, String pluginId, PluginProperties properties,
-                         PluginSelector selector) {
+  public <T> T usePlugin(String pluginType, String pluginName, String pluginId,
+      PluginProperties properties,
+      PluginSelector selector) {
     return (T) plugins.get(pluginId);
   }
 
   @Nullable
   @Override
-  public <T> Class<T> usePluginClass(String pluginType, String pluginName, String pluginId, PluginProperties properties,
-                                     PluginSelector selector) {
+  public <T> Class<T> usePluginClass(String pluginType, String pluginName, String pluginId,
+      PluginProperties properties,
+      PluginSelector selector) {
     return (Class<T>) plugins.get(pluginId).getClass();
   }
 
   @Override
-  public Map<String, String> evaluateMacros(Map<String, String> properties, MacroEvaluator evaluator,
-                                            MacroParserOptions options) throws InvalidMacroException {
+  public Map<String, String> evaluateMacros(Map<String, String> properties,
+      MacroEvaluator evaluator,
+      MacroParserOptions options) throws InvalidMacroException {
     return properties;
   }
 }

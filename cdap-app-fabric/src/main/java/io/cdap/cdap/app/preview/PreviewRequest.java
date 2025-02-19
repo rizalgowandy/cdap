@@ -22,24 +22,26 @@ import io.cdap.cdap.proto.artifact.preview.PreviewConfig;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.security.Principal;
-
 import javax.annotation.Nullable;
 
 /**
  * Represents the preview application request.
  */
 public class PreviewRequest {
+
   private final ProgramId program;
   private final AppRequest<?> appRequest;
   private final Principal principal;
 
-  public PreviewRequest(ProgramId program, AppRequest<?> appRequest, @Nullable Principal principal) {
+  public PreviewRequest(ProgramId program, AppRequest<?> appRequest,
+      @Nullable Principal principal) {
     this.program = program;
     this.appRequest = appRequest;
     this.principal = principal;
   }
 
-  public PreviewRequest(ApplicationId applicationId, AppRequest<?> appRequest, @Nullable Principal principal) {
+  public PreviewRequest(ApplicationId applicationId, AppRequest<?> appRequest,
+      @Nullable Principal principal) {
     this(getProgramIdFromRequest(applicationId, appRequest), appRequest, principal);
   }
 

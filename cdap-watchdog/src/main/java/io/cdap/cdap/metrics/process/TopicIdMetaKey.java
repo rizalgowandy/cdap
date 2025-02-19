@@ -18,13 +18,13 @@ package io.cdap.cdap.metrics.process;
 
 import io.cdap.cdap.messaging.MessagingUtils;
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.util.Arrays;
 
 /**
  * Topic id meta key
  */
 public final class TopicIdMetaKey implements MetricsMetaKey {
+
   private final TopicId topicId;
   private final byte[] key;
 

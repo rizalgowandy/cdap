@@ -25,12 +25,11 @@ import io.cdap.cdap.api.service.worker.RunnableTask;
 import io.cdap.cdap.api.service.worker.RunnableTaskContext;
 import io.cdap.cdap.api.service.worker.SystemAppTaskContext;
 import io.cdap.cdap.etl.api.connector.Connector;
-import io.cdap.cdap.etl.common.ArtifactSelectorProvider;
 import io.cdap.cdap.etl.common.BasicArguments;
 import io.cdap.cdap.etl.common.DefaultMacroEvaluator;
+import io.cdap.cdap.etl.common.OAuthAccessTokenMacroEvaluator;
 import io.cdap.cdap.etl.common.OAuthMacroEvaluator;
 import io.cdap.cdap.etl.common.SecureStoreMacroEvaluator;
-import io.cdap.cdap.etl.proto.connection.Connection;
 import io.cdap.cdap.etl.proto.connection.PluginInfo;
 import io.cdap.cdap.etl.spec.TrackedPluginSelector;
 
@@ -85,12 +84,12 @@ public abstract class RemoteConnectionTaskBase implements RunnableTask {
     Map<String, String> arguments = systemAppContext.getPreferencesForNamespace(namespace, true);
     Map<String, MacroEvaluator> evaluators = ImmutableMap.of(
       SecureStoreMacroEvaluator.FUNCTION_NAME, new SecureStoreMacroEvaluator(namespace, systemAppContext),
-      OAuthMacroEvaluator.FUNCTION_NAME, new OAuthMacroEvaluator(systemAppContext)
+      OAuthMacroEvaluator.FUNCTION_NAME, new OAuthMacroEvaluator(systemAppContext),
+      OAuthAccessTokenMacroEvaluator.FUNCTION_NAME, new OAuthAccessTokenMacroEvaluator(systemAppContext)
     );
     MacroEvaluator macroEvaluator = new DefaultMacroEvaluator(new BasicArguments(arguments), evaluators,
                                                               Collections.singleton(OAuthMacroEvaluator.FUNCTION_NAME));
     MacroParserOptions options = MacroParserOptions.builder()
-      .skipInvalidMacros()
       .setEscaping(false)
       .setFunctionWhitelist(evaluators.keySet())
       .build();

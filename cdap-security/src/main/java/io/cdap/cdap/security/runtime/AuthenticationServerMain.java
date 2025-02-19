@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2021 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -25,26 +25,28 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.runtime.DaemonMain;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.server.ExternalAuthenticationServer;
+import java.util.concurrent.TimeUnit;
 import org.apache.twill.internal.Services;
 import org.apache.twill.zookeeper.ZKClientService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.TimeUnit;
-
 /**
- * Server for authenticating clients accessing CDAP.  When a client authenticates successfully, it is issued
- * an access token containing a verifiable representation of the client's identity.  Other CDAP services
- * (such as the router) can independently verify client identities based on the token contents.
+ * Server for authenticating clients accessing CDAP.  When a client authenticates successfully, it
+ * is issued an access token containing a verifiable representation of the client's identity.  Other
+ * CDAP services (such as the router) can independently verify client identities based on the token
+ * contents.
  */
 public class AuthenticationServerMain extends DaemonMain {
+
   private static final Logger LOG = LoggerFactory.getLogger(AuthenticationServerMain.class);
   private ZKClientService zkClientService;
   private ExternalAuthenticationServer authServer;
@@ -53,11 +55,12 @@ public class AuthenticationServerMain extends DaemonMain {
   @Override
   public void init(String[] args) {
     Injector injector = Guice.createInjector(new ConfigModule(),
-                                             new IOModule(),
-                                             new ZKClientModule(),
-                                             new ZKDiscoveryModule(),
-                                             new CoreSecurityRuntimeModule().getDistributedModules(),
-                                             new ExternalAuthenticationModule());
+        new IOModule(),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new ZkClientModule(),
+        new ZkDiscoveryModule(),
+        new CoreSecurityRuntimeModule().getDistributedModules(),
+        new ExternalAuthenticationModule());
     configuration = injector.getInstance(CConfiguration.class);
 
     if (SecurityUtil.isManagedSecurity(configuration)) {
@@ -76,14 +79,14 @@ public class AuthenticationServerMain extends DaemonMain {
         SecurityUtil.enableKerberosLogin(configuration);
 
         io.cdap.cdap.common.service.Services.startAndWait(zkClientService,
-                                                          configuration.getLong(
-                                                            Constants.Zookeeper.CLIENT_STARTUP_TIMEOUT_MILLIS),
-                                                          TimeUnit.MILLISECONDS,
-                                                          String.format("Connection timed out while trying to start " +
-                                                                          "ZooKeeper client. Please verify that the " +
-                                                                          "ZooKeeper quorum settings are correct in " +
-                                                                          "cdap-site.xml. Currently configured as: %s",
-                                                                        zkClientService.getConnectString()));
+            configuration.getLong(
+                Constants.Zookeeper.CLIENT_STARTUP_TIMEOUT_MILLIS),
+            TimeUnit.MILLISECONDS,
+            String.format("Connection timed out while trying to start "
+                    + "ZooKeeper client. Please verify that the "
+                    + "ZooKeeper quorum settings are correct in "
+                    + "cdap-site.xml. Currently configured as: %s",
+                zkClientService.getConnectString()));
         authServer.startAndWait();
       } catch (Exception e) {
         Throwable rootCause = Throwables.getRootCause(e);
@@ -94,9 +97,9 @@ public class AuthenticationServerMain extends DaemonMain {
         }
       }
     } else {
-      String warning = "AuthenticationServer not started since security is disabled." +
-                        " To enable security, set \"security.enabled\" = \"true\" in cdap-site.xml" +
-                        " and edit the appropriate configuration.";
+      String warning = "AuthenticationServer not started since security is disabled."
+          + " To enable security, set \"security.enabled\" = \"true\" in cdap-site.xml"
+          + " and edit the appropriate configuration.";
       LOG.warn(warning);
     }
   }

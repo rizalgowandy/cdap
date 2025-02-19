@@ -18,13 +18,13 @@ package io.cdap.cdap.logging.serialize;
 
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.StackTraceElementProxy;
-
 import java.util.Arrays;
 
 /**
  * Class used as helper during serialization of IThrowableProxy.
  */
 final class ThrowableProxyImpl implements IThrowableProxy {
+
   private final IThrowableProxy cause;
   private final String className;
   private final int commonFrames;
@@ -33,7 +33,7 @@ final class ThrowableProxyImpl implements IThrowableProxy {
   private final IThrowableProxy[] suppressed;
 
   ThrowableProxyImpl(IThrowableProxy cause, String className, int commonFrames, String message,
-                     StackTraceElementProxy[] stackTraceElementProxyArray, IThrowableProxy[] suppressed) {
+      StackTraceElementProxy[] stackTraceElementProxyArray, IThrowableProxy[] suppressed) {
     this.cause = cause;
     this.className = className;
     this.commonFrames = commonFrames;
@@ -74,14 +74,14 @@ final class ThrowableProxyImpl implements IThrowableProxy {
 
   @Override
   public String toString() {
-    return "ThrowableProxyImpl{" +
-      "cause=" + cause +
-      ", className='" + className + '\'' +
-      ", commonFrames=" + commonFrames +
-      ", message='" + message + '\'' +
-      ", stackTraceElementProxyArray=" +
-      (stackTraceElementProxyArray == null ? null : Arrays.asList(stackTraceElementProxyArray)) +
-      ", suppressed=" + (suppressed == null ? null : Arrays.asList(suppressed)) +
-      '}';
+    return "ThrowableProxyImpl{"
+        + "cause=" + cause
+        + ", className='" + className + '\''
+        + ", commonFrames=" + commonFrames
+        + ", message='" + message + '\''
+        + ", stackTraceElementProxyArray="
+        + (stackTraceElementProxyArray == null ? null : Arrays.asList(stackTraceElementProxyArray))
+        + ", suppressed=" + (suppressed == null ? null : Arrays.asList(suppressed))
+        + '}';
   }
 }

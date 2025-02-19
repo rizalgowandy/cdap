@@ -24,7 +24,6 @@ import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.dataset.DatasetManagementException;
 import io.cdap.cdap.api.dataset.DatasetProperties;
 import io.cdap.cdap.api.dataset.InstanceConflictException;
-import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.api.spark.JavaSparkExecutionContext;
 import io.cdap.cdap.etl.api.lineage.field.FieldOperation;
 import io.cdap.cdap.etl.api.streaming.StreamingContext;
@@ -37,8 +36,10 @@ import org.apache.tephra.TransactionFailureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Default implementation of StreamingContext for Spark.
@@ -50,9 +51,12 @@ public class DefaultStreamingContext extends AbstractStageContext implements Str
   private final JavaSparkExecutionContext sec;
   private final JavaStreamingContext jsc;
   private final Admin admin;
+  private final boolean stateStoreEnabled;
+  private final long batchInterval;
   private final boolean isPreviewEnabled;
 
-  public DefaultStreamingContext(StageSpec stageSpec, JavaSparkExecutionContext sec, JavaStreamingContext jsc) {
+  public DefaultStreamingContext(StageSpec stageSpec, JavaSparkExecutionContext sec, JavaStreamingContext jsc,
+                                 boolean stateStoreEnabled, long batchInterval) {
     super(new PipelineRuntime(sec.getNamespace(), sec.getApplicationSpecification().getName(),
                               sec.getLogicalStartTime(), new BasicArguments(sec), sec.getMetrics(),
                               sec.getPluginContext(), sec.getServiceDiscoverer(), sec, sec, sec,
@@ -60,12 +64,24 @@ public class DefaultStreamingContext extends AbstractStageContext implements Str
     this.sec = sec;
     this.jsc = jsc;
     this.admin = sec.getAdmin();
-    this.isPreviewEnabled = sec.getDataTracer(stageSpec.getName()).isEnabled();
+    this.stateStoreEnabled = stateStoreEnabled;
+    this.batchInterval = batchInterval;
+    this.isPreviewEnabled = stageSpec.isPreviewEnabled(sec);
   }
 
   @Override
   public boolean isPreviewEnabled() {
     return isPreviewEnabled;
+  }
+
+  @Override
+  public boolean isStateStoreEnabled() {
+    return stateStoreEnabled;
+  }
+
+  @Override
+  public long getBatchInterval() {
+    return batchInterval;
   }
 
   @Override
@@ -104,8 +120,8 @@ public class DefaultStreamingContext extends AbstractStageContext implements Str
           Method method = dsClass.getMethod("recordRead");
           method.invoke(ds);
         } catch (NoSuchMethodException e) {
-          LOG.warn("ExternalDataset '{}' does not have method 'recordRead()'. " +
-                     "Can't register read-only lineage for this dataset", referenceName);
+          LOG.warn("ExternalDataset '{}' does not have method 'recordRead()'. "
+                     + "Can't register read-only lineage for this dataset", referenceName);
         }
       }
     }, DatasetManagementException.class);
@@ -123,7 +139,28 @@ public class DefaultStreamingContext extends AbstractStageContext implements Str
 
   @Override
   public void record(List<FieldOperation> operations) {
-    throw new UnsupportedOperationException("Field lineage recording is not supported. Please record lineage " +
-                                              "in prepareRun() stage");
+    throw new UnsupportedOperationException("Field lineage recording is not supported. Please record lineage "
+                                              + "in prepareRun() stage");
+  }
+
+  @Override
+  public Optional<byte[]> getState(String key) throws IOException {
+    // Make the key unique for the app
+    String pluginKey = String.format("%s.%s", getStageName(), key);
+    return sec.getSparkExecutionContext().getState(pluginKey);
+  }
+
+  @Override
+  public void saveState(String key, byte[] value) throws IOException {
+    // Make the key unique for the app
+    String pluginKey = String.format("%s.%s", getStageName(), key);
+    sec.getSparkExecutionContext().saveState(pluginKey, value);
+  }
+
+  @Override
+  public void deleteState(String key) throws IOException {
+    // Make the key unique for the app
+    String pluginKey = String.format("%s.%s", getStageName(), key);
+    sec.getSparkExecutionContext().deleteState(pluginKey);
   }
 }

@@ -24,26 +24,22 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.internal.remote.InternalAuthenticator;
 import io.cdap.cdap.proto.BasicThrowable;
 import io.cdap.cdap.proto.id.ArtifactId;
-import io.cdap.cdap.proto.security.Credential;
-import io.cdap.cdap.proto.security.Principal;
-import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * ArtifactLocalizerClient is used by tasks that extend {@link io.cdap.cdap.api.service.worker.RunnableTask} to fetch,
- * cache and unpack artifacts locally.
+ * ArtifactLocalizerClient is used by tasks that extend {@link io.cdap.cdap.api.service.worker.RunnableTask}
+ * to fetch, cache and unpack artifacts locally.
  */
 public class ArtifactLocalizerClient {
 
@@ -57,40 +53,44 @@ public class ArtifactLocalizerClient {
   ArtifactLocalizerClient(CConfiguration cConf, InternalAuthenticator internalAuthenticator) {
     this.internalAuthenticator = internalAuthenticator;
     this.sidecarBaseURL = String
-      .format("http://localhost:%d/%s/worker", cConf.getInt(Constants.ArtifactLocalizer.PORT),
-              Constants.Gateway.INTERNAL_API_VERSION_3_TOKEN);
+        .format("http://localhost:%d/%s/worker", cConf.getInt(Constants.ArtifactLocalizer.PORT),
+            Constants.Gateway.INTERNAL_API_VERSION_3_TOKEN);
   }
 
   /**
-   * Gets the location on the local filesystem for the given artifact. This method handles fetching the artifact as well
-   * as caching it.
+   * Gets the location on the local filesystem for the given artifact. This method handles fetching
+   * the artifact as well as caching it.
    *
    * @param artifactId The ArtifactId of the artifact to fetch
    * @return The Local Location for this artifact
    * @throws ArtifactNotFoundException if the given artifact does not exist
    * @throws IOException if there was an exception while fetching or caching the artifact
    */
-  public File getArtifactLocation(ArtifactId artifactId) throws IOException, ArtifactNotFoundException {
+  public File getArtifactLocation(ArtifactId artifactId)
+      throws IOException, ArtifactNotFoundException {
     return sendRequest(artifactId, false);
   }
 
   /**
-   * Gets the location on the local filesystem for the directory that contains the unpacked artifact. This method
-   * handles fetching, caching and unpacking the artifact.
+   * Gets the location on the local filesystem for the directory that contains the unpacked
+   * artifact. This method handles fetching, caching and unpacking the artifact.
    *
    * @param artifactId The ArtifactId of the artifact to fetch and unpack
    * @return The Local Location of the directory that contains the unpacked artifact files
    * @throws ArtifactNotFoundException if the given artifact does not exist
-   * @throws IOException if there was an exception while fetching, caching or unpacking the artifact
+   * @throws IOException if there was an exception while fetching, caching or unpacking the
+   *     artifact
    */
-  public File getUnpackedArtifactLocation(ArtifactId artifactId) throws IOException, ArtifactNotFoundException {
+  public File getUnpackedArtifactLocation(ArtifactId artifactId)
+      throws IOException, ArtifactNotFoundException {
     return sendRequest(artifactId, true);
   }
 
-  private File sendRequest(ArtifactId artifactId, boolean unpack) throws IOException, ArtifactNotFoundException {
+  private File sendRequest(ArtifactId artifactId, boolean unpack)
+      throws IOException, ArtifactNotFoundException {
     String urlPath = String.format("/artifact/namespaces/%s/artifacts/%s/versions/%s?unpack=%b",
-                                   artifactId.getNamespace(), artifactId.getArtifact(), artifactId.getVersion(),
-                                   unpack);
+        artifactId.getNamespace(), artifactId.getArtifact(), artifactId.getVersion(),
+        unpack);
     URL url;
     try {
       url = new URI(sidecarBaseURL + urlPath).toURL();
@@ -110,7 +110,7 @@ public class ArtifactLocalizerClient {
         throw new ArtifactNotFoundException(artifactId);
       }
       BasicThrowable basicThrowable = GSON
-        .fromJson(httpResponse.getResponseBodyAsString(), BasicThrowable.class);
+          .fromJson(httpResponse.getResponseBodyAsString(), BasicThrowable.class);
       throw new IOException(RemoteExecutionException.fromBasicThrowable(basicThrowable));
     }
 

@@ -31,12 +31,10 @@ import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.discovery.DiscoveryServiceClient;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.List;
 
 /**
  * Test for {@link ProgramLifecycleHttpHandlerInternal}
@@ -45,14 +43,14 @@ public class ProgramLifecycleHttpHandlerInternalTest extends AppFabricTestBase {
   private static final String STOPPED = "STOPPED";
   private static final String RUNNING = "RUNNING";
 
-  private static ProgramRunRecordFetcher programRunRecordFetcher = null;
+  private static ProgramRunRecordFetcher programRunRecordFetcher;
 
   @BeforeClass
   public static void init() {
     programRunRecordFetcher = new RemoteProgramRunRecordFetcher(
       getInjector().getInstance(RemoteClientFactory.class));
   }
-
+  
   @Test
   public void testGetRunRecordMeta() throws Exception {
     String namespace = TEST_NAMESPACE1;
@@ -83,7 +81,7 @@ public class ProgramLifecycleHttpHandlerInternalTest extends AppFabricTestBase {
     Assert.assertEquals(ProfileId.NATIVE, runRecordMeta.getProfileId());
 
     // cleanup
-    HttpResponse response = doDelete(getVersionedAPIPath("apps/",
+    HttpResponse response = doDelete(getVersionedApiPath("apps/",
                                                          Constants.Gateway.API_VERSION_3_TOKEN, namespace));
     Assert.assertEquals(200, response.getResponseCode());
   }

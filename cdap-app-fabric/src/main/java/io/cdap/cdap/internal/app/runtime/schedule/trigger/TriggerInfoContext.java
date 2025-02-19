@@ -18,7 +18,6 @@ package io.cdap.cdap.internal.app.runtime.schedule.trigger;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.workflow.WorkflowToken;
 import io.cdap.cdap.app.store.Store;
 import io.cdap.cdap.internal.app.runtime.schedule.ProgramSchedule;
@@ -26,11 +25,9 @@ import io.cdap.cdap.internal.app.runtime.schedule.queue.Job;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.ProgramType;
-import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.id.WorkflowId;
-
 import java.lang.reflect.Type;
 import java.util.Collections;
 import java.util.List;
@@ -38,13 +35,14 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 /**
- * Context object, exposing information that may be useful during the construction of
- * {@link io.cdap.cdap.api.schedule.TriggerInfo} for a trigger.
+ * Context object, exposing information that may be useful during the construction of {@link
+ * io.cdap.cdap.api.schedule.TriggerInfo} for a trigger.
  */
 public class TriggerInfoContext {
 
   private static final Gson GSON = new Gson();
-  private static final Type STRING_STRING_MAP = new TypeToken<Map<String, String>>() { }.getType();
+  private static final Type STRING_STRING_MAP = new TypeToken<Map<String, String>>() {
+  }.getType();
 
   private final Job job;
   private final Store store;
@@ -68,10 +66,6 @@ public class TriggerInfoContext {
     return job.getNotifications();
   }
 
-  public ApplicationSpecification getApplicationSpecification(ApplicationId applicationId) {
-    return store.getApplication(applicationId);
-  }
-
   /**
    * @return The workflow token if the program is a workflow, {@code null} otherwise.
    */
@@ -81,7 +75,8 @@ public class TriggerInfoContext {
     if (!programId.getType().equals(ProgramType.WORKFLOW)) {
       return null;
     }
-    return store.getWorkflowToken(new WorkflowId(programId.getParent(), programId.getProgram()), programRunId.getRun());
+    return store.getWorkflowToken(new WorkflowId(programId.getParent(), programId.getProgram()),
+        programRunId.getRun());
   }
 
   /**

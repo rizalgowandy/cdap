@@ -20,9 +20,8 @@ import com.google.inject.Inject;
 import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.common.security.AuthEnforceUtil;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
-import org.apache.hadoop.security.UserGroupInformation;
-
 import java.io.IOException;
+import org.apache.hadoop.security.UserGroupInformation;
 
 /**
  * A UGIProvider that always returns the current user.
@@ -37,10 +36,11 @@ public class CurrentUGIProvider implements UGIProvider {
   }
 
   @Override
-  public UGIWithPrincipal getConfiguredUGI(ImpersonationRequest impersonationRequest) throws AccessException {
+  public UGIWithPrincipal getConfiguredUGI(ImpersonationRequest impersonationRequest)
+      throws AccessException {
     try {
       return new UGIWithPrincipal(authenticationContext.getPrincipal().getKerberosPrincipal(),
-                                  UserGroupInformation.getCurrentUser());
+          UserGroupInformation.getCurrentUser());
     } catch (IOException e) {
       throw AuthEnforceUtil.propagateAccessException(e);
     }

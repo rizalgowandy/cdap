@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -24,9 +24,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.reflect.TypeToken;
-import io.cdap.cdap.internal.lang.Reflections;
-import sun.misc.Unsafe;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -35,6 +32,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import sun.misc.Unsafe;
 
 /**
  * InstantiatorFactory.
@@ -60,24 +58,25 @@ public final class InstantiatorFactory {
   }
 
   public InstantiatorFactory(final boolean useKnownType) {
-    instantiatorCache = CacheBuilder.newBuilder().build(new CacheLoader<TypeToken<?>, Instantiator<?>>() {
-      @Override
-      public Instantiator<?> load(TypeToken<?> type) throws Exception {
-        Instantiator<?> creator = getByDefaultConstructor(type);
-        if (creator != null) {
-          return creator;
-        }
+    instantiatorCache = CacheBuilder.newBuilder()
+        .build(new CacheLoader<TypeToken<?>, Instantiator<?>>() {
+          @Override
+          public Instantiator<?> load(TypeToken<?> type) throws Exception {
+            Instantiator<?> creator = getByDefaultConstructor(type);
+            if (creator != null) {
+              return creator;
+            }
 
-        if (useKnownType) {
-          creator = getByKnownType(type);
-          if (creator != null) {
-            return creator;
+            if (useKnownType) {
+              creator = getByKnownType(type);
+              if (creator != null) {
+                return creator;
+              }
+            }
+
+            return getByUnsafe(type);
           }
-        }
-
-        return getByUnsafe(type);
-      }
-    });
+        });
   }
 
   public <T> Instantiator<T> get(TypeToken<T> type) {
@@ -85,10 +84,8 @@ public final class InstantiatorFactory {
   }
 
   /**
-   * Returns an {@link Instantiator} that uses default constructor to instantiate an object of the given type.
-   *
-   * @param type
-   * @param <T>
+   * Returns an {@link Instantiator} that uses default constructor to instantiate an object of the
+   * given type.
    */
   private <T> Instantiator<T> getByDefaultConstructor(TypeToken<T> type) {
     try {
@@ -174,17 +171,23 @@ public final class InstantiatorFactory {
   }
 
   private <T> Instantiator<T> getByUnsafe(final TypeToken<T> type) {
+    //We do introspection once and then just use reflection to set field values
+    Map<Field, Object> fieldsToInitialize = FieldCollector.getFieldsWithDefaults(type);
+
     return new Instantiator<T>() {
       @Override
       public T create() {
         try {
           Object instance = UNSAFE.allocateInstance(type.getRawType());
-          Reflections.visit(instance, type.getType(), new FieldInitializer());
+          for (Map.Entry<Field, Object> e : fieldsToInitialize.entrySet()) {
+            e.getKey().set(instance, e.getValue());
+          }
           return (T) instance;
-        } catch (InstantiationException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
           throw Throwables.propagate(e);
         }
       }
     };
   }
+
 }

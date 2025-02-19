@@ -26,22 +26,24 @@ import com.google.gson.stream.JsonWriter;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.format.io.JsonEncoder;
 import io.cdap.cdap.format.io.JsonStructuredRecordDatumWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.StringWriter;
 import java.lang.reflect.Type;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Preview structured record serializer.
  */
 public class PreviewJsonSerializer implements JsonSerializer<StructuredRecord> {
+
   private static final Logger LOG = LoggerFactory.getLogger(PreviewJsonSerializer.class);
-  private static final JsonStructuredRecordDatumWriter JSON_DATUM_WRITER = new JsonStructuredRecordDatumWriter(true);
+  private static final JsonStructuredRecordDatumWriter JSON_DATUM_WRITER = new JsonStructuredRecordDatumWriter(
+      true);
 
   @Override
-  public JsonElement serialize(StructuredRecord src, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(StructuredRecord src, Type typeOfSrc,
+      JsonSerializationContext context) {
     StringWriter strWriter = new StringWriter();
     try (JsonWriter writer = new JsonWriter(strWriter)) {
       // serialize schema

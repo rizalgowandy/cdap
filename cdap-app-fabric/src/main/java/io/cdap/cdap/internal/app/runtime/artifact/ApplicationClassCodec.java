@@ -26,14 +26,14 @@ import com.google.gson.JsonSerializer;
 import io.cdap.cdap.api.artifact.ApplicationClass;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.plugin.Requirements;
-
 import java.lang.reflect.Type;
 import javax.annotation.Nullable;
 
 /**
  * JSON codec for {@link ApplicationClass}
  */
-public class ApplicationClassCodec implements JsonDeserializer<ApplicationClass>, JsonSerializer<ApplicationClass> {
+public class ApplicationClassCodec implements JsonDeserializer<ApplicationClass>,
+    JsonSerializer<ApplicationClass> {
 
   private static final String REQUIREMENTS = "requirements";
   private static final String CLASS_NAME = "className";
@@ -41,17 +41,20 @@ public class ApplicationClassCodec implements JsonDeserializer<ApplicationClass>
   private static final String CONFIG_SCHEMA = "configSchema";
 
   @Override
-  public ApplicationClass deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+  public ApplicationClass deserialize(JsonElement json, Type typeOfT,
+      JsonDeserializationContext context)
+      throws JsonParseException {
     JsonObject jsonObject = json.getAsJsonObject();
     Schema configSchema = getConfigSchema(jsonObject, context);
     Requirements requirements = getRequirements(jsonObject, context);
-    return new ApplicationClass(getStringValue(jsonObject, CLASS_NAME), getStringValue(jsonObject, DESCRIPTION),
-                                configSchema, requirements);
+    return new ApplicationClass(getStringValue(jsonObject, CLASS_NAME),
+        getStringValue(jsonObject, DESCRIPTION),
+        configSchema, requirements);
   }
 
   @Override
-  public JsonElement serialize(ApplicationClass src, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(ApplicationClass src, Type typeOfSrc,
+      JsonSerializationContext context) {
     JsonObject jsonObject = new JsonObject();
     jsonObject.addProperty(CLASS_NAME, src.getClassName());
     jsonObject.addProperty(DESCRIPTION, src.getDescription());

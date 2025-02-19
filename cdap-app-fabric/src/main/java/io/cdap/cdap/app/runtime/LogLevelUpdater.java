@@ -16,11 +16,10 @@
 
 package io.cdap.cdap.app.runtime;
 
-import org.apache.twill.api.logging.LogEntry;
-
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.twill.api.logging.LogEntry;
 
 /**
  * Provides methods to update or reset log levels of a program at runtime in distributed mode.
@@ -31,16 +30,19 @@ public interface LogLevelUpdater {
    * Update the log levels of the program.
    *
    * @param logLevels The {@link Map} contains the requested logger name and log level.
-   * @param componentName The name of the component to update the log level. If {@code null}, all components will get
-   *                      updated.
+   * @param componentName The name of the component to update the log level. If {@code null},
+   *     all components will get updated.
    */
-  void updateLogLevels(Map<String, LogEntry.Level> logLevels, @Nullable String componentName) throws Exception;
+  void updateLogLevels(Map<String, LogEntry.Level> logLevels, @Nullable String componentName)
+      throws Exception;
 
   /**
    * Reset the log levels of the program.
-   * @param loggerNames The set of logger names to be reset, if empty, all log levels will be reset.
-   * @param componentName The name of the component to update the log level. If {@code null}, all components will get
-   *                      reset
+   *
+   * @param loggerNames The set of logger names to be reset, if empty, all log levels will be
+   *     reset.
+   * @param componentName The name of the component to update the log level. If {@code null},
+   *     all components will get reset
    */
   void resetLogLevels(Set<String> loggerNames, @Nullable String componentName) throws Exception;
 }

@@ -24,15 +24,8 @@ import com.google.inject.Inject;
 import io.cdap.cdap.api.annotation.TransactionControl;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.data2.util.hbase.HBaseDDLExecutorFactory;
 import io.cdap.cdap.logging.appender.kafka.LogPartitionType;
 import io.cdap.cdap.proto.id.EntityId;
-import kafka.common.Topic;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.tephra.TxConstants;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -41,6 +34,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import kafka.common.Topic;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.tephra.TxConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Checks the CDAP Configuration for bad settings.
@@ -48,6 +46,7 @@ import javax.annotation.Nullable;
 // class is picked up through classpath examination
 @SuppressWarnings("unused")
 class ConfigurationCheck extends AbstractMasterCheck {
+
   private static final Logger LOG = LoggerFactory.getLogger(ConfigurationCheck.class);
   private final Configuration hConf;
 
@@ -71,23 +70,12 @@ class ConfigurationCheck extends AbstractMasterCheck {
     checkLogPartitionKey(problemKeys);
     checkProgramConfigurations(problemKeys);
     checkPruningAndReplication(problemKeys);
-    checkHBaseDDLExtension(problemKeys);
 
     if (!problemKeys.isEmpty()) {
-      throw new RuntimeException("Invalid configuration settings for keys: " + Joiner.on(',').join(problemKeys));
+      throw new RuntimeException(
+          "Invalid configuration settings for keys: " + Joiner.on(',').join(problemKeys));
     }
     LOG.info("  Configuration successfully verified.");
-  }
-
-  // Make sure that HBaseDDLExecutor extension is present if the configurations are provided
-  private void checkHBaseDDLExtension(Set<String> problemKeys) {
-    HBaseDDLExecutorFactory factory = new HBaseDDLExecutorFactory(cConf, hConf);
-    try {
-      factory.get();
-    } catch (Exception e) {
-      LOG.error(e.getMessage());
-      problemKeys.add(Constants.HBaseDDLExecutor.EXTENSIONS_DIR);
-    }
   }
 
   // tx invalid list pruning is not allowed with replication
@@ -95,9 +83,10 @@ class ConfigurationCheck extends AbstractMasterCheck {
     String hbaseDDLExtensionDir = cConf.get(Constants.HBaseDDLExecutor.EXTENSIONS_DIR);
     boolean pruningEnabled = cConf.getBoolean(TxConstants.TransactionPruning.PRUNE_ENABLE);
     if (hbaseDDLExtensionDir != null && pruningEnabled) {
-      LOG.error("  Invalid transaction list cannot be automatically pruned when replication is in use. " +
-                  "Please disable pruning by setting {} to false, or remove your custom HBase DDL executor from {}.",
-                TxConstants.TransactionPruning.PRUNE_ENABLE, Constants.HBaseDDLExecutor.EXTENSIONS_DIR);
+      LOG.error(
+          "  Invalid transaction list cannot be automatically pruned when replication is in use. "
+              + "Please disable pruning by setting {} to false, or remove your custom HBase DDL executor from {}.",
+          TxConstants.TransactionPruning.PRUNE_ENABLE, Constants.HBaseDDLExecutor.EXTENSIONS_DIR);
       problemKeys.add(Constants.HBaseDDLExecutor.EXTENSIONS_DIR);
       problemKeys.add(TxConstants.TransactionPruning.PRUNE_ENABLE);
     }
@@ -109,14 +98,16 @@ class ConfigurationCheck extends AbstractMasterCheck {
     for (ServiceResourceKeys serviceResourceKeys : systemServicesResourceKeys) {
       validatePositiveInteger(serviceResourceKeys.getMemoryKey(), problemKeys);
       validatePositiveInteger(serviceResourceKeys.getVcoresKey(), problemKeys);
-      Integer instances = validatePositiveInteger(serviceResourceKeys.getInstancesKey(), problemKeys);
-      Integer maxInstances = validatePositiveInteger(serviceResourceKeys.getMaxInstancesKey(), problemKeys);
+      Integer instances = validatePositiveInteger(serviceResourceKeys.getInstancesKey(),
+          problemKeys);
+      Integer maxInstances = validatePositiveInteger(serviceResourceKeys.getMaxInstancesKey(),
+          problemKeys);
 
       // verify instances <= maxInstances
-      if (instances != null && maxInstances != null &&  instances > maxInstances) {
+      if (instances != null && maxInstances != null && instances > maxInstances) {
         LOG.error("  {} is set to {} but must not be greater than the {} of {}",
-                  serviceResourceKeys.getInstancesKey(), instances,
-                  serviceResourceKeys.getMaxInstancesKey(), maxInstances);
+            serviceResourceKeys.getInstancesKey(), instances,
+            serviceResourceKeys.getMaxInstancesKey(), maxInstances);
         problemKeys.add(serviceResourceKeys.getInstancesKey());
       }
     }
@@ -125,14 +116,15 @@ class ConfigurationCheck extends AbstractMasterCheck {
   private void checkBindAddresses() {
     // check if service bind addresses are loopback addresses
     Set<String> bindAddressKeys = ImmutableSet.of(Constants.Service.MASTER_SERVICES_BIND_ADDRESS,
-                                                  Constants.Router.ADDRESS);
+        Constants.Router.ADDRESS);
 
     for (String bindAddressKey : bindAddressKeys) {
       String bindAddress = cConf.get(bindAddressKey);
       try {
         if (InetAddress.getByName(bindAddress).isLoopbackAddress()) {
-          LOG.warn("  {} is set to {}. The service may not be discoverable on a multinode Hadoop cluster.",
-                   bindAddressKey, bindAddress);
+          LOG.warn(
+              "  {} is set to {}. The service may not be discoverable on a multinode Hadoop cluster.",
+              bindAddressKey, bindAddress);
         }
       } catch (UnknownHostException e) {
         LOG.warn("  {} is set to {} and cannot be resolved. ", bindAddressKey, bindAddress, e);
@@ -148,13 +140,15 @@ class ConfigurationCheck extends AbstractMasterCheck {
     try {
       isSSL = cConf.getBoolean(sslKey);
     } catch (Exception e) {
-      logProblem("  {} is set to {} and cannot be parsed as a boolean", sslKey, cConf.get(sslKey), e);
+      logProblem("  {} is set to {} and cannot be parsed as a boolean", sslKey, cConf.get(sslKey),
+          e);
       problemKeys.add(Constants.Security.SSL.EXTERNAL_ENABLED);
       return;
     }
     if (isSSL) {
       services.put(cConf.getInt(Constants.Router.ROUTER_SSL_PORT), "Router");
-      services.put(cConf.getInt(Constants.Security.AuthenticationServer.SSL_PORT), "Authentication Server");
+      services.put(cConf.getInt(Constants.Security.AuthenticationServer.SSL_PORT),
+          "Authentication Server");
     } else {
       services.put(cConf.getInt(Constants.Router.ROUTER_PORT), "Router");
       services.put(cConf.getInt(Constants.Security.AUTH_SERVER_BIND_PORT), "Authentication Server");
@@ -163,7 +157,7 @@ class ConfigurationCheck extends AbstractMasterCheck {
       Collection<String> conflictingServices = services.get(port);
       if (conflictingServices.size() > 1) {
         LOG.warn("Potential conflict on port {} for the following services: {}",
-                 port, Joiner.on(", ").join(conflictingServices));
+            port, Joiner.on(", ").join(conflictingServices));
       }
     }
   }
@@ -186,6 +180,8 @@ class ConfigurationCheck extends AbstractMasterCheck {
     validateMessagingTopic(Constants.Scheduler.TIME_EVENT_TOPIC, problemKeys);
     validateMessagingTopic(Constants.AppFabric.PROGRAM_STATUS_EVENT_TOPIC, problemKeys);
     validateMessagingTopic(Constants.AppFabric.PROGRAM_STATUS_RECORD_EVENT_TOPIC, problemKeys);
+    validateMessagingTopic(Constants.Operation.STATUS_EVENT_TOPIC, problemKeys);
+    validateMessagingTopic(Constants.AuditLogging.AUDIT_LOG_EVENT_TOPIC, problemKeys);
   }
 
   private void checkProgramConfigurations(Set<String> problemKeys) {
@@ -194,17 +190,17 @@ class ConfigurationCheck extends AbstractMasterCheck {
       TransactionControl.valueOf(value.toUpperCase());
     } catch (IllegalArgumentException e) {
       LOG.error("  {} must be one of {} but is {}", Constants.AppFabric.PROGRAM_JVM_OPTS,
-                Arrays.stream(TransactionControl.values())
-                  .map(Object::toString)
-                  .map(String::toLowerCase)
-                  .collect(Collectors.joining(",", "[", "]")), value);
+          Arrays.stream(TransactionControl.values())
+              .map(Object::toString)
+              .map(String::toLowerCase)
+              .collect(Collectors.joining(",", "[", "]")), value);
       problemKeys.add(Constants.AppFabric.PROGRAM_TRANSACTION_CONTROL);
     }
   }
 
   /**
-   * Validate that the value for the given key is a valid messaging topic, that is, a valid dataset name.
-   * If it is not, log an error and add the key to the problemKeys.
+   * Validate that the value for the given key is a valid messaging topic, that is, a valid dataset
+   * name. If it is not, log an error and add the key to the problemKeys.
    */
   private void validateMessagingTopic(String key, Set<String> problemKeys) {
     String value = cConf.get(key);
@@ -220,14 +216,13 @@ class ConfigurationCheck extends AbstractMasterCheck {
   }
 
   /**
-   * Validate that the value for the given key is a positive integer.
-   * If it is not, log an error and add the key to the problemKeys.
+   * Validate that the value for the given key is a positive integer. If it is not, log an error and
+   * add the key to the problemKeys.
    *
    * @return the value configured for the key if it is a positive integer; null otherwise
    */
   private Integer validatePositiveInteger(String key, Set<String> problemKeys) {
     // it may happen that a service does not have this config.
-    // for example, explore service does not have instances and maxInstances
     if (key == null) {
       return null;
     }
@@ -247,8 +242,8 @@ class ConfigurationCheck extends AbstractMasterCheck {
   }
 
   /**
-   * Validate that the value for the given key is a valid Kafka topic.
-   * If it is not, log an error and add the key to the problemKeys.
+   * Validate that the value for the given key is a valid Kafka topic. If it is not, log an error
+   * and add the key to the problemKeys.
    */
   private void validateKafkaTopic(String key, Set<String> problemKeys) {
     try {
@@ -260,14 +255,15 @@ class ConfigurationCheck extends AbstractMasterCheck {
   }
 
   /**
-   * Validate that the value for the given key is a valid partition key.
-   * If it is not, log an error and add the key to the problemKeys.
+   * Validate that the value for the given key is a valid partition key. If it is not, log an error
+   * and add the key to the problemKeys.
    */
   private void validatePartitionKey(String key, Set<String> problemKeys) {
     try {
       LogPartitionType.valueOf(cConf.get(key).toUpperCase());
     } catch (Exception e) {
-      logProblem("  {} must be a valid log partition type (program or application) but is {}", key, cConf.get(key), e);
+      logProblem("  {} must be a valid log partition type (program or application) but is {}", key,
+          cConf.get(key), e);
       problemKeys.add(key);
     }
   }
@@ -278,7 +274,8 @@ class ConfigurationCheck extends AbstractMasterCheck {
    * @param message The message desxcribing the problem
    * @param e The exception that caused the problem.
    */
-  private void logProblem(String message, String key, @Nullable String value, @Nullable Exception e) {
+  private void logProblem(String message, String key, @Nullable String value,
+      @Nullable Exception e) {
     if (e == null || value == null) {
       LOG.error(message, key, value);
     } else if (e.getMessage() == null) {

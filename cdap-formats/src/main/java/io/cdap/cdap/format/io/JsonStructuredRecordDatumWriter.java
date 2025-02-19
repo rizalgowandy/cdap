@@ -21,7 +21,6 @@ import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.common.io.Encoder;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -40,6 +39,7 @@ import java.util.concurrent.TimeUnit;
  * A {@link StructuredRecordDatumWriter} for encoding {@link StructuredRecord} to json.
  */
 public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter {
+
   private final boolean logicalTypeAsString;
 
   public JsonStructuredRecordDatumWriter() {
@@ -53,7 +53,8 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
   @Override
   public void encode(StructuredRecord data, Encoder encoder) throws IOException {
     if (!(encoder instanceof JsonEncoder)) {
-      throw new IOException("The JsonStructuredRecordDatumWriter can only encode using a JsonEncoder");
+      throw new IOException(
+          "The JsonStructuredRecordDatumWriter can only encode using a JsonEncoder");
     }
     super.encode(data, encoder);
   }
@@ -65,17 +66,20 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
   }
 
   @Override
-  protected void encodeArrayBegin(Encoder encoder, Schema elementSchema, int size) throws IOException {
+  protected void encodeArrayBegin(Encoder encoder, Schema elementSchema, int size)
+      throws IOException {
     getJsonWriter(encoder).beginArray();
   }
 
   @Override
-  protected void encodeArrayEnd(Encoder encoder, Schema elementSchema, int size) throws IOException {
+  protected void encodeArrayEnd(Encoder encoder, Schema elementSchema, int size)
+      throws IOException {
     getJsonWriter(encoder).endArray();
   }
 
   @Override
-  protected void encodeMapBegin(Encoder encoder, Schema keySchema, Schema valueSchema, int size) throws IOException {
+  protected void encodeMapBegin(Encoder encoder, Schema keySchema, Schema valueSchema, int size)
+      throws IOException {
     if (!keySchema.isCompatible(Schema.of(Schema.Type.STRING))) {
       throw new IOException("Complex key type not supported: " + keySchema);
     }
@@ -84,13 +88,14 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
 
   @Override
   protected void encodeMapEntry(Encoder encoder, Schema keySchema,
-                                Schema valueSchema, Map.Entry<?, ?> entry) throws IOException {
+      Schema valueSchema, Map.Entry<?, ?> entry) throws IOException {
     getJsonWriter(encoder).name(entry.getKey().toString());
     encode(encoder, valueSchema, entry.getValue());
   }
 
   @Override
-  protected void encodeMapEnd(Encoder encoder, Schema keySchema, Schema valueSchema, int size) throws IOException {
+  protected void encodeMapEnd(Encoder encoder, Schema keySchema, Schema valueSchema, int size)
+      throws IOException {
     getJsonWriter(encoder).endObject();
   }
 
@@ -100,15 +105,17 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
   }
 
   @Override
-  protected void encodeRecordField(Encoder encoder, Schema.Field field, Object value) throws IOException {
+  protected void encodeRecordField(Encoder encoder, Schema.Field field, Object value)
+      throws IOException {
     getJsonWriter(encoder).name(field.getName());
     try {
       encode(encoder, field.getSchema(), value);
     } catch (ClassCastException e) {
       // happens if the record is constructed incorrectly.
       throw new IllegalArgumentException(
-        String.format("A value for field '%s' is of type '%s', which does not match schema '%s'. ",
-                      field.getName(), value.getClass().getName(), field.getSchema()));
+          String.format(
+              "A value for field '%s' is of type '%s', which does not match schema '%s'. ",
+              field.getName(), value.getClass().getName(), field.getSchema()));
     }
   }
 
@@ -118,8 +125,14 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
   }
 
   @Override
-  protected void encodeUnion(Encoder encoder, Schema schema, int matchingIdx, Object value) throws IOException {
+  protected void encodeUnion(Encoder encoder, Schema schema, int matchingIdx, Object value)
+      throws IOException {
     encode(encoder, schema.getUnionSchema(matchingIdx), value);
+  }
+
+  @Override
+  protected void encodeNumber(Encoder encoder, Number number) throws IOException {
+    encoder.writeNumber(number);
   }
 
   private JsonWriter getJsonWriter(Encoder encoder) {
@@ -132,36 +145,14 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
     Schema nonNullableSchema = schema.isNullable() ? schema.getNonNullable() : schema;
     Schema.LogicalType logicalType = nonNullableSchema.getLogicalType();
 
-    if (value != null && logicalTypeAsString && logicalType != null) {
-      switch (logicalType) {
-        case DATE:
-          Integer date = (Integer) value;
-          // will be encoded to string of format YYYY-mm-DD
-          encoder.writeString(LocalDate.ofEpochDay(date.longValue()).format(DateTimeFormatter.ISO_LOCAL_DATE));
-          break;
-        case TIME_MILLIS:
-          LocalTime localTimeMillis = LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(((Integer) value)));
-          // will be encoded to string of format HH:mm:ss.SSSSSSSSS
-          encoder.writeString(localTimeMillis.format(DateTimeFormatter.ISO_LOCAL_TIME));
-          break;
-        case TIME_MICROS:
-          LocalTime localTimeMicros = LocalTime.ofNanoOfDay(TimeUnit.MICROSECONDS.toNanos((Long) value));
-          // will be encoded to string of format HH:mm:ss.SSSSSSSSS
-          encoder.writeString(localTimeMicros.format(DateTimeFormatter.ISO_LOCAL_TIME));
-          break;
-        case TIMESTAMP_MILLIS:
-          ZonedDateTime timestampMillis = getZonedDateTime((Long) value, TimeUnit.MILLISECONDS,
-                                                           ZoneId.ofOffset("UTC", ZoneOffset.UTC));
-          // will be encoded to string of format YYYY-mm-DDTHH:mm:ss.SSSSSSSSSZ[UTC]
-          encoder.writeString(timestampMillis.format(DateTimeFormatter.ISO_ZONED_DATE_TIME));
-          break;
-        case TIMESTAMP_MICROS:
-          ZonedDateTime timestampMicros = getZonedDateTime((Long) value, TimeUnit.MICROSECONDS,
-                                                           ZoneId.ofOffset("UTC", ZoneOffset.UTC));
-          // will be encoded to string of format YYYY-mm-DDTHH:mm:ss.SSSSSSSSSZ[UTC]
-          encoder.writeString(timestampMicros.format(DateTimeFormatter.ISO_ZONED_DATE_TIME));
-          break;
-        case DECIMAL:
+    if (value != null && logicalType != null) {
+      // output logical types as string values if needed
+      if (logicalTypeAsString) {
+        handleLogicalTypeAsString(encoder, value, nonNullableSchema, logicalType);
+        return;
+      } else {
+        // encode BigDecimal values using its full numeric representation
+        if (logicalType == Schema.LogicalType.DECIMAL) {
           int scale = nonNullableSchema.getScale();
           BigDecimal bigDecimal;
           if (value instanceof ByteBuffer) {
@@ -169,16 +160,64 @@ public class JsonStructuredRecordDatumWriter extends StructuredRecordDatumWriter
           } else {
             bigDecimal = new BigDecimal(new BigInteger((byte[]) value), scale);
           }
-          encoder.writeString(bigDecimal.toString());
-          break;
-        case DATETIME:
-          //expecting value to be already in the correct format
-          encoder.writeString(value.toString());
-          break;
+          encodeNumber(encoder, bigDecimal);
+          return;
+        }
       }
-      return;
     }
     super.encode(encoder, schema, value);
+  }
+
+  protected void handleLogicalTypeAsString(Encoder encoder,
+      Object value,
+      Schema nonNullableSchema,
+      Schema.LogicalType logicalType) throws IOException {
+    switch (logicalType) {
+      case DATE:
+        Integer date = (Integer) value;
+        // will be encoded to string of format YYYY-mm-DD
+        encoder.writeString(
+            LocalDate.ofEpochDay(date.longValue()).format(DateTimeFormatter.ISO_LOCAL_DATE));
+        break;
+      case TIME_MILLIS:
+        LocalTime localTimeMillis = LocalTime.ofNanoOfDay(
+            TimeUnit.MILLISECONDS.toNanos(((Integer) value)));
+        // will be encoded to string of format HH:mm:ss.SSSSSSSSS
+        encoder.writeString(localTimeMillis.format(DateTimeFormatter.ISO_LOCAL_TIME));
+        break;
+      case TIME_MICROS:
+        LocalTime localTimeMicros = LocalTime.ofNanoOfDay(
+            TimeUnit.MICROSECONDS.toNanos((Long) value));
+        // will be encoded to string of format HH:mm:ss.SSSSSSSSS
+        encoder.writeString(localTimeMicros.format(DateTimeFormatter.ISO_LOCAL_TIME));
+        break;
+      case TIMESTAMP_MILLIS:
+        ZonedDateTime timestampMillis = getZonedDateTime((Long) value, TimeUnit.MILLISECONDS,
+            ZoneId.ofOffset("UTC", ZoneOffset.UTC));
+        // will be encoded to string of format YYYY-mm-DDTHH:mm:ss.SSSSSSSSSZ[UTC]
+        encoder.writeString(timestampMillis.format(DateTimeFormatter.ISO_ZONED_DATE_TIME));
+        break;
+      case TIMESTAMP_MICROS:
+        ZonedDateTime timestampMicros = getZonedDateTime((Long) value, TimeUnit.MICROSECONDS,
+            ZoneId.ofOffset("UTC", ZoneOffset.UTC));
+        // will be encoded to string of format YYYY-mm-DDTHH:mm:ss.SSSSSSSSSZ[UTC]
+        encoder.writeString(timestampMicros.format(DateTimeFormatter.ISO_ZONED_DATE_TIME));
+        break;
+      case DECIMAL:
+        int scale = nonNullableSchema.getScale();
+        BigDecimal bigDecimal;
+        if (value instanceof ByteBuffer) {
+          bigDecimal = new BigDecimal(new BigInteger(Bytes.toBytes((ByteBuffer) value)), scale);
+        } else {
+          bigDecimal = new BigDecimal(new BigInteger((byte[]) value), scale);
+        }
+        encoder.writeString(bigDecimal.toString());
+        break;
+      case DATETIME:
+        //expecting value to be already in the correct format
+        encoder.writeString(value.toString());
+        break;
+    }
   }
 
   /**

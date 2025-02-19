@@ -20,11 +20,12 @@ import com.google.inject.PrivateModule;
 import com.google.inject.Scopes;
 import io.cdap.cdap.api.Admin;
 import io.cdap.cdap.api.Transactional;
+import io.cdap.cdap.api.auditlogging.AuditLogWriter;
 import io.cdap.cdap.api.data.DatasetContext;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.security.spi.authorization.AuthorizationContext;
 import io.cdap.cdap.security.spi.authorization.PermissionManager;
-
 
 /**
  * A {@link PrivateModule} that can be used in tests. Tests can enforce authorization in this module by setting
@@ -41,5 +42,9 @@ public class AuthorizationTestModule extends PrivateModule {
     expose(AccessControllerInstantiator.class);
     bind(PermissionManager.class).to(DelegatingPermissionManager.class).in(Scopes.SINGLETON);
     expose(PermissionManager.class);
+    bind(RoleController.class).to(DelegatingRoleController.class).in(Scopes.SINGLETON);;
+    expose(RoleController.class);
+    install(new NoOpAuditLogModule());
+    expose(AuditLogWriter.class);
   }
 }

@@ -19,7 +19,6 @@ package io.cdap.cdap.api.dataset.lib.cube;
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.data.batch.BatchWritable;
 import io.cdap.cdap.api.dataset.Dataset;
-
 import java.util.Collection;
 import java.util.List;
 
@@ -27,8 +26,10 @@ import java.util.List;
  * Cube data set.
  * <p/>
  * Basic operations include adding {@link CubeFact}s and querying data.
+ *
+ * @deprecated table based datasets will be removed in a future version
  */
-@Beta
+@Deprecated
 public interface Cube extends Dataset, BatchWritable<Object, CubeFact> {
 
   /**
@@ -37,24 +38,28 @@ public interface Cube extends Dataset, BatchWritable<Object, CubeFact> {
   String TYPE = "cube";
 
   /**
-   * Property set to configure resolutions to aggregate for. Value is a comma-separated list of resolutions in seconds.
+   * Property set to configure resolutions to aggregate for. Value is a comma-separated list of
+   * resolutions in seconds.
    */
   String PROPERTY_RESOLUTIONS = "dataset.cube.resolutions";
 
   /**
    * Adds {@link CubeFact} to this {@link Cube}.
+   *
    * @param fact fact to add.
    */
   void add(CubeFact fact);
 
   /**
    * Adds {@link CubeFact}s to this {@link Cube}.
+   *
    * @param facts facts to add.
    */
   void add(Collection<? extends CubeFact> facts);
 
   /**
    * Queries data in this {@link Cube}.
+   *
    * @param query query to perform.
    * @return {@link List} of {@link TimeSeries} that are result of the query.
    */
@@ -62,6 +67,7 @@ public interface Cube extends Dataset, BatchWritable<Object, CubeFact> {
 
   /**
    * Deletes the data specified by {@link CubeQuery} from all the fact tables.
+   *
    * @param query query specifies parameters for deletion.
    */
   void delete(CubeDeleteQuery query);
@@ -69,6 +75,7 @@ public interface Cube extends Dataset, BatchWritable<Object, CubeFact> {
   /**
    * Finds dimension values, each of which is present in aggregated data selection defined with
    * {@link CubeExploreQuery}.
+   *
    * @param query query to perform
    * @return {@link Collection} of {@link DimensionValue} that are result of the query
    */
@@ -76,6 +83,7 @@ public interface Cube extends Dataset, BatchWritable<Object, CubeFact> {
 
   /**
    * Queries data for available measureNames for the query specified by {@link CubeExploreQuery}
+   *
    * @param query query to perform
    * @return {@link Collection} of measureName string that are result of the query
    */

@@ -21,16 +21,17 @@ import com.google.inject.Inject;
 import io.cdap.cdap.api.metrics.MetricStore;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import org.apache.twill.common.Threads;
-
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.common.Threads;
 
 /**
- * The metrics clean up service that will clean up resolution metrics table periodically based on their retention time.
+ * The metrics clean up service that will clean up resolution metrics table periodically based on
+ * their retention time.
  */
 public class MetricsCleanUpService extends AbstractScheduledService {
+
   private final MetricStore metricStore;
   private final long cleanUpInterval;
   private ScheduledExecutorService executor;
@@ -43,7 +44,8 @@ public class MetricsCleanUpService extends AbstractScheduledService {
 
   @Override
   protected final ScheduledExecutorService executor() {
-    executor = Executors.newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("metrics-cleanup"));
+    executor = Executors.newSingleThreadScheduledExecutor(
+        Threads.createDaemonThreadFactory("metrics-cleanup"));
     return executor;
   }
 

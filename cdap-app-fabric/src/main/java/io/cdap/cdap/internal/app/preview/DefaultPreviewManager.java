@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2021 Cask Data, Inc.
+ * Copyright © 2016-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -33,6 +33,7 @@ import com.google.inject.util.Modules;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.security.AccessException;
+import io.cdap.cdap.app.guice.AuditLogWriterModule;
 import io.cdap.cdap.app.preview.PreviewConfigModule;
 import io.cdap.cdap.app.preview.PreviewManager;
 import io.cdap.cdap.app.preview.PreviewRequest;
@@ -49,6 +50,7 @@ import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.LocalLocationModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.guice.preview.PreviewDiscoveryRuntimeModule;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
@@ -62,8 +64,6 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.dataset2.lib.table.leveldb.LevelDBTableService;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
-import io.cdap.cdap.explore.client.ExploreClient;
-import io.cdap.cdap.explore.client.MockExploreClient;
 import io.cdap.cdap.internal.app.namespace.DefaultNamespaceAdmin;
 import io.cdap.cdap.internal.app.namespace.LocalStorageProviderNamespaceAdmin;
 import io.cdap.cdap.internal.app.namespace.NamespaceResourceDeleter;
@@ -76,7 +76,7 @@ import io.cdap.cdap.logging.appender.LogAppender;
 import io.cdap.cdap.logging.guice.LocalLogAppenderModule;
 import io.cdap.cdap.logging.read.FileLogReader;
 import io.cdap.cdap.logging.read.LogReader;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
 import io.cdap.cdap.metadata.DefaultMetadataAdmin;
 import io.cdap.cdap.metadata.MetadataAdmin;
@@ -93,6 +93,7 @@ import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.security.ApplicationPermission;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.authorization.AccessControllerInstantiator;
+import io.cdap.cdap.security.authorization.DefaultContextAccessEnforcer;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.impersonation.DefaultOwnerAdmin;
 import io.cdap.cdap.security.impersonation.DefaultUGIProvider;
@@ -101,21 +102,21 @@ import io.cdap.cdap.security.impersonation.OwnerStore;
 import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
+import io.cdap.cdap.security.spi.authorization.ContextAccessEnforcer;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.store.DefaultOwnerStore;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.tephra.TransactionSystemClient;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.tephra.TransactionSystemClient;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class responsible for creating the injector for preview and starting it.
@@ -147,19 +148,19 @@ public class DefaultPreviewManager extends AbstractIdleService implements Previe
 
   @Inject
   DefaultPreviewManager(DiscoveryServiceClient discoveryServiceClient,
-                        @Named(DataSetsModules.BASE_DATASET_FRAMEWORK) DatasetFramework datasetFramework,
-                        TransactionSystemClient transactionSystemClient,
-                        AccessControllerInstantiator accessControllerInstantiator,
-                        AccessEnforcer accessEnforcer,
-                        AuthenticationContext authenticationContext,
-                        @Named(PreviewConfigModule.PREVIEW_LEVEL_DB) LevelDBTableService previewLevelDBTableService,
-                        @Named(PreviewConfigModule.PREVIEW_CCONF) CConfiguration previewCConf,
-                        @Named(PreviewConfigModule.PREVIEW_HCONF) Configuration previewHConf,
-                        @Named(PreviewConfigModule.PREVIEW_SCONF) SConfiguration previewSConf,
-                        PreviewRequestQueue previewRequestQueue, PreviewStore previewStore,
-                        PreviewRunStopper previewRunStopper, MessagingService messagingService,
-                        PreviewDataCleanupService previewDataCleanupService,
-                        MetricsCollectionService metricsCollectionService) {
+      @Named(DataSetsModules.BASE_DATASET_FRAMEWORK) DatasetFramework datasetFramework,
+      TransactionSystemClient transactionSystemClient,
+      AccessControllerInstantiator accessControllerInstantiator,
+      AccessEnforcer accessEnforcer,
+      AuthenticationContext authenticationContext,
+      @Named(PreviewConfigModule.PREVIEW_LEVEL_DB) LevelDBTableService previewLevelDBTableService,
+      @Named(PreviewConfigModule.PREVIEW_CCONF) CConfiguration previewCConf,
+      @Named(PreviewConfigModule.PREVIEW_HCONF) Configuration previewHConf,
+      @Named(PreviewConfigModule.PREVIEW_SCONF) SConfiguration previewSConf,
+      PreviewRequestQueue previewRequestQueue, PreviewStore previewStore,
+      PreviewRunStopper previewRunStopper, MessagingService messagingService,
+      PreviewDataCleanupService previewDataCleanupService,
+      MetricsCollectionService metricsCollectionService) {
     this.authenticationContext = authenticationContext;
     this.previewCConf = previewCConf;
     this.previewHConf = previewHConf;
@@ -185,9 +186,10 @@ public class DefaultPreviewManager extends AbstractIdleService implements Previe
     metricsCollectionService.start();
     logAppender = previewInjector.getInstance(LogAppender.class);
     logAppender.start();
-    LoggingContextAccessor.setLoggingContext(new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                                                       Constants.Logging.COMPONENT_NAME,
-                                                                       Constants.Service.PREVIEW_HTTP));
+    LoggingContextAccessor.setLoggingContext(
+        new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
+            Constants.Logging.COMPONENT_NAME,
+            Constants.Service.PREVIEW_HTTP));
     logSubscriberService = previewInjector.getInstance(PreviewTMSLogSubscriber.class);
     logSubscriberService.startAndWait();
     dataSubscriberService = previewInjector.getInstance(PreviewDataSubscriberService.class);
@@ -206,15 +208,19 @@ public class DefaultPreviewManager extends AbstractIdleService implements Previe
   }
 
   @Override
-  public ApplicationId start(@Name("namespaceId") NamespaceId namespace, AppRequest<?> appRequest) throws Exception {
+  public ApplicationId start(@Name("namespaceId") NamespaceId namespace, AppRequest<?> appRequest)
+      throws Exception {
     // make sure preview id is unique for each run
     ApplicationId previewApp = namespace.app(RunIds.generate().getId());
-    accessEnforcer.enforce(previewApp, authenticationContext.getPrincipal(), ApplicationPermission.PREVIEW);
+    accessEnforcer.enforce(previewApp, authenticationContext.getPrincipal(),
+        ApplicationPermission.PREVIEW);
     ProgramId programId = getProgramIdFromRequest(previewApp, appRequest);
-    PreviewRequest previewRequest = new PreviewRequest(programId, appRequest, authenticationContext.getPrincipal());
+    PreviewRequest previewRequest = new PreviewRequest(programId, appRequest,
+        authenticationContext.getPrincipal());
 
     if (state() != State.RUNNING) {
-      throw new IllegalStateException("Preview service is not running. Cannot start preview for " + programId);
+      throw new IllegalStateException(
+          "Preview service is not running. Cannot start preview for " + programId);
     }
 
     previewRequestQueue.add(previewRequest);
@@ -223,8 +229,9 @@ public class DefaultPreviewManager extends AbstractIdleService implements Previe
 
   @Override
   public PreviewStatus getStatus(@Name("applicationId") ApplicationId applicationId)
-    throws NotFoundException, AccessException {
-    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(), ApplicationPermission.PREVIEW);
+      throws NotFoundException, AccessException {
+    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(),
+        ApplicationPermission.PREVIEW);
     PreviewStatus status = previewStore.getPreviewStatus(applicationId);
     if (status == null) {
       throw new NotFoundException(applicationId);
@@ -236,37 +243,43 @@ public class DefaultPreviewManager extends AbstractIdleService implements Previe
         position = 0;
       }
       status = new PreviewStatus(status.getStatus(), status.getSubmitTime(), status.getThrowable(),
-                                 status.getStartTime(), status.getEndTime(), position);
+          status.getStartTime(), status.getEndTime(), position);
     }
     return status;
   }
 
   @Override
   public void stopPreview(@Name("applicationId") ApplicationId applicationId) throws Exception {
-    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(), ApplicationPermission.PREVIEW);
+    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(),
+        ApplicationPermission.PREVIEW);
     PreviewStatus status = getStatus(applicationId);
     if (status.getStatus().isEndState()) {
-      throw new BadRequestException(String.format("Preview run cannot be stopped. It is already in %s state.",
-                                                  status.getStatus().name()));
+      throw new BadRequestException(
+          String.format("Preview run cannot be stopped. It is already in %s state.",
+              status.getStatus().name()));
     }
     if (status.getStatus() == PreviewStatus.Status.WAITING) {
       previewStore.setPreviewStatus(applicationId, new PreviewStatus(PreviewStatus.Status.KILLED,
-                                                                     status.getSubmitTime(), null, null, null));
+          status.getSubmitTime(), null, null, null));
       return;
     }
     previewRunStopper.stop(applicationId);
   }
 
   @Override
-  public Map<String, List<JsonElement>> getData(@Name("applicationId") ApplicationId applicationId, String tracerName)
-    throws AccessException {
-    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(), ApplicationPermission.PREVIEW);
+  public Map<String, List<JsonElement>> getData(@Name("applicationId") ApplicationId applicationId,
+      String tracerName)
+      throws AccessException {
+    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(),
+        ApplicationPermission.PREVIEW);
     return previewStore.get(applicationId, tracerName);
   }
 
   @Override
-  public ProgramRunId getRunId(@Name("applicationId") ApplicationId applicationId) throws Exception {
-    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(), ApplicationPermission.PREVIEW);
+  public ProgramRunId getRunId(@Name("applicationId") ApplicationId applicationId)
+      throws Exception {
+    accessEnforcer.enforce(applicationId, authenticationContext.getPrincipal(),
+        ApplicationPermission.PREVIEW);
     return previewStore.getProgramRunId(applicationId);
   }
 
@@ -291,95 +304,107 @@ public class DefaultPreviewManager extends AbstractIdleService implements Previe
   @VisibleForTesting
   Injector createPreviewInjector() {
     return Guice.createInjector(
-      // Used for internal authorization to generate and validate tokens in system services originated requests.
-      CoreSecurityRuntimeModule.getDistributedModule(previewCConf),
-      // Needed for FileBasedKeyManager when file based core security module is used by CoreSecurityRuntimeModule
-      new IOModule(),
-      new ConfigModule(previewCConf, previewHConf, previewSConf),
-      new PreviewDataModules().getDataFabricModule(transactionSystemClient, previewLevelDBTableService),
-      new PreviewDataModules().getDataSetsModule(datasetFramework),
-      new AuthenticationContextModules().getMasterModule(),
-      new LocalLocationModule(),
-      new PreviewDiscoveryRuntimeModule(discoveryServiceClient),
-      new MetricsClientRuntimeModule().getInMemoryModules(),
-      new DataSetServiceModules().getStandaloneModules(),
-      new MessagingServerRuntimeModule().getInMemoryModules(),
-      Modules.override(new MetadataReaderWriterModules().getInMemoryModules()).with(new AbstractModule() {
-        @Override
-        protected void configure() {
-          // we don't start a metadata service in preview, so don't attempt to create any metadata
-          bind(MetadataServiceClient.class).to(NoOpMetadataServiceClient.class);
+        // Used for internal authorization to generate and validate tokens in system services originated requests.
+        CoreSecurityRuntimeModule.getDistributedModule(previewCConf),
+        // Needed for FileBasedKeyManager when file based core security module is used by CoreSecurityRuntimeModule
+        new IOModule(),
+        new ConfigModule(previewCConf, previewHConf, previewSConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new PreviewDataModules().getDataFabricModule(transactionSystemClient,
+            previewLevelDBTableService),
+        new PreviewDataModules().getDataSetsModule(datasetFramework),
+        new AuditLogWriterModule(previewCConf).getInMemoryModules(),
+        new AuthenticationContextModules().getMasterModule(),
+        new LocalLocationModule(),
+        new PreviewDiscoveryRuntimeModule(discoveryServiceClient),
+        new MetricsClientRuntimeModule().getInMemoryModules(),
+        new DataSetServiceModules().getStandaloneModules(),
+        new MessagingServerRuntimeModule().getInMemoryModules(),
+        Modules.override(new MetadataReaderWriterModules().getInMemoryModules())
+            .with(new AbstractModule() {
+              @Override
+              protected void configure() {
+                // we don't start a metadata service in preview, so don't attempt to create any metadata
+                bind(MetadataServiceClient.class).to(NoOpMetadataServiceClient.class);
+              }
+            }),
+        new LocalLogAppenderModule(),
+        new PrivateModule() {
+          @Override
+          protected void configure() {
+            bind(AccessControllerInstantiator.class).toInstance(accessControllerInstantiator);
+            expose(AccessControllerInstantiator.class);
+
+            bind(AccessEnforcer.class).toInstance(accessEnforcer);
+            expose(AccessEnforcer.class);
+
+            bind(ContextAccessEnforcer.class).to(DefaultContextAccessEnforcer.class)
+                .in(Scopes.SINGLETON);
+            expose(ContextAccessEnforcer.class);
+
+            bind(PreviewStore.class).toInstance(previewStore);
+            expose(PreviewStore.class);
+
+            bind(PreviewRequestQueue.class).toInstance(previewRequestQueue);
+            expose(PreviewRequestQueue.class);
+
+            bind(Store.class).to(DefaultStore.class);
+            bind(OwnerStore.class).to(DefaultOwnerStore.class);
+            bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
+            expose(OwnerAdmin.class);
+
+            bind(UGIProvider.class).to(DefaultUGIProvider.class);
+            expose(UGIProvider.class);
+
+            bind(StorageProviderNamespaceAdmin.class).to(LocalStorageProviderNamespaceAdmin.class);
+
+            bind(NamespaceResourceDeleter.class).to(NoopNamespaceResourceDeleter.class)
+                .in(Scopes.SINGLETON);
+            bind(NamespaceAdmin.class).to(DefaultNamespaceAdmin.class).in(Scopes.SINGLETON);
+            bind(NamespaceQueryAdmin.class).to(DefaultNamespaceAdmin.class).in(Scopes.SINGLETON);
+            expose(NamespaceAdmin.class);
+            expose(NamespaceQueryAdmin.class);
+
+            bind(LogReader.class).to(FileLogReader.class).in(Scopes.SINGLETON);
+            expose(LogReader.class);
+
+            bind(MetadataAdmin.class).to(DefaultMetadataAdmin.class);
+            expose(MetadataAdmin.class);
+
+            bind(MessagingService.class)
+                .annotatedWith(Names.named(PreviewConfigModule.GLOBAL_TMS))
+                .toInstance(messagingService);
+            expose(MessagingService.class).annotatedWith(
+                Names.named(PreviewConfigModule.GLOBAL_TMS));
+
+            bind(MetricsCollectionService.class)
+                .annotatedWith(Names.named(PreviewConfigModule.GLOBAL_METRICS))
+                .toInstance(metricsCollectionService);
+            expose(MetricsCollectionService.class).annotatedWith(
+                Names.named(PreviewConfigModule.GLOBAL_METRICS));
+          }
+        },
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(LevelDBTableService.class).toInstance(previewLevelDBTableService);
+            bind(RemoteExecutionLogProcessor.class).to(LogAppenderLogProcessor.class)
+                .in(Scopes.SINGLETON);
+          }
+
+          @Provides
+          @Named(Constants.Service.MASTER_SERVICES_BIND_ADDRESS)
+          @SuppressWarnings("unused")
+          public InetAddress providesHostname(CConfiguration cConf) {
+            String address = cConf.get(Constants.Preview.ADDRESS);
+            return Networks.resolve(address, new InetSocketAddress("localhost", 0).getAddress());
+          }
         }
-      }),
-      new LocalLogAppenderModule(),
-      new PrivateModule() {
-        @Override
-        protected void configure() {
-          bind(AccessControllerInstantiator.class).toInstance(accessControllerInstantiator);
-          expose(AccessControllerInstantiator.class);
-          bind(AccessEnforcer.class).toInstance(accessEnforcer);
-          expose(AccessEnforcer.class);
-
-          bind(PreviewStore.class).toInstance(previewStore);
-          expose(PreviewStore.class);
-
-          bind(PreviewRequestQueue.class).toInstance(previewRequestQueue);
-          expose(PreviewRequestQueue.class);
-
-          bind(Store.class).to(DefaultStore.class);
-          bind(OwnerStore.class).to(DefaultOwnerStore.class);
-          bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
-          expose(OwnerAdmin.class);
-
-          bind(UGIProvider.class).to(DefaultUGIProvider.class);
-          expose(UGIProvider.class);
-
-          bind(ExploreClient.class).to(MockExploreClient.class);
-          expose(ExploreClient.class);
-          bind(StorageProviderNamespaceAdmin.class).to(LocalStorageProviderNamespaceAdmin.class);
-
-          bind(NamespaceResourceDeleter.class).to(NoopNamespaceResourceDeleter.class).in(Scopes.SINGLETON);
-          bind(NamespaceAdmin.class).to(DefaultNamespaceAdmin.class).in(Scopes.SINGLETON);
-          bind(NamespaceQueryAdmin.class).to(DefaultNamespaceAdmin.class).in(Scopes.SINGLETON);
-          expose(NamespaceAdmin.class);
-          expose(NamespaceQueryAdmin.class);
-
-          bind(LogReader.class).to(FileLogReader.class).in(Scopes.SINGLETON);
-          expose(LogReader.class);
-
-          bind(MetadataAdmin.class).to(DefaultMetadataAdmin.class);
-          expose(MetadataAdmin.class);
-
-          bind(MessagingService.class)
-            .annotatedWith(Names.named(PreviewConfigModule.GLOBAL_TMS))
-            .toInstance(messagingService);
-          expose(MessagingService.class).annotatedWith(Names.named(PreviewConfigModule.GLOBAL_TMS));
-
-          bind(MetricsCollectionService.class)
-            .annotatedWith(Names.named(PreviewConfigModule.GLOBAL_METRICS))
-            .toInstance(metricsCollectionService);
-          expose(MetricsCollectionService.class).annotatedWith(Names.named(PreviewConfigModule.GLOBAL_METRICS));
-        }
-      },
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(LevelDBTableService.class).toInstance(previewLevelDBTableService);
-          bind(RemoteExecutionLogProcessor.class).to(LogAppenderLogProcessor.class).in(Scopes.SINGLETON);
-        }
-
-        @Provides
-        @Named(Constants.Service.MASTER_SERVICES_BIND_ADDRESS)
-        @SuppressWarnings("unused")
-        public InetAddress providesHostname(CConfiguration cConf) {
-          String address = cConf.get(Constants.Preview.ADDRESS);
-          return Networks.resolve(address, new InetSocketAddress("localhost", 0).getAddress());
-        }
-      }
     );
   }
 
-  private ProgramId getProgramIdFromRequest(ApplicationId preview, AppRequest<?> request) throws BadRequestException {
+  private ProgramId getProgramIdFromRequest(ApplicationId preview, AppRequest<?> request)
+      throws BadRequestException {
     PreviewConfig previewConfig = request.getPreview();
     if (previewConfig == null) {
       throw new BadRequestException("Preview config cannot be null");

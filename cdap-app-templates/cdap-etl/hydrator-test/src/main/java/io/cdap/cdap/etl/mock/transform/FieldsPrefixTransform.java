@@ -28,18 +28,19 @@ import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.StageConfigurer;
 import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Transform which adds prefix to all the fields of structured record for testing multi input schemas
+ * Transform which adds prefix to all the fields of structured record for testing multi input
+ * schemas
  */
 @Plugin(type = Transform.PLUGIN_TYPE)
 @Name("FieldsPrefixTransform")
 public class FieldsPrefixTransform extends Transform<StructuredRecord, StructuredRecord> {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
 
   private final Config config;
@@ -60,12 +61,13 @@ public class FieldsPrefixTransform extends Transform<StructuredRecord, Structure
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     Schema outSchema = config.getOutputSchema(input.getSchema());
     StructuredRecord.Builder outputBuilder = StructuredRecord.builder(outSchema);
 
     for (Schema.Field inField : input.getSchema().getFields()) {
-        outputBuilder.set(config.prefix + inField.getName(), input.get(inField.getName()));
+      outputBuilder.set(config.prefix + inField.getName(), input.get(inField.getName()));
     }
     emitter.emit(outputBuilder.build());
   }
@@ -74,6 +76,7 @@ public class FieldsPrefixTransform extends Transform<StructuredRecord, Structure
    * Config for join plugin
    */
   public static class Config extends PluginConfig {
+
     private String prefix;
     private String schemaStr;
 
@@ -104,8 +107,9 @@ public class FieldsPrefixTransform extends Transform<StructuredRecord, Structure
     properties.put("prefix", new PluginPropertyField("prefix", "", "string", true, false));
     properties.put("schemaStr", new PluginPropertyField("schemaStr", "", "string", true, false));
     return PluginClass.builder().setName("FieldsPrefixTransform").setType(Transform.PLUGIN_TYPE)
-             .setDescription("").setClassName(FieldsPrefixTransform.class.getName()).setProperties(properties)
-             .setConfigFieldName("config").build();
+        .setDescription("").setClassName(FieldsPrefixTransform.class.getName())
+        .setProperties(properties)
+        .setConfigFieldName("config").build();
   }
 
 }

@@ -18,7 +18,6 @@ package io.cdap.cdap.data2.dataset2.lib.timeseries;
 
 import io.cdap.cdap.api.dataset.lib.cube.DimensionValue;
 import io.cdap.cdap.api.dataset.lib.cube.TimeValue;
-
 import java.util.Iterator;
 import java.util.List;
 
@@ -26,11 +25,13 @@ import java.util.List;
  * An single result item returned by {@link FactScanner}.
  */
 public final class FactScanResult implements Iterable<TimeValue> {
+
   private final String measureName;
   private final List<DimensionValue> dimensionValues;
   private final Iterable<TimeValue> timeValues;
 
-  public FactScanResult(String measureName, List<DimensionValue> dimensionValues, Iterable<TimeValue> timeValues) {
+  public FactScanResult(String measureName, List<DimensionValue> dimensionValues,
+      Iterable<TimeValue> timeValues) {
     this.measureName = measureName;
     this.dimensionValues = dimensionValues;
     this.timeValues = timeValues;

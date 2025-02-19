@@ -32,7 +32,6 @@ import io.cdap.cdap.etl.mock.common.MockArguments;
 import io.cdap.cdap.etl.mock.common.MockLookupProvider;
 import io.cdap.cdap.etl.mock.common.MockStageMetrics;
 import io.cdap.cdap.etl.mock.validation.MockFailureCollector;
-
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
@@ -45,6 +44,7 @@ import javax.annotation.Nullable;
  * Mock context for unit tests
  */
 public class MockTransformContext implements TransformContext {
+
   private static final String MOCK_STAGE_NAME = "mockstage";
   private final PluginProperties pluginProperties;
   private final MockStageMetrics metrics;
@@ -239,7 +239,7 @@ public class MockTransformContext implements TransformContext {
   @Nullable
   @Override
   public HttpURLConnection openConnection(String namespaceId, String applicationId,
-                                          String serviceId, String methodPath) {
+      String serviceId, String methodPath) {
     return null;
   }
 

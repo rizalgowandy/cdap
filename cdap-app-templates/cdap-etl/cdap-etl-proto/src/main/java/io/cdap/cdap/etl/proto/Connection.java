@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.proto;
 
 import io.cdap.cdap.etl.proto.v2.ETLStage;
-
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -25,6 +24,7 @@ import javax.annotation.Nullable;
  * Represents a connection between two {@link ETLStage}
  */
 public class Connection {
+
   private final String from;
   private final String to;
   private final String port;
@@ -78,8 +78,9 @@ public class Connection {
 
     Connection that = (Connection) o;
 
-    return Objects.equals(from, that.from) && Objects.equals(to, that.to) && Objects.equals(port, that.port)
-      && Objects.equals(condition, that.condition);
+    return Objects.equals(from, that.from) && Objects.equals(to, that.to) && Objects.equals(port,
+        that.port)
+        && Objects.equals(condition, that.condition);
   }
 
   @Override
@@ -89,11 +90,11 @@ public class Connection {
 
   @Override
   public String toString() {
-    return "Connection{" +
-      "from='" + from + '\'' +
-      ", to='" + to + '\'' +
-      ", port='" + port + '\'' +
-      ", condition='" + condition + '\'' +
-      '}';
+    return "Connection{"
+        + "from='" + from + '\''
+        + ", to='" + to + '\''
+        + ", port='" + port + '\''
+        + ", condition='" + condition + '\''
+        + '}';
   }
 }

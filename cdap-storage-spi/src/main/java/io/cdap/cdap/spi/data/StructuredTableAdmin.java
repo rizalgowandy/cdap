@@ -20,22 +20,57 @@ import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.spi.data.table.StructuredTableId;
 import io.cdap.cdap.spi.data.table.StructuredTableSchema;
 import io.cdap.cdap.spi.data.table.StructuredTableSpecification;
-
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Defines admin operations on a {@link StructuredTable}.
  */
 @Beta
 public interface StructuredTableAdmin {
+
   /**
    * Create a StructuredTable using the {@link StructuredTableSpecification}.
    *
-   * @param spec table specification
-   * @throws IOException if there is an error creating the table
    * @throws TableAlreadyExistsException if the table already exists
+   * @deprecated use {@link #createOrUpdate(StructuredTableSpecification)} instead
    */
+  @Deprecated
   void create(StructuredTableSpecification spec) throws IOException, TableAlreadyExistsException;
+
+  /**
+   * If the table does not exist, create a StructuredTable using the
+   * {@link StructuredTableSpecification}. If the table exists, check the columns and update the
+   * schema if necessary using the {@link StructuredTableSpecification}. Currently, only non-primary
+   * keys are allowed to be added to the existing table schema. The passed in
+   * StructuredTableSpecification has to be backward compatible with the existing table schema.
+   *
+   * @param spec table specification
+   * @throws IOException                      if there is an error creating the table
+   * @throws TableSchemaIncompatibleException if the new table schema is incompatible with the
+   *                                          existing one
+   */
+  default void createOrUpdate(StructuredTableSpecification spec)
+      throws IOException, TableSchemaIncompatibleException {
+    throw new UnsupportedOperationException("Storage SPI did not implement createOrUpdate.");
+  }
+
+  /**
+   * This method is similar to {@link #createOrUpdate(StructuredTableSpecification)}. It offers
+   * potential performance improvements by allowing batching of table operations. The specific
+   * implementation will determine whether to batch operations or execute them sequentially.
+   *
+   * @param specs list of table specifications
+   * @throws IOException                      if there is an error creating the table
+   * @throws TableSchemaIncompatibleException if the new table schema is incompatible with the
+   *                                          existing one
+   */
+  default void createOrUpdate(List<StructuredTableSpecification> specs)
+      throws IOException, TableSchemaIncompatibleException {
+    for (StructuredTableSpecification spec : specs) {
+      createOrUpdate(spec);
+    }
+  }
 
   /**
    * Checks if the given table exists.
@@ -51,14 +86,15 @@ public interface StructuredTableAdmin {
    *
    * @param tableId the name of the table
    * @return the {@link StructuredTableSchema} of the table
-   * @throws IOException if there is an error for getting the table schema
+   * @throws IOException            if there is an error for getting the table schema
    * @throws TableNotFoundException if the table doesn't exist
    */
-  StructuredTableSchema getSchema(StructuredTableId tableId) throws IOException, TableNotFoundException;
+  StructuredTableSchema getSchema(StructuredTableId tableId)
+      throws IOException, TableNotFoundException;
 
   /**
-   * Drop the StructuredTable synchronously. After this method is called, the existing table will get deleted. If the
-   * table does not exist, no operation will be done.
+   * Drop the StructuredTable synchronously. After this method is called, the existing table will
+   * get deleted. If the table does not exist, no operation will be done.
    *
    * @param tableId the table id
    * @throws IOException if there is an error dropping the table

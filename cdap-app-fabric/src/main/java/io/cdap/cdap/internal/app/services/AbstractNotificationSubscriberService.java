@@ -24,7 +24,7 @@ import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.service.RetryStrategies;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.context.MultiThreadMessagingContext;
 import io.cdap.cdap.messaging.subscriber.AbstractMessagingSubscriberService;
 import io.cdap.cdap.proto.Notification;
@@ -33,10 +33,11 @@ import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import org.apache.tephra.TxConstants;
 
 /**
- * Abstract class that fetches notifications from TMS.
- * No transactions should be started in any of the overrided methods since they are already wrapped in a transaction.
+ * Abstract class that fetches notifications from TMS. No transactions should be started in any of
+ * the overrided methods since they are already wrapped in a transaction.
  */
-public abstract class AbstractNotificationSubscriberService extends AbstractMessagingSubscriberService<Notification> {
+public abstract class AbstractNotificationSubscriberService extends
+    AbstractMessagingSubscriberService<Notification> {
 
   private static final Gson GSON = new Gson();
 
@@ -44,21 +45,36 @@ public abstract class AbstractNotificationSubscriberService extends AbstractMess
   private final MultiThreadMessagingContext messagingContext;
   private final TransactionRunner transactionRunner;
 
-  protected AbstractNotificationSubscriberService(String name, CConfiguration cConf, String topicName,
-                                                  int fetchSize, long emptyFetchDelayMillis,
-                                                  MessagingService messagingService,
-                                                  MetricsCollectionService metricsCollectionService,
-                                                  TransactionRunner transactionRunner) {
-    super(NamespaceId.SYSTEM.topic(topicName), fetchSize, cConf.getInt(TxConstants.Manager.CFG_TX_TIMEOUT),
-          emptyFetchDelayMillis,
-          RetryStrategies.fromConfiguration(cConf, "system.notification."),
-          metricsCollectionService.getContext(ImmutableMap.of(
+  protected AbstractNotificationSubscriberService(String name, CConfiguration cConf,
+      String topicName,
+      int fetchSize, long emptyFetchDelayMillis,
+      MessagingService messagingService,
+      MetricsCollectionService metricsCollectionService,
+      TransactionRunner transactionRunner) {
+    this(name, cConf, topicName, fetchSize, emptyFetchDelayMillis, messagingService,
+        metricsCollectionService,
+        transactionRunner, fetchSize);
+  }
+
+  protected AbstractNotificationSubscriberService(String name, CConfiguration cConf,
+      String topicName,
+      int fetchSize, long emptyFetchDelayMillis,
+      MessagingService messagingService,
+      MetricsCollectionService metricsCollectionService,
+      TransactionRunner transactionRunner,
+      int txSize) {
+    super(NamespaceId.SYSTEM.topic(topicName), fetchSize,
+        cConf.getInt(TxConstants.Manager.CFG_TX_TIMEOUT),
+        emptyFetchDelayMillis,
+        RetryStrategies.fromConfiguration(cConf, "system.notification."),
+        metricsCollectionService.getContext(ImmutableMap.of(
             Constants.Metrics.Tag.COMPONENT, Constants.Service.MASTER_SERVICES,
             Constants.Metrics.Tag.INSTANCE_ID, "0",
             Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getNamespace(),
             Constants.Metrics.Tag.TOPIC, topicName,
             Constants.Metrics.Tag.CONSUMER, name
-          )));
+        )),
+        txSize);
     this.name = name;
     this.messagingContext = new MultiThreadMessagingContext(messagingService);
     this.transactionRunner = transactionRunner;

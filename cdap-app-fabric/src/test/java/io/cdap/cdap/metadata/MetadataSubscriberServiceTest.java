@@ -68,18 +68,20 @@ import io.cdap.cdap.internal.app.runtime.workflow.BasicWorkflowToken;
 import io.cdap.cdap.internal.app.runtime.workflow.MessagingWorkflowStateWriter;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowStateWriter;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
+import io.cdap.cdap.internal.app.store.ApplicationMeta;
 import io.cdap.cdap.internal.app.store.DefaultStore;
 import io.cdap.cdap.internal.profile.AdminEventPublisher;
 import io.cdap.cdap.internal.profile.ProfileService;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.RollbackDetail;
-import io.cdap.cdap.messaging.StoreRequest;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.RollbackDetail;
+import io.cdap.cdap.messaging.spi.StoreRequest;
 import io.cdap.cdap.messaging.context.MultiThreadMessagingContext;
 import io.cdap.cdap.messaging.service.CoreMessagingService;
 import io.cdap.cdap.messaging.store.TableFactory;
 import io.cdap.cdap.messaging.store.leveldb.LevelDBTableFactory;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.WorkflowNodeStateDetail;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.EntityId;
@@ -99,12 +101,6 @@ import io.cdap.cdap.spi.metadata.MetadataMutation;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.spi.metadata.MutationOptions;
 import io.cdap.cdap.spi.metadata.Read;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -118,6 +114,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Unit test for {@link MetadataSubscriberService} and corresponding writers.
@@ -135,7 +136,7 @@ public class MetadataSubscriberServiceTest extends AppFabricTestBase {
 
   @BeforeClass
   public static void beforeClass() throws Throwable {
-    CConfiguration cConfiguration = createBasicCConf();
+    CConfiguration cConfiguration = createBasicCconf();
     // use a fast retry strategy with not too many retries, to speed up the test
     String prefix = "system.metadata.";
     cConfiguration.set(prefix + Constants.Retry.TYPE, RetryStrategyType.FIXED_DELAY.toString());
@@ -443,7 +444,10 @@ public class MetadataSubscriberServiceTest extends AppFabricTestBase {
     // app must exist before assigning the profile for the namespace, otherwise the app's
     // programs will not receive the profile metadata.
     Store store = injector.getInstance(DefaultStore.class);
-    store.addApplication(appId, appSpec);
+    ApplicationMeta meta = new ApplicationMeta(appSpec.getName(), appSpec,
+                                               new ChangeDetail(null, null, null,
+                                                                System.currentTimeMillis()));
+    store.addLatestApplication(appId, meta);
 
     // set default namespace to use the profile, since now MetadataSubscriberService is not started,
     // it should not affect the mds
@@ -584,7 +588,10 @@ public class MetadataSubscriberServiceTest extends AppFabricTestBase {
     Assert.assertEquals(Collections.emptyMap(), mds.read(new Read(workflowId.toMetadataEntity())).getProperties());
 
     Store store = injector.getInstance(DefaultStore.class);
-    store.addApplication(appId, appSpec);
+    ApplicationMeta meta = new ApplicationMeta(appSpec.getName(), appSpec,
+                                               new ChangeDetail(null, null, null,
+                                                                System.currentTimeMillis()));
+    store.addLatestApplication(appId, meta);
 
     // set default namespace to use the profile, since now MetadataSubscriberService is not started,
     // it should not affect the mds

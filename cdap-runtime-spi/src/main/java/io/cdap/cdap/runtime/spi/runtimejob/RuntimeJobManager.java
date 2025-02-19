@@ -17,7 +17,6 @@
 package io.cdap.cdap.runtime.spi.runtimejob;
 
 import io.cdap.cdap.runtime.spi.ProgramRunInfo;
-
 import java.io.Closeable;
 import java.util.List;
 import java.util.Optional;
@@ -44,16 +43,20 @@ public interface RuntimeJobManager extends Closeable {
   Optional<RuntimeJobDetail> getDetail(ProgramRunInfo programRunInfo) throws Exception;
 
   /**
-   * Provides all the jobs that are in running state. If there are no running jobs, it should return empty list.
+   * Provides all the jobs that are in running state. If there are no running jobs, it should return
+   * empty list.
    *
    * @return a list job details
    * @throws Exception thrown if any exception while getting list of running jobs
    */
-  List<RuntimeJobDetail> list() throws Exception;
+  @Deprecated
+  default List<RuntimeJobDetail> list() {
+    throw new UnsupportedOperationException("The list method is deprecated it shouldn't be used.");
+  }
 
   /**
-   * Gracefully stops a running job. If the job is already in terminal status, then this method should be a no-op. If
-   * the job does not exist, this method should be a no-op.
+   * Gracefully stops a running job. If the job is already in terminal status, then this method
+   * should be a no-op. If the job does not exist, this method should be a no-op.
    *
    * @param programRunInfo program run info
    * @throws Exception thrown if any exception while stopping the job
@@ -61,13 +64,25 @@ public interface RuntimeJobManager extends Closeable {
   void stop(ProgramRunInfo programRunInfo) throws Exception;
 
   /**
-   * Forcefully kills a running job. If the job is already in terminal status, then this method should be a no-op. If
-   * the job does not exist, this method should be a no-op.
+   * Forcefully kills a running job. If the job is already in terminal status, then this method
+   * should be a no-op. If the job does not exist, this method should be a no-op.
    *
    * @param programRunInfo program run info
    * @throws Exception thrown if any exception while killing the job
    */
-  void kill(ProgramRunInfo programRunInfo) throws Exception;
+  @Deprecated
+  default void kill(ProgramRunInfo programRunInfo) throws Exception {
+    kill(new RuntimeJobDetail(programRunInfo, RuntimeJobStatus.RUNNING));
+  }
+
+  /**
+   * Forcefully kills a running job. If the job is already in terminal status, then this method
+   * should be a no-op. If the job does not exist, this method should be a no-op.
+   *
+   * @param runtimeJobDetail runtime Job Detail
+   * @throws Exception thrown if any exception while killing the job
+   */
+  void kill(RuntimeJobDetail runtimeJobDetail) throws Exception;
 
   /**
    * This method is responsible to perform clean up for runtime manager.

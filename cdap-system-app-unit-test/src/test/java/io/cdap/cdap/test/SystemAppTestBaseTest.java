@@ -32,9 +32,6 @@ import io.cdap.cdap.test.app.SystemTestApp;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
@@ -42,6 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for system app.
@@ -56,12 +55,12 @@ public class SystemAppTestBaseTest extends SystemAppTestBase {
 
     String keyCol = "key";
     String valCol = "val";
-    tableAdmin.create(new StructuredTableSpecification.Builder()
-                        .withId(id)
-                        .withFields(new FieldType(keyCol, FieldType.Type.STRING),
-                                    new FieldType(valCol, FieldType.Type.STRING))
-                        .withPrimaryKeys(keyCol)
-                        .build());
+    tableAdmin.createOrUpdate(new StructuredTableSpecification.Builder()
+                                .withId(id)
+                                .withFields(new FieldType(keyCol, FieldType.Type.STRING),
+                                            new FieldType(valCol, FieldType.Type.STRING))
+                                .withPrimaryKeys(keyCol)
+                                .build());
 
     try {
       TransactionRunner transactionRunner = getTransactionRunner();

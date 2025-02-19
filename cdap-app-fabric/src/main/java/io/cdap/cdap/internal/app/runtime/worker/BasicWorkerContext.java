@@ -33,12 +33,12 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.runtime.AbstractContext;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import javax.annotation.Nullable;
 import org.apache.tephra.TransactionSystemClient;
 import org.apache.twill.discovery.DiscoveryServiceClient;
-
-import javax.annotation.Nullable;
 
 /**
  * Default implementation of {@link WorkerContext}
@@ -50,23 +50,25 @@ final class BasicWorkerContext extends AbstractContext implements WorkerContext 
   private volatile int instanceCount;
 
   BasicWorkerContext(WorkerSpecification spec, Program program, ProgramOptions programOptions,
-                     CConfiguration cConf, int instanceId, int instanceCount,
-                     MetricsCollectionService metricsCollectionService,
-                     DatasetFramework datasetFramework,
-                     TransactionSystemClient transactionSystemClient,
-                     DiscoveryServiceClient discoveryServiceClient,
-                     @Nullable PluginInstantiator pluginInstantiator,
-                     SecureStore secureStore,
-                     SecureStoreManager secureStoreManager,
-                     MessagingService messagingService, MetadataReader metadataReader,
-                     MetadataPublisher metadataPublisher,
-                     NamespaceQueryAdmin namespaceQueryAdmin, FieldLineageWriter fieldLineageWriter,
-                     RemoteClientFactory remoteClientFactory) {
+      CConfiguration cConf, int instanceId, int instanceCount,
+      MetricsCollectionService metricsCollectionService,
+      DatasetFramework datasetFramework,
+      TransactionSystemClient transactionSystemClient,
+      DiscoveryServiceClient discoveryServiceClient,
+      @Nullable PluginInstantiator pluginInstantiator,
+      SecureStore secureStore,
+      SecureStoreManager secureStoreManager,
+      MessagingService messagingService, MetadataReader metadataReader,
+      MetadataPublisher metadataPublisher,
+      NamespaceQueryAdmin namespaceQueryAdmin, FieldLineageWriter fieldLineageWriter,
+      RemoteClientFactory remoteClientFactory, AppStateStoreProvider appStateStoreProvider) {
     super(program, programOptions, cConf, spec.getDatasets(),
-          datasetFramework, transactionSystemClient, true,
-          metricsCollectionService, ImmutableMap.of(Constants.Metrics.Tag.INSTANCE_ID, String.valueOf(instanceId)),
-          secureStore, secureStoreManager, messagingService, pluginInstantiator, metadataReader, metadataPublisher,
-          namespaceQueryAdmin, fieldLineageWriter, remoteClientFactory);
+        datasetFramework, transactionSystemClient, true,
+        metricsCollectionService,
+        ImmutableMap.of(Constants.Metrics.Tag.INSTANCE_ID, String.valueOf(instanceId)),
+        secureStore, secureStoreManager, messagingService, pluginInstantiator, metadataReader,
+        metadataPublisher,
+        namespaceQueryAdmin, fieldLineageWriter, remoteClientFactory, appStateStoreProvider);
 
     this.specification = spec;
     this.instanceId = instanceId;

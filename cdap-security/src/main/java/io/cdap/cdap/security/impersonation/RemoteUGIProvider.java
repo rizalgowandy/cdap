@@ -33,21 +33,19 @@ import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
-import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.authentication.util.KerberosName;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authentication.util.KerberosName;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Makes requests to ImpersonationHandler to request credentials.
@@ -56,38 +54,40 @@ public class RemoteUGIProvider extends AbstractCachedUGIProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoteUGIProvider.class);
   private static final Gson GSON = new GsonBuilder()
-    .registerTypeAdapter(NamespacedEntityId.class, new EntityIdTypeAdapter())
-    .create();
+      .registerTypeAdapter(NamespacedEntityId.class, new EntityIdTypeAdapter())
+      .create();
 
   private final RemoteClient remoteClient;
   private final LocationFactory locationFactory;
 
   @Inject
   RemoteUGIProvider(CConfiguration cConf,
-                    LocationFactory locationFactory, OwnerAdmin ownerAdmin, RemoteClientFactory remoteClientFactory) {
+      LocationFactory locationFactory, OwnerAdmin ownerAdmin,
+      RemoteClientFactory remoteClientFactory) {
     super(cConf, ownerAdmin);
     this.remoteClient = remoteClientFactory.createRemoteClient(
-      Constants.Service.APP_FABRIC_HTTP, new DefaultHttpRequestConfig(false), "/v1/");
+        Constants.Service.APP_FABRIC_HTTP, new DefaultHttpRequestConfig(false), "/v1/");
     this.locationFactory = locationFactory;
   }
 
   @Override
   protected UGIWithPrincipal createUGI(ImpersonationRequest impersonationRequest)
-    throws AccessException {
+      throws AccessException {
     ImpersonationRequest jsonRequest = new ImpersonationRequest(impersonationRequest.getEntityId(),
-                                                                impersonationRequest.getImpersonatedOpType(),
-                                                                impersonationRequest.getPrincipal());
+        impersonationRequest.getImpersonatedOpType(),
+        impersonationRequest.getPrincipal());
     PrincipalCredentials principalCredentials =
-      null;
+        null;
     try {
       principalCredentials = GSON.fromJson(executeRequest(jsonRequest).getResponseBodyAsString(),
-                                           PrincipalCredentials.class);
+          PrincipalCredentials.class);
       LOG.debug("Received response: {}", principalCredentials);
     } catch (IOException e) {
       throw AuthEnforceUtil.propagateAccessException(e);
     }
 
-    Location location = locationFactory.create(URI.create(principalCredentials.getCredentialsPath()));
+    Location location = locationFactory.create(
+        URI.create(principalCredentials.getCredentialsPath()));
     try {
       String user = principalCredentials.getPrincipal();
       if (impersonationRequest.getImpersonatedOpType() == ImpersonatedOpType.EXPLORE) {
@@ -116,20 +116,21 @@ public class RemoteUGIProvider extends AbstractCachedUGIProvider {
    */
   @Override
   protected boolean checkExploreAndDetermineCache(ImpersonationRequest impersonationRequest) {
-    return !(impersonationRequest.getEntityId().getEntityType().equals(EntityType.NAMESPACE) &&
-      impersonationRequest.getImpersonatedOpType().equals(ImpersonatedOpType.EXPLORE));
+    return !(impersonationRequest.getEntityId().getEntityType().equals(EntityType.NAMESPACE)
+        && impersonationRequest.getImpersonatedOpType().equals(ImpersonatedOpType.EXPLORE));
   }
 
   private HttpResponse executeRequest(ImpersonationRequest impersonationRequest)
-    throws IOException, UnauthorizedException {
+      throws IOException, UnauthorizedException {
     HttpRequest request = remoteClient.requestBuilder(HttpMethod.POST, "impersonation/credentials")
-      .withBody(GSON.toJson(impersonationRequest))
-      .build();
+        .withBody(GSON.toJson(impersonationRequest))
+        .build();
     HttpResponse response = remoteClient.execute(request);
     if (response.getResponseCode() == HttpURLConnection.HTTP_OK) {
       return response;
     }
-    throw new IOException(String.format("%s Response: %s.", createErrorMessage(request.getURL()), response));
+    throw new IOException(
+        String.format("%s Response: %s.", createErrorMessage(request.getURL()), response));
   }
 
   // creates error message, encoding details about the request
@@ -139,7 +140,8 @@ public class RemoteUGIProvider extends AbstractCachedUGIProvider {
 
   private static Credentials readCredentials(Location location) throws IOException {
     Credentials credentials = new Credentials();
-    try (DataInputStream input = new DataInputStream(new BufferedInputStream(location.getInputStream()))) {
+    try (DataInputStream input = new DataInputStream(
+        new BufferedInputStream(location.getInputStream()))) {
       credentials.readTokenStorageStream(input);
     }
     LOG.debug("Read credentials from {}", location);

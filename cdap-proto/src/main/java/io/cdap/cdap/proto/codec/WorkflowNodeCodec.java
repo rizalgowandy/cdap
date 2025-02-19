@@ -26,21 +26,22 @@ import io.cdap.cdap.api.workflow.WorkflowConditionNode;
 import io.cdap.cdap.api.workflow.WorkflowForkNode;
 import io.cdap.cdap.api.workflow.WorkflowNode;
 import io.cdap.cdap.api.workflow.WorkflowNodeType;
-
 import java.lang.reflect.Type;
 
 /**
  * Codec to serialize and deserialize {@link WorkflowNode}
  */
 public final class WorkflowNodeCodec extends AbstractSpecificationCodec<WorkflowNode> {
+
   @Override
   public JsonElement serialize(WorkflowNode src, Type typeOfSrc, JsonSerializationContext context) {
     return context.serialize(src);
   }
 
   @Override
-  public WorkflowNode deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+  public WorkflowNode deserialize(JsonElement json, Type typeOfT,
+      JsonDeserializationContext context)
+      throws JsonParseException {
     JsonObject jsonObj = json.getAsJsonObject();
 
     WorkflowNodeType type = context.deserialize(jsonObj.get("nodeType"), WorkflowNodeType.class);

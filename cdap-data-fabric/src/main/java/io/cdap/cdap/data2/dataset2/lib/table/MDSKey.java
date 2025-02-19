@@ -19,7 +19,6 @@ package io.cdap.cdap.data2.dataset2.lib.table;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import io.cdap.cdap.api.common.Bytes;
-
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
@@ -27,6 +26,7 @@ import java.nio.ByteBuffer;
  * Metadata entry key
  */
 public final class MDSKey implements Comparable<MDSKey> {
+
   private final byte[] key;
 
   /**
@@ -54,30 +54,32 @@ public final class MDSKey implements Comparable<MDSKey> {
    * Decodes the keys parts, as specified (int, long, byte[], String)
    */
   public static final class Splitter {
+
     private final ByteBuffer byteBuffer;
+
     private Splitter(byte[] bytes) {
       byteBuffer = ByteBuffer.wrap(bytes);
     }
 
     /**
-     * @throws BufferUnderflowException if there is no int as expected
      * @return the next int part in the splitter
+     * @throws BufferUnderflowException if there is no int as expected
      */
     public int getInt() {
       return byteBuffer.getInt();
     }
 
     /**
-     * @throws BufferUnderflowException if there is no long as expected
      * @return the next long part in the splitter
+     * @throws BufferUnderflowException if there is no long as expected
      */
     public long getLong() {
       return byteBuffer.getLong();
     }
 
     /**
-     * @throws BufferUnderflowException if there is no byte[] as expected
      * @return the next byte[] part in the splitter
+     * @throws BufferUnderflowException if there is no byte[] as expected
      */
     public byte[] getBytes() {
       int len = byteBuffer.getInt();
@@ -89,16 +91,29 @@ public final class MDSKey implements Comparable<MDSKey> {
       return bytes;
     }
 
+
     /**
-     * @throws BufferUnderflowException if there is no String as expected
      * @return the next String part in the splitter
+     * @throws BufferUnderflowException if there is no String as expected
      */
     public String getString() {
       return Bytes.toString(getBytes());
     }
 
     /**
+     * @return the next boolean part in the splitter
+     * @throws BufferUnderflowException if there is no boolean as expected
+     */
+    public boolean getBoolean() {
+      if (byteBuffer.remaining() < 1) {
+        throw new BufferUnderflowException();
+      }
+      return Bytes.toBoolean(new byte[]{byteBuffer.get()});
+    }
+
+    /**
      * skips the next int part in the splitter
+     *
      * @throws BufferUnderflowException if there is no int as expected
      */
     public void skipInt() {
@@ -107,6 +122,7 @@ public final class MDSKey implements Comparable<MDSKey> {
 
     /**
      * skips the next long part in the splitter
+     *
      * @throws BufferUnderflowException if there is no long as expected
      */
     public void skipLong() {
@@ -114,7 +130,18 @@ public final class MDSKey implements Comparable<MDSKey> {
     }
 
     /**
+     * skips the next Boolean part in the splitter
+     *
+     * @throws BufferUnderflowException if there is no Boolean as expected
+     */
+    public void skipBoolean() {
+      // skip a single byte
+      forward(1);
+    }
+
+    /**
      * skips the next byte[] part in the splitter
+     *
      * @throws BufferUnderflowException if there is no byte[] as expected
      */
     public void skipBytes() {
@@ -124,6 +151,7 @@ public final class MDSKey implements Comparable<MDSKey> {
 
     /**
      * skips the next String part in the splitter
+     *
      * @throws BufferUnderflowException if there is no String as expected
      */
     public void skipString() {
@@ -170,6 +198,7 @@ public final class MDSKey implements Comparable<MDSKey> {
    * Builds {@link MDSKey}s.
    */
   public static final class Builder {
+
     private byte[] key;
 
     public Builder() {
@@ -199,6 +228,11 @@ public final class MDSKey implements Comparable<MDSKey> {
     }
 
     public Builder add(long part) {
+      key = Bytes.add(key, Bytes.toBytes(part));
+      return this;
+    }
+
+    public Builder add(boolean part) {
       key = Bytes.add(key, Bytes.toBytes(part));
       return this;
     }

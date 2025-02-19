@@ -17,7 +17,6 @@
 package io.cdap.cdap.cli;
 
 import io.cdap.cdap.client.config.ConnectionConfig;
-
 import javax.annotation.Nullable;
 
 /**
@@ -26,8 +25,8 @@ import javax.annotation.Nullable;
 public class LaunchOptions {
 
   public static final LaunchOptions DEFAULT = builder()
-    .setUri(ConnectionConfig.DEFAULT.getURI().toString())
-    .build();
+      .setUri(ConnectionConfig.DEFAULT.getURI().toString())
+      .build();
 
   private final String uri;
   private final boolean autoconnect;
@@ -41,7 +40,7 @@ public class LaunchOptions {
   }
 
   public LaunchOptions(String uri, boolean autoconnect, boolean debug, boolean verifySSL,
-                       String namespace, @Nullable String instanceURI) {
+      String namespace, @Nullable String instanceURI) {
     this.uri = uri;
     this.autoconnect = autoconnect;
     this.debug = debug;
@@ -82,6 +81,7 @@ public class LaunchOptions {
    * Builder for {@link LaunchOptions}.
    */
   public static class Builder {
+
     private String uri;
     private boolean autoconnect;
     private boolean debug;

@@ -55,16 +55,15 @@ import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.test.SlowTests;
-import org.apache.twill.api.RunId;
-import org.junit.experimental.categories.Category;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.api.RunId;
+import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
 * Mock LogReader for testing.
@@ -234,8 +233,8 @@ public class MockLogReader implements LogReader {
       for (LogEvent logLine : logEvents) {
         if (logLine.getOffset().getKafkaOffset() >= readRange.getKafkaOffset()) {
           long logTime = logLine.getLoggingEvent().getTimeStamp();
-          if (!contextFilter.match(logLine.getLoggingEvent()) || logTime < readRange.getFromMillis() ||
-            logTime >= readRange.getToMillis()) {
+          if (!contextFilter.match(logLine.getLoggingEvent()) || logTime < readRange.getFromMillis()
+              || logTime >= readRange.getToMillis()) {
             continue;
           }
 
@@ -272,13 +271,13 @@ public class MockLogReader implements LogReader {
       long startOffset = readRange.getKafkaOffset() - maxEvents;
       for (LogEvent logLine : logEvents) {
         long logTime = logLine.getLoggingEvent().getTimeStamp();
-        if (!contextFilter.match(logLine.getLoggingEvent()) || logTime < readRange.getFromMillis() ||
-          logTime >= readRange.getToMillis()) {
+        if (!contextFilter.match(logLine.getLoggingEvent()) || logTime < readRange.getFromMillis()
+            || logTime >= readRange.getToMillis()) {
           continue;
         }
 
-        if (logLine.getOffset().getKafkaOffset() >= startOffset &&
-          logLine.getOffset().getKafkaOffset() < readRange.getKafkaOffset()) {
+        if (logLine.getOffset().getKafkaOffset() >= startOffset
+            && logLine.getOffset().getKafkaOffset() < readRange.getKafkaOffset()) {
           if (++count > maxEvents) {
             break;
           }

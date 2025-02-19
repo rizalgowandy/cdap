@@ -17,12 +17,11 @@ package io.cdap.cdap.metrics.collect;
 
 import io.cdap.cdap.api.metrics.MetricType;
 import io.cdap.cdap.api.metrics.MetricValue;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class DistributionTest {
   private static final String METRIC_NAME = "test_distribution";
@@ -64,14 +63,14 @@ public class DistributionTest {
     distribution.add(100);
     // test with odd number
     distribution.add(101);
-    long mask = 2 /* value 0 falls in bucket 0-1 which is the 2nd bucket*/ +
-        4 /* value 1 falls in bucket 1-2 which is the 3rd bucket*/ +
-        8 /* value 2 falls in bucket 2-4 which is the 4th bucket */ +
-        64 /* value 16 falls in bucket 16-32 which is the 7th bucket */ +
-        256 /*value 100,101 falls in bucket 64-128 which is the 9th bucket */;
+    long mask = 2 /* value 0 falls in bucket 0-1 which is the 2nd bucket*/
+        + 4 /* value 1 falls in bucket 1-2 which is the 3rd bucket*/
+        + 8 /* value 2 falls in bucket 2-4 which is the 4th bucket */
+        + 64 /* value 16 falls in bucket 16-32 which is the 7th bucket */
+        + 256 /*value 100,101 falls in bucket 64-128 which is the 9th bucket */;
     double expSum = 1 + 2 + 2 + 16 + 100 + 101;
 
-    verifyDistribution(distribution, mask, expSum, new long[]{1 , 1 , 2 , 1 , 2});
+    verifyDistribution(distribution, mask, expSum, new long[]{1, 1, 2, 1, 2});
   }
 
   @Test
@@ -94,6 +93,7 @@ public class DistributionTest {
         try {
           Thread.sleep(1000);
         } catch (InterruptedException e) {
+          // ignore
         }
         MetricValue metricValue = emitter.emit();
         totalEmitCount.add(Arrays.stream(metricValue.getBucketCounts()).sum());

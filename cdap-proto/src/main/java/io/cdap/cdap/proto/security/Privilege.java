@@ -18,16 +18,19 @@ package io.cdap.cdap.proto.security;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.proto.id.EntityId;
-
 import java.util.Objects;
 
 /**
- * Represents a privilege granted to a {@link Principal user}, {@link Principal group} or a {@link Principal role}.
- * It determines if the user or group can perform a given {@link Action} on an {@link EntityId}.
+ * Represents a privilege granted to a {@link Principal user}, {@link Principal group} or a {@link
+ * Principal role}. It determines if the user or group can perform a given {@link Action} on an
+ * {@link EntityId}.
+ *
  * @deprecated use {@link GrantedPermission} instead
  */
-@Beta @Deprecated
+@Beta
+@Deprecated
 public class Privilege {
+
   private final Authorizable authorizable;
   private final Action action;
 
@@ -58,7 +61,8 @@ public class Privilege {
     }
 
     Privilege privilege = (Privilege) o;
-    return Objects.equals(authorizable, privilege.authorizable) && Objects.equals(action, privilege.action);
+    return Objects.equals(authorizable, privilege.authorizable) && Objects.equals(action,
+        privilege.action);
   }
 
   @Override
@@ -68,9 +72,9 @@ public class Privilege {
 
   @Override
   public String toString() {
-    return "Privilege {" +
-      "authorizable=" + authorizable +
-      ", action=" + action +
-      '}';
+    return "Privilege {"
+        + "authorizable=" + authorizable
+        + ", action=" + action
+        + '}';
   }
 }

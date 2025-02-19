@@ -17,7 +17,6 @@ package io.cdap.cdap.proto.id;
 
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.proto.element.EntityType;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -68,8 +67,8 @@ public class DatasetId extends NamespacedEntityId implements ParentedId<Namespac
       return false;
     }
     DatasetId datasetId = (DatasetId) o;
-    return Objects.equals(namespace, datasetId.namespace) &&
-      Objects.equals(dataset, datasetId.dataset);
+    return Objects.equals(namespace, datasetId.namespace)
+        && Objects.equals(dataset, datasetId.dataset);
   }
 
   @Override

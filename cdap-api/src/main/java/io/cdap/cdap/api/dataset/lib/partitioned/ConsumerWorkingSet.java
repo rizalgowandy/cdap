@@ -22,13 +22,13 @@ import io.cdap.cdap.api.dataset.lib.PartitionConsumerState;
 import io.cdap.cdap.api.dataset.lib.PartitionDetail;
 import io.cdap.cdap.api.dataset.lib.PartitionKey;
 import io.cdap.cdap.api.dataset.lib.PartitionedFileSet;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Keeps track of a list of partitions that are either available for consuming or are currently being consumed.
+ * Keeps track of a list of partitions that are either available for consuming or are currently
+ * being consumed.
  */
 public class ConsumerWorkingSet {
 
@@ -46,10 +46,11 @@ public class ConsumerWorkingSet {
   }
 
   /**
-   * Constructs a working set using the given PartitionConsumerState and list of ConsumablePartitions.
+   * Constructs a working set using the given PartitionConsumerState and list of
+   * ConsumablePartitions.
    */
   private ConsumerWorkingSet(PartitionConsumerState partitionConsumerState,
-                                    List<ConsumablePartition> partitions) {
+      List<ConsumablePartition> partitions) {
     this.partitionConsumerState = partitionConsumerState;
     this.partitions = partitions;
   }
@@ -69,8 +70,8 @@ public class ConsumerWorkingSet {
   }
 
   /**
-   * @return the ConsumablePartition with the given PartitionKey, from the working set, after removing it from
-   *         the partitions list
+   * @return the ConsumablePartition with the given PartitionKey, from the working set, after
+   *     removing it from the partitions list
    */
   public ConsumablePartition remove(PartitionKey partitionKey) {
     for (int i = 0; i < partitions.size(); i++) {
@@ -103,7 +104,7 @@ public class ConsumerWorkingSet {
     int numToPopulate = configuration.getMaxWorkingSetSize() - partitions.size();
     Predicate<PartitionDetail> predicate = configuration.getPartitionPredicate();
     io.cdap.cdap.api.dataset.lib.PartitionConsumerResult result =
-      partitionedFileSet.consumePartitions(partitionConsumerState, numToPopulate, predicate);
+        partitionedFileSet.consumePartitions(partitionConsumerState, numToPopulate, predicate);
     List<PartitionDetail> partitions = result.getPartitions();
     for (PartitionDetail partition : partitions) {
       addPartition(partition.getPartitionKey());
@@ -116,7 +117,8 @@ public class ConsumerWorkingSet {
     ByteBuffer bb = ByteBuffer.wrap(bytes);
     byte serializationFormatVersion = bb.get();
     if (serializationFormatVersion != VERSION) {
-      throw new IllegalArgumentException("Unsupported serialization format: " + serializationFormatVersion);
+      throw new IllegalArgumentException(
+          "Unsupported serialization format: " + serializationFormatVersion);
     }
 
     int numPartitions = bb.getInt();
@@ -176,7 +178,7 @@ public class ConsumerWorkingSet {
     ConsumerWorkingSet that = (ConsumerWorkingSet) o;
 
     return partitions.equals(that.partitions)
-      && partitionConsumerState.equals(that.partitionConsumerState);
+        && partitionConsumerState.equals(that.partitionConsumerState);
 
   }
 

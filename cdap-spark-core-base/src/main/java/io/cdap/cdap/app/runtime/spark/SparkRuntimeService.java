@@ -21,7 +21,9 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.io.ByteStreams;
@@ -29,7 +31,6 @@ import com.google.common.io.Files;
 import com.google.common.io.Resources;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import io.cdap.cdap.api.ProgramLifecycle;
 import io.cdap.cdap.api.ProgramState;
 import io.cdap.cdap.api.ProgramStatus;
@@ -40,10 +41,12 @@ import io.cdap.cdap.api.spark.SparkClientContext;
 import io.cdap.cdap.app.runtime.spark.distributed.SparkContainerLauncher;
 import io.cdap.cdap.app.runtime.spark.python.PySparkUtil;
 import io.cdap.cdap.app.runtime.spark.service.ArtifactFetcherService;
+import io.cdap.cdap.app.runtime.spark.submit.SparkJobFuture;
 import io.cdap.cdap.app.runtime.spark.submit.SparkSubmitter;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.CConfigurationUtil;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.lang.ClassLoaders;
 import io.cdap.cdap.common.lang.PropertyFieldSetter;
@@ -65,11 +68,13 @@ import io.cdap.cdap.internal.lang.Fields;
 import io.cdap.cdap.internal.lang.Reflections;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import java.util.NavigableMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.ShutdownHookManager;
 import org.apache.spark.SparkConf;
+import org.apache.spark.SparkContext;
 import org.apache.spark.deploy.SparkSubmit;
 import org.apache.twill.api.Configs;
 import org.apache.twill.api.RunId;
@@ -107,7 +112,9 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -127,14 +134,19 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
   private static final String CDAP_LAUNCHER_JAR = "cdap-spark-launcher.jar";
   private static final String CDAP_SPARK_JAR = "cdap-spark.jar";
   private static final String CDAP_METRICS_PROPERTIES = "metrics.properties";
-  private static final Function<File, URI> FILE_TO_URI = new Function<File, URI>() {
-    @Override
-    public URI apply(File input) {
-      return input.toURI();
-    }
-  };
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkRuntimeService.class);
+
+  /**
+   * This simple map allows to select proper pyspark resource.
+   * The idea is that the key represents spark version given resource should be used starting from.
+   * E.g. if we have 3.0 and 3.3 versions, 3.0 will be used for Spark 3.1.
+   */
+  private static final NavigableMap<String, String> PYSPARK_BY_VERSION =
+      ImmutableSortedMap.of(
+          "", "pyspark/pyspark.zip",
+          "3.3", "pyspark/pyspark33.zip"
+      );
 
   private final CConfiguration cConf;
   private final Spark spark;
@@ -142,30 +154,36 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
   private final File pluginArchive;
   private final SparkSubmitter sparkSubmitter;
   private final LocationFactory locationFactory;
-  private final AtomicReference<ListenableFuture<RunId>> completion;
+  private final AtomicReference<SparkJobFuture<RunId>> completion;
   private final BasicSparkClientContext context;
   private final boolean isLocal;
   private final ProgramLifecycle<SparkRuntimeContext> programLifecycle;
   private final FieldLineageWriter fieldLineageWriter;
-
-  private Callable<ListenableFuture<RunId>> submitSpark;
-  private Runnable cleanupTask;
+  private final CommonNettyHttpServiceFactory commonNettyHttpServiceFactory;
   private final MasterEnvironment masterEnv;
-  private ArtifactFetcherService artifactFetcherService;
+  private final String jvmOpts;
 
-  SparkRuntimeService(CConfiguration cConf, final Spark spark, @Nullable File pluginArchive,
+  private Callable<SparkJobFuture<RunId>> submitSpark;
+  private Runnable cleanupTask;
+  private ArtifactFetcherService artifactFetcherService;
+  private volatile long gracefulTimeoutMillis;
+
+  SparkRuntimeService(CConfiguration cConf, final Spark spark, @Nullable File pluginArchive, String jvmOpts,
                       SparkRuntimeContext runtimeContext, SparkSubmitter sparkSubmitter,
                       LocationFactory locationFactory, boolean isLocal, FieldLineageWriter fieldLineageWriter,
-                      MasterEnvironment masterEnv) {
+                      MasterEnvironment masterEnv, CommonNettyHttpServiceFactory commonNettyHttpServiceFactory) {
     this.cConf = cConf;
     this.spark = spark;
     this.runtimeContext = runtimeContext;
     this.pluginArchive = pluginArchive;
+    this.jvmOpts = jvmOpts;
     this.sparkSubmitter = sparkSubmitter;
     this.locationFactory = locationFactory;
     this.completion = new AtomicReference<>();
     this.context = new BasicSparkClientContext(runtimeContext);
     this.isLocal = isLocal;
+    this.commonNettyHttpServiceFactory = commonNettyHttpServiceFactory;
+    this.gracefulTimeoutMillis = -1L;
     this.programLifecycle = new ProgramLifecycle<SparkRuntimeContext>() {
       @Override
       public void initialize(SparkRuntimeContext runtimeContext) throws Exception {
@@ -194,7 +212,7 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
   @Override
   protected void startUp() throws Exception {
     // additional spark job initialization at run-time
-    // This context is for calling initialize and onFinish on the Spark program
+    // This context is for calling initialize and destroy on the Spark program
 
     // Fields injection for the Spark program
     // It has to be done in here instead of in SparkProgramRunner for the @UseDataset injection
@@ -220,7 +238,8 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
       final URI jobFile = context.isPySpark() ? getPySparkScript(tempDir) : createJobJar(tempDir);
       List<File> extraPySparkFiles = new ArrayList<>();
 
-      String metricsConfPath;
+      boolean sparkMetricsEnabled = cConf.getBoolean(Constants.Metrics.SPARK_METRICS_ENABLED);
+      String metricsConfPath = null;
       String classpath = "";
 
       // Setup the SparkConf with properties from spark-defaults.conf
@@ -234,12 +253,26 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
         localizeResources.add(new LocalizeResource(saveCConf(cConfCopy, tempDir)));
         Configuration hConf = contextConfig.set(runtimeContext, pluginArchive).getConfiguration();
         localizeResources.add(new LocalizeResource(saveHConf(hConf, tempDir)));
-        File metricsConf = SparkMetricsSink.writeConfig(new File(tempDir, CDAP_METRICS_PROPERTIES));
-        metricsConfPath = metricsConf.getAbsolutePath();
-        localizeResources.add(new LocalizeResource(metricsConf));
+        if (sparkMetricsEnabled) {
+          File metricsConf = SparkMetricsSink.writeConfig(new File(tempDir, CDAP_METRICS_PROPERTIES));
+          metricsConfPath = metricsConf.getAbsolutePath();
+          localizeResources.add(new LocalizeResource(metricsConf));
+        }
+
         File logbackJar = ProgramRunners.createLogbackJar(new File(tempDir, "logback.xml.jar"));
         if (logbackJar != null) {
           localizeResources.add(new LocalizeResource(logbackJar, true));
+        }
+
+        // Localize the runtime token if there is one. This happens only in tethered mode.
+        File runtimeToken = new File(Constants.Security.Authentication.RUNTIME_TOKEN_FILE);
+        if (runtimeToken.exists() && !runtimeToken.isDirectory()) {
+          LOG.debug("Localizing runtime token...");
+          localizeResources.add(new LocalizeResource(runtimeToken));
+        } else if (runtimeToken.isDirectory()) {
+          LOG.error("Expected runtime token to be a file, instead found a directory");
+        } else {
+          LOG.debug("No runtime token file found, skipping runtime token localization...");
         }
 
         // Localize all the files from user resources
@@ -251,7 +284,7 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
         if (cConfCopy.getBoolean(Constants.Environment.PROGRAM_SUBMISSION_MASTER_ENV_ENABLED, true)) {
           // In case of spark-on-k8s, artifactFetcherService is used by spark-drivers for fetching artifacts bundle.
           Location location = createBundle(new File("./artifacts").getAbsoluteFile().toPath());
-          artifactFetcherService = new ArtifactFetcherService(cConf, location);
+          artifactFetcherService = new ArtifactFetcherService(cConf, location, commonNettyHttpServiceFactory);
           artifactFetcherService.startAndWait();
         }
 
@@ -259,8 +292,10 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
         // In local mode, always copy (or link if local) user requested resources
         copyUserResources(context.getLocalizeResources(), tempDir);
 
-        File metricsConf = SparkMetricsSink.writeConfig(new File(tempDir, CDAP_METRICS_PROPERTIES));
-        metricsConfPath = metricsConf.getAbsolutePath();
+        if (sparkMetricsEnabled) {
+          File metricsConf = SparkMetricsSink.writeConfig(new File(tempDir, CDAP_METRICS_PROPERTIES));
+          metricsConfPath = metricsConf.getAbsolutePath();
+        }
 
         extractPySparkLibrary(tempDir, extraPySparkFiles);
       } else {
@@ -284,12 +319,14 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
         // Create and localize the launcher jar, which is for setting up services and classloader for spark containers
         localizeResources.add(new LocalizeResource(createLauncherJar(tempDir)));
 
-        // Create metrics conf file in the current directory since
-        // the same value for the "spark.metrics.conf" config needs to be used for both driver and executor processes
-        // Also localize the metrics conf file to the executor nodes
-        File metricsConf = SparkMetricsSink.writeConfig(new File(CDAP_METRICS_PROPERTIES));
-        metricsConfPath = metricsConf.getName();
-        localizeResources.add(new LocalizeResource(metricsConf));
+        if (sparkMetricsEnabled) {
+          // Create metrics conf file in the current directory since
+          // the same value for the "spark.metrics.conf" config needs to be used for both driver and executor processes
+          // Also localize the metrics conf file to the executor nodes
+          File metricsConf = SparkMetricsSink.writeConfig(new File(CDAP_METRICS_PROPERTIES));
+          metricsConfPath = metricsConf.getName();
+          localizeResources.add(new LocalizeResource(metricsConf));
+        }
 
         prepareHBaseDDLExecutorResources(tempDir, cConfCopy, localizeResources);
 
@@ -305,12 +342,8 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
 
         // Localize the spark.jar archive, which contains all CDAP and dependency jars
         File sparkJar = new File(tempDir, CDAP_SPARK_JAR);
-        classpath = joiner.join(Iterables.transform(buildDependencyJar(sparkJar), new Function<String, String>() {
-          @Override
-          public String apply(String name) {
-            return Paths.get("$PWD", CDAP_SPARK_JAR, name).toString();
-          }
-        }));
+        classpath = joiner.join(Iterables.transform(buildDependencyJar(sparkJar),
+                                                    name -> Paths.get("$PWD", CDAP_SPARK_JAR, name).toString()));
         localizeResources.add(new LocalizeResource(sparkJar, true));
 
         // Localize logback if there is one. It is placed at the beginning of the classpath
@@ -332,23 +365,20 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
       Iterable<URI> pyFiles = Collections.emptyList();
       if (context.isPySpark()) {
         extraPySparkFiles.add(PySparkUtil.createPySparkLib(tempDir));
-        pyFiles = Iterables.concat(Iterables.transform(extraPySparkFiles, FILE_TO_URI),
+        pyFiles = Iterables.concat(Iterables.transform(extraPySparkFiles, File::toURI),
                                    context.getAdditionalPythonLocations());
       }
 
       final Map<String, String> configs = createSubmitConfigs(tempDir, metricsConfPath, classpath,
                                                               context.getLocalizeResources(), isLocal, pyFiles);
-      submitSpark = new Callable<ListenableFuture<RunId>>() {
-        @Override
-        public ListenableFuture<RunId> call() throws Exception {
-          // If stop already requested on this service, don't submit the spark.
-          // This happen when stop() was called whiling starting
-          if (!isRunning()) {
-            return immediateCancelledFuture();
-          }
-          return sparkSubmitter.submit(runtimeContext, configs, localizeResources, jobFile,
-                                       runtimeContext.getRunId());
+      submitSpark = () -> {
+        // If stop already requested on this service, don't submit the spark.
+        // This happen when stop() was called whiling starting
+        if (!isRunning()) {
+          return SparkJobFuture.immeidateCancelled();
         }
+        return sparkSubmitter.submit(runtimeContext, configs, localizeResources, jobFile,
+                                     runtimeContext.getRunId());
       };
     } catch (Throwable t) {
       cleanupTask.run();
@@ -366,11 +396,11 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
    * Creates a jar bundle of all required artifacts.
    * @param artifactsPath the local path where artifacts are located.
    * @return Location of the created jar bundle of artifacts.
-   * @throws IOException
+   * @throws IOException if failed to create the bundle jar
    */
   private static Location createBundle(java.nio.file.Path artifactsPath) throws IOException {
     File tmpDir = Files.createTempDir();
-    for (File file : new File(artifactsPath.toFile().toString()).listFiles()) {
+    for (File file : DirUtils.listFiles(artifactsPath.toFile())) {
       if (file.getName().startsWith("unpacked")) {
         // unpacked directory is skipped.
         continue;
@@ -397,7 +427,7 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
 
   @Override
   protected void run() throws Exception {
-    ListenableFuture<RunId> jobCompletion = completion.getAndSet(submitSpark.call());
+    SparkJobFuture<RunId> jobCompletion = completion.getAndSet(submitSpark.call());
     // If the jobCompletion is not null, meaning the stop() was called before the atomic reference "completion" has been
     // updated. This mean the job is cancelled. We also need to cancel the future returned by submitSpark.call().
     if (jobCompletion != null) {
@@ -425,7 +455,7 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
   @Override
   protected void shutDown() throws Exception {
     // Try to get from the submission future to see if the job completed successfully.
-    ListenableFuture<RunId> jobCompletion = completion.get();
+    SparkJobFuture<RunId> jobCompletion = completion.get();
     ProgramState state = new ProgramState(ProgramStatus.COMPLETED, null);
     try {
       jobCompletion.get();
@@ -440,7 +470,13 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
     try {
       destroy(state);
     } finally {
-      cleanupTask.run();
+      try {
+        if (artifactFetcherService != null) {
+          artifactFetcherService.stopAndWait();
+        }
+      } finally {
+        cleanupTask.run();
+      }
       LOG.debug("Spark program completed: {}", runtimeContext);
     }
   }
@@ -450,40 +486,53 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
     LOG.debug("Stop requested for Spark Program {}", runtimeContext);
     // Replace the completion future with a cancelled one.
     // Also, try to cancel the current completion future if it exists.
-    ListenableFuture<RunId> future = completion.getAndSet(this.<RunId>immediateCancelledFuture());
+    SparkJobFuture<RunId> future = completion.getAndSet(SparkJobFuture.immeidateCancelled());
     if (future != null) {
-      future.cancel(true);
+      if (gracefulTimeoutMillis >= 0L) {
+        future.cancel(gracefulTimeoutMillis, TimeUnit.MILLISECONDS);
+      } else {
+        future.cancel(true);
+      }
     }
+  }
+
+  /**
+   * Stops the Spark job controlled by this service with the given timeout for the Spark job to stop before
+   * forcing it to terminate.
+   *
+   * @param timeout the timeout for force termination of the spark job
+   * @param timeoutUnit the unit for the timeout
+   * @return a future for the shutdown result, regardless of whether this call initiated shutdown.
+   *         Calling {@link ListenableFuture#get} will block until the service has finished shutting
+   *         down, and either returns {@link State#TERMINATED} or throws an
+   *         {@link ExecutionException}. If it has already finished stopping,
+   *         {@link ListenableFuture#get} returns immediately. Cancelling this future has no effect
+   *         on the service.
+   */
+  public ListenableFuture<State> stop(long timeout, TimeUnit timeoutUnit) {
+    gracefulTimeoutMillis = timeoutUnit.toMillis(timeout);
+    return stop();
   }
 
   @Override
   protected Executor executor() {
     // Always execute in new daemon thread.
-    //noinspection NullableProblems
-    return new Executor() {
-      @Override
-      public void execute(final Runnable runnable) {
-        final Thread t = new Thread(new Runnable() {
-
-          @Override
-          public void run() {
-            // note: this sets logging context on the thread level
-            LoggingContextAccessor.setLoggingContext(runtimeContext.getLoggingContext());
-            runnable.run();
-          }
-        });
-        t.setDaemon(true);
-        t.setName("SparkRunner" + runtimeContext.getProgramName());
-        t.start();
-      }
+    return runnable -> {
+      final Thread t = new Thread(() -> {
+        // note: this sets logging context on the thread level
+        LoggingContextAccessor.setLoggingContext(runtimeContext.getLoggingContext());
+        Thread.currentThread().setContextClassLoader(runtimeContext.getProgramInvocationClassLoader());
+        runnable.run();
+      });
+      t.setDaemon(true);
+      t.setName("SparkRunner-" + runtimeContext.getProgramName());
+      t.start();
     };
   }
 
   /**
-   * Calls the {@link Spark#beforeSubmit(SparkClientContext)} for the pre 3.5 Spark programs, calls
-   * the {@link ProgramLifecycle#initialize} otherwise.
+   * Calls the {@link ProgramLifecycle#initialize} of the {@link Spark} program.
    */
-  @SuppressWarnings("unchecked")
   private void initialize() throws Exception {
     context.setState(new ProgramState(ProgramStatus.INITIALIZING, null));
 
@@ -502,7 +551,7 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
   }
 
   /**
-   * Calls the destroy or onFinish method of {@link ProgramLifecycle}.
+   * Calls the {@link ProgramLifecycle#destroy()} of the {@link Spark} program.
    */
   private void destroy(final ProgramState state) {
     context.setState(state);
@@ -559,10 +608,10 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
   /**
    * Creates the configurations for the spark submitter.
    */
-  private Map<String, String> createSubmitConfigs(File localDir, String metricsConfPath, String classpath,
+  private Map<String, String> createSubmitConfigs(File localDir, @Nullable String metricsConfPath, String classpath,
                                                   Map<String, LocalizeResource> localizedResources,
                                                   boolean localMode,
-                                                  Iterable<URI> pyFiles) throws Exception {
+                                                  Iterable<URI> pyFiles) {
 
     // Setup configs from the default spark conf
     Map<String, String> configs = new HashMap<>(Maps.fromProperties(SparkPackageUtils.getSparkDefaultConf()));
@@ -598,6 +647,14 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
     prependConfig(configs, "spark.driver.extraJavaOptions", sparkCheckpointTempRewrite, " ");
     prependConfig(configs, "spark.executor.extraJavaOptions", sparkCheckpointTempRewrite, " ");
 
+    // Prepend the extra java opts
+    if (!Strings.isNullOrEmpty(jvmOpts)) {
+      prependConfig(configs, "spark.driver.extraJavaOptions", jvmOpts, " ");
+      prependConfig(configs, "spark.executor.extraJavaOptions", jvmOpts, " ");
+    }
+    prependConfig(configs, "spark.driver.extraJavaOptions", cConf.get(Constants.AppFabric.PROGRAM_JVM_OPTS), " ");
+    prependConfig(configs, "spark.executor.extraJavaOptions", cConf.get(Constants.AppFabric.PROGRAM_JVM_OPTS), " ");
+
     // CDAP-5854: On Windows * is a reserved character which cannot be used in paths. So adding the below to
     // classpaths will fail. Please see CDAP-5854.
     // In local mode spark program runs under the same jvm as cdap master and these jars will already be in the
@@ -609,10 +666,6 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
       // Set extraClasspath config by appending user specified extra classpath
       prependConfig(configs, "spark.driver.extraClassPath", extraClassPath, File.pathSeparator);
       prependConfig(configs, "spark.executor.extraClassPath", extraClassPath, File.pathSeparator);
-
-      // Prepend the extra java opts
-      prependConfig(configs, "spark.driver.extraJavaOptions", cConf.get(Constants.AppFabric.PROGRAM_JVM_OPTS), " ");
-      prependConfig(configs, "spark.executor.extraJavaOptions", cConf.get(Constants.AppFabric.PROGRAM_JVM_OPTS), " ");
     } else {
       // Only need to set this for local mode.
       // In distributed mode, Spark will not use this but instead use the yarn container directory.
@@ -622,7 +675,9 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
     // Add the spark listener for CDAP
     prependConfig(configs, "spark.extraListeners", DelegatingSparkListener.class.getName(), ",");
 
-    configs.put("spark.metrics.conf", metricsConfPath);
+    if (metricsConfPath != null) {
+      configs.put("spark.metrics.conf", metricsConfPath);
+    }
     SparkRuntimeUtils.setLocalizedResources(localizedResources.keySet(), configs);
 
     if (context.isPySpark()) {
@@ -670,12 +725,7 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
    * prepended to the existing value.
    */
   private void prependConfig(Map<String, String> configs, String key, String prepend, String separator) {
-    String existing = configs.get(key);
-    if (existing == null) {
-      configs.put(key, prepend);
-    } else {
-      configs.put(key, prepend + separator + existing);
-    }
+    configs.merge(key, prepend, (a, b) -> b + separator + a);
   }
 
   /**
@@ -730,7 +780,9 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
     }
     result.add(file);
 
-    URL pysparkURL = getClass().getClassLoader().getResource("pyspark/pyspark.zip");
+    String sparkVersion = SparkRuntimeEnv.getVersion();
+    URL pysparkURL = getClass().getClassLoader().getResource(
+        PYSPARK_BY_VERSION.floorEntry(sparkVersion).getValue());
     if (pysparkURL == null) {
       // This shouldn't happen
       throw new IOException("Failed to locate pyspark.zip, which is required to run PySpark");
@@ -1027,29 +1079,20 @@ final class SparkRuntimeService extends AbstractExecutionThreadService {
 
         default:
           // Unexpected, maybe due to version change in the BeanIntrospector, hence log a WARN.
-          LOG.warn("BeanIntrospector.ctorParamNamesCache is not a LoadingCache, may lead to memory leak in SDK." +
-                     "Field type is {}", field.getType());
+          LOG.warn("BeanIntrospector.ctorParamNamesCache is not a LoadingCache, may lead to memory leak in SDK."
+                     + "Field type is {}", field.getType());
       }
     } catch (NoSuchFieldException e) {
       // If there is no ctorParamNamesCache field, there is nothing to invalidate.
       // This is the case in jackson-module-scala_2.11-2.6.5 used by Spark 2.1.0
-      LOG.trace("No ctorParamNamesCache field in BeanIntrospector. " +
-                  "The current Spark version is not using a BeanIntrospector that has a param names loading cache.");
+      LOG.trace("No ctorParamNamesCache field in BeanIntrospector. "
+                  + "The current Spark version is not using a BeanIntrospector that has a param names loading cache.");
     } catch (ClassNotFoundException e) {
       // Catch the case when there is no BeanIntrospector class. It is ok since some Spark version may not be using it.
       LOG.debug("No BeanIntrospector class found. The current Spark version is not using BeanIntrospector.");
     } catch (Exception e) {
       LOG.warn("Failed to cleanup BeanIntrospector cache, may lead to memory leak in SDK.", e);
     }
-  }
-
-  /**
-   * Creates a {@link ListenableFuture} that is cancelled.
-   */
-  private <V> ListenableFuture<V> immediateCancelledFuture() {
-    SettableFuture<V> future = SettableFuture.create();
-    future.cancel(true);
-    return future;
   }
 
   /**

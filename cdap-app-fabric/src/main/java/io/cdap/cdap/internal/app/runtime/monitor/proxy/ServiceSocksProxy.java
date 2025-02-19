@@ -28,14 +28,13 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.socksx.SocksPortUnificationServerHandler;
 import io.netty.util.concurrent.ImmediateEventExecutor;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 import org.apache.twill.common.Threads;
 import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A SOCKS proxy service for proxying calls from remote runtime to CDAP services.
@@ -51,7 +50,7 @@ public class ServiceSocksProxy extends AbstractIdleService {
   private EventLoopGroup eventLoopGroup;
 
   public ServiceSocksProxy(DiscoveryServiceClient discoveryServiceClient,
-                           ServiceSocksProxyAuthenticator authenticator) {
+      ServiceSocksProxyAuthenticator authenticator) {
     this.discoveryServiceClient = discoveryServiceClient;
     this.authenticator = authenticator;
   }
@@ -72,20 +71,21 @@ public class ServiceSocksProxy extends AbstractIdleService {
     ServerBootstrap bootstrap = new ServerBootstrap();
 
     // We don't perform any blocking task in the proxy, only IO relying, hence doesn't need large amount of threads.
-    eventLoopGroup = new NioEventLoopGroup(10, Threads.createDaemonThreadFactory("service-socks-proxy-%d"));
+    eventLoopGroup = new NioEventLoopGroup(10,
+        Threads.createDaemonThreadFactory("service-socks-proxy-%d"));
     bootstrap
-      .group(eventLoopGroup)
-      .channel(NioServerSocketChannel.class)
-      .childHandler(new ChannelInitializer<SocketChannel>() {
-        @Override
-        protected void initChannel(SocketChannel ch) {
-          channelGroup.add(ch);
+        .group(eventLoopGroup)
+        .channel(NioServerSocketChannel.class)
+        .childHandler(new ChannelInitializer<SocketChannel>() {
+          @Override
+          protected void initChannel(SocketChannel ch) {
+            channelGroup.add(ch);
 
-          ch.pipeline()
-            .addLast(new SocksPortUnificationServerHandler())
-            .addLast(new ServiceSocksServerHandler(discoveryServiceClient, authenticator));
-        }
-      });
+            ch.pipeline()
+                .addLast(new SocksPortUnificationServerHandler())
+                .addLast(new ServiceSocksServerHandler(discoveryServiceClient, authenticator));
+          }
+        });
 
     Channel serverChannel = bootstrap.bind(InetAddress.getLoopbackAddress(), 0).sync().channel();
     bindAddress = (InetSocketAddress) serverChannel.localAddress();

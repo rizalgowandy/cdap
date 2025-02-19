@@ -18,7 +18,6 @@ package io.cdap.cdap.app.runtime.spark
 
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.{lang, util}
-
 import io.cdap.cdap.api.TxRunnable
 import io.cdap.cdap.api.data.batch.Split
 import io.cdap.cdap.api.lineage.field.Operation
@@ -30,6 +29,7 @@ import io.cdap.cdap.api.spark.dynamic.SparkInterpreter
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
+import java.util.Optional
 import scala.reflect.ClassTag
 
 /**
@@ -102,6 +102,8 @@ class SerializableSparkExecutionContext(val delegate: SparkExecutionContext) ext
 
   override def getLogicalStartTime = delegate.getLogicalStartTime
 
+  override def getTerminationTime = delegate.getTerminationTime
+
   override def getSpecification = delegate.getSpecification
 
   override def readExternal(in: ObjectInput) = {
@@ -118,6 +120,18 @@ class SerializableSparkExecutionContext(val delegate: SparkExecutionContext) ext
 
   override def getMetadata(scope: MetadataScope, metadataEntity: MetadataEntity): Metadata = {
     return delegate.getMetadata(scope, metadataEntity);
+  }
+
+  override def getState(key: String): Optional[Array[Byte]] = {
+    return delegate.getState(key);
+  }
+
+  override def saveState(key: String, value: Array[Byte]): Unit = {
+    delegate.saveState(key, value);
+  }
+
+  override def deleteState(key: String): Unit = {
+    delegate.deleteState(key);
   }
 
   override def addProperties(metadataEntity: MetadataEntity, properties: util.Map[String, String]) = {

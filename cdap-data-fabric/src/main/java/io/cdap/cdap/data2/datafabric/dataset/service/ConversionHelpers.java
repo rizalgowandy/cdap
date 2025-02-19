@@ -34,7 +34,6 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.handler.codec.http.FullHttpRequest;
-
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -63,7 +62,8 @@ class ConversionHelpers {
     }
   }
 
-  static DatasetTypeId toDatasetTypeId(String namespace, String typeName) throws BadRequestException {
+  static DatasetTypeId toDatasetTypeId(String namespace, String typeName)
+      throws BadRequestException {
     try {
       return new DatasetTypeId(namespace, typeName);
     } catch (IllegalArgumentException | NullPointerException e) {
@@ -71,7 +71,8 @@ class ConversionHelpers {
     }
   }
 
-  static DatasetTypeId toDatasetTypeId(NamespaceId namespace, String typeName) throws BadRequestException {
+  static DatasetTypeId toDatasetTypeId(NamespaceId namespace, String typeName)
+      throws BadRequestException {
     try {
       return new DatasetTypeId(namespace.getNamespace(), typeName);
     } catch (IllegalArgumentException | NullPointerException e) {
@@ -79,7 +80,8 @@ class ConversionHelpers {
     }
   }
 
-  static List<? extends EntityId> strings2ProgramIds(List<String> strings) throws BadRequestException {
+  static List<? extends EntityId> strings2ProgramIds(List<String> strings)
+      throws BadRequestException {
     try {
       return Lists.transform(strings, new Function<String, EntityId>() {
         @Nullable
@@ -96,23 +98,28 @@ class ConversionHelpers {
     }
   }
 
-  static Collection<DatasetSpecificationSummary> spec2Summary(Collection<DatasetSpecification> specs) {
+  static Collection<DatasetSpecificationSummary> spec2Summary(
+      Collection<DatasetSpecification> specs) {
     List<DatasetSpecificationSummary> datasetSummaries = Lists.newArrayList();
     for (DatasetSpecification spec : specs) {
       // TODO: (CDAP-3097) handle system datasets specially within a namespace instead of filtering them out
       // by the handler. This filter is only in the list endpoint because the other endpoints are used by
       // HBaseQueueAdmin through DatasetFramework.
       spec = DatasetsUtil.fixOriginalProperties(spec);
-      datasetSummaries.add(new DatasetSpecificationSummary(spec.getName(), spec.getType(), spec.getDescription(),
-                                                           spec.getOriginalProperties()));
+      datasetSummaries.add(
+          new DatasetSpecificationSummary(spec.getName(), spec.getType(), spec.getDescription(),
+              spec.getOriginalProperties()));
     }
     return datasetSummaries;
   }
 
-  static DatasetInstanceConfiguration getInstanceConfiguration(FullHttpRequest request) throws BadRequestException {
-    Reader reader = new InputStreamReader(new ByteBufInputStream(request.content()), StandardCharsets.UTF_8);
+  static DatasetInstanceConfiguration getInstanceConfiguration(FullHttpRequest request)
+      throws BadRequestException {
+    Reader reader = new InputStreamReader(new ByteBufInputStream(request.content()),
+        StandardCharsets.UTF_8);
     try {
-      DatasetInstanceConfiguration config = GSON.fromJson(reader, DatasetInstanceConfiguration.class);
+      DatasetInstanceConfiguration config = GSON.fromJson(reader,
+          DatasetInstanceConfiguration.class);
       Preconditions.checkNotNull(config.getTypeName(), "The typeName must be specified.");
       return config;
     } catch (JsonSyntaxException | NullPointerException e) {
@@ -121,7 +128,8 @@ class ConversionHelpers {
   }
 
   static Map<String, String> getProperties(FullHttpRequest request) throws BadRequestException {
-    Reader reader = new InputStreamReader(new ByteBufInputStream(request.content()), StandardCharsets.UTF_8);
+    Reader reader = new InputStreamReader(new ByteBufInputStream(request.content()),
+        StandardCharsets.UTF_8);
     try {
       return GSON.fromJson(reader, new TypeToken<Map<String, String>>() {
       }.getType());

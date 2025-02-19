@@ -16,26 +16,22 @@
 
 package io.cdap.cdap.common.lang;
 
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import io.cdap.cdap.api.app.Application;
 import io.cdap.cdap.api.service.SystemServiceConfigurer;
 import io.cdap.cdap.common.internal.guava.ClassPath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.cdap.cdap.common.internal.guava.ClassPath.ResourceInfo;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URL;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import javax.ws.rs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helper class to maintain list of resources that are visible to user programs.
@@ -46,14 +42,7 @@ public final class ProgramResources {
 
   private static final List<String> HADOOP_PACKAGES = ImmutableList.of("org.apache.hadoop.");
   private static final List<String> EXCLUDE_PACKAGES = ImmutableList.of("org.apache.hadoop.hbase.",
-                                                                        "org.apache.hadoop.hive.");
-
-  private static final Predicate<URI> JAR_ONLY_URI = new Predicate<URI>() {
-    @Override
-    public boolean apply(URI input) {
-      return input.getPath().endsWith(".jar");
-    }
-  };
+      "org.apache.hadoop.hive.");
 
   // Contains set of resources that are always visible to all program type.
   private static Set<String> baseResources;
@@ -69,15 +58,15 @@ public final class ProgramResources {
       baseResources = createBaseResources();
     } catch (IOException e) {
       LOG.error("Failed to determine base visible resources to user program", e);
-      baseResources = ImmutableSet.of();
+      baseResources = Collections.emptySet();
     }
     return baseResources;
   }
 
   /**
-   * Returns a Set of resources name that are visible through the cdap-api module as well as Hadoop classes.
-   * This includes all classes+resources in cdap-api plus all classes+resources that cdap-api
-   * depends on (for example, sl4j, gson, etc).
+   * Returns a Set of resources name that are visible through the cdap-api module as well as Hadoop
+   * classes. This includes all classes+resources in cdap-api plus all classes+resources that
+   * cdap-api depends on (for example, sl4j, gson, etc).
    */
   private static Set<String> createBaseResources() throws IOException {
     // Everything should be traceable in the same ClassLoader of this class, which is the CDAP system ClassLoader
@@ -86,33 +75,37 @@ public final class ProgramResources {
     // Gather resources information for cdap-api classes
     // Add everything in cdap-api as visible resources
     // Trace dependencies for cdap-api classes
-    Set<String> result = ClassPathResources.getResourcesWithDependencies(classLoader, Application.class);
-    result.addAll(ClassPathResources.getResourcesWithDependencies(classLoader, SystemServiceConfigurer.class));
+    Set<String> result = ClassPathResources.getResourcesWithDependencies(classLoader,
+        Application.class);
+    result.addAll(ClassPathResources.getResourcesWithDependencies(classLoader,
+        SystemServiceConfigurer.class));
 
     // Gather resources for javax.ws.rs classes. They are not traceable from the api classes.
-    Iterables.addAll(result, Iterables.transform(ClassPathResources.getClassPathResources(classLoader, Path.class),
-                                                 ClassPathResources.RESOURCE_INFO_TO_RESOURCE_NAME));
+    ClassPathResources.getClassPathResources(classLoader, Path.class).stream()
+        .map(ResourceInfo::getResourceName)
+        .forEach(result::add);
 
     // Gather Hadoop classes and resources
-    getResources(ClassPath.from(classLoader, JAR_ONLY_URI),
-                 HADOOP_PACKAGES, EXCLUDE_PACKAGES, ClassPathResources.RESOURCE_INFO_TO_RESOURCE_NAME, result);
+    getResources(ClassPath.from(classLoader, uri -> uri.getPath().endsWith(".jar")),
+        HADOOP_PACKAGES, EXCLUDE_PACKAGES, ResourceInfo::getResourceName,
+        result);
 
     return Collections.unmodifiableSet(result);
   }
 
   /**
-   * Finds all resources that are accessible in a given {@link ClassPath} that starts with certain package prefixes.
-   * Also includes all non .class file resources in the same base URLs of those classes that are accepted through
-   * the package prefixes filtering.
+   * Finds all resources that are accessible in a given {@link ClassPath} that starts with certain
+   * package prefixes. Also includes all non .class file resources in the same base URLs of those
+   * classes that are accepted through the package prefixes filtering.
    *
-   * Resources information presented in the result collection is transformed by the given result transformation
-   * function.
+   * Resources information presented in the result collection is transformed by the given result
+   * transformation function.
    */
   private static <V, T extends Collection<V>> T getResources(ClassPath classPath,
-                                                             Iterable<String> includePackagePrefixes,
-                                                             Iterable<String> excludePackagePrefixes,
-                                                             Function<ClassPath.ResourceInfo, V> resultTransform,
-                                                             final T result) throws IOException {
+      Iterable<String> includePackagePrefixes,
+      Iterable<String> excludePackagePrefixes,
+      Function<ResourceInfo, V> resultTransform,
+      T result) {
     Set<URL> resourcesBaseURLs = new HashSet<>();
     // Adds all .class resources that should be included
     // Also record the base URL of those resources

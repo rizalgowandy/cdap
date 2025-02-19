@@ -16,6 +16,11 @@
 
 package io.cdap.cdap.internal.app.runtime.batch;
 
+import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.INPUT_DATASET;
+import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.OUTPUT_DATASET;
+import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.OUTPUT_PARTITION_KEY;
+import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.SCHEMA;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -35,6 +40,15 @@ import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.test.XSlowTests;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.Nullable;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumReader;
@@ -47,21 +61,6 @@ import org.apache.twill.filesystem.Location;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.annotation.Nullable;
-
-import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.INPUT_DATASET;
-import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.OUTPUT_DATASET;
-import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.OUTPUT_PARTITION_KEY;
-import static io.cdap.cdap.internal.app.runtime.batch.AppWithMapReduceUsingAvroDynamicPartitioner.SCHEMA;
 
 /**
  * This tests that we can use DynamicPartitioner with a PartitionedFileSet using
@@ -79,12 +78,12 @@ public class DynamicPartitionerWithAvroTest extends MapReduceRunnerTestBase {
 
   @Test
   public void testMultiWriter() throws Exception {
-    runDynamicPartitionerMR(ORDERED_RECORDS, true, true);
+    runDynamicPartitionerMr(ORDERED_RECORDS, true, true);
   }
 
   @Test
   public void testSingleWriter() throws Exception {
-    runDynamicPartitionerMR(ORDERED_RECORDS, false, true);
+    runDynamicPartitionerMr(ORDERED_RECORDS, false, true);
   }
 
   @Test
@@ -96,24 +95,24 @@ public class DynamicPartitionerWithAvroTest extends MapReduceRunnerTestBase {
                        createRecord("john", 84125));
     // the input data is not ordered by output partition and its limiting to a single writer,
     // so we expect this job to fail
-    runDynamicPartitionerMR(records, false, false);
+    runDynamicPartitionerMr(records, false, false);
   }
 
   @Test
   public void testPartitionAppend() throws Exception {
-    runDynamicPartitionerMR(ORDERED_RECORDS, true, true,
+    runDynamicPartitionerMr(ORDERED_RECORDS, true, true,
                             DynamicPartitioner.PartitionWriteOption.CREATE_OR_APPEND, true);
   }
 
   @Test
   public void testPartitionAppendWhenNotConfigured() throws Exception {
     // partition will exist beforehand, but the append option is not configured; hence the job is expected to fail
-    runDynamicPartitionerMR(ORDERED_RECORDS, true, true, DynamicPartitioner.PartitionWriteOption.CREATE, false);
+    runDynamicPartitionerMr(ORDERED_RECORDS, true, true, DynamicPartitioner.PartitionWriteOption.CREATE, false);
   }
 
   @Test
   public void testPartitionOverwrite() throws Exception {
-    runDynamicPartitionerMR(ORDERED_RECORDS, true, true,
+    runDynamicPartitionerMr(ORDERED_RECORDS, true, true,
                             DynamicPartitioner.PartitionWriteOption.CREATE_OR_OVERWRITE, true);
   }
 
@@ -125,19 +124,19 @@ public class DynamicPartitionerWithAvroTest extends MapReduceRunnerTestBase {
     partitionOutput.addPartition();
   }
 
-  private void runDynamicPartitionerMR(final List<? extends GenericRecord> records,
+  private void runDynamicPartitionerMr(final List<? extends GenericRecord> records,
                                        boolean allowConcurrentWriters,
                                        boolean expectedStatus) throws Exception {
-    runDynamicPartitionerMR(records, allowConcurrentWriters, false, null, expectedStatus);
+    runDynamicPartitionerMr(records, allowConcurrentWriters, false, null, expectedStatus);
   }
 
-  private void runDynamicPartitionerMR(final List<? extends GenericRecord> records,
+  private void runDynamicPartitionerMr(final List<? extends GenericRecord> records,
                                        boolean allowConcurrentWriters,
                                        final boolean precreatePartitions,
                                        @Nullable final DynamicPartitioner.PartitionWriteOption partitionWriteOption,
                                        boolean expectedStatus) throws Exception {
     ApplicationWithPrograms app = deployApp(AppWithMapReduceUsingAvroDynamicPartitioner.class);
-
+    
     final long now = System.currentTimeMillis();
     final Multimap<PartitionKey, GenericRecord> keyToRecordsMap = groupByPartitionKey(records, now);
 
@@ -173,6 +172,10 @@ public class DynamicPartitionerWithAvroTest extends MapReduceRunnerTestBase {
     // run the partition writer m/r with this output partition time
     Map<String, String> arguments = new HashMap<>();
     arguments.put(OUTPUT_PARTITION_KEY, Long.toString(now));
+    // The test case and the output committer was written in hadoop 2, which followed older file output committer
+    // algorithm ( version 1 ). After upgrading to Hadoop 3, the default algorithm is version 2. So setting it manually
+    // to previous algorithm version to comply with with test.
+    arguments.put("system.mapreduce.mapreduce.fileoutputcommitter.algorithm.version", "1");
     arguments.put(allowConcurrencyKey, Boolean.toString(allowConcurrentWriters));
     if (partitionWriteOption != null) {
       arguments.put("partitionWriteOption", partitionWriteOption.name());
@@ -205,12 +208,13 @@ public class DynamicPartitionerWithAvroTest extends MapReduceRunnerTestBase {
             partitions.put(partition.getPartitionKey(), partition);
             // check that the mapreduce wrote the output partition metadata to all the output partitions
             Assert.assertEquals(getExpectedMetadata(precreatePartitions, partitionWriteOption),
-                                partition.getMetadata().asMap());
+                partition.getMetadata().asMap());
             // if files were precreated, and the option is to append, expect the empty file to exist
             // if partition write option is configured to overwrite, then the file is expected to not exist
             Location preexistingFile = partition.getLocation().append("file");
-            if (precreatePartitions &&
-              partitionWriteOption == DynamicPartitioner.PartitionWriteOption.CREATE_OR_APPEND) {
+            if (precreatePartitions
+                && partitionWriteOption
+                == DynamicPartitioner.PartitionWriteOption.CREATE_OR_APPEND) {
               Assert.assertTrue(preexistingFile.exists());
               try (InputStream inputStream = preexistingFile.getInputStream()) {
                 Assert.assertEquals(-1, inputStream.read());

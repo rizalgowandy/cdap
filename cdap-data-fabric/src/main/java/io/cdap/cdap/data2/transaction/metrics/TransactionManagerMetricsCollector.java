@@ -21,9 +21,8 @@ import com.google.inject.Provider;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.common.conf.Constants;
-import org.apache.tephra.metrics.TxMetricsCollector;
-
 import java.util.function.Supplier;
+import org.apache.tephra.metrics.TxMetricsCollector;
 
 /**
  * Implementation for TxMetricsCollector that delegate the the underlying {@link MetricsContext}.
@@ -51,7 +50,8 @@ public class TransactionManagerMetricsCollector extends TxMetricsCollector {
         MetricsContext context = this.context;
         if (context == null) {
           // The service.getContext already handle concurrent calls, so no need to synchronize here
-          this.context = context = serviceProvider.get().getContext(Constants.Metrics.TRANSACTION_MANAGER_CONTEXT);
+          this.context = context = serviceProvider.get()
+              .getContext(Constants.Metrics.TRANSACTION_MANAGER_CONTEXT);
         }
         return context;
       }
@@ -60,7 +60,7 @@ public class TransactionManagerMetricsCollector extends TxMetricsCollector {
 
   // todo: change TxMetricsCollector in Tephra
   @Override
-  public void gauge(String metricName, int value, String...tags) {
+  public void gauge(String metricName, int value, String... tags) {
     metricsContext.get().gauge(metricName, value);
   }
 

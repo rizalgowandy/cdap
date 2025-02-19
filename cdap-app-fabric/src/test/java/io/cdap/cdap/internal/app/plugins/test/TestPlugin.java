@@ -23,7 +23,6 @@ import io.cdap.cdap.api.annotation.MetadataProperty;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.plugin.PluginConfig;
-
 import java.util.concurrent.Callable;
 import javax.annotation.Nullable;
 
@@ -98,10 +97,10 @@ public class TestPlugin implements Callable<String> {
 
     @Override
     public String toString() {
-      return "AuthInfo{" +
-        "token='" + token + '\'' +
-        ", id='" + id + '\'' +
-        '}';
+      return "AuthInfo{"
+          + "token='" + token + '\''
+          + ", id='" + id + '\''
+          + '}';
     }
   }
 }

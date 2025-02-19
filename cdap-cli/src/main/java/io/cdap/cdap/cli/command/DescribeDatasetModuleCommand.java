@@ -32,7 +32,6 @@ import io.cdap.cdap.client.DatasetModuleClient;
 import io.cdap.cdap.proto.DatasetModuleMeta;
 import io.cdap.cdap.proto.id.DatasetModuleId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -44,7 +43,8 @@ public class DescribeDatasetModuleCommand extends AbstractAuthCommand {
   private final DatasetModuleClient datasetModuleClient;
 
   @Inject
-  public DescribeDatasetModuleCommand(DatasetModuleClient datasetModuleClient, CLIConfig cliConfig) {
+  public DescribeDatasetModuleCommand(DatasetModuleClient datasetModuleClient,
+      CLIConfig cliConfig) {
     super(cliConfig);
     this.datasetModuleClient = datasetModuleClient;
   }
@@ -52,20 +52,21 @@ public class DescribeDatasetModuleCommand extends AbstractAuthCommand {
   @Override
   public void perform(Arguments arguments, PrintStream output) throws Exception {
     DatasetModuleId moduleId = cliConfig.getCurrentNamespace().datasetModule(
-      arguments.get(ArgumentName.DATASET_MODULE.toString()));
+        arguments.get(ArgumentName.DATASET_MODULE.toString()));
     DatasetModuleMeta datasetModuleMeta = datasetModuleClient.get(moduleId);
 
     Table table = Table.builder()
-      .setHeader("name", "className", "jarLocationPath", "types", "usesModules", "usedByModules")
-      .setRows(ImmutableList.of(datasetModuleMeta), new RowMaker<DatasetModuleMeta>() {
-        @Override
-        public List<?> makeRow(DatasetModuleMeta object) {
-          return Lists.newArrayList(object.getName(), object.getClassName(), object.getJarLocationPath(),
-                                    Joiner.on(", ").join(object.getTypes()),
-                                    Joiner.on(", ").join(object.getUsesModules()),
-                                    Joiner.on(", ").join(object.getUsedByModules()));
-        }
-      }).build();
+        .setHeader("name", "className", "jarLocationPath", "types", "usesModules", "usedByModules")
+        .setRows(ImmutableList.of(datasetModuleMeta), new RowMaker<DatasetModuleMeta>() {
+          @Override
+          public List<?> makeRow(DatasetModuleMeta object) {
+            return Lists.newArrayList(object.getName(), object.getClassName(),
+                object.getJarLocationPath(),
+                Joiner.on(", ").join(object.getTypes()),
+                Joiner.on(", ").join(object.getUsesModules()),
+                Joiner.on(", ").join(object.getUsedByModules()));
+          }
+        }).build();
     cliConfig.getTableRenderer().render(cliConfig, output, table);
   }
 
@@ -77,6 +78,6 @@ public class DescribeDatasetModuleCommand extends AbstractAuthCommand {
   @Override
   public String getDescription() {
     return String.format("Describes %s",
-                         Fragment.of(Article.A, ElementType.DATASET_MODULE.getName()));
+        Fragment.of(Article.A, ElementType.DATASET_MODULE.getName()));
   }
 }

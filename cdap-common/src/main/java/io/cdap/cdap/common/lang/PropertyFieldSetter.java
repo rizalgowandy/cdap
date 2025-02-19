@@ -19,7 +19,6 @@ import com.google.common.base.Throwables;
 import com.google.common.reflect.TypeToken;
 import io.cdap.cdap.api.annotation.Property;
 import io.cdap.cdap.internal.lang.FieldVisitor;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
@@ -37,7 +36,8 @@ public final class PropertyFieldSetter extends FieldVisitor {
   }
 
   @Override
-  public void visit(Object instance, Type inspectType, Type declareType, Field field) throws Exception {
+  public void visit(Object instance, Type inspectType, Type declareType, Field field)
+      throws Exception {
     if (field.isAnnotationPresent(Property.class)) {
       String key = TypeToken.of(declareType).getRawType().getName() + '.' + field.getName();
       String value = properties.get(key);
@@ -49,8 +49,8 @@ public final class PropertyFieldSetter extends FieldVisitor {
   }
 
   /**
-   * Sets the value of the field in the given instance by converting the value from String to the field type.
-   * Currently only allows primitive types, boxed types, String and Enum.
+   * Sets the value of the field in the given instance by converting the value from String to the
+   * field type. Currently only allows primitive types, boxed types, String and Enum.
    */
   @SuppressWarnings("unchecked")
   private void setValue(Object instance, Field field, String value) throws IllegalAccessException {

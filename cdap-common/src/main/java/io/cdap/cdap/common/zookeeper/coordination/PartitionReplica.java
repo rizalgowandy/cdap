@@ -17,7 +17,6 @@ package io.cdap.cdap.common.zookeeper.coordination;
 
 import com.google.common.base.Objects;
 import com.google.common.primitives.Ints;
-
 import java.util.Comparator;
 
 /**
@@ -84,8 +83,8 @@ public final class PartitionReplica {
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
-      .add("partition", name)
-      .add("replica", replicaId)
-      .toString();
+        .add("partition", name)
+        .add("replica", replicaId)
+        .toString();
   }
 }

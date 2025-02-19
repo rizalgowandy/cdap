@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.api.join;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +27,7 @@ import java.util.Objects;
  */
 @Beta
 public class JoinKey {
+
   private final String stageName;
   private final List<String> fields;
 
@@ -53,8 +53,8 @@ public class JoinKey {
       return false;
     }
     JoinKey that = (JoinKey) o;
-    return Objects.equals(stageName, that.stageName) &&
-      Objects.equals(fields, that.fields);
+    return Objects.equals(stageName, that.stageName)
+        && Objects.equals(fields, that.fields);
   }
 
   @Override
@@ -64,9 +64,9 @@ public class JoinKey {
 
   @Override
   public String toString() {
-    return "JoinKey{" +
-      "stageName='" + stageName + '\'' +
-      ", fields=" + fields +
-      '}';
+    return "JoinKey{"
+        + "stageName='" + stageName + '\''
+        + ", fields=" + fields
+        + '}';
   }
 }

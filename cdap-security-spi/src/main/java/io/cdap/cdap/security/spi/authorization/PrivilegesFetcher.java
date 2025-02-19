@@ -18,11 +18,11 @@ package io.cdap.cdap.security.spi.authorization;
 
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.Privilege;
-
 import java.util.Set;
 
 /**
  * Fetches {@link Privilege privileges} of the specified {@link Principal}.
+ *
  * @deprecated Use {@link GrantFetcher}
  */
 @Deprecated

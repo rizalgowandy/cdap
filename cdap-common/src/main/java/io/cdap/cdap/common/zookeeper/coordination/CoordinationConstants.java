@@ -19,9 +19,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.common.io.Codec;
-import org.apache.twill.discovery.Discoverable;
-
 import java.io.IOException;
+import org.apache.twill.discovery.Discoverable;
 
 /**
  * Contains constants used by Resource Coordination service.
@@ -45,9 +44,9 @@ final class CoordinationConstants {
    * The GSON object for encode/decode various objects used by the resource coordination service.
    */
   private static final Gson GSON = new GsonBuilder()
-                              .registerTypeAdapter(ResourceAssignment.class, new ResourceAssignmentTypeAdapter())
-                              .registerTypeAdapter(Discoverable.class, new DiscoverableCodec())
-                              .create();
+      .registerTypeAdapter(ResourceAssignment.class, new ResourceAssignmentTypeAdapter())
+      .registerTypeAdapter(Discoverable.class, new DiscoverableCodec())
+      .create();
 
   /**
    * Codec for {@link ResourceRequirement}.

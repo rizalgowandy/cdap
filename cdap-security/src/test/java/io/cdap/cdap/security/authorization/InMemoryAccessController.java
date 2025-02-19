@@ -18,7 +18,6 @@ package io.cdap.cdap.security.authorization;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
-import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.proto.element.EntityType;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ArtifactId;
@@ -34,7 +33,6 @@ import io.cdap.cdap.security.spi.authorization.AlreadyExistsException;
 import io.cdap.cdap.security.spi.authorization.AuthorizationContext;
 import io.cdap.cdap.security.spi.authorization.NotFoundException;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -50,9 +48,6 @@ import javax.annotation.Nullable;
  */
 public class InMemoryAccessController implements AccessController {
 
-  private final ConcurrentMap<Authorizable, ConcurrentMap<Principal, Set<Permission>>> privileges =
-    new ConcurrentHashMap<>();
-  private final ConcurrentMap<Role, Set<Principal>> roleToPrincipals = new ConcurrentHashMap<>();
   private final Set<Principal> superUsers = new HashSet<>();
   // Bypass enforcement for tests that want to simulate every user as a super user
   private final Principal allSuperUsers = new Principal("*", Principal.PrincipalType.USER);
@@ -68,17 +63,16 @@ public class InMemoryAccessController implements AccessController {
     }
   }
 
+  @Override
+  public void enforceOnParent(EntityType entityType, EntityId parentId, Principal principal, Permission permission)
+    throws UnauthorizedException {
+    enforce(parentId, entityType, principal, Collections.singleton(permission));
+  }
 
   @Override
   public void enforce(EntityId entity, Principal principal, Set<? extends Permission> permissions)
     throws UnauthorizedException {
     enforce(entity, null, principal, permissions);
-  }
-
-  @Override
-  public void enforceOnParent(EntityType entityType, EntityId parentId, Principal principal, Permission permission)
-    throws UnauthorizedException {
-    enforce(parentId, entityType, principal, Collections.singleton(permission));
   }
 
   private void enforce(EntityId entity, @Nullable EntityType childType,
@@ -111,9 +105,10 @@ public class InMemoryAccessController implements AccessController {
     }
     Set<EntityId> results =  new HashSet<>();
     for (EntityId entityId : entityIds) {
-      for (Authorizable existingEntity : privileges.keySet()) {
+      for (Authorizable existingEntity : InMemoryPrivilegeHolder.getPrivileges().keySet()) {
         if (isParent(entityId, existingEntity.getEntityParts())) {
-          Set<? extends Permission> allowedPermissions = privileges.get(existingEntity).get(principal);
+          Set<? extends Permission> allowedPermissions = InMemoryPrivilegeHolder.getPrivileges()
+            .get(existingEntity).get(principal);
           if (allowedPermissions != null && !allowedPermissions.isEmpty()) {
             results.add(entityId);
             break;
@@ -136,24 +131,24 @@ public class InMemoryAccessController implements AccessController {
 
   @Override
   public void revoke(Authorizable authorizable) {
-    privileges.remove(authorizable);
+    InMemoryPrivilegeHolder.getPrivileges().remove(authorizable);
   }
 
   @Override
   public void createRole(Role role) throws AlreadyExistsException {
-    if (roleToPrincipals.containsKey(role)) {
+    if (InMemoryPrivilegeHolder.getRoleToPrincipals().containsKey(role)) {
       throw new AlreadyExistsException(role);
     }
     // NOTE: A concurrent put might happen, hence it should still result as RoleAlreadyExistsException.
     Set<Principal> principals = Collections.newSetFromMap(new ConcurrentHashMap<Principal, Boolean>());
-    if (roleToPrincipals.putIfAbsent(role, principals) != null) {
+    if (InMemoryPrivilegeHolder.getRoleToPrincipals().putIfAbsent(role, principals) != null) {
       throw new AlreadyExistsException(role);
     }
   }
 
   @Override
   public void dropRole(Role role) throws NotFoundException {
-    Set<Principal> removed = roleToPrincipals.remove(role);
+    Set<Principal> removed = InMemoryPrivilegeHolder.getRoleToPrincipals().remove(role);
     if (removed == null) {
       throw new NotFoundException(role);
     }
@@ -161,7 +156,7 @@ public class InMemoryAccessController implements AccessController {
 
   @Override
   public void addRoleToPrincipal(Role role, Principal principal) throws NotFoundException {
-    Set<Principal> principals = roleToPrincipals.get(role);
+    Set<Principal> principals = InMemoryPrivilegeHolder.getRoleToPrincipals().get(role);
     if (principals == null) {
       throw new NotFoundException(role);
     }
@@ -170,7 +165,7 @@ public class InMemoryAccessController implements AccessController {
 
   @Override
   public void removeRoleFromPrincipal(Role role, Principal principal) throws NotFoundException {
-    Set<Principal> principals = roleToPrincipals.get(role);
+    Set<Principal> principals = InMemoryPrivilegeHolder.getRoleToPrincipals().get(role);
     if (principals == null) {
       throw new NotFoundException(role);
     }
@@ -184,7 +179,7 @@ public class InMemoryAccessController implements AccessController {
 
   @Override
   public Set<Role> listAllRoles() {
-    return Collections.unmodifiableSet(roleToPrincipals.keySet());
+    return Collections.unmodifiableSet(InMemoryPrivilegeHolder.getRoleToPrincipals().keySet());
   }
 
   @Override
@@ -195,7 +190,7 @@ public class InMemoryAccessController implements AccessController {
 
     // privileges for the role to which this principal belongs to if its not a role
     if (principal.getType() != Principal.PrincipalType.ROLE) {
-      for (Role role : roleToPrincipals.keySet()) {
+      for (Role role : InMemoryPrivilegeHolder.getRoleToPrincipals().keySet()) {
         privileges.addAll(getPrivileges(role));
       }
     }
@@ -204,7 +199,8 @@ public class InMemoryAccessController implements AccessController {
 
   private Set<GrantedPermission> getPrivileges(Principal principal) {
     Set<GrantedPermission> result = new HashSet<>();
-    for (Map.Entry<Authorizable, ConcurrentMap<Principal, Set<Permission>>> entry : privileges.entrySet()) {
+    for (Map.Entry<Authorizable, ConcurrentMap<Principal, Set<Permission>>> entry :
+      InMemoryPrivilegeHolder.getPrivileges().entrySet()) {
       Authorizable authorizable = entry.getKey();
       Set<? extends Permission> permissions = getPermissions(authorizable, principal);
       for (Permission permission : permissions) {
@@ -223,11 +219,12 @@ public class InMemoryAccessController implements AccessController {
   }
 
   private Set<Permission> getPermissions(Authorizable authorizable, Principal principal) {
-    ConcurrentMap<Principal, Set<Permission>> allPermissions = privileges.get(authorizable);
+    ConcurrentMap<Principal, Set<Permission>> allPermissions =
+      InMemoryPrivilegeHolder.getPrivileges().get(authorizable);
     if (allPermissions == null) {
       allPermissions = new ConcurrentHashMap<>();
       ConcurrentMap<Principal, Set<Permission>> existingAllPermissions =
-        privileges.putIfAbsent(authorizable, allPermissions);
+        InMemoryPrivilegeHolder.getPrivileges().putIfAbsent(authorizable, allPermissions);
       allPermissions = (existingAllPermissions == null) ? allPermissions : existingAllPermissions;
     }
     Set<Permission> permissions = allPermissions.get(principal);
@@ -242,7 +239,7 @@ public class InMemoryAccessController implements AccessController {
 
   private Set<Role> getRoles(Principal principal) {
     Set<Role> roles = new HashSet<>();
-    for (Map.Entry<Role, Set<Principal>> roleSetEntry : roleToPrincipals.entrySet()) {
+    for (Map.Entry<Role, Set<Principal>> roleSetEntry : InMemoryPrivilegeHolder.getRoleToPrincipals().entrySet()) {
       if (roleSetEntry.getValue().contains(principal)) {
         roles.add(roleSetEntry.getKey());
       }
@@ -253,8 +250,8 @@ public class InMemoryAccessController implements AccessController {
   private boolean isParent(EntityId guessingParent, Map<EntityType, String> guessingChild) {
     Map<EntityType, String> questionedEntityParts = Authorizable.fromEntityId(guessingParent).getEntityParts();
     for (EntityType entityType : questionedEntityParts.keySet()) {
-      if (!(guessingChild.containsKey(entityType) &&
-        guessingChild.get(entityType).equals(questionedEntityParts.get(entityType)))) {
+      if (!(guessingChild.containsKey(entityType)
+          && guessingChild.get(entityType).equals(questionedEntityParts.get(entityType)))) {
         return false;
       }
     }
@@ -291,22 +288,22 @@ public class InMemoryAccessController implements AccessController {
       if (entityId.getEntityType().equals(EntityType.ARTIFACT)) {
         ArtifactId artifactId = (ArtifactId) entityId;
         ArtifactId thatArtifactId = (ArtifactId) thatEntityId;
-        return Objects.equals(artifactId.getNamespace(), thatArtifactId.getNamespace()) &&
-          Objects.equals(artifactId.getArtifact(), thatArtifactId.getArtifact());
+        return Objects.equals(artifactId.getNamespace(), thatArtifactId.getNamespace())
+            && Objects.equals(artifactId.getArtifact(), thatArtifactId.getArtifact());
       }
       if (entityId.getEntityType().equals(EntityType.APPLICATION)) {
         ApplicationId applicationId = (ApplicationId) entityId;
         ApplicationId thatApplicationId = (ApplicationId) thatEntityId;
-        return Objects.equals(applicationId.getNamespace(), thatApplicationId.getNamespace()) &&
-          Objects.equals(applicationId.getApplication(), thatApplicationId.getApplication());
+        return Objects.equals(applicationId.getNamespace(), thatApplicationId.getNamespace())
+            && Objects.equals(applicationId.getApplication(), thatApplicationId.getApplication());
       }
       if (entityId.getEntityType().equals(EntityType.PROGRAM)) {
         ProgramId programId = (ProgramId) entityId;
         ProgramId thatProgramId = (ProgramId) thatEntityId;
-        return Objects.equals(programId.getNamespace(), thatProgramId.getNamespace()) &&
-          Objects.equals(programId.getApplication(), thatProgramId.getApplication()) &&
-          Objects.equals(programId.getType(), thatProgramId.getType()) &&
-          Objects.equals(programId.getProgram(), thatProgramId.getProgram());
+        return Objects.equals(programId.getNamespace(), thatProgramId.getNamespace())
+            && Objects.equals(programId.getApplication(), thatProgramId.getApplication())
+            && Objects.equals(programId.getType(), thatProgramId.getType())
+            && Objects.equals(programId.getProgram(), thatProgramId.getProgram());
       }
       return Objects.equals(entityId, that.entityId);
     }

@@ -17,21 +17,18 @@
 package io.cdap.cdap.etl.api.join;
 
 import io.cdap.cdap.api.data.schema.Schema;
-import io.cdap.cdap.etl.api.Engine;
 import io.cdap.cdap.etl.api.join.error.JoinError;
 import io.cdap.cdap.etl.api.join.error.JoinKeyError;
 import io.cdap.cdap.etl.api.join.error.JoinKeyFieldError;
 import io.cdap.cdap.etl.api.join.error.OutputSchemaError;
 import io.cdap.cdap.etl.api.join.error.SelectedFieldError;
-import io.cdap.cdap.etl.api.validation.ValidationException;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for {@link JoinDefinition} and related builders.

@@ -18,21 +18,36 @@ package io.cdap.cdap.logging.gateway.handlers;
 
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.io.IOException;
 
 /**
  * Interface for fetching {@link RunRecordDetail}
  */
 public interface ProgramRunRecordFetcher {
+
   /**
    * Return {@link RunRecordDetail} for the given {@link ProgramRunId}
+   *
    * @param runId for which to fetch {@link RunRecordDetail}
    * @return {@link RunRecordDetail}
    * @throws IOException if failed to fetch the {@link RunRecordDetail}
    * @throws NotFoundException if the program or runid is not found
    */
-  RunRecordDetail getRunRecordMeta(ProgramRunId runId) throws IOException, NotFoundException, UnauthorizedException;
+  RunRecordDetail getRunRecordMeta(ProgramRunId runId)
+      throws IOException, NotFoundException, UnauthorizedException;
+
+  /**
+   * Return {@link RunRecordDetail} for the given {@link ProgramReference} and run id
+   *
+   * @param programRef for which to fetch {@link RunRecordDetail}
+   * @param runId for which to fetch {@link RunRecordDetail}
+   * @return {@link RunRecordDetail}
+   * @throws IOException if failed to fetch the {@link RunRecordDetail}
+   * @throws NotFoundException if the program or runid is not found
+   */
+  RunRecordDetail getRunRecordMeta(ProgramReference programRef, String runId)
+      throws IOException, NotFoundException, UnauthorizedException;
 }

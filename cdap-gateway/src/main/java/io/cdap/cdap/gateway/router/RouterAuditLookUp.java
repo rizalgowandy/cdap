@@ -26,9 +26,6 @@ import io.cdap.cdap.internal.asm.Classes;
 import io.cdap.http.HttpHandler;
 import io.cdap.http.internal.PatternPathRouterWithGroups;
 import io.netty.handler.codec.http.HttpMethod;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -45,6 +42,8 @@ import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class to match the request path to the audit log content that needs to be logged.
@@ -61,7 +60,7 @@ public final class RouterAuditLookUp {
   }
 
   private final PatternPathRouterWithGroups<AuditLogConfig> patternMatcher =
-    PatternPathRouterWithGroups.create(MAX_PARTS);
+      PatternPathRouterWithGroups.create(MAX_PARTS);
 
   private RouterAuditLookUp() {
     numberOfPaths = createMatcher();
@@ -70,7 +69,7 @@ public final class RouterAuditLookUp {
   @Nullable
   public AuditLogConfig getAuditLogContent(String path, HttpMethod httpMethod) throws Exception {
     List<PatternPathRouterWithGroups.RoutableDestination<AuditLogConfig>> destinations =
-      patternMatcher.getDestinations(path);
+        patternMatcher.getDestinations(path);
     for (PatternPathRouterWithGroups.RoutableDestination<AuditLogConfig> entry : destinations) {
       AuditLogConfig destination = entry.getDestination();
       if (destination.getHttpMethod().equals(httpMethod)) {
@@ -105,7 +104,7 @@ public final class RouterAuditLookUp {
 
         String methodPathStr = methodPath.value();
         String completePath = classPathStr.endsWith("/") || methodPathStr.startsWith("/")
-          ? classPathStr + methodPathStr : classPathStr + "/" + methodPathStr;
+            ? classPathStr + methodPathStr : classPathStr + "/" + methodPathStr;
         List<AuditDetail> auditContents = Arrays.asList(auditPolicy.value());
         List<String> headerNames = new ArrayList<>();
         if (auditContents.contains(AuditDetail.HEADERS)) {
@@ -122,9 +121,9 @@ public final class RouterAuditLookUp {
         }
 
         AuditLogConfig auditLogConfig = new AuditLogConfig(httpMethod,
-                                                           auditContents.contains(AuditDetail.REQUEST_BODY),
-                                                           auditContents.contains(AuditDetail.RESPONSE_BODY),
-                                                           headerNames);
+            auditContents.contains(AuditDetail.REQUEST_BODY),
+            auditContents.contains(AuditDetail.RESPONSE_BODY),
+            headerNames);
         LOG.trace("Audit log lookup: bootstrapped with path: {}", completePath);
         patternMatcher.add(completePath, auditLogConfig);
 

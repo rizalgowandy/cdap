@@ -19,12 +19,11 @@ package io.cdap.cdap.etl.api.batch;
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.workflow.WorkflowNodeState;
 import io.cdap.cdap.api.workflow.WorkflowToken;
-
 import java.util.Map;
 
 /**
- * Context for a batch action, giving access to whether the run was successful, the workflow token, and the state
- * of each phase in the workflow. This API is marked as beta and subject to change.
+ * Context for a batch action, giving access to whether the run was successful, the workflow token,
+ * and the state of each phase in the workflow. This API is marked as beta and subject to change.
  */
 @Beta
 public interface BatchActionContext extends BatchRuntimeContext {
@@ -35,14 +34,14 @@ public interface BatchActionContext extends BatchRuntimeContext {
   WorkflowToken getToken();
 
   /**
-   * Return an immutable {@link Map} of node ids to {@link WorkflowNodeState}. This can be used
-   * to determine the status of all pipeline phases executed in the current run.
+   * Return an immutable {@link Map} of node ids to {@link WorkflowNodeState}. This can be used to
+   * determine the status of all pipeline phases executed in the current run.
    */
   Map<String, WorkflowNodeState> getNodeStates();
 
   /**
-   * Return true if the execution was successful, false otherwise. This method can be
-   * used to determine the status of the pipeline run.
+   * Return true if the execution was successful, false otherwise. This method can be used to
+   * determine the status of the pipeline run.
    */
   boolean isSuccessful();
 }

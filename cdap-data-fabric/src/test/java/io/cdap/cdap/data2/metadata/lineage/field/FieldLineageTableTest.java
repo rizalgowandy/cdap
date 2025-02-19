@@ -29,17 +29,16 @@ import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.proto.metadata.lineage.ProgramRunOperations;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-import org.apache.twill.api.RunId;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.twill.api.RunId;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Test for storage and retrieval of the field lineage operations.
@@ -225,7 +224,7 @@ public abstract class FieldLineageTableTest {
     });
   }
 
-  private List<Operation> generateOperations(boolean addAditionalField) {
+  protected List<Operation> generateOperations(boolean addAditionalField) {
     // read: file -> (offset, body)
     // parse: (body) -> (first_name, last_name)
     // concat: (first_name, last_name) -> (name)

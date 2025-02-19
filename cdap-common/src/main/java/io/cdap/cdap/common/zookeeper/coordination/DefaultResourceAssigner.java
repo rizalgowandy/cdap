@@ -18,7 +18,6 @@ package io.cdap.cdap.common.zookeeper.coordination;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
-
 import java.util.Map;
 
 /**
@@ -34,7 +33,8 @@ final class DefaultResourceAssigner<T> implements ResourceAssigner<T> {
   /**
    * Constructor that takes the giving assignments as the current set of assignments.
    *
-   * @param assignments Currently set of assignments. This will get modified if any of the set methods are called.
+   * @param assignments Currently set of assignments. This will get modified if any of the set
+   *     methods are called.
    */
   static <T> ResourceAssigner<T> create(Multimap<T, PartitionReplica> assignments) {
     return new DefaultResourceAssigner<>(assignments);

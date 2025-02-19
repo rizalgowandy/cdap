@@ -29,6 +29,15 @@ import io.cdap.cdap.proto.SystemServiceLiveInfo;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequestConfig;
 import io.cdap.common.http.HttpRequests;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.StreamSupport;
 import org.apache.twill.api.ResourceReport;
 import org.apache.twill.api.TwillController;
 import org.apache.twill.api.TwillRunResources;
@@ -39,16 +48,6 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.apache.twill.discovery.ServiceDiscovered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 /**
  * An abstract base class to provide common implementation for the {@link MasterServiceManager}.
@@ -65,8 +64,9 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
   private final TwillRunner twillRunner;
   private final int serviceTimeoutSeconds;
 
-  protected AbstractMasterServiceManager(CConfiguration cConf, DiscoveryServiceClient discoveryClient,
-                                         String serviceName, TwillRunner twillRunner) {
+  protected AbstractMasterServiceManager(CConfiguration cConf,
+      DiscoveryServiceClient discoveryClient,
+      String serviceName, TwillRunner twillRunner) {
     this.cConf = cConf;
     this.discoveryClient = discoveryClient;
     this.serviceName = serviceName;
@@ -80,7 +80,7 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
   /**
    * Returns the {@link CConfiguration}.
    */
-  protected final CConfiguration getCConf() {
+  protected final CConfiguration getCconf() {
     return cConf;
   }
 
@@ -97,8 +97,10 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
     ServiceDiscovered serviceDiscovered = discoveryClient.discover(serviceName);
     // Block to wait for some endpoint to be available. This is just to compensate initialization.
     // Calls after the first discovery will return immediately.
-    new RandomEndpointStrategy(() -> serviceDiscovered).pick(serviceTimeoutSeconds, TimeUnit.SECONDS);
-    return StreamSupport.stream(serviceDiscovered.spliterator(), false).anyMatch(this::isEndpointAlive);
+    new RandomEndpointStrategy(() -> serviceDiscovered).pick(serviceTimeoutSeconds,
+        TimeUnit.SECONDS);
+    return StreamSupport.stream(serviceDiscovered.spliterator(), false)
+        .anyMatch(this::isEndpointAlive);
   }
 
   @Override
@@ -111,18 +113,19 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
       }
 
       ResourceReport resourceReport = twillController.getResourceReport();
-      Collection<TwillRunResources> runResources = resourceReport.getResources().getOrDefault(getTwillRunnableName(),
-                                                                                              Collections.emptyList());
+      Collection<TwillRunResources> runResources = resourceReport.getResources()
+          .getOrDefault(getTwillRunnableName(),
+              Collections.emptyList());
       for (TwillRunResources resources : runResources) {
         Containers.ContainerInfo containerInfo = new Containers.ContainerInfo(
-          Containers.ContainerType.SYSTEM_SERVICE,
-          getTwillRunnableName(),
-          resources.getInstanceId(),
-          resources.getContainerId(),
-          resources.getHost(),
-          resources.getMemoryMB(),
-          resources.getVirtualCores(),
-          resources.getDebugPort());
+            Containers.ContainerType.SYSTEM_SERVICE,
+            getTwillRunnableName(),
+            resources.getInstanceId(),
+            resources.getContainerId(),
+            resources.getHost(),
+            resources.getMemoryMB(),
+            resources.getVirtualCores(),
+            resources.getDebugPort());
         builder.addContainer(containerInfo);
       }
     }
@@ -147,12 +150,14 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
   public boolean setInstances(int instanceCount) {
     Preconditions.checkArgument(instanceCount > 0);
     try {
-      for (TwillController twillController : twillRunner.lookup(Constants.Service.MASTER_SERVICES)) {
+      for (TwillController twillController : twillRunner.lookup(
+          Constants.Service.MASTER_SERVICES)) {
         twillController.changeInstances(getTwillRunnableName(), instanceCount).get();
       }
       return true;
     } catch (Throwable t) {
-      LOG.error("Could not change service instance of {} : {}", getTwillRunnableName(), t.getMessage(), t);
+      LOG.error("Could not change service instance of {} : {}", getTwillRunnableName(),
+          t.getMessage(), t);
       return false;
     }
   }
@@ -169,7 +174,8 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
   public void restartInstances(int instanceId, int... moreInstanceIds) {
     for (TwillController twillController : twillRunner.lookup(Constants.Service.MASTER_SERVICES)) {
       // Call restart instances
-      Futures.getUnchecked(twillController.restartInstances(getTwillRunnableName(), instanceId, moreInstanceIds));
+      Futures.getUnchecked(
+          twillController.restartInstances(getTwillRunnableName(), instanceId, moreInstanceIds));
     }
   }
 
@@ -186,19 +192,21 @@ public abstract class AbstractMasterServiceManager implements MasterServiceManag
     for (TwillController twillController : twillRunner.lookup(Constants.Service.MASTER_SERVICES)) {
       // Call reset log levels
       Futures.getUnchecked(twillController.resetRunnableLogLevels(getTwillRunnableName(),
-                                                                  loggerNames.toArray(new String[0])));
+          loggerNames.toArray(new String[0])));
     }
   }
 
   private boolean isEndpointAlive(Discoverable discoverable) {
     try {
-      URL url = URIScheme.createURI(discoverable, "/ping").toURL();
-      int responseCode = HttpRequests.execute(HttpRequest.get(url).build(), httpRequestConfig).getResponseCode();
+      URL url = URIScheme.createURI(discoverable, "%s", "/ping").toURL();
+      int responseCode = HttpRequests.execute(HttpRequest.get(url).build(), httpRequestConfig)
+          .getResponseCode();
       if (responseCode == HttpURLConnection.HTTP_OK) {
         return true;
       }
     } catch (IOException e) {
-      OUTAGE_LOG.warn("Failed to ping endpoint from discoverable {} for service {}", discoverable, serviceName, e);
+      OUTAGE_LOG.warn("Failed to ping endpoint from discoverable {} for service {}", discoverable,
+          serviceName, e);
     }
     return false;
   }

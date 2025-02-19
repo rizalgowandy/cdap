@@ -27,9 +27,7 @@ import io.cdap.cdap.api.dataset.table.Table;
 import io.cdap.cdap.api.plugin.PluginClass;
 import io.cdap.cdap.etl.api.batch.BatchSink;
 import io.cdap.cdap.etl.api.batch.BatchSinkContext;
-import io.cdap.cdap.etl.api.batch.BatchSource;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.Collections;
 
 
@@ -58,12 +56,13 @@ public class IncapableSink extends BatchSink<StructuredRecord, byte[], Put> {
 
   private static PluginClass getPluginClass() {
     return PluginClass.builder()
-      .setName(IncapableSink.NAME)
-      .setType(BatchSink.PLUGIN_TYPE)
-      .setDescription("")
-      .setClassName(IncapableSink.class.getName())
-      .setRequirements(new io.cdap.cdap.api.plugin.Requirements(ImmutableSet.of(Table.TYPE, KeyValueTable.TYPE)))
-      .build();
+        .setName(IncapableSink.NAME)
+        .setType(BatchSink.PLUGIN_TYPE)
+        .setDescription("")
+        .setClassName(IncapableSink.class.getName())
+        .setRequirements(new io.cdap.cdap.api.plugin.Requirements(
+            ImmutableSet.of(Table.TYPE, KeyValueTable.TYPE)))
+        .build();
   }
 }
 

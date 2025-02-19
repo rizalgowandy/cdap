@@ -17,7 +17,6 @@
 package io.cdap.cdap.app.runtime.spark;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.Service;
@@ -26,6 +25,7 @@ import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import com.google.inject.util.Modules;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.metadata.MetadataReader;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
@@ -53,6 +53,7 @@ import io.cdap.cdap.data.ProgramContextAware;
 import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.BasicProgramContext;
 import io.cdap.cdap.internal.app.runtime.ProgramClassLoader;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
@@ -67,9 +68,12 @@ import io.cdap.cdap.logging.appender.LogAppenderInitializer;
 import io.cdap.cdap.master.environment.MasterEnvironments;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import io.cdap.cdap.security.auth.TokenManager;
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
+import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
 import org.apache.hadoop.conf.Configuration;
@@ -78,7 +82,6 @@ import org.apache.tephra.TransactionSystemClient;
 import org.apache.twill.api.ServiceAnnouncer;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.apache.twill.discovery.ZKDiscoveryService;
 import org.apache.twill.filesystem.LocationFactory;
 import org.apache.twill.kafka.client.KafkaClientService;
@@ -154,8 +157,8 @@ public final class SparkRuntimeContextProvider {
         }
         runtimeClassLoader = ((ClassLoader) getParentLoader.invoke(runtimeClassLoader)).getParent();
       } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassCastException e) {
-        LOG.warn("Unable to get the CDAP runtime classloader from {}. " +
-                   "Spark program may not be running correctly if {} is being used.",
+        LOG.warn("Unable to get the CDAP runtime classloader from {}. "
+                   + "Spark program may not be running correctly if {} is being used.",
                  EXECUTOR_CLASSLOADER_NAME, SparkInterpreter.class.getName(), e);
       }
     }
@@ -207,6 +210,13 @@ public final class SparkRuntimeContextProvider {
 
       LogAppenderInitializer logAppenderInitializer = injector.getInstance(LogAppenderInitializer.class);
       logAppenderInitializer.initialize();
+
+      // For spark running natively on k8s, we may need to initialize the TokenManager for internal identity.
+      if (clusterMode == ClusterMode.ON_PREMISE && SecurityUtil.isInternalAuthEnabled(cConf)) {
+        TokenManager tokenManager = injector.getInstance(TokenManager.class);
+        tokenManager.startAndWait();
+      }
+
       SystemArguments.setLogLevel(programOptions.getUserArguments(), logAppenderInitializer);
 
       ProxySelector oldProxySelector = ProxySelector.getDefault();
@@ -257,8 +267,8 @@ public final class SparkRuntimeContextProvider {
       // Constructor the DatasetFramework
       DatasetFramework datasetFramework = injector.getInstance(DatasetFramework.class);
       WorkflowProgramInfo workflowInfo = contextConfig.getWorkflowProgramInfo();
-      DatasetFramework programDatasetFramework = workflowInfo == null ?
-        datasetFramework :
+      DatasetFramework programDatasetFramework = workflowInfo == null
+        ? datasetFramework :
         NameMappedDatasetFramework.createFromWorkflowProgramInfo(datasetFramework, workflowInfo,
                                                                  contextConfig.getApplicationSpecification());
       // Setup dataset framework context, if required
@@ -292,7 +302,8 @@ public final class SparkRuntimeContextProvider {
         injector.getInstance(NamespaceQueryAdmin.class),
         injector.getInstance(FieldLineageWriter.class),
         injector.getInstance(RemoteClientFactory.class),
-        closeable);
+        closeable,
+        injector.getInstance(AppStateStoreProvider.class));
       LoggingContextAccessor.setLoggingContext(sparkRuntimeContext.getLoggingContext());
       return sparkRuntimeContext;
     } catch (Exception e) {
@@ -333,7 +344,7 @@ public final class SparkRuntimeContextProvider {
     File programDir = new File(PROGRAM_JAR_EXPANDED_NAME);
 
     ClassLoader parentClassLoader = new FilterClassLoader(SparkRuntimeContextProvider.class.getClassLoader(),
-                                                          SparkResourceFilters.SPARK_PROGRAM_CLASS_LOADER_FILTER);
+                                                          new SparkResourceFilter());
     ClassLoader classLoader = new ProgramClassLoader(cConf, programDir, parentClassLoader);
 
     return new DefaultProgram(new ProgramDescriptor(contextConfig.getProgramId(),
@@ -358,7 +369,11 @@ public final class SparkRuntimeContextProvider {
     String runId = programOptions.getArguments().getOption(ProgramOptionConstants.RUN_ID);
 
     List<Module> modules = new ArrayList<>();
-    modules.add(new DistributedProgramContainerModule(cConf, hConf, programId.run(runId), programOptions));
+    Module programModule = Modules.override(
+            new DistributedProgramContainerModule(cConf, hConf,
+                programId.run(runId), programOptions))
+        .with(new AuthorizationEnforcementModule().getAllowlistModules());
+    modules.add(programModule);
 
     ClusterMode clusterMode = ProgramRunners.getClusterMode(programOptions);
     modules.add(clusterMode == ClusterMode.ON_PREMISE ? new DistributedArtifactManagerModule() : new AbstractModule() {

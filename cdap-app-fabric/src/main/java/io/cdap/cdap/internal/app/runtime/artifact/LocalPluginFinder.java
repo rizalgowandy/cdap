@@ -26,7 +26,6 @@ import io.cdap.cdap.common.ArtifactNotFoundException;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginNotExistsException;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -44,15 +43,17 @@ public class LocalPluginFinder implements PluginFinder {
 
   @Override
   public Map.Entry<ArtifactDescriptor, PluginClass> findPlugin(NamespaceId pluginNamespaceId,
-                                                               ArtifactId parentArtifactId,
-                                                               String pluginType, String pluginName,
-                                                               PluginSelector selector)
-    throws PluginNotExistsException {
+      ArtifactId parentArtifactId,
+      String pluginType, String pluginName,
+      PluginSelector selector)
+      throws PluginNotExistsException {
     try {
-      ArtifactRange parentRange = new ArtifactRange(parentArtifactId.getNamespace(), parentArtifactId.getArtifact(),
-                                                    new ArtifactVersion(parentArtifactId.getVersion()), true,
-                                                    new ArtifactVersion(parentArtifactId.getVersion()), true);
-      return artifactRepository.findPlugin(pluginNamespaceId, parentRange, pluginType, pluginName, selector);
+      ArtifactRange parentRange = new ArtifactRange(parentArtifactId.getNamespace(),
+          parentArtifactId.getArtifact(),
+          new ArtifactVersion(parentArtifactId.getVersion()), true,
+          new ArtifactVersion(parentArtifactId.getVersion()), true);
+      return artifactRepository.findPlugin(pluginNamespaceId, parentRange, pluginType, pluginName,
+          selector);
     } catch (IOException | ArtifactNotFoundException e) {
       // If there is error accessing artifact store or if the parent artifact is missing, just propagate
       throw Throwables.propagate(e);

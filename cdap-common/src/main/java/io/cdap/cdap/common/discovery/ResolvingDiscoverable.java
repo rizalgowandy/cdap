@@ -15,12 +15,11 @@
  */
 package io.cdap.cdap.common.discovery;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import org.apache.twill.discovery.Discoverable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 
 /**
  * Discoverable that resolves 0.0.0.0 to a routable interface.
@@ -49,7 +48,8 @@ public class ResolvingDiscoverable extends Discoverable {
     try {
       // If domain of bindAddress is not resolvable, address of bindAddress is null.
       if (bindAddress.getAddress() != null && bindAddress.getAddress().isAnyLocalAddress()) {
-        return new InetSocketAddress(InetAddress.getLocalHost().getHostName(), bindAddress.getPort());
+        return new InetSocketAddress(InetAddress.getLocalHost().getHostName(),
+            bindAddress.getPort());
       }
     } catch (Exception e) {
       LOG.warn("Unable to resolve bindAddress", e);

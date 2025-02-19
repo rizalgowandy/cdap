@@ -16,7 +16,6 @@
 
 package io.cdap.cdap.report;
 
-import com.databricks.spark.avro.DefaultSource;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -69,21 +68,6 @@ import io.cdap.cdap.test.DataSetManager;
 import io.cdap.cdap.test.SparkManager;
 import io.cdap.cdap.test.TestBase;
 import io.cdap.cdap.test.TestConfiguration;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.DatumWriter;
-import org.apache.twill.api.ClassAcceptor;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.internal.ApplicationBundler;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -100,6 +84,21 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DatumWriter;
+import org.apache.spark.sql.avro.AvroFileFormat;
+import org.apache.twill.api.ClassAcceptor;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.internal.ApplicationBundler;
+import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests {@link ReportGenerationApp}.
@@ -110,9 +109,6 @@ public class ReportGenerationAppTest extends TestBase {
     new TestConfiguration("app.program.spark.compat", SparkCompat.getSparkVersion());
   @ClassRule
   public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
-  @ClassRule
-  public static final TestConfiguration CONF =
-    new TestConfiguration(io.cdap.cdap.common.conf.Constants.Explore.EXPLORE_ENABLED, "false");
 
   private static final Logger LOG = LoggerFactory.getLogger(ReportGenerationAppTest.class);
   private static final Gson GSON = new GsonBuilder()
@@ -287,7 +283,7 @@ public class ReportGenerationAppTest extends TestBase {
     ApplicationBundler bundler = new ApplicationBundler(new ClassAcceptor() {
       @Override
       public boolean accept(String className, URL classUrl, URL classPathUrl) {
-        if (className.startsWith("org.apache.spark.")) {
+        if (className.startsWith("org.apache.spark.") && !className.startsWith("org.apache.spark.sql.avro.")) {
           return false;
         }
         if (className.startsWith("scala.")) {
@@ -305,9 +301,9 @@ public class ReportGenerationAppTest extends TestBase {
 
     Location avroSparkBundle = Locations.toLocation(TEMP_FOLDER.newFile());
     // Since spark-avro and its dependencies need to be included into the application jar,
-    // but spark-avro is not used directly in the application code, explicitly add a class DefaultSource
+    // but spark-avro is not used directly in the application code, explicitly add a class AvroFileFormat
     // from spark-avro so that spark-avro and its dependencies will be included.
-    bundler.createBundle(avroSparkBundle, DefaultSource.class);
+    bundler.createBundle(avroSparkBundle, AvroFileFormat.class);
     File unJarDir = BundleJarUtil.prepareClassLoaderFolder(avroSparkBundle, TEMP_FOLDER::newFolder).getDir();
 
     ApplicationManager app = deployApplication(deployNamespace,
@@ -466,8 +462,8 @@ public class ReportGenerationAppTest extends TestBase {
     boolean startMethodIsCorrect =
       reportContent.getDetails().stream().allMatch(content -> content.contains("\"startMethod\":\"TRIGGERED\""));
     if (!startMethodIsCorrect) {
-      Assert.fail("All report records are expected to contain startMethod TRIGGERED, " +
-                    "but actual results do not meet this requirement: " + reportContent.getDetails());
+      Assert.fail("All report records are expected to contain startMethod TRIGGERED, "
+          + "but actual results do not meet this requirement: " + reportContent.getDetails());
     }
   }
 
@@ -491,7 +487,8 @@ public class ReportGenerationAppTest extends TestBase {
    * @param currentTime the current time in millis
    */
   private static void populateMetaFiles(Location metaBaseLocation, Long currentTime) throws Exception {
-    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(ProgramRunInfoSerializer.SCHEMA);
+    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(
+        ProgramRunInfoSerializer.SCHEMA);
     DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter<>(datumWriter);
     String appName = "Pipeline";
     String version = "-SNAPSHOT";
@@ -499,15 +496,15 @@ public class ReportGenerationAppTest extends TestBase {
     String program1 = "SmartWorkflow_1";
     String program2 = "SmartWorkflow_2";
     // add a schedule info with program status trigger
-    String scheduleInfo = "{\"name\": \"sched\",\"description\": \"desc\",\"triggerInfos\": [" +
-      "{\"namespace\": \"default\",\"application\": \"app\",\"version\": \"-SNAPSHOT\",\"programType\": \"WORKFLOW\"," +
-      "\"run\":\"randomRunId\",\"entity\": \"PROGRAM\",\"program\": \"wf\",\"programStatus\": \"KILLED\"," +
-      "\"type\": \"PROGRAM_STATUS\"}]}";
+    String scheduleInfo = "{\"name\": \"sched\",\"description\": \"desc\",\"triggerInfos\": ["
+        + "{\"namespace\": \"default\",\"application\": \"app\",\"version\": \"-SNAPSHOT\","
+        + "\"programType\": \"WORKFLOW\",\"run\":\"randomRunId\",\"entity\": \"PROGRAM\","
+        + "\"program\": \"wf\",\"programStatus\": \"KILLED\",\"type\": \"PROGRAM_STATUS\"}]}";
     ProgramStartInfo startInfo =
-      new ProgramStartInfo(ImmutableMap.of(),
-                           new ArtifactId(TEST_ARTIFACT_NAME,
-                                          new ArtifactVersion("1.0.0"), ArtifactScope.USER), USER_ALICE,
-                           ImmutableMap.of(Constants.Notification.SCHEDULE_INFO_KEY, scheduleInfo));
+        new ProgramStartInfo(ImmutableMap.of(),
+            new ArtifactId(TEST_ARTIFACT_NAME,
+                new ArtifactVersion("1.0.0"), ArtifactScope.USER), USER_ALICE,
+            ImmutableMap.of(Constants.Notification.SCHEDULE_INFO_KEY, scheduleInfo));
     long delay = TimeUnit.MINUTES.toMillis(5);
     int mockMessageId = 0;
     for (String namespace : ImmutableList.of("default", "ns1", "ns2")) {

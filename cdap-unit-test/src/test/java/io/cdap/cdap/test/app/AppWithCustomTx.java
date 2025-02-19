@@ -44,6 +44,14 @@ import io.cdap.cdap.api.workflow.AbstractWorkflow;
 import io.cdap.cdap.api.workflow.WorkflowContext;
 import io.cdap.cdap.test.RevealingTxSystemClient;
 import io.cdap.cdap.test.RevealingTxSystemClient.RevealingTransaction;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -60,15 +68,6 @@ import org.apache.tephra.TransactionFailureException;
 import org.apache.tephra.TransactionSystemClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
 
 /**
  * An app that starts transactions with custom timeout and validates the timeout using a custom dataset.
@@ -375,7 +374,7 @@ public class AppWithCustomTx extends AbstractApplication {
 
       return new HttpContentConsumer() {
 
-        String body = null;
+        String body;
 
         @Override
         public void onReceived(ByteBuffer chunk, Transactional transactional) throws Exception {
@@ -471,7 +470,7 @@ public class AppWithCustomTx extends AbstractApplication {
       executeAttemptNestedTransaction(getContext(), HANDLER_NOTX, RUNTIME_NEST);
       return new HttpContentConsumer() {
 
-        String body = null;
+        String body;
 
         @Override
         public void onReceived(ByteBuffer chunk, Transactional transactional) throws Exception {
@@ -726,7 +725,7 @@ public class AppWithCustomTx extends AbstractApplication {
     public RecordReader createRecordReader(InputSplit split, TaskAttemptContext context)
       throws IOException, InterruptedException {
       return new RecordReader<Void, Void>() {
-        private int count = 0;
+        private int count;
         @Override
         public void initialize(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
         }

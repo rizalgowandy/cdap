@@ -17,7 +17,6 @@
 package io.cdap.cdap.spi.data;
 
 import io.cdap.cdap.api.metrics.MetricsCollector;
-
 import java.util.Map;
 
 /**
@@ -31,14 +30,16 @@ public interface StorageProviderContext {
   MetricsCollector getMetricsCollector();
 
   /**
-   * Configurations for the storage provider. It contains all the CDAP configurations that are prefixed with
-   * {@code data.storage.properties.[storage_provider_name].} with the prefixed stripped.
+   * Configurations for the storage provider. It contains all the CDAP configurations that are
+   * prefixed with {@code data.storage.properties.[storage_provider_name].} with the prefixed
+   * stripped.
    */
   Map<String, String> getConfiguration();
 
   /**
-   * Configurations for the storage provider. It contains all the CDAP security configurations that are prefixed with
-   * {@code data.storage.properties.[storage_provider_name].} with the prefixed stripped.
+   * Configurations for the storage provider. It contains all the CDAP security configurations that
+   * are prefixed with {@code data.storage.properties.[storage_provider_name].} with the prefixed
+   * stripped.
    */
   Map<String, String> getSecurityConfiguration();
 }

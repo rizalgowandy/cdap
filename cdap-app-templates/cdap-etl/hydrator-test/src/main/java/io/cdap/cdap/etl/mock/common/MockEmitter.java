@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.mock.common;
 
 import io.cdap.cdap.etl.api.Emitter;
 import io.cdap.cdap.etl.api.InvalidEntry;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +29,7 @@ import java.util.Map;
  * @param <T> type of object to emit
  */
 public class MockEmitter<T> implements Emitter<T> {
+
   private final List<T> emitted = new ArrayList<>();
   private final List<InvalidEntry<T>> errors = new ArrayList<>();
   private final List<Map<String, String>> alerts = new ArrayList<>();

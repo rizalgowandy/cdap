@@ -21,19 +21,20 @@ import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.messaging.Message;
 import io.cdap.cdap.api.messaging.MessageFetcher;
 import io.cdap.cdap.api.messaging.TopicNotFoundException;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.DefaultMessageFetchRequest;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.apache.tephra.Transaction;
-import org.apache.tephra.TransactionAware;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import javax.annotation.Nullable;
+import org.apache.tephra.Transaction;
+import org.apache.tephra.TransactionAware;
 
 /**
- * Implementation of {@link MessageFetcher} that implements {@link TransactionAware}. The active transaction will
- * be used for fetching messages if there is one. Otherwise messages will be fetched without transaction.
+ * Implementation of {@link MessageFetcher} that implements {@link TransactionAware}. The active
+ * transaction will be used for fetching messages if there is one. Otherwise messages will be
+ * fetched without transaction.
  */
 final class BasicMessageFetcher implements MessageFetcher, TransactionAware {
 
@@ -48,35 +49,38 @@ final class BasicMessageFetcher implements MessageFetcher, TransactionAware {
 
   @Override
   public CloseableIterator<Message> fetch(String namespace, String topic,
-                                          int limit, long timestamp) throws IOException, TopicNotFoundException {
-    io.cdap.cdap.messaging.MessageFetcher fetcher = messagingService
-      .prepareFetch(new NamespaceId(namespace).topic(topic))
-      .setLimit(limit)
-      .setStartTime(timestamp);
+      int limit, long timestamp) throws IOException, TopicNotFoundException {
+    DefaultMessageFetchRequest.Builder fetchRequestBuilder =
+        new DefaultMessageFetchRequest.Builder()
+            .setTopicId(new NamespaceId(namespace).topic(topic))
+            .setLimit(limit)
+            .setStartTime(timestamp);
 
     if (transaction != null) {
-      fetcher.setTransaction(transaction);
+      fetchRequestBuilder.setTransaction(transaction);
     }
 
-    return new MessageIterator(fetcher.fetch());
+    return new MessageIterator(messagingService.fetch(fetchRequestBuilder.build()));
   }
 
   @Override
-  public CloseableIterator<Message> fetch(String namespace, String topic, int limit,
-                                          @Nullable String afterMessageId) throws IOException, TopicNotFoundException {
-    io.cdap.cdap.messaging.MessageFetcher fetcher = messagingService
-      .prepareFetch(new NamespaceId(namespace).topic(topic))
-      .setLimit(limit);
+  public CloseableIterator<Message> fetch(
+      String namespace, String topic, int limit, @Nullable String afterMessageId)
+      throws IOException, TopicNotFoundException {
+    DefaultMessageFetchRequest.Builder fetchRequestBuilder =
+        new DefaultMessageFetchRequest.Builder()
+            .setTopicId(new NamespaceId(namespace).topic(topic))
+            .setLimit(limit);
 
     if (afterMessageId != null) {
-      fetcher.setStartMessage(Bytes.fromHexString(afterMessageId), false);
+      fetchRequestBuilder.setStartMessage(Bytes.fromHexString(afterMessageId), false);
     }
 
     if (transaction != null) {
-      fetcher.setTransaction(transaction);
+      fetchRequestBuilder.setTransaction(transaction);
     }
 
-    return new MessageIterator(fetcher.fetch());
+    return new MessageIterator(messagingService.fetch(fetchRequestBuilder.build()));
   }
 
   @Override

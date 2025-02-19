@@ -18,15 +18,14 @@ package io.cdap.cdap.etl.planner;
 
 import com.google.common.collect.ImmutableSet;
 import io.cdap.cdap.etl.proto.Connection;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for {@link CombinerDag}
@@ -250,7 +249,7 @@ public class CombinerDagTest {
    * Deterministically generates group ids.
    */
   private static class GroupIdGenerator implements Supplier<String> {
-    private int count = 0;
+    private int count;
 
     @Override
     public String get() {

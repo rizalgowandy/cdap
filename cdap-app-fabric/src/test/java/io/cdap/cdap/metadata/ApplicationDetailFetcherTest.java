@@ -19,23 +19,27 @@ package io.cdap.cdap.metadata;
 import com.google.common.collect.ImmutableList;
 import io.cdap.cdap.AllProgramsApp;
 import io.cdap.cdap.AppWithSchedule;
+import io.cdap.cdap.api.retry.RetryableException;
 import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.internal.remote.RemoteClient;
 import io.cdap.cdap.gateway.handlers.AppLifecycleHttpHandlerInternal;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
 import io.cdap.cdap.proto.ApplicationDetail;
-import io.cdap.cdap.proto.id.ApplicationId;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
+import io.cdap.cdap.proto.id.ApplicationReference;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
 
 /**
  * Tests for {@link RemoteApplicationDetailFetcher} {@link LocalApplicationDetailFetcher} and
@@ -78,10 +82,7 @@ public class ApplicationDetailFetcherTest extends AppFabricTestBase {
   @Test(expected = NotFoundException.class)
   public void testGetApplicationNotFound() throws Exception {
     ApplicationDetailFetcher fetcher = getApplicationDetailFetcher(fetcherType);
-    String namespace = TEST_NAMESPACE1;
-    String appName = AllProgramsApp.NAME;
-    ApplicationId appId = new ApplicationId(namespace, appName);
-    fetcher.get(appId);
+    fetcher.get(new ApplicationReference(TEST_NAMESPACE1, AllProgramsApp.NAME));
   }
 
   /**
@@ -119,14 +120,33 @@ public class ApplicationDetailFetcherTest extends AppFabricTestBase {
     deploy(AllProgramsApp.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, namespace);
 
     // Get and validate the application
-    ApplicationId appId = new ApplicationId(namespace, appName);
-    ApplicationDetail appDetail = fetcher.get(appId);
+    RemoteClient mockRemoteClient = null;
+    if (fetcherType == ApplicationDetailFetcherType.REMOTE) {
+      // test remote application detail fetcher retries
+      RemoteClient remoteClient = ((RemoteApplicationDetailFetcher) fetcher).getRemoteClient();
+
+      mockRemoteClient = Mockito.spy(remoteClient);
+      fetcher = Mockito.spy((RemoteApplicationDetailFetcher) fetcher);
+      Mockito
+          .doReturn(mockRemoteClient)
+          .when((RemoteApplicationDetailFetcher) fetcher).getRemoteClient();
+
+      Mockito
+          .doThrow(new RetryableException(new SocketTimeoutException()))
+          .doAnswer(InvocationOnMock::callRealMethod)
+          .when(mockRemoteClient).execute(Mockito.any());
+    }
+
+    ApplicationDetail appDetail = fetcher.get(new ApplicationReference(namespace, appName));
     assertAllProgramAppDetail(appDetail);
+    if (mockRemoteClient != null) {
+      Mockito.verify(mockRemoteClient, Mockito.times(2)).execute(Mockito.any());
+    }
 
     // Delete the application
     Assert.assertEquals(
       200,
-      doDelete(getVersionedAPIPath("apps/",
+      doDelete(getVersionedApiPath("apps/",
                                    Constants.Gateway.API_VERSION_3_TOKEN, namespace)).getResponseCode());
   }
 
@@ -134,44 +154,48 @@ public class ApplicationDetailFetcherTest extends AppFabricTestBase {
   public void testGetAllApplicationNamespaceNotFound() throws Exception {
     ApplicationDetailFetcher fetcher = getApplicationDetailFetcher(fetcherType);
     String namespace = "somenamespace";
-    fetcher.list(namespace);
+    fetcher.scan(namespace, d -> { }, 1);
   }
 
   @Test
-  public void testGetAllApplications() throws Exception {
+  public void testGetAllApplicationsUsingScan() throws Exception {
     ApplicationDetailFetcher fetcher = getApplicationDetailFetcher(fetcherType);
     String namespace = TEST_NAMESPACE1;
-    List<ApplicationDetail> appDetailList = Collections.emptyList();
     ApplicationDetail appDetail = null;
+    Integer batchSize = 1;
 
     // No applications have been deployed
-    appDetailList = fetcher.list(namespace);
-    Assert.assertEquals(Collections.emptyList(), appDetailList);
+    List<ApplicationDetail> appDetailList0 = new ArrayList<>();
+    fetcher.scan(namespace, d -> appDetailList0.add(d), batchSize);
+    Assert.assertEquals(Collections.emptyList(), appDetailList0);
 
     // Deploy the application
     deploy(AllProgramsApp.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, namespace);
 
     // Get and validate the application
-    appDetailList = fetcher.list(namespace);
-    Assert.assertEquals(1, appDetailList.size());
-    appDetail = appDetailList.get(0);
+    List<ApplicationDetail> appDetailList1 = new ArrayList<>();
+    fetcher.scan(namespace, d -> appDetailList1.add(d), batchSize);
+
+    Assert.assertEquals(1, appDetailList1.size());
+    appDetail = appDetailList1.get(0);
     assertAllProgramAppDetail(appDetail);
 
     // Deploy another application
     deploy(AppWithSchedule.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, namespace);
 
     // Get and validate the application
-    appDetailList = fetcher.list(namespace);
-    Assert.assertEquals(2, appDetailList.size());
-    Assert.assertEquals(AllProgramsApp.NAME, appDetailList.get(0).getName());
-    Assert.assertEquals(AllProgramsApp.DESC, appDetailList.get(0).getDescription());
-    Assert.assertEquals(AppWithSchedule.NAME, appDetailList.get(1).getName());
-    Assert.assertEquals(AppWithSchedule.DESC, appDetailList.get(1).getDescription());
+    List<ApplicationDetail> appDetailList2 = new ArrayList<>();
+    fetcher.scan(namespace, d -> appDetailList2.add(d), batchSize);
+    Assert.assertEquals(2, appDetailList2.size());
+    Assert.assertEquals(AllProgramsApp.NAME, appDetailList2.get(0).getName());
+    Assert.assertEquals(AllProgramsApp.DESC, appDetailList2.get(0).getDescription());
+    Assert.assertEquals(AppWithSchedule.NAME, appDetailList2.get(1).getName());
+    Assert.assertEquals(AppWithSchedule.DESC, appDetailList2.get(1).getDescription());
 
     // Delete the application
     Assert.assertEquals(
-      200,
-      doDelete(getVersionedAPIPath("apps/",
-                                   Constants.Gateway.API_VERSION_3_TOKEN, namespace)).getResponseCode());
+        200,
+        doDelete(getVersionedApiPath("apps/",
+            Constants.Gateway.API_VERSION_3_TOKEN, namespace)).getResponseCode());
   }
 }

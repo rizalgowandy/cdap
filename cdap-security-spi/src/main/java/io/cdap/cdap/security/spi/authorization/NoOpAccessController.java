@@ -23,7 +23,6 @@ import io.cdap.cdap.proto.security.GrantedPermission;
 import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.Role;
-
 import java.util.Collections;
 import java.util.Set;
 
@@ -31,6 +30,7 @@ import java.util.Set;
  * A no-op authorizer to use when authorization is disabled.
  */
 public class NoOpAccessController implements AccessController {
+
   @Override
   public Set<? extends EntityId> isVisible(Set<? extends EntityId> entityIds, Principal principal) {
     return entityIds;
@@ -42,17 +42,20 @@ public class NoOpAccessController implements AccessController {
   }
 
   @Override
-  public void enforceOnParent(EntityType entityType, EntityId parentId, Principal principal, Permission permission) {
+  public void enforceOnParent(EntityType entityType, EntityId parentId, Principal principal,
+      Permission permission) {
     // no-op
   }
 
   @Override
-  public void grant(Authorizable authorizable, Principal principal, Set<? extends Permission> permissions) {
+  public void grant(Authorizable authorizable, Principal principal,
+      Set<? extends Permission> permissions) {
     // no-op
   }
 
   @Override
-  public void revoke(Authorizable authorizable, Principal principal, Set<? extends Permission> permissions) {
+  public void revoke(Authorizable authorizable, Principal principal,
+      Set<? extends Permission> permissions) {
     // no-op
   }
 

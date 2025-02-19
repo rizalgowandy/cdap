@@ -18,13 +18,12 @@ package io.cdap.cdap.security.impersonation;
 
 import com.google.common.base.Throwables;
 import io.cdap.cdap.proto.NamespaceMeta;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.UndeclaredThrowableException;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.Callable;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility functions for impersonation.
@@ -33,11 +32,12 @@ public final class ImpersonationUtils {
 
   private static final Logger LOG = LoggerFactory.getLogger(ImpersonationUtils.class);
 
-  private ImpersonationUtils() { }
+  private ImpersonationUtils() {
+  }
 
   /**
-   * Helper function, to unwrap any exceptions that were wrapped
-   * by {@link UserGroupInformation#doAs(PrivilegedExceptionAction)}
+   * Helper function, to unwrap any exceptions that were wrapped by {@link
+   * UserGroupInformation#doAs(PrivilegedExceptionAction)}
    */
   public static <T> T doAs(UserGroupInformation ugi, final Callable<T> callable) throws Exception {
     try {
@@ -58,18 +58,19 @@ public final class ImpersonationUtils {
       // since PrivilegedExceptionAction#run can only throw Exception (besides runtime exception),
       // this should never happen
       LOG.warn("Unexpected exception while executing callable as {}.",
-               ugi.getUserName(), wrappedException);
+          ugi.getUserName(), wrappedException);
       throw Throwables.propagate(wrappedException);
     }
   }
 
   /**
-   * Creates a {@link Callable} which will impersonate the specified namespace before executing the specified callable.
-   * This is useful in case the impersonation needs to be delayed or will be performed later.
+   * Creates a {@link Callable} which will impersonate the specified namespace before executing the
+   * specified callable. This is useful in case the impersonation needs to be delayed or will be
+   * performed later.
    */
   public static <T> Callable<T> createImpersonatingCallable(final Impersonator impersonator,
-                                                            final NamespaceMeta namespaceMeta,
-                                                            final Callable<T> callable) {
+      final NamespaceMeta namespaceMeta,
+      final Callable<T> callable) {
     return new Callable<T>() {
       @Override
       public T call() throws Exception {

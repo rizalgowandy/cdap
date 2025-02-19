@@ -30,19 +30,19 @@ import io.cdap.cdap.logging.filter.AndFilter;
 import io.cdap.cdap.logging.filter.Filter;
 import io.cdap.cdap.logging.meta.FileMetaDataReader;
 import io.cdap.cdap.logging.write.LogLocation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Reads log events from a file.
  */
 public class FileLogReader implements LogReader {
+
   private static final Logger LOG = LoggerFactory.getLogger(FileLogReader.class);
 
   private final FileMetaDataReader fileMetadataReader;
@@ -53,8 +53,9 @@ public class FileLogReader implements LogReader {
   }
 
   @Override
-  public void getLogNext(final LoggingContext loggingContext, final ReadRange readRange, final int maxEvents,
-                         final Filter filter, final Callback callback) {
+  public void getLogNext(final LoggingContext loggingContext, final ReadRange readRange,
+      final int maxEvents,
+      final Filter filter, final Callback callback) {
     if (readRange == ReadRange.LATEST) {
       getLogPrev(loggingContext, readRange, maxEvents, filter, callback);
       return;
@@ -63,43 +64,46 @@ public class FileLogReader implements LogReader {
     callback.init();
 
     try {
-      Filter logFilter = new AndFilter(ImmutableList.of(LoggingContextHelper.createFilter(loggingContext),
-                                                        filter));
+      Filter logFilter = new AndFilter(
+          ImmutableList.of(LoggingContextHelper.createFilter(loggingContext),
+              filter));
       long fromTimeMs = readRange.getFromMillis() + 1;
 
       LOG.trace("Using fromTimeMs={}, readRange={}", fromTimeMs, readRange);
       List<LogLocation> sortedFilesInRange =
-        fileMetadataReader.listFiles(LoggingContextHelper.getLogPathIdentifier(loggingContext),
-                                     readRange.getFromMillis(), readRange.getToMillis());
+          fileMetadataReader.listFiles(LoggingContextHelper.getLogPathIdentifier(loggingContext),
+              readRange.getFromMillis(), readRange.getToMillis());
       if (sortedFilesInRange.isEmpty()) {
         return;
       }
 
       for (LogLocation file : sortedFilesInRange) {
         LOG.trace("Reading file {}", file);
-        file.readLog(logFilter, fromTimeMs, Long.MAX_VALUE, maxEvents - callback.getCount(), callback);
+        file.readLog(logFilter, fromTimeMs, Long.MAX_VALUE, maxEvents - callback.getCount(),
+            callback);
         if (callback.getCount() >= maxEvents) {
           break;
         }
       }
     } catch (Throwable e) {
       LOG.error("Got exception: ", e);
-      throw  Throwables.propagate(e);
+      throw Throwables.propagate(e);
     }
   }
 
   @Override
-  public void getLogPrev(final LoggingContext loggingContext, final ReadRange readRange, final int maxEvents,
-                         final Filter filter, final Callback callback) {
+  public void getLogPrev(final LoggingContext loggingContext, final ReadRange readRange,
+      final int maxEvents,
+      final Filter filter, final Callback callback) {
     callback.init();
     try {
-      Filter logFilter = new AndFilter(ImmutableList.of(LoggingContextHelper.createFilter(loggingContext),
-                                                        filter));
-
+      Filter logFilter = new AndFilter(
+          ImmutableList.of(LoggingContextHelper.createFilter(loggingContext),
+              filter));
 
       List<LogLocation> sortedFilesInRange =
-        fileMetadataReader.listFiles(LoggingContextHelper.getLogPathIdentifier(loggingContext),
-                                     readRange.getFromMillis(), readRange.getToMillis());
+          fileMetadataReader.listFiles(LoggingContextHelper.getLogPathIdentifier(loggingContext),
+              readRange.getFromMillis(), readRange.getToMillis());
       if (sortedFilesInRange.isEmpty()) {
         return;
       }
@@ -129,20 +133,23 @@ public class FileLogReader implements LogReader {
       }
     } catch (Throwable e) {
       LOG.error("Got exception: ", e);
-      throw  Throwables.propagate(e);
+      throw Throwables.propagate(e);
     }
   }
 
   @Override
-  public CloseableIterator<LogEvent> getLog(LoggingContext loggingContext, final long fromTimeMs, final long toTimeMs,
-                                            Filter filter) {
+  public CloseableIterator<LogEvent> getLog(LoggingContext loggingContext, final long fromTimeMs,
+      final long toTimeMs,
+      Filter filter) {
     try {
-      final Filter logFilter = new AndFilter(ImmutableList.of(LoggingContextHelper.createFilter(loggingContext),
-                                                              filter));
+      final Filter logFilter = new AndFilter(
+          ImmutableList.of(LoggingContextHelper.createFilter(loggingContext),
+              filter));
 
       LOG.trace("Using fromTimeMs={}, toTimeMs={}", fromTimeMs, toTimeMs);
       List<LogLocation> sortedFilesInRange =
-        fileMetadataReader.listFiles(LoggingContextHelper.getLogPathIdentifier(loggingContext), fromTimeMs, toTimeMs);
+          fileMetadataReader.listFiles(LoggingContextHelper.getLogPathIdentifier(loggingContext),
+              fromTimeMs, toTimeMs);
 
       if (sortedFilesInRange.isEmpty()) {
         // return empty iterator
@@ -162,37 +169,37 @@ public class FileLogReader implements LogReader {
       final Iterator<LogLocation> filesIter = sortedFilesInRange.iterator();
 
       CloseableIterator<CloseableIterator<LogEvent>> closeableIterator =
-        new CloseableIterator<CloseableIterator<LogEvent>>() {
-          private CloseableIterator<LogEvent> curr = null;
+          new CloseableIterator<CloseableIterator<LogEvent>>() {
+            private CloseableIterator<LogEvent> curr;
 
-          @Override
-          public void close() {
-            if (curr != null) {
-              curr.close();
+            @Override
+            public void close() {
+              if (curr != null) {
+                curr.close();
+              }
             }
-          }
 
-          @Override
-          public boolean hasNext() {
-            return filesIter.hasNext();
-          }
-
-          @Override
-          public CloseableIterator<LogEvent> next() {
-            if (curr != null) {
-              curr.close();
+            @Override
+            public boolean hasNext() {
+              return filesIter.hasNext();
             }
-            LogLocation file = filesIter.next();
-            LOG.trace("Reading file {}", file);
-            curr = file.readLog(logFilter, fromTimeMs, toTimeMs, Integer.MAX_VALUE);
-            return curr;
-          }
 
-          @Override
-          public void remove() {
-            throw new UnsupportedOperationException("Remove not supported");
-          }
-        };
+            @Override
+            public CloseableIterator<LogEvent> next() {
+              if (curr != null) {
+                curr.close();
+              }
+              LogLocation file = filesIter.next();
+              LOG.trace("Reading file {}", file);
+              curr = file.readLog(logFilter, fromTimeMs, toTimeMs, Integer.MAX_VALUE);
+              return curr;
+            }
+
+            @Override
+            public void remove() {
+              throw new UnsupportedOperationException("Remove not supported");
+            }
+          };
 
       return concat(closeableIterator);
     } catch (Throwable e) {
@@ -202,11 +209,11 @@ public class FileLogReader implements LogReader {
   }
 
   /**
-   * See {@link com.google.common.collect.Iterators#concat(Iterator)}. The difference is that the input types and return
-   * type are CloseableIterator, which closes the inputs that it has opened.
+   * See {@link com.google.common.collect.Iterators#concat(Iterator)}. The difference is that the
+   * input types and return type are CloseableIterator, which closes the inputs that it has opened.
    */
   public static <T> CloseableIterator<T> concat(
-    final CloseableIterator<? extends CloseableIterator<? extends T>> inputs) {
+      final CloseableIterator<? extends CloseableIterator<? extends T>> inputs) {
     Preconditions.checkNotNull(inputs);
     return new CloseableIterator<T>() {
       @Override
@@ -254,11 +261,12 @@ public class FileLogReader implements LogReader {
         // the first NPE, and the next time around we'll call inputs.next()
         // again, incorrectly moving beyond the error.
         while (!(currentHasNext = Preconditions.checkNotNull(current).hasNext())
-          && inputs.hasNext()) {
+            && inputs.hasNext()) {
           current = inputs.next();
         }
         return currentHasNext;
       }
+
       @Override
       public T next() {
         if (!hasNext()) {
@@ -267,10 +275,11 @@ public class FileLogReader implements LogReader {
         removeFrom = current;
         return current.next();
       }
+
       @Override
       public void remove() {
         Preconditions.checkState(removeFrom != null,
-                                 "no calls to next() since last call to remove()");
+            "no calls to next() since last call to remove()");
         removeFrom.remove();
         removeFrom = null;
       }

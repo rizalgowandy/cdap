@@ -16,13 +16,12 @@
 
 package io.cdap.cdap.logging.serialize;
 
-import org.apache.avro.Schema;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import org.apache.avro.Schema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles generation of schema for logging.
@@ -35,6 +34,7 @@ public final class LogSchema {
    * Contains {@link Schema} for logging event.
    */
   public static final class LoggingEvent {
+
     public static final Schema SCHEMA = loadSchema("logging/schema/LoggingEvent.avsc");
   }
 

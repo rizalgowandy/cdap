@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.cdap.cdap.cli.util.RowMaker;
-
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -64,8 +63,8 @@ public class Table {
    */
   public static final class Builder {
 
-    private List<String> header = null;
-    private Iterable<List<String>> rows = null;
+    private List<String> header;
+    private Iterable<List<String>> rows;
 
     public Builder setHeader(String... header) {
       this.header = Lists.newArrayList(header);
@@ -115,6 +114,7 @@ public class Table {
      * Builder for {@link Table#rows}.
      */
     public static final class Rows {
+
       private List<List<String>> rows = Lists.newArrayList();
 
       public Rows add(List<String> row) {

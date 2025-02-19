@@ -17,13 +17,13 @@
 package io.cdap.cdap.common.internal.remote;
 
 import com.google.gson.JsonElement;
-
 import javax.annotation.Nullable;
 
 /**
  * Allows for simple serialization/deserialization of a method argument.
  */
 public final class MethodArgument {
+
   private final String type;
   private final JsonElement value;
 

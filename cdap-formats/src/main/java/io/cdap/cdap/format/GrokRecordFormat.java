@@ -24,12 +24,6 @@ import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.format.UnexpectedFormatException;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.data.schema.UnsupportedTypeException;
-import oi.thekraken.grok.api.Grok;
-import oi.thekraken.grok.api.Match;
-import oi.thekraken.grok.api.exception.GrokException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URL;
@@ -37,9 +31,15 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
+import oi.thekraken.grok.api.Grok;
+import oi.thekraken.grok.api.Match;
+import oi.thekraken.grok.api.exception.GrokException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * GrokRecordFormat. Grok parses a string and outputs a map of field name (string) to value (string).
+ * GrokRecordFormat. Grok parses a string and outputs a map of field name (string) to value
+ * (string).
  */
 public class GrokRecordFormat extends RecordFormat<ByteBuffer, StructuredRecord> {
 
@@ -48,7 +48,7 @@ public class GrokRecordFormat extends RecordFormat<ByteBuffer, StructuredRecord>
   private static final String PATTERN_SETTING = "pattern";
 
   private final Grok grok = new Grok();
-  private String pattern = null;
+  private String pattern;
 
   public static Map<String, String> settings(String pattern) {
     return ImmutableMap.of(PATTERN_SETTING, pattern);
@@ -77,7 +77,8 @@ public class GrokRecordFormat extends RecordFormat<ByteBuffer, StructuredRecord>
   @Override
   protected Schema getDefaultSchema() {
     // default is a nullable String
-    return Schema.recordOf("record", Schema.Field.of("body", Schema.nullableOf(Schema.of(Schema.Type.STRING))));
+    return Schema.recordOf("record",
+        Schema.Field.of("body", Schema.nullableOf(Schema.of(Schema.Type.STRING))));
   }
 
   @Override

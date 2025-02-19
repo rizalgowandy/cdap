@@ -19,15 +19,16 @@ package io.cdap.cdap.internal.app.store;
 import com.google.inject.Inject;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.logging.gateway.handlers.ProgramRunRecordFetcher;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-
 import java.io.IOException;
 import java.util.Optional;
 
 /**
- * A {@link ProgramRunRecordFetcher} that uses {@link AppMetadataStore} for fetching run records directly.
+ * A {@link ProgramRunRecordFetcher} that uses {@link AppMetadataStore} for fetching run records
+ * directly.
  */
 public class StoreProgramRunRecordFetcher implements ProgramRunRecordFetcher {
 
@@ -39,9 +40,22 @@ public class StoreProgramRunRecordFetcher implements ProgramRunRecordFetcher {
   }
 
   @Override
-  public RunRecordDetail getRunRecordMeta(ProgramRunId runId) throws IOException, NotFoundException {
+  public RunRecordDetail getRunRecordMeta(ProgramRunId runId)
+      throws IOException, NotFoundException {
     return Optional.ofNullable(TransactionRunners.run(txRunner, context -> {
       return AppMetadataStore.create(context).getRun(runId);
     }, IOException.class)).orElseThrow(() -> new NotFoundException(runId));
+  }
+
+  @Override
+  public RunRecordDetail getRunRecordMeta(ProgramReference programRef, String runId)
+      throws IOException, NotFoundException {
+    return Optional.ofNullable(TransactionRunners.run(txRunner, context -> {
+          return AppMetadataStore.create(context).getRun(programRef, runId);
+        }, IOException.class))
+        .orElseThrow(
+            () -> new NotFoundException(
+                String.format("No run record found for program %s and runID: %s", programRef,
+                    runId)));
   }
 }

@@ -23,6 +23,7 @@ import io.cdap.cdap.data2.dataset2.lib.table.leveldb.LevelDBTableService;
 import io.cdap.cdap.data2.transaction.DelegatingTransactionSystemClientService;
 import io.cdap.cdap.data2.transaction.TransactionSystemClientService;
 import io.cdap.cdap.data2.transaction.metrics.TransactionManagerMetricsCollector;
+import java.lang.management.ManagementFactory;
 import org.apache.tephra.DefaultTransactionExecutor;
 import org.apache.tephra.TransactionExecutor;
 import org.apache.tephra.TransactionExecutorFactory;
@@ -34,8 +35,6 @@ import org.apache.tephra.persist.LocalFileTransactionStateStorage;
 import org.apache.tephra.persist.TransactionStateStorage;
 import org.apache.tephra.runtime.TransactionStateStorageProvider;
 import org.apache.tephra.snapshot.SnapshotCodecProvider;
-
-import java.lang.management.ManagementFactory;
 
 /**
  * DataFabricLocalModule defines the Local/HyperSQL bindings for the data fabric.
@@ -51,20 +50,23 @@ public class DataFabricLevelDBModule extends AbstractModule {
 
     bind(SnapshotCodecProvider.class).in(Scopes.SINGLETON);
     bind(TransactionStateStorage.class).annotatedWith(Names.named("persist"))
-      .to(LocalFileTransactionStateStorage.class).in(Scopes.SINGLETON);
-    bind(TransactionStateStorage.class).toProvider(TransactionStateStorageProvider.class).in(Scopes.SINGLETON);
+        .to(LocalFileTransactionStateStorage.class).in(Scopes.SINGLETON);
+    bind(TransactionStateStorage.class).toProvider(TransactionStateStorageProvider.class)
+        .in(Scopes.SINGLETON);
     bind(TransactionManager.class).in(Scopes.SINGLETON);
 
-    bindConstant().annotatedWith(Names.named(TxConstants.CLIENT_ID)).to(ManagementFactory.getRuntimeMXBean().getName());
+    bindConstant().annotatedWith(Names.named(TxConstants.CLIENT_ID))
+        .to(ManagementFactory.getRuntimeMXBean().getName());
 
     install(new FactoryModuleBuilder()
-              .implement(TransactionExecutor.class, DefaultTransactionExecutor.class)
-              .build(TransactionExecutorFactory.class));
+        .implement(TransactionExecutor.class, DefaultTransactionExecutor.class)
+        .build(TransactionExecutorFactory.class));
 
     // Binds the tephra MetricsCollector to the one that emit metrics via MetricsCollectionService
     bind(MetricsCollector.class).to(TransactionManagerMetricsCollector.class).in(Scopes.SINGLETON);
     bind(TransactionSystemClient.class).toProvider(
-      DataFabricInMemoryModule.InMemoryTransactionSystemClientProvider.class).in(Scopes.SINGLETON);
+            DataFabricInMemoryModule.InMemoryTransactionSystemClientProvider.class)
+        .in(Scopes.SINGLETON);
 
     install(new TransactionExecutorModule());
     install(new StorageModule());

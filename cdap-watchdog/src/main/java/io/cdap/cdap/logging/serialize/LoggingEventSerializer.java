@@ -21,6 +21,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.google.common.base.Throwables;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.logging.LoggingUtil;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
@@ -33,23 +37,20 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import javax.annotation.concurrent.NotThreadSafe;
-
 /**
- * Avro serializer for ILoggingEvent.
- * Method of this class is not thread safe, hence cannot be called from multiple threads concurrently.
+ * Avro serializer for ILoggingEvent. Method of this class is not thread safe, hence cannot be
+ * called from multiple threads concurrently.
  */
 @NotThreadSafe
 public final class LoggingEventSerializer {
 
-  private final GenericDatumReader<GenericRecord> datumReader = new GenericDatumReader<>(getAvroSchema());
+  private final GenericDatumReader<GenericRecord> datumReader = new GenericDatumReader<>(
+      getAvroSchema());
   private BinaryDecoder decoder;
 
   /**
-   * Returns the {@link Schema} for logging event, which is the same as {@link LogSchema.LoggingEvent#SCHEMA}.
+   * Returns the {@link Schema} for logging event, which is the same as {@link
+   * LogSchema.LoggingEvent#SCHEMA}.
    */
   public Schema getAvroSchema() {
     return LogSchema.LoggingEvent.SCHEMA;
@@ -84,8 +85,8 @@ public final class LoggingEventSerializer {
   }
 
   /**
-   * Decodes the timestamp of a {@link ILoggingEvent} encoded in the given {@link ByteBuffer} with the schema
-   * returned by the {@link #getAvroSchema()} method.
+   * Decodes the timestamp of a {@link ILoggingEvent} encoded in the given {@link ByteBuffer} with
+   * the schema returned by the {@link #getAvroSchema()} method.
    *
    * @param buffer the buffer to decode
    * @return the event timestamp
@@ -110,8 +111,9 @@ public final class LoggingEventSerializer {
 
   private BinaryDecoder getDecoder(ByteBuffer buffer) {
     if (buffer.hasArray()) {
-      decoder = DecoderFactory.get().binaryDecoder(buffer.array(), buffer.arrayOffset() + buffer.position(),
-                                                   buffer.remaining(), decoder);
+      decoder = DecoderFactory.get()
+          .binaryDecoder(buffer.array(), buffer.arrayOffset() + buffer.position(),
+              buffer.remaining(), decoder);
     } else {
       decoder = DecoderFactory.get().binaryDecoder(Bytes.toBytes(buffer), decoder);
     }
@@ -119,8 +121,8 @@ public final class LoggingEventSerializer {
   }
 
   /**
-   * Decodes the content of the given {@link ByteBuffer} into {@link GenericRecord}, based on the schema
-   * returned by the {@link #getAvroSchema()} method.
+   * Decodes the content of the given {@link ByteBuffer} into {@link GenericRecord}, based on the
+   * schema returned by the {@link #getAvroSchema()} method.
    *
    * @param buffer the buffer to decode
    * @return a {@link GenericRecord} representing the decoded content.
@@ -143,8 +145,8 @@ public final class LoggingEventSerializer {
     Object[] arguments = event.getArgumentArray();
     if (arguments != null) {
       GenericArray<String> argArray =
-        new GenericData.Array<>(arguments.length,
-                                schema.getField("argumentArray").schema().getTypes().get(1));
+          new GenericData.Array<>(arguments.length,
+              schema.getField("argumentArray").schema().getTypes().get(1));
       for (Object argument : arguments) {
         argArray.add(argument == null ? null : argument.toString());
       }
@@ -153,13 +155,15 @@ public final class LoggingEventSerializer {
 
     datum.put("formattedMessage", event.getFormattedMessage());
     datum.put("loggerName", event.getLoggerName());
-    datum.put("loggerContextVO", LoggerContextSerializer.encode(schema.getField("loggerContextVO").schema(),
-                                                                event.getLoggerContextVO()));
-    datum.put("throwableProxy", ThrowableProxySerializer.encode(schema.getField("throwableProxy").schema(),
-                                                                event.getThrowableProxy()));
+    datum.put("loggerContextVO",
+        LoggerContextSerializer.encode(schema.getField("loggerContextVO").schema(),
+            event.getLoggerContextVO()));
+    datum.put("throwableProxy",
+        ThrowableProxySerializer.encode(schema.getField("throwableProxy").schema(),
+            event.getThrowableProxy()));
     if (event.hasCallerData()) {
       datum.put("callerData", CallerDataSerializer.encode(schema.getField("callerData").schema(),
-                                                          event.getCallerData()));
+          event.getCallerData()));
     }
     datum.put("hasCallerData", event.hasCallerData());
     //datum.put("marker", marker);

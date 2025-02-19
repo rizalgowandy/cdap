@@ -17,11 +17,6 @@
 package io.cdap.cdap.etl.common.output;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.JobStatus;
-import org.apache.hadoop.mapreduce.OutputCommitter;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -29,11 +24,16 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobStatus;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 
 /**
  * Delegates to other record writers.
  */
 public class MultiOutputCommitter extends OutputCommitter {
+
   private final Map<String, OutputCommitter> delegates;
 
   public MultiOutputCommitter(Map<String, OutputCommitter> delegates) {
@@ -75,7 +75,8 @@ public class MultiOutputCommitter extends OutputCommitter {
   @Override
   public boolean needsTaskCommit(TaskAttemptContext taskContext) throws IOException {
     for (Map.Entry<String, OutputCommitter> entry : delegates.entrySet()) {
-      if (entry.getValue().needsTaskCommit(MultiOutputFormat.getNamedTaskContext(taskContext, entry.getKey()))) {
+      if (entry.getValue()
+          .needsTaskCommit(MultiOutputFormat.getNamedTaskContext(taskContext, entry.getKey()))) {
         return true;
       }
     }
@@ -117,7 +118,8 @@ public class MultiOutputCommitter extends OutputCommitter {
   }
 
   private void delegateInParallel(DelegateFunction delegateFunction) throws IOException {
-    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("multi-output-committer-%d").build();
+    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+        "multi-output-committer-%d").build();
     int numThreads = Math.min(10, delegates.size());
     ExecutorService executorService = Executors.newFixedThreadPool(numThreads, threadFactory);
     ExecutorCompletionService<Void> ecs = new ExecutorCompletionService<>(executorService);

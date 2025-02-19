@@ -20,11 +20,9 @@ import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentTask;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.util.Config;
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 
 /**
  * Implementation of {@link MasterEnvironmentTask} for periodically killing pods.
@@ -36,12 +34,15 @@ final class PodKillerTask implements MasterEnvironmentTask {
   private final String namespace;
   private final String podSelector;
   private final long delayMillis;
+  private final ApiClientFactory apiClientFactory;
   private volatile CoreV1Api coreApi;
 
-  PodKillerTask(String namespace, String podSelector, long delayMillis) {
+  PodKillerTask(String namespace, String podSelector, long delayMillis,
+      ApiClientFactory apiClientFactory) {
     this.namespace = namespace;
     this.podSelector = podSelector;
     this.delayMillis = delayMillis;
+    this.apiClientFactory = apiClientFactory;
   }
 
   @Override
@@ -50,13 +51,13 @@ final class PodKillerTask implements MasterEnvironmentTask {
       CoreV1Api api = getCoreApi();
       LOG.debug("Terminating pods using selector {}", podSelector);
       api.deleteCollectionNamespacedPod(namespace, null, null, null, null, null, podSelector,
-                                        null, null, null, null, null, null, null);
+          null, null, null, null, null, null, null);
       LOG.debug("Pods termination completed");
     } catch (IOException e) {
       LOG.warn("IO Exception raised when connecting to Kubernetes API server", e);
     } catch (ApiException e) {
       LOG.warn("API exception raised when trying to delete pods, code=" + e.getCode()
-                 + ", body=" + e.getResponseBody(), e);
+          + ", body=" + e.getResponseBody(), e);
     }
 
     return delayMillis;
@@ -79,7 +80,7 @@ final class PodKillerTask implements MasterEnvironmentTask {
       if (api != null) {
         return api;
       }
-      coreApi = api = new CoreV1Api(Config.defaultClient());
+      coreApi = api = new CoreV1Api(apiClientFactory.create());
       return api;
     }
   }

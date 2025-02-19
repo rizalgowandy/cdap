@@ -44,6 +44,20 @@ import io.cdap.cdap.common.namespace.NamespacePathLocator;
 import io.cdap.cdap.data2.dataset2.DatasetFrameworkTestUtil;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.test.SlowTests;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.tephra.TransactionAware;
 import org.apache.tephra.TransactionContext;
@@ -59,21 +73,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Test partitioned file sets without map/reduce and without explore.
@@ -523,7 +522,7 @@ public class PartitionedFileSetTest {
     });
   }
 
-  private int counter = 0;
+  private int counter;
   // generates unique partition keys, where the 'i' field is incrementing from 0 upwards on each returned key
   private PartitionKey generateUniqueKey() {
     return PartitionKey.builder()
@@ -619,6 +618,7 @@ public class PartitionedFileSetTest {
           dataset.addMetadata(PARTITION_KEY, "key2", "value3");
           Assert.fail("Expected not to be able to update an existing metadata entry");
         } catch (DataSetException expected) {
+          // expected
         }
 
         // possible to remove multiple metadata entries; if a key doesn't exist, no error is thrown
@@ -639,6 +639,7 @@ public class PartitionedFileSetTest {
           dataset.addMetadata(nonexistentPartitionKey, "key2", "value3");
           Assert.fail("Expected not to be able to add metadata for a nonexistent partition");
         } catch (DataSetException expected) {
+          // expected
         }
       }
     });
@@ -740,6 +741,7 @@ public class PartitionedFileSetTest {
       createPartition(pfs, PARTITION_KEY, "file2");
       Assert.fail("Expected PartitionAlreadyExistsException");
     } catch (PartitionAlreadyExistsException expected) {
+      // expected
     }
     // because of the above failure, we want to abort and rollback the transaction
     txContext.abort();

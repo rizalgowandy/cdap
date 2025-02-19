@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.runtime.spi.provisioner.dataproc;
 
+import io.cdap.cdap.api.exception.ErrorCategory;
 import io.cdap.cdap.runtime.spi.ProgramRunInfo;
 import io.cdap.cdap.runtime.spi.RuntimeMonitorType;
 import io.cdap.cdap.runtime.spi.SparkCompat;
@@ -24,14 +25,13 @@ import io.cdap.cdap.runtime.spi.provisioner.ProgramRun;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerContext;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerMetrics;
 import io.cdap.cdap.runtime.spi.ssh.SSHContext;
-import org.apache.twill.filesystem.LocationFactory;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.LocationFactory;
 
 
 public class MockProvisionerContext implements ProvisionerContext {
@@ -42,6 +42,7 @@ public class MockProvisionerContext implements ProvisionerContext {
   private VersionInfo appCDAPVersionInfo;
   private String cdapVersion;
   private String profileName;
+  private ErrorCategory errorCategory;
 
   public MockProvisionerContext() {
     this(null);
@@ -92,6 +93,10 @@ public class MockProvisionerContext implements ProvisionerContext {
 
   public void setSparkCompat(SparkCompat sparkCompat) {
     this.sparkCompat = sparkCompat;
+  }
+
+  public void setErrorCategory(ErrorCategory errorCategory) {
+    this.errorCategory = errorCategory;
   }
 
   @Override
@@ -156,5 +161,11 @@ public class MockProvisionerContext implements ProvisionerContext {
       result.completeExceptionally(e);
     }
     return result;
+  }
+
+  @Nullable
+  @Override
+  public ErrorCategory getErrorCategory() {
+    return errorCategory;
   }
 }

@@ -25,12 +25,11 @@ import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
 import io.cdap.cdap.proto.bootstrap.BootstrapStepResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Executes a bootstrap step.
@@ -38,18 +37,21 @@ import java.util.concurrent.TimeUnit;
  * @param <T> type of arguments required by the bootstrap step
  */
 public abstract class BaseStepExecutor<T extends Validatable> implements BootstrapStepExecutor {
+
   private static final Logger LOG = LoggerFactory.getLogger(BaseStepExecutor.class);
   private static final Gson GSON = new Gson();
 
   @Override
-  public BootstrapStepResult execute(String label, JsonObject argumentsObj) throws InterruptedException {
+  public BootstrapStepResult execute(String label, JsonObject argumentsObj)
+      throws InterruptedException {
     T arguments;
     try {
       arguments = GSON.fromJson(argumentsObj, getArgumentsType());
     } catch (JsonParseException e) {
-      LOG.warn("Bootstrap step {} failed because its arguments are malformed: {}", label, e.getMessage());
+      LOG.warn("Bootstrap step {} failed because its arguments are malformed: {}", label,
+          e.getMessage());
       return new BootstrapStepResult(label, BootstrapStepResult.Status.FAILED,
-                                     String.format("Argument decoding failed. Reason: %s", e.getMessage()));
+          String.format("Argument decoding failed. Reason: %s", e.getMessage()));
     }
 
     try {
@@ -62,7 +64,7 @@ public abstract class BaseStepExecutor<T extends Validatable> implements Bootstr
     try {
       LOG.debug("Executing bootstrap step {}", label);
       Retries.runWithInterruptibleRetries(() -> execute(arguments), getRetryStrategy(),
-                                          t -> t instanceof RetryableException);
+          t -> t instanceof RetryableException);
       LOG.debug("Bootstrap step {} completed successfully", label);
       return new BootstrapStepResult(label, BootstrapStepResult.Status.SUCCEEDED);
     } catch (InterruptedException e) {
@@ -74,8 +76,8 @@ public abstract class BaseStepExecutor<T extends Validatable> implements Bootstr
   }
 
   /**
-   * @return the class for the parameter of this class. For example, if T is EmptyArguments, this will return the class
-   *         for EmptyArguments.
+   * @return the class for the parameter of this class. For example, if T is EmptyArguments, this
+   *     will return the class for EmptyArguments.
    */
   private Class<T> getArgumentsType() {
     Type superclass = getClass().getGenericSuperclass();
@@ -98,6 +100,6 @@ public abstract class BaseStepExecutor<T extends Validatable> implements Bootstr
   protected RetryStrategy getRetryStrategy() {
     // exponential retries with a time limit of 5 minutes.
     return RetryStrategies.timeLimit(5, TimeUnit.MINUTES,
-                                     RetryStrategies.exponentialDelay(200, 10000, TimeUnit.MILLISECONDS));
+        RetryStrategies.exponentialDelay(200, 10000, TimeUnit.MILLISECONDS));
   }
 }

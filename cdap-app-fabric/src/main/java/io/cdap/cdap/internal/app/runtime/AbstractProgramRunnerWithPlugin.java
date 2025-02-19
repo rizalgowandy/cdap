@@ -22,11 +22,10 @@ import io.cdap.cdap.app.runtime.ProgramOptions;
 import io.cdap.cdap.app.runtime.ProgramRunner;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
-import org.apache.twill.internal.ServiceListenerAdapter;
-
 import java.io.Closeable;
 import java.io.File;
 import javax.annotation.Nullable;
+import org.apache.twill.internal.ServiceListenerAdapter;
 
 /**
  * Provides method to create {@link PluginInstantiator} for Program Runners
@@ -48,12 +47,14 @@ public abstract class AbstractProgramRunnerWithPlugin implements ProgramRunner {
    * @return A new {@link PluginInstantiator} or {@code null} if no plugin is available.
    */
   @Nullable
-  protected PluginInstantiator createPluginInstantiator(ProgramOptions options, ClassLoader classLoader) {
+  protected PluginInstantiator createPluginInstantiator(ProgramOptions options,
+      ClassLoader classLoader) {
     if (!options.getArguments().hasOption(ProgramOptionConstants.PLUGIN_DIR)) {
       return null;
     }
     return new PluginInstantiator(
-      cConf, classLoader, new File(options.getArguments().getOption(ProgramOptionConstants.PLUGIN_DIR)));
+        cConf, classLoader,
+        new File(options.getArguments().getOption(ProgramOptionConstants.PLUGIN_DIR)));
   }
 
   /**

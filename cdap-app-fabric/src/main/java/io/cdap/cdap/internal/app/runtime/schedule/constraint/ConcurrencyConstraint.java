@@ -17,19 +17,17 @@
 package io.cdap.cdap.internal.app.runtime.schedule.constraint;
 
 import io.cdap.cdap.internal.app.runtime.schedule.ProgramSchedule;
-import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.proto.ProtoConstraint;
-import io.cdap.cdap.proto.id.ProgramRunId;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A constraint which dictates an upper bound on the number of concurrent schedule runs.
  */
-public class ConcurrencyConstraint extends ProtoConstraint.ConcurrencyConstraint implements CheckableConstraint {
+public class ConcurrencyConstraint extends ProtoConstraint.ConcurrencyConstraint implements
+    CheckableConstraint {
+
   private static final Logger LOG = LoggerFactory.getLogger(ConcurrencyConstraint.class);
 
   public ConcurrencyConstraint(int maxConcurrency) {
@@ -38,10 +36,12 @@ public class ConcurrencyConstraint extends ProtoConstraint.ConcurrencyConstraint
 
   @Override
   public ConstraintResult check(ProgramSchedule schedule, ConstraintContext context) {
-    Map<ProgramRunId, RunRecordDetail> activeRuns = context.getActiveRuns(schedule.getProgramId());
-    if (activeRuns.size() >= maxConcurrency) {
-      LOG.debug("Skipping run of program {} from schedule {} because there are {} active runs.",
-                schedule.getProgramId(), schedule.getName(), activeRuns.size());
+    int numActiveRuns = context.getProgramActiveRunsCount(
+        schedule.getProgramId().getProgramReference(), maxConcurrency + 1);
+    if (numActiveRuns >= maxConcurrency) {
+      LOG.debug("Skipping run of program {} from schedule {} "
+              + "because there are at least {} active runs.",
+          schedule.getProgramId(), schedule.getName(), numActiveRuns);
       return notSatisfied(context);
     }
     return ConstraintResult.SATISFIED;
@@ -52,6 +52,6 @@ public class ConcurrencyConstraint extends ProtoConstraint.ConcurrencyConstraint
       return ConstraintResult.NEVER_SATISFIED;
     }
     return new ConstraintResult(ConstraintResult.SatisfiedState.NOT_SATISFIED,
-                                context.getCheckTimeMillis() + TimeUnit.SECONDS.toMillis(10));
+        context.getCheckTimeMillis() + TimeUnit.SECONDS.toMillis(10));
   }
 }

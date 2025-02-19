@@ -23,19 +23,18 @@ import io.cdap.http.HttpResponder;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * An abstract base class for implementing a {@link BodyConsumer} that spills data to disk when the request size
- * exceeded a predetermined in memory buffer size.
+ * An abstract base class for implementing a {@link BodyConsumer} that spills data to disk when the
+ * request size exceeded a predetermined in memory buffer size.
  */
 public abstract class SpillableBodyConsumer extends BodyConsumer {
 
@@ -59,7 +58,8 @@ public abstract class SpillableBodyConsumer extends BodyConsumer {
    * @param responder the {@link HttpResponder} for responding to client
    * @throws IOException if failed to process the given input
    */
-  protected abstract void processInput(InputStream inputStream, HttpResponder responder) throws Exception;
+  protected abstract void processInput(InputStream inputStream, HttpResponder responder)
+      throws Exception;
 
   @Override
   public void chunk(ByteBuf request, HttpResponder responder) {
@@ -95,7 +95,7 @@ public abstract class SpillableBodyConsumer extends BodyConsumer {
     } catch (Exception e) {
       Throwables.propagateIfPossible(e);
       throw new RuntimeException(String.format("Failed to process input from buffer%s",
-                                               outputStream == null ? "" : " and spill path " + spillPath), e);
+          outputStream == null ? "" : " and spill path " + spillPath), e);
     } finally {
       cleanup();
     }

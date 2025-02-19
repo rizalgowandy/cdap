@@ -17,16 +17,16 @@
 package io.cdap.cdap.internal.app.runtime.distributed;
 
 import ch.qos.logback.classic.Level;
-import org.apache.twill.api.ResourceSpecification;
-import org.apache.twill.api.TwillRunnable;
-
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.twill.api.ResourceSpecification;
+import org.apache.twill.api.TwillRunnable;
 
 /**
  * Container class for holding {@link TwillRunnable} and extra configurations associated with it.
  */
 public final class RunnableDefinition {
+
   private final TwillRunnable runnable;
   private final ResourceSpecification resources;
   private final Map<String, String> twillRunnableConfigs;
@@ -34,8 +34,8 @@ public final class RunnableDefinition {
   private final Integer maxRetries;
 
   public RunnableDefinition(TwillRunnable runnable, ResourceSpecification resources,
-                            Map<String, String> twillRunnableConfigs, Map<String, Level> logLevels,
-                            @Nullable Integer maxRetries) {
+      Map<String, String> twillRunnableConfigs, Map<String, Level> logLevels,
+      @Nullable Integer maxRetries) {
     this.runnable = runnable;
     this.resources = resources;
     this.twillRunnableConfigs = twillRunnableConfigs;
