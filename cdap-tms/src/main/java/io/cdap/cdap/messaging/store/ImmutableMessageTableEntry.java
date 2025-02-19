@@ -19,13 +19,13 @@ package io.cdap.cdap.messaging.store;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.messaging.MessagingUtils;
 import io.cdap.cdap.proto.id.TopicId;
-
 import javax.annotation.Nullable;
 
 /**
  * An immutable implementation of {@link MessageTable.Entry}.
  */
 public final class ImmutableMessageTableEntry implements MessageTable.Entry {
+
   private final TopicId topicId;
   private final int generation;
   private final boolean transactional;
@@ -36,8 +36,9 @@ public final class ImmutableMessageTableEntry implements MessageTable.Entry {
 
   public ImmutableMessageTableEntry(byte[] row, @Nullable byte[] payload, @Nullable byte[] txPtr) {
     this.topicId = MessagingUtils.toTopicId(row, 0,
-                                            row.length - Bytes.SIZEOF_SHORT - Bytes.SIZEOF_LONG - Bytes.SIZEOF_INT);
-    this.generation = Bytes.toInt(row, row.length - Bytes.SIZEOF_SHORT - Bytes.SIZEOF_LONG - Bytes.SIZEOF_INT);
+        row.length - Bytes.SIZEOF_SHORT - Bytes.SIZEOF_LONG - Bytes.SIZEOF_INT);
+    this.generation = Bytes.toInt(row,
+        row.length - Bytes.SIZEOF_SHORT - Bytes.SIZEOF_LONG - Bytes.SIZEOF_INT);
 
     int topicLength = MessagingUtils.getTopicLengthMessageEntry(row.length);
     this.publishTimestamp = Bytes.toLong(row, topicLength);

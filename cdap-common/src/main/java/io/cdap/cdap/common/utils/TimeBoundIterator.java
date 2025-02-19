@@ -20,16 +20,16 @@ package io.cdap.cdap.common.utils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.AbstractIterator;
-
 import java.util.Iterator;
 
 /**
- * An iterator that will act as if there are no more elements if a certain amount of time has passed, or there actually
- * are no more elements.
+ * An iterator that will act as if there are no more elements if a certain amount of time has
+ * passed, or there actually are no more elements.
  *
  * @param <T> type of element in the iterator
  */
 public class TimeBoundIterator<T> extends AbstractIterator<T> {
+
   private final Iterator<T> delegate;
   private final long timeBoundMillis;
   private final Stopwatch stopwatch;
@@ -38,12 +38,13 @@ public class TimeBoundIterator<T> extends AbstractIterator<T> {
     this(delegate, timeBoundMillis, new Stopwatch());
   }
 
-  @VisibleForTesting
-  TimeBoundIterator(Iterator<T> delegate, long timeBoundMillis, Stopwatch stopwatch) {
+  public TimeBoundIterator(Iterator<T> delegate, long timeBoundMillis, Stopwatch stopwatch) {
     this.delegate = delegate;
     this.timeBoundMillis = timeBoundMillis;
     this.stopwatch = stopwatch;
-    this.stopwatch.start();
+    if (!this.stopwatch.isRunning()) {
+      this.stopwatch.start();
+    }
   }
 
   @Override

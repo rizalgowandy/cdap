@@ -22,7 +22,6 @@ import io.cdap.cdap.etl.common.RecordInfo;
 import io.cdap.cdap.etl.common.RecordType;
 import org.apache.spark.api.java.function.FlatMapFunction;
 
-import java.util.Collections;
 import java.util.Iterator;
 
 /**
@@ -33,7 +32,7 @@ public class AlertPassFilter implements FlatMapFunction<RecordInfo<Object>, Aler
   @Override
   public Iterator<Alert> call(RecordInfo<Object> input) throws Exception {
     //noinspection unchecked
-    return input.getType() == RecordType.ALERT ?
-      Iterators.singletonIterator(((Alert) input.getValue())) : Iterators.emptyIterator();
+    return input.getType() == RecordType.ALERT
+      ? Iterators.singletonIterator(((Alert) input.getValue())) : Iterators.emptyIterator();
   }
 }

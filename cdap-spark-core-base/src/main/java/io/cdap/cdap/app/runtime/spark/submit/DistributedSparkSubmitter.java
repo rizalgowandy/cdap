@@ -18,6 +18,7 @@ package io.cdap.cdap.app.runtime.spark.submit;
 
 import com.google.common.collect.ImmutableList;
 import io.cdap.cdap.app.runtime.Arguments;
+import io.cdap.cdap.app.runtime.spark.SparkPackageUtils;
 import io.cdap.cdap.app.runtime.spark.SparkRuntimeContext;
 import io.cdap.cdap.app.runtime.spark.SparkRuntimeContextConfig;
 import io.cdap.cdap.app.runtime.spark.SparkRuntimeEnv;
@@ -26,33 +27,32 @@ import io.cdap.cdap.app.runtime.spark.distributed.SparkExecutionService;
 import io.cdap.cdap.internal.app.runtime.workflow.BasicWorkflowToken;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowProgramInfo;
 import io.cdap.cdap.proto.id.ProgramRunId;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.api.ApplicationConstants;
-import org.apache.twill.filesystem.LocationFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.cdap.cdap.runtime.spi.runtimejob.LaunchMode;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
+import org.apache.twill.filesystem.LocationFactory;
 
 /**
  * A {@link SparkSubmitter} to submit Spark job that runs on cluster.
  */
 public class DistributedSparkSubmitter extends AbstractSparkSubmitter {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DistributedSparkSubmitter.class);
-
   private final Configuration hConf;
   private final String schedulerQueueName;
   private final SparkExecutionService sparkExecutionService;
   private final long tokenRenewalInterval;
+  private final LaunchMode launchMode;
 
   public DistributedSparkSubmitter(Configuration hConf, LocationFactory locationFactory,
-                                   String hostname, SparkRuntimeContext runtimeContext,
-                                   @Nullable String schedulerQueueName) {
+      String hostname, SparkRuntimeContext runtimeContext,
+      @Nullable String schedulerQueueName,
+      LaunchMode launchMode) {
     this.hConf = hConf;
     this.schedulerQueueName = schedulerQueueName;
     ProgramRunId programRunId = runtimeContext.getProgram().getId().run(runtimeContext.getRunId().getId());
@@ -64,10 +64,11 @@ public class DistributedSparkSubmitter extends AbstractSparkSubmitter {
     this.tokenRenewalInterval = systemArgs.hasOption(SparkRuntimeContextConfig.CREDENTIALS_UPDATE_INTERVAL_MS)
       ? Long.parseLong(systemArgs.getOption(SparkRuntimeContextConfig.CREDENTIALS_UPDATE_INTERVAL_MS))
       : -1L;
+    this.launchMode = launchMode;
   }
 
   @Override
-  protected Map<String, String> generateSubmitConf() throws Exception {
+  protected Map<String, String> generateSubmitConf(Map<String, String> appConf) {
     Map<String, String> config = new HashMap<>();
     if (schedulerQueueName != null && !schedulerQueueName.isEmpty()) {
       config.put("spark.yarn.queue", schedulerQueueName);
@@ -103,6 +104,14 @@ public class DistributedSparkSubmitter extends AbstractSparkSubmitter {
     for (Map.Entry<String, String> entry : hConf) {
       SparkRuntimeEnv.setProperty("spark.hadoop." + entry.getKey(), hConf.get(entry.getKey()));
     }
+    if (launchMode == LaunchMode.CLIENT) {
+      // in client launch mode, DistributedSparkProgramRunner never ran to add variables
+      // from spark-env.sh, so make sure they are added to the app master.
+      for (Map.Entry<String, String> envEntry : SparkPackageUtils.getSparkEnv().entrySet()) {
+        SparkRuntimeEnv.setProperty(
+            "spark.yarn.appMasterEnv." + envEntry.getKey(), envEntry.getValue());
+      }
+    }
 
     sparkExecutionService.startAndWait();
     SparkRuntimeEnv.setProperty("spark.yarn.appMasterEnv." + SparkRuntimeUtils.CDAP_SPARK_EXECUTION_SERVICE_URI,
@@ -111,18 +120,15 @@ public class DistributedSparkSubmitter extends AbstractSparkSubmitter {
   }
 
   @Override
-  protected void triggerShutdown() {
+  protected void triggerShutdown(long timeout, TimeUnit timeoutTimeUnit) {
     // Just stop the execution service and block on that.
     // It will wait until the "completed" call from the Spark driver.
+    sparkExecutionService.setShutdownWaitSeconds(timeoutTimeUnit.toSeconds(timeout));
     sparkExecutionService.stopAndWait();
   }
 
   @Override
   protected void onCompleted(boolean succeeded) {
-    if (succeeded) {
-      sparkExecutionService.stopAndWait();
-    } else {
-      sparkExecutionService.shutdownNow();
-    }
+    sparkExecutionService.shutdownNow();
   }
 }

@@ -16,41 +16,97 @@
 
 package io.cdap.cdap.runtime.spi.common;
 
+import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.gax.paging.Page;
 import com.google.api.gax.rpc.ApiException;
 import com.google.api.gax.rpc.StatusCode;
 import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.CharStreams;
+import io.cdap.cdap.api.exception.ErrorCategory;
+import io.cdap.cdap.api.exception.ErrorCodeType;
+import io.cdap.cdap.api.exception.ErrorType;
+import io.cdap.cdap.api.exception.ErrorUtils;
+import io.cdap.cdap.api.exception.FailureDetailsProvider;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerContext;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerMetrics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.cdap.cdap.runtime.spi.provisioner.RetryableProvisionException;
+import io.cdap.cdap.runtime.spi.provisioner.dataproc.DataprocRetryableException;
+import io.cdap.cdap.runtime.spi.provisioner.dataproc.DataprocRuntimeException;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.SplittableRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * This class contains common methods that are needed by DataprocProvisioner and DataprocRuntimeJobManager.
+ * This class contains common methods that are needed by DataprocProvisioner and
+ * DataprocRuntimeJobManager.
  */
 public final class DataprocUtils {
 
+  // The property name for the GCS bucket used by the runtime job manager for launching jobs via the job API
+  // It can be overridden by profile runtime arguments (system.profile.properties.bucket)
+  public static final String BUCKET = "bucket";
   public static final String CDAP_GCS_ROOT = "cdap-job";
+  public static final String CDAP_CACHED_ARTIFACTS = "cached-artifacts";
   public static final String WORKER_CPU_PREFIX = "Up to";
+  // The property name for disabling caching of artifacts in GCS uploaded to GCS Bucket used by Dataproc.
+  // It can be overridden by profile runtime arguments (system.profile.properties.gcsCacheEnabled)
+  public static final String GCS_CACHE_ENABLED = "gcsCacheEnabled";
+  public static final String ARTIFACTS_COMPUTE_HASH_TIME_BUCKET_DAYS = "app.artifact.compute.hash.time.bucket.days";
+  public static final Path CACHE_DIR_PATH = Paths.get(System.getProperty("java.io.tmpdir"),
+      "dataproc.launcher.cache");
+  public static final String LOCAL_CACHE_DISABLED = "disableLocalCaching";
+  private static final int NUMBER_OF_RETRIES = 5;
+  private static final int MIN_WAIT_TIME_MILLISECOND = 500;
+  private static final int MAX_WAIT_TIME_MILLISECOND = 10000;
+
+  private static final SplittableRandom RANDOM = new SplittableRandom();
+  private static final int SET_CUSTOM_TIME_MAX_RETRY = 6;
+  private static final int SET_CUSTOM_TIME_MAX_SLEEP_MILLIS_BEFORE_RETRY = 20000;
+
+  /**
+   * resources required by Runtime Job (io.cdap.cdap.runtime.spi.runtimejob.RuntimeJob) that will be
+   * running on driver pool nodes.
+   */
+  public static final String DRIVER_MEMORY_MB = "driverMemoryMB";
+  public static final String DRIVER_MEMORY_MB_DEFAULT = "2048";
+  public static final String DRIVER_VCORES = "driverVCores";
+  public static final String DRIVER_VCORES_DEFAULT = "1";
+
+  public static final String GCS_HTTP_REQUEST_CONNECTION_TIMEOUT_MILLIS =
+      "gcs.http.request.connection.timeout.mills";
+  public static final String GCS_HTTP_REQUEST_CONNECTION_TIMEOUT_MILLIS_DEFAULT = "60000";
+  public static final String GCS_HTTP_REQUEST_READ_TIMEOUT_MILLIS =
+      "gcs.http.request.read.timeout.mills";
+  public static final String GCS_HTTP_REQUEST_READ_TIMEOUT_MILLIS_DEFAULT = "60000";
+  public static final String GCS_HTTP_REQUEST_TOTAL_TIMEOUT_MINS =
+      "gcs.http.request.total.timeout.mins";
+  public static final String GCS_HTTP_REQUEST_TOTAL_TIMEOUT_MINS_DEFAULT = "5";
 
   /**
    * HTTP Status-Code 429: RESOURCE_EXHAUSTED.
@@ -67,6 +123,10 @@ public final class DataprocUtils {
   private static final Pattern LABEL_KEY_PATTERN = Pattern.compile("^[a-z][a-z0-9_-]{0,62}$");
   private static final Pattern LABEL_VAL_PATTERN = Pattern.compile("^[a-z0-9_-]{0,63}$");
 
+  public interface ConnectionProvider {
+    HttpURLConnection getConnection(URL url) throws IOException;
+  }
+
   /**
    * Deletes provided directory path on GCS.
    *
@@ -74,16 +134,16 @@ public final class DataprocUtils {
    * @param bucket bucket
    * @param path dir path to delete
    */
-  public static void deleteGCSPath(Storage storageClient, String bucket, String path) {
+  public static void deleteGcsPath(Storage storageClient, String bucket, String path) {
     try {
       String bucketName = getBucketName(bucket);
       StorageBatch batch = storageClient.batch();
       Page<Blob> blobs = storageClient.list(bucketName, Storage.BlobListOption.currentDirectory(),
-                                            Storage.BlobListOption.prefix(path + "/"));
+          Storage.BlobListOption.prefix(path + "/"));
       boolean addedToDelete = false;
       for (Blob blob : blobs.iterateAll()) {
         LOG.trace("Added path to be deleted {}", blob.getName());
-        batch.delete(blob.getBlobId());
+        batch.delete(blob.getBlobId(), Storage.BlobSourceOption.generationMatch());
         addedToDelete = true;
       }
 
@@ -92,12 +152,12 @@ public final class DataprocUtils {
       }
     } catch (Exception e) {
       LOG.warn(String.format("GCS path %s was not cleaned up for bucket %s due to %s. ",
-                             path, bucket, e.getMessage()), e);
+          path, bucket, e.getMessage()), e);
     }
   }
 
   /**
-   * Removes prefix gs:// and returns bucket name
+   * Removes prefix gs:// and returns bucket name.
    */
   public static String getBucketName(String bucket) {
     if (bucket.startsWith(GS_PREFIX)) {
@@ -107,18 +167,19 @@ public final class DataprocUtils {
   }
 
   /**
-   * Utility class to parse the keyvalue string from UI Widget and return back HashMap.
-   * String is of format  <key><keyValueDelimiter><value><delimiter><key><keyValueDelimiter><value>
-   * eg:  networktag1=out2internet;networktag2=priority
-   * The return from the method is a map with key value pairs of (networktag1 out2internet) and (networktag2 priority)
+   * Utility class to parse the keyvalue string from UI Widget and return back HashMap. String is of
+   * format  {@code <key><keyValueDelimiter><value><delimiter><key><keyValueDelimiter><value>} eg:
+   * networktag1=out2internet;networktag2=priority The return from the method is a map with key
+   * value pairs of (networktag1 out2internet) and (networktag2 priority)
    *
    * @param configValue String to be parsed into key values format
    * @param delimiter Delimiter used for keyvalue pairs
    * @param keyValueDelimiter Delimiter between key and value.
    * @return Map of Key value pairs parsed from input configValue using the delimiters.
    */
-  public static Map<String, String> parseKeyValueConfig(@Nullable String configValue, String delimiter,
-                                                        String keyValueDelimiter) throws IllegalArgumentException {
+  public static Map<String, String> parseKeyValueConfig(@Nullable String configValue,
+      String delimiter,
+      String keyValueDelimiter) throws IllegalArgumentException {
     Map<String, String> map = new HashMap<>();
     if (configValue == null) {
       return map;
@@ -136,23 +197,25 @@ public final class DataprocUtils {
   }
 
   /**
-   * Parses labels that are expected to be of the form key1=val1,key2=val2 into a map of key values.
+   * Parses labels that are expected to be of the form key1=val1,key2=val2 into a map of key
+   * values.
    *
-   * If a label key or value is invalid, a message will be logged but the key-value will not be returned in the map.
-   * Keys and values cannot be longer than 63 characters.
-   * Keys and values can only contain lowercase letters, numeric characters, underscores, and dashes.
-   * Keys must start with a lowercase letter and must not be empty.
+   * <p>If a label key or value is invalid, a message will be logged but the key-value will not be
+   * returned in the map. Keys and values cannot be longer than 63 characters. Keys and values can
+   * only contain lowercase letters, numeric characters, underscores, and dashes. Keys must start
+   * with a lowercase letter and must not be empty.
    *
-   * If a label is given without a '=', the label value will be empty.
-   * If a label is given as 'key=', the label value will be empty.
-   * If a label has multiple '=', it will be ignored. For example, 'key=val1=val2' will be ignored.
+   * <p>If a label is given without a '=', the label value will be empty. If a label is given as
+   * 'key=', the label value will be empty. If a label has multiple '=', it will be ignored. For
+   * example, 'key=val1=val2' will be ignored.
    *
    * @param labelsStr the labels string to parse
    * @return valid labels from the parsed string
    */
-  public static Map<String, String> parseLabels(String labelsStr) {
-    Splitter labelSplitter = Splitter.on(',').trimResults().omitEmptyStrings();
-    Splitter kvSplitter = Splitter.on('=').trimResults().omitEmptyStrings();
+  public static Map<String, String> parseLabels(String labelsStr,
+      String labelDelimiter, String keyValueDelimiter) {
+    Splitter labelSplitter = Splitter.on(labelDelimiter).trimResults().omitEmptyStrings();
+    Splitter kvSplitter = Splitter.on(keyValueDelimiter).trimResults().omitEmptyStrings();
 
     Map<String, String> validLabels = new HashMap<>();
     for (String keyvalue : labelSplitter.split(labelsStr)) {
@@ -163,18 +226,22 @@ public final class DataprocUtils {
       String key = iter.next();
       String val = iter.hasNext() ? iter.next() : "";
       if (iter.hasNext()) {
-        LOG.warn("Ignoring invalid label {}. Labels should be of the form 'key=val' or just 'key'", keyvalue);
+        LOG.warn("Ignoring invalid label {}. Labels should be of the form 'key{}val' or just 'key'",
+            keyvalue, keyValueDelimiter);
         continue;
       }
       if (!LABEL_KEY_PATTERN.matcher(key).matches()) {
-        LOG.warn("Ignoring invalid label key {}. Label keys cannot be longer than 63 characters, must start with "
-                   + "a lowercase letter, and can only contain lowercase letters, numeric characters, underscores,"
-                   + " and dashes.", key);
+        LOG.warn(
+            "Ignoring invalid label key {}. Label keys cannot be longer than 63 characters, must start with "
+                + "a lowercase letter, and can only contain lowercase letters, numeric characters, underscores,"
+                + " and dashes.", key);
         continue;
       }
       if (!LABEL_VAL_PATTERN.matcher(val).matches()) {
-        LOG.warn("Ignoring invalid label value {}. Label values cannot be longer than 63 characters, "
-                   + "and can only contain lowercase letters, numeric characters, underscores, and dashes.", val);
+        LOG.warn(
+            "Ignoring invalid label value {}. Label values cannot be longer than 63 characters, "
+                + "and can only contain lowercase letters, numeric characters, underscores, and dashes.",
+            val);
         continue;
       }
       validLabels.put(key, val);
@@ -185,35 +252,52 @@ public final class DataprocUtils {
   /**
    * Parses the given list of IP CIDR blocks into list of {@link IPRange}.
    */
-  public static List<IPRange> parseIPRanges(List<String> ranges) {
+  public static List<IPRange> parseIpRanges(List<String> ranges) {
     return ranges.stream().map(IPRange::new).collect(Collectors.toList());
   }
 
   /**
    * Get network from the metadata server.
    */
-  public static String getSystemNetwork() {
+  public static String getSystemNetwork(ConnectionProvider connectionProvider,
+      ErrorCategory errorCategory) {
     try {
-      String network = getMetadata("instance/network-interfaces/0/network");
+      String network = getMetadata(connectionProvider, "instance/network-interfaces/0/network");
       // will be something like projects/<project-number>/networks/default
       return network.substring(network.lastIndexOf('/') + 1);
-    } catch (IOException e) {
-      throw new IllegalArgumentException("Unable to get the network from the environment. "
-                                           + "Please explicitly set the network.", e);
+    } catch (Exception e) {
+      String errorReason = "Unable to get the network from the environment. "
+          + "Please explicitly set the network.";
+      throw new DataprocRuntimeException.Builder()
+          .withCause(e)
+          .withErrorCategory(errorCategory)
+          .withErrorReason(errorReason)
+          .withErrorMessage(String.format("%s with message: %s", errorReason, e.getMessage()))
+          .withDependency(true)
+          .withErrorType(ErrorType.USER)
+          .build();
     }
   }
 
   /**
    * Get zone from the metadata server.
    */
-  public static String getSystemZone() {
+  public static String getSystemZone(ConnectionProvider connectionProvider) {
     try {
-      String zone = getMetadata("instance/zone");
+      String zone = getMetadata(connectionProvider, "instance/zone");
       // will be something like projects/<project-number>/zones/us-east1-b
       return zone.substring(zone.lastIndexOf('/') + 1);
-    } catch (IOException e) {
-      throw new IllegalArgumentException("Unable to get the zone from the environment. "
-                                           + "Please explicitly set the zone.", e);
+    } catch (Exception e) {
+      String errorReason = "Unable to get the zone from the environment. "
+          + "Please explicitly set the zone.";
+      throw new DataprocRuntimeException.Builder()
+          .withCause(e)
+          .withErrorCategory(DataprocRuntimeException.ERROR_CATEGORY_PROVISIONING_CONFIGURATION)
+          .withErrorReason(errorReason)
+          .withErrorMessage(String.format("%s with message: %s", errorReason, e.getMessage()))
+          .withDependency(true)
+          .withErrorType(ErrorType.USER)
+          .build();
     }
   }
 
@@ -223,7 +307,14 @@ public final class DataprocUtils {
   public static String getRegionFromZone(String zone) {
     int idx = zone.lastIndexOf("-");
     if (idx <= 0) {
-      throw new IllegalArgumentException("Invalid zone. Zone must be in the format of <region>-<zone-name>");
+      String errorReason = "Invalid zone. Zone must be in the format of <region>-<zone-name>";
+      throw new DataprocRuntimeException.Builder()
+          .withErrorCategory(DataprocRuntimeException.ERROR_CATEGORY_PROVISIONING_CONFIGURATION)
+          .withErrorReason(errorReason)
+          .withErrorMessage(errorReason)
+          .withDependency(true)
+          .withErrorType(ErrorType.USER)
+          .build();
     }
     return zone.substring(0, idx);
   }
@@ -231,12 +322,21 @@ public final class DataprocUtils {
   /**
    * Get project id from the metadata server.
    */
-  public static String getSystemProjectId() {
+  public static String getSystemProjectId(ConnectionProvider connectionProvider,
+      ErrorCategory errorCategory) {
     try {
-      return getMetadata("project/project-id");
-    } catch (IOException e) {
-      throw new IllegalArgumentException("Unable to get project id from the environment. "
-                                           + "Please explicitly set the project id and account key.", e);
+      return getMetadata(connectionProvider, "project/project-id");
+    } catch (Exception e) {
+      String errorReason = "Unable to get project id from the environment. "
+          + "Please explicitly set the project id and account key.";
+      throw new DataprocRuntimeException.Builder()
+          .withCause(e)
+          .withErrorCategory(errorCategory)
+          .withErrorReason(errorReason)
+          .withErrorMessage(e.getMessage())
+          .withDependency(true)
+          .withErrorType(ErrorType.USER)
+          .build();
     }
   }
 
@@ -244,8 +344,22 @@ public final class DataprocUtils {
    * Emit a dataproc metric.
    **/
   public static void emitMetric(ProvisionerContext context, String region,
-                                String metricName, @Nullable Exception e) {
+      String metricName, @Nullable String imageVersion, @Nullable Exception e) {
+    emitMetric(context,
+        DataprocMetric.builder(metricName).setRegion(region).setException(e).setImageVersion(imageVersion).build());
+  }
+
+  public static void emitMetric(ProvisionerContext context, String region,
+      @Nullable String imageVersion, String metricName) {
+    emitMetric(context, region, metricName, imageVersion, null);
+  }
+
+  /**
+   * Emit a dataproc metric.
+   **/
+  public static void emitMetric(ProvisionerContext context, DataprocMetric dataprocMetric) {
     StatusCode.Code statusCode;
+    Exception e = dataprocMetric.getException();
     if (e == null) {
       statusCode = StatusCode.Code.OK;
     } else {
@@ -257,37 +371,235 @@ public final class DataprocUtils {
         statusCode = StatusCode.Code.INTERNAL;
       }
     }
-    Map<String, String> tags = ImmutableMap.<String, String>builder()
-      .put("reg", region)
-      .put("sc", statusCode.toString())
-      .build();
-    ProvisionerMetrics metrics = context.getMetrics(tags);
-    metrics.count(metricName, 1);
-  }
-
-  public static void emitMetric(ProvisionerContext context, String region, String  metricName) {
-    emitMetric(context, region, metricName, null);
+    ImmutableMap.Builder<String, String> tags = ImmutableMap.<String, String>builder()
+        .put("reg", dataprocMetric.getRegion())
+        .put("sc", statusCode.toString());
+    if (dataprocMetric.getLaunchMode() != null) {
+      tags.put("lchmode", dataprocMetric.getLaunchMode().name());
+    }
+    if (!Strings.isNullOrEmpty(dataprocMetric.getImageVersion())) {
+      tags.put("imgVer", dataprocMetric.getImageVersion());
+    }
+    ProvisionerMetrics metrics = context.getMetrics(tags.build());
+    metrics.count(dataprocMetric.getMetricName(), 1);
   }
 
   /**
    * Makes a request to the metadata server that lives on the VM, as described at
    * https://cloud.google.com/compute/docs/storing-retrieving-metadata.
    */
-  private static String getMetadata(String resource) throws IOException {
-    URL url = new URL("http://metadata.google.internal/computeMetadata/v1/" + resource);
+  private static String getMetadata(ConnectionProvider connectionProvider, String resource)
+      throws IOException {
+    ExponentialBackOff backOff = new ExponentialBackOff.Builder()
+        .setInitialIntervalMillis(MIN_WAIT_TIME_MILLISECOND)
+        .setMaxIntervalMillis(MAX_WAIT_TIME_MILLISECOND).build();
+    String metadataUrlPrefix = "http://metadata.google.internal/computeMetadata/v1/";
+    String metadataFlavorHeader = "Metadata-Flavor";
+    String metadataFlavorValue = "Google";
+    String metadataUrl = metadataUrlPrefix + resource;
     HttpURLConnection connection = null;
-    try {
-      connection = (HttpURLConnection) url.openConnection();
-      connection.setRequestProperty("Metadata-Flavor", "Google");
-      connection.connect();
-      try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
-        return CharStreams.toString(reader);
+    int statusCode = -1;
+    int retryCounter = 0;
+    Exception exception = null;
+    while (retryCounter < NUMBER_OF_RETRIES) {
+      retryCounter++;
+      try {
+        URL url = new URL(metadataUrl);
+        connection = connectionProvider.getConnection(url);
+        connection.setRequestProperty(metadataFlavorHeader, metadataFlavorValue);
+        connection.connect();
+        statusCode = connection.getResponseCode();
+        try (Reader reader = new InputStreamReader(connection.getInputStream(),
+            StandardCharsets.UTF_8)) {
+          return CharStreams.toString(reader);
+        }
+      } catch (Exception e) {
+        // Update the caught exception
+        exception = e;
+        if (statusCode / 100 == 5 || e instanceof SocketTimeoutException) {
+          LOG.warn("Retry attempt {} for caught exception", retryCounter, exception);
+        } else {
+          // Unwanted exception encountered
+          break;
+        }
+      } finally {
+        if (connection != null) {
+          connection.disconnect();
+        }
       }
-    } finally {
-      if (connection != null) {
-        connection.disconnect();
+      try {
+        Thread.sleep(backOff.nextBackOffMillis());
+      } catch (InterruptedException | IOException e) {
+        // Update the exception caught and throw this exception immediately
+        exception = e;
+        break;
       }
     }
+    if (exception instanceof IOException) {
+      throw (IOException) exception;
+    }
+    throw new RuntimeException(
+        String.format("Error fetching metadata from server with response code: %s", statusCode),
+        exception);
+  }
+
+  /**
+   * Recursively deletes all the contents of the directory and the directory itself.
+   */
+  public static void deleteDirectoryContents(@Nullable File file) {
+    if (file == null) {
+      return;
+    }
+
+    if (file.isDirectory()) {
+      File[] entries = file.listFiles();
+      if (entries != null) {
+        for (File entry : entries) {
+          deleteDirectoryContents(entry);
+        }
+      }
+    }
+    if (!file.delete()) {
+      LOG.warn("Failed to delete file {}.", file);
+    }
+  }
+
+  /**
+   * Recursively deletes all the contents of the directory and the directory itself with retries.
+   */
+  public static synchronized void deleteDirectoryWithRetries(@Nullable File file,
+      String errorMessageOnFailure) {
+    ExponentialBackOff backOff = new ExponentialBackOff.Builder()
+        .setInitialIntervalMillis(MIN_WAIT_TIME_MILLISECOND)
+        .setMaxIntervalMillis(MAX_WAIT_TIME_MILLISECOND).build();
+
+    Exception exception = null;
+    int counter = 0;
+    while (counter < NUMBER_OF_RETRIES) {
+      counter++;
+
+      try {
+        deleteDirectoryContents(file);
+        return;
+      } catch (Exception e) {
+        // exception does not get logged since it might get too chatty.
+        exception = e;
+      }
+
+      try {
+        Thread.sleep(backOff.nextBackOffMillis());
+      } catch (InterruptedException | IOException e) {
+        exception = e;
+        break;
+      }
+    }
+    throw new RuntimeException(String.format(errorMessageOnFailure, file), exception);
+  }
+
+  public static void setTemporaryHoldOnGcsObject(Storage storage, String bucket, Blob blob,
+      String targetFilePath) throws InterruptedException {
+    updateTemporaryHoldOnGcsObject(storage, bucket, blob, blob.getBlobId(), targetFilePath, true);
+  }
+
+  public static void removeTemporaryHoldOnGcsObject(Storage storage, String bucket, BlobId blobId,
+      String targetFilePath) throws InterruptedException {
+    updateTemporaryHoldOnGcsObject(storage, bucket, null, blobId, targetFilePath, false);
+  }
+
+  private static void updateTemporaryHoldOnGcsObject(Storage storage, String bucket,
+      @Nullable Blob blob, BlobId blobId,
+      String targetFilePath,
+      boolean temporaryHold) throws InterruptedException {
+    for (int i = 1; i <= SET_CUSTOM_TIME_MAX_RETRY; i++) {
+      try {
+        // get a random jitter between 30min to 90min
+        long jitter = TimeUnit.MINUTES.toMillis(RANDOM.nextInt(60)) + TimeUnit.MINUTES.toMillis(30);
+        // Blob can be null when we set temporary hold to false as we don't need to check pre-existing custom time.
+        // When setting to true, we'll check if custom time was recently set in which case we'll skip this operation.
+        assert temporaryHold == (blob != null);
+        if (!temporaryHold || blob.getCustomTime() == null
+            || blob.getTemporaryHold() == null || !blob.getTemporaryHold().booleanValue()
+            || blob.getCustomTime() + jitter < System.currentTimeMillis()) {
+          BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
+              .setCustomTime(System.currentTimeMillis())
+              .setTemporaryHold(temporaryHold)
+              .build();
+          storage.update(blobInfo);
+
+          LOG.debug("Successfully set custom time for gs://{}/{} and temporary hold to {}", bucket,
+              targetFilePath,
+              temporaryHold);
+        } else {
+          //custom time is still fresh
+          LOG.debug("Skip setting custom time for gs://{}/{} since it is fresh", bucket,
+              targetFilePath);
+        }
+        return;
+      } catch (Exception ex) {
+        if (i == SET_CUSTOM_TIME_MAX_RETRY) {
+          throw ex;
+        }
+        Thread.sleep(RANDOM.nextInt(SET_CUSTOM_TIME_MAX_SLEEP_MILLIS_BEFORE_RETRY));
+      }
+    }
+  }
+
+  /**
+   * Returns error reason as {@link String} based on {@link ApiException} status code.
+   */
+  public static String getErrorReason(String reason, Throwable e) {
+    if (!(e instanceof ApiException)) {
+      return reason;
+    }
+    ApiException ex = (ApiException) e;
+    int statusCode = ex.getStatusCode().getCode().getHttpStatusCode();
+    StringBuilder message = new StringBuilder();
+    message.append(String.format("%s %s", statusCode, reason));
+    if (!Strings.isNullOrEmpty(ex.getReason())) {
+      message.append(String.format(": %s", ex.getReason()));
+    }
+    message.append(String.format(". %s",
+        ErrorUtils.getActionErrorByStatusCode(statusCode).getCorrectiveAction()));
+    return message.toString();
+  }
+
+  /**
+   * Returns {@link DataprocRuntimeException} or throws {@link RetryableProvisionException}
+   * based on {@link ApiException} status code.
+   */
+  public static DataprocRuntimeException handleApiException(@Nullable String operationId,
+      ApiException e, String errorReason, ErrorCategory errorCategory)
+      throws RetryableProvisionException {
+    if (e.getStatusCode().getCode().getHttpStatusCode() / 100 != 4) {
+      throw new DataprocRetryableException(operationId, e);
+    }
+    int statusCode = e.getStatusCode().getCode().getHttpStatusCode();
+    ErrorUtils.ActionErrorPair pair = ErrorUtils.getActionErrorByStatusCode(statusCode);
+    return new DataprocRuntimeException.Builder()
+        .withCause(e)
+        .withErrorCategory(errorCategory)
+        .withOperationId(operationId)
+        .withErrorMessage(e.getMessage())
+        .withErrorReason(getErrorReason(errorReason, e))
+        .withErrorType(pair.getErrorType())
+        .withErrorCodeType(ErrorCodeType.HTTP)
+        .withErrorCode(String.valueOf(statusCode))
+        .withDependency(true)
+        .build();
+  }
+
+  /**
+   * Returns a boolean true if {@link FailureDetailsProvider} is present in causal chain,
+   * otherwise false.
+   */
+  public static boolean isFailureDetailsProviderInCausalChain(Throwable e) {
+    List<Throwable> causalChain = Throwables.getCausalChain(e);
+    for (Throwable cause : causalChain) {
+      if (cause instanceof FailureDetailsProvider) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private DataprocUtils() {

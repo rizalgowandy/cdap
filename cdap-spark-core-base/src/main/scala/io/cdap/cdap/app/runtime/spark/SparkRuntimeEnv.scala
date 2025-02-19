@@ -144,6 +144,13 @@ object SparkRuntimeEnv {
   }
 
   /**
+   * Provides spark version to be easily fetched from java.
+   *
+   * @return spark version
+   */
+  def getVersion(): String = org.apache.spark.SPARK_VERSION
+
+  /**
     * Adds the reference to BatchedWriteAheadLog instance.
     */
   def addBatchedWriteAheadLog(batchedWAL: AnyRef): Unit = {
@@ -367,8 +374,9 @@ object SparkRuntimeEnv {
         TimeUnit.MILLISECONDS.sleep(100)
       }
 
-      // Now call BatchedWriteAheadLog.close()
-      batchedWAL.callMethod("close")
+      // Now call BatchedWriteAheadLog.realClose()
+      // This method is created by the SparkClassRewriter
+      batchedWAL.callMethod("realClose")
     })
   }
 

@@ -26,17 +26,17 @@ import com.google.gson.JsonSerializer;
 import io.cdap.cdap.api.artifact.ArtifactRange;
 import io.cdap.cdap.api.artifact.InvalidArtifactRangeException;
 import io.cdap.cdap.proto.artifact.ArtifactRanges;
-
 import java.lang.reflect.Type;
 
 /**
  * Gson serialize and deserialize {@link ArtifactRange}.
  */
-public class ArtifactRangeCodec implements JsonDeserializer<ArtifactRange>, JsonSerializer<ArtifactRange> {
+public class ArtifactRangeCodec implements JsonDeserializer<ArtifactRange>,
+    JsonSerializer<ArtifactRange> {
 
   @Override
   public ArtifactRange deserialize(JsonElement json, Type typeOfT,
-                                   JsonDeserializationContext context) throws JsonParseException {
+      JsonDeserializationContext context) throws JsonParseException {
     try {
       return ArtifactRanges.parseArtifactRange(json.getAsString());
     } catch (InvalidArtifactRangeException e) {
@@ -45,7 +45,8 @@ public class ArtifactRangeCodec implements JsonDeserializer<ArtifactRange>, Json
   }
 
   @Override
-  public JsonElement serialize(ArtifactRange src, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(ArtifactRange src, Type typeOfSrc,
+      JsonSerializationContext context) {
     return new JsonPrimitive(src.toString());
   }
 }

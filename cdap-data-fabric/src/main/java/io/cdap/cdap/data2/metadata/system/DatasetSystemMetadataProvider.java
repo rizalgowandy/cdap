@@ -22,24 +22,20 @@ import io.cdap.cdap.api.data.batch.BatchReadable;
 import io.cdap.cdap.api.data.batch.BatchWritable;
 import io.cdap.cdap.api.data.batch.InputFormatProvider;
 import io.cdap.cdap.api.data.batch.OutputFormatProvider;
-import io.cdap.cdap.api.data.batch.RecordScannable;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.dataset.DatasetProperties;
-import io.cdap.cdap.api.dataset.lib.FileSet;
 import io.cdap.cdap.api.dataset.lib.FileSetProperties;
 import io.cdap.cdap.api.dataset.lib.ObjectMappedTableProperties;
-import io.cdap.cdap.api.dataset.lib.PartitionedFileSet;
 import io.cdap.cdap.api.dataset.table.TableProperties;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.spi.metadata.MetadataConstants;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link AbstractSystemMetadataWriter} for a {@link DatasetId dataset}.
@@ -65,15 +61,15 @@ public class DatasetSystemMetadataProvider implements SystemMetadataProvider {
   private final String description;
 
   public DatasetSystemMetadataProvider(DatasetId dsInstance, DatasetProperties dsProperties,
-                                       @Nullable Dataset dataset, @Nullable String dsType,
-                                       @Nullable String description) {
+      @Nullable Dataset dataset, @Nullable String dsType,
+      @Nullable String description) {
     this(dsInstance, dsProperties, -1, dataset, dsType, description);
   }
 
   public DatasetSystemMetadataProvider(DatasetId dsInstance, DatasetProperties dsProperties,
-                                       long createTime,
-                                       @Nullable Dataset dataset, @Nullable String dsType,
-                                       @Nullable String description) {
+      long createTime,
+      @Nullable Dataset dataset, @Nullable String dsType,
+      @Nullable String description) {
     this.dsInstance = dsInstance;
     this.dsType = dsType;
     this.dsProperties = dsProperties;
@@ -81,7 +77,8 @@ public class DatasetSystemMetadataProvider implements SystemMetadataProvider {
     this.dataset = dataset;
     this.description = description;
     if (dataset == null) {
-      LOG.warn("Dataset {} is null, some metadata will not be recorded for the dataset", dsInstance);
+      LOG.warn("Dataset {} is null, some metadata will not be recorded for the dataset",
+          dsInstance);
     }
   }
 
@@ -110,21 +107,14 @@ public class DatasetSystemMetadataProvider implements SystemMetadataProvider {
   @Override
   public Set<String> getSystemTagsToAdd() {
     Set<String> tags = new HashSet<>();
-    if (dataset instanceof RecordScannable) {
-      tags.add(EXPLORE_TAG);
-    }
-    if (dataset instanceof FileSet || dataset instanceof PartitionedFileSet) {
-      if (FileSetProperties.isExploreEnabled(dsProperties.getProperties())) {
-        tags.add(EXPLORE_TAG);
-      }
-    }
-    if (dataset instanceof BatchReadable || dataset instanceof BatchWritable ||
-      dataset instanceof InputFormatProvider || dataset instanceof OutputFormatProvider) {
+    if (dataset instanceof BatchReadable || dataset instanceof BatchWritable
+        || dataset instanceof InputFormatProvider || dataset instanceof OutputFormatProvider) {
       tags.add(BATCH_TAG);
     }
 
     boolean isLocalDataset
-      = Boolean.parseBoolean(dsProperties.getProperties().get(Constants.AppFabric.WORKFLOW_LOCAL_DATASET_PROPERTY));
+        = Boolean.parseBoolean(
+        dsProperties.getProperties().get(Constants.AppFabric.WORKFLOW_LOCAL_DATASET_PROPERTY));
 
     if (isLocalDataset) {
       tags.add(LOCAL_DATASET_TAG);
@@ -143,22 +133,20 @@ public class DatasetSystemMetadataProvider implements SystemMetadataProvider {
     } else if (datasetProperties.containsKey(ObjectMappedTableProperties.OBJECT_SCHEMA)) {
       // If it is an ObjectMappedTable, the schema is in a property called 'object.schema'
       schemaStr = datasetProperties.get(ObjectMappedTableProperties.OBJECT_SCHEMA);
-    } else if (datasetProperties.containsKey(getExplorePropName(FILESET_AVRO_SCHEMA_PROPERTY))) {
+    } else if (datasetProperties.containsKey(FILESET_AVRO_SCHEMA_PROPERTY)) {
       // Fileset with avro schema (CDAP-5322)
-      schemaStr = datasetProperties.get(getExplorePropName(FILESET_AVRO_SCHEMA_PROPERTY));
+      schemaStr = datasetProperties.get(FILESET_AVRO_SCHEMA_PROPERTY);
     } else if (datasetProperties.containsKey(getOutputPropName(FILESET_AVRO_SCHEMA_OUTPUT_KEY))) {
       // Fileset with avro schema defined in output property (CDAP-5322)
       schemaStr = datasetProperties.get(getOutputPropName(FILESET_AVRO_SCHEMA_OUTPUT_KEY));
-    } else if (datasetProperties.containsKey(getOutputPropName(FILESET_PARQUET_SCHEMA_OUTPUT_KEY))) {
+    } else if (datasetProperties.containsKey(
+        getOutputPropName(FILESET_PARQUET_SCHEMA_OUTPUT_KEY))) {
       // Fileset with parquet schema defined in output property (CDAP-5322)
       schemaStr = datasetProperties.get(getOutputPropName(FILESET_PARQUET_SCHEMA_OUTPUT_KEY));
     }
     return schemaStr;
   }
 
-  private static String getExplorePropName(String prop) {
-    return FileSetProperties.PROPERTY_EXPLORE_TABLE_PROPERTY_PREFIX + prop;
-  }
 
   private static String getOutputPropName(String prop) {
     return FileSetProperties.OUTPUT_PROPERTIES_PREFIX + prop;

@@ -27,6 +27,7 @@ import io.cdap.cdap.api.workflow.WorkflowActionNode;
 import io.cdap.cdap.api.workflow.WorkflowNode;
 import io.cdap.cdap.api.workflow.WorkflowSpecification;
 import io.cdap.cdap.app.store.Store;
+import io.cdap.cdap.common.ConflictException;
 import io.cdap.cdap.common.app.RunIds;
 import io.cdap.cdap.common.utils.ProjectInfo;
 import io.cdap.cdap.data2.metadata.lineage.AccessType;
@@ -42,7 +43,9 @@ import io.cdap.cdap.internal.app.DefaultApplicationSpecification;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
 import io.cdap.cdap.internal.app.runtime.SystemArguments;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
+import io.cdap.cdap.internal.app.store.ApplicationMeta;
 import io.cdap.cdap.proto.ProgramType;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.NamespaceId;
@@ -51,16 +54,15 @@ import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-import org.apache.twill.api.RunId;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.apache.twill.api.RunId;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests lineage computation.
@@ -459,7 +461,7 @@ public class LineageAdminTest extends AppFabricTestBase {
 
 
   @Test
-  public void testWorkflowLineage() {
+  public void testWorkflowLineage() throws ConflictException {
 
     TransactionRunner transactionRunner = getInjector().getInstance(TransactionRunner.class);
     LineageStoreReader lineageReader =
@@ -490,7 +492,10 @@ public class LineageAdminTest extends AppFabricTestBase {
       );
 
     Store store = getInjector().getInstance(Store.class);
-    store.addApplication(testApp, appSpec);
+    ApplicationMeta meta = new ApplicationMeta(appSpec.getName(), appSpec,
+                                               new ChangeDetail(null, null, null,
+                                                                System.currentTimeMillis()));
+    store.addLatestApplication(testApp, meta);
     LineageAdmin lineageAdmin = new LineageAdmin(lineageReader, store);
 
     // Add accesses for D3 -> P2 -> D2 -> P1 -> D1 <-> P3
@@ -597,7 +602,7 @@ public class LineageAdminTest extends AppFabricTestBase {
         new Relation(dataset1, program3, AccessType.UNKNOWN, twillRunId(run3))
       ),
       oneLevelLineage.getRelations());
-    
+
     // Assert that in a different namespace both lineage and metadata should be empty
     NamespaceId customNamespace = new NamespaceId("custom_namespace");
     DatasetId customDataset1 = customNamespace.dataset(dataset1.getEntityName());
@@ -663,7 +668,10 @@ public class LineageAdminTest extends AppFabricTestBase {
       );
 
     Store store = getInjector().getInstance(Store.class);
-    store.addApplication(testApp, appSpec);
+    ApplicationMeta meta = new ApplicationMeta(appSpec.getName(), appSpec,
+                                               new ChangeDetail(null, null, null,
+                                                                System.currentTimeMillis()));
+    store.addLatestApplication(testApp, meta);
     LineageAdmin lineageAdmin = new LineageAdmin(lineageReader, store);
 
     // Add accesses for D1 -|

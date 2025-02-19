@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.api.join;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -26,6 +25,7 @@ import javax.annotation.Nullable;
  */
 @Beta
 public class JoinField {
+
   private final String stageName;
   private final String fieldName;
   private final String alias;
@@ -62,9 +62,9 @@ public class JoinField {
       return false;
     }
     JoinField field1 = (JoinField) o;
-    return Objects.equals(stageName, field1.stageName) &&
-      Objects.equals(fieldName, field1.fieldName) &&
-      Objects.equals(alias, field1.alias);
+    return Objects.equals(stageName, field1.stageName)
+        && Objects.equals(fieldName, field1.fieldName)
+        && Objects.equals(alias, field1.alias);
   }
 
   @Override
@@ -74,10 +74,10 @@ public class JoinField {
 
   @Override
   public String toString() {
-    return "JoinField{" +
-      "stage='" + stageName + '\'' +
-      ", field='" + fieldName + '\'' +
-      ", alias='" + alias + '\'' +
-      '}';
+    return "JoinField{"
+        + "stage='" + stageName + '\''
+        + ", field='" + fieldName + '\''
+        + ", alias='" + alias + '\''
+        + '}';
   }
 }

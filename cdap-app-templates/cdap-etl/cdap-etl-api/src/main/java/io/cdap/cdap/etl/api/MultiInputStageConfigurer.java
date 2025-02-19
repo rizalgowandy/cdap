@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.api;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.data.schema.Schema;
-
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -29,8 +28,10 @@ import javax.annotation.Nullable;
  */
 @Beta
 public interface MultiInputStageConfigurer {
+
   /**
-   * get the map of input stageName to input schema for this stage, or return empty map if its unknown
+   * get the map of input stageName to input schema for this stage, or return empty map if its
+   * unknown
    *
    * @return map of input schemas
    */

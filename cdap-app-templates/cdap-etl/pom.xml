@@ -21,7 +21,7 @@
   <parent>
     <groupId>io.cdap.cdap</groupId>
     <artifactId>cdap-app-templates</artifactId>
-    <version>6.7.0-SNAPSHOT</version>
+    <version>6.12.0-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
@@ -30,9 +30,7 @@
   <packaging>pom</packaging>
 
   <modules>
-    <module>cdap-data-pipeline2_2.11</module>
     <module>cdap-data-pipeline3_2.12</module>
-    <module>cdap-data-streams2_2.11</module>
     <module>cdap-data-streams3_2.12</module>
     <module>cdap-etl-api</module>
     <module>cdap-etl-api-spark</module>
@@ -41,7 +39,6 @@
     <module>cdap-etl-core</module>
     <module>cdap-etl-proto</module>
     <module>cdap-etl-tools</module>
-    <module>hydrator-spark-core2_2.11</module>
     <module>hydrator-spark-core3_2.12</module>
     <module>hydrator-test</module>
   </modules>
@@ -269,12 +266,6 @@
       <artifactId>cdap-api</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.cdap.cdap</groupId>
-      <artifactId>cdap-unit-test</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>io.cdap.cdap</groupId>

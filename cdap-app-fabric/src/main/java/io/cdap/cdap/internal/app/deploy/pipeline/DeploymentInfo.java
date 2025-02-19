@@ -16,10 +16,9 @@
 
 package io.cdap.cdap.internal.app.deploy.pipeline;
 
-import org.apache.twill.filesystem.Location;
-
 import java.io.File;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
 
 /**
  * Contains information about input and output locations for deployment.
@@ -35,8 +34,8 @@ public class DeploymentInfo {
   /**
    * Construct the DeploymentInfo with appJarFile and destination.
    *
-   * @param appJarFile Application jar file that should be deployed. The File is expected to be present in the local
-   *                   file system.
+   * @param appJarFile Application jar file that should be deployed. The File is expected to be
+   *     present in the local file system.
    * @param destination Destination that represents {@link Location} of the jar
    * @param configString application configuration in json
    */
@@ -50,14 +49,15 @@ public class DeploymentInfo {
   /**
    * Construct the DeploymentInfo with appJarFile, destination, and applicationScope.
    *
-   * @param appJarFile Application jar file that should be deployed. The File is expected to be present in the local
-   *                   file system.
+   * @param appJarFile Application jar file that should be deployed. The File is expected to be
+   *     present in the local file system.
    * @param destination Destination that represents {@link Location} of the jar
    * @param applicationDeployScope Scope that the application is being deployed in
    * @param configString application configuration in json
    */
-  public DeploymentInfo(File appJarFile, Location destination, ApplicationDeployScope applicationDeployScope,
-                        @Nullable String configString) {
+  public DeploymentInfo(File appJarFile, Location destination,
+      ApplicationDeployScope applicationDeployScope,
+      @Nullable String configString) {
     this.appJarFile = appJarFile;
     this.destination = destination;
     this.configString = configString;

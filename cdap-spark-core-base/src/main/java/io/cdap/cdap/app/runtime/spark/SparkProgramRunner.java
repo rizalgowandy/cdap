@@ -21,7 +21,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.io.Closeables;
 import com.google.common.reflect.TypeToken;
-import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.inject.Inject;
 import io.cdap.cdap.api.app.ApplicationSpecification;
@@ -43,6 +42,8 @@ import io.cdap.cdap.app.runtime.spark.submit.MasterEnvironmentSparkSubmitter;
 import io.cdap.cdap.app.runtime.spark.submit.SparkSubmitter;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.conf.Constants.AppFabric;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.lang.FilterClassLoader;
 import io.cdap.cdap.common.lang.InstantiatorFactory;
@@ -52,19 +53,21 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.runtime.AbstractProgramRunnerWithPlugin;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.BasicProgramContext;
 import io.cdap.cdap.internal.app.runtime.ProgramOptionConstants;
 import io.cdap.cdap.internal.app.runtime.ProgramRunners;
+import io.cdap.cdap.internal.app.runtime.SystemArguments;
 import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
 import io.cdap.cdap.internal.app.runtime.workflow.NameMappedDatasetFramework;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowProgramInfo;
 import io.cdap.cdap.master.environment.MasterEnvironments;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
-import io.cdap.cdap.master.spi.environment.spark.SparkConfig;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramId;
+import io.cdap.cdap.runtime.spi.runtimejob.LaunchMode;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
 import org.apache.hadoop.conf.Configuration;
@@ -112,6 +115,8 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
   private final MetadataPublisher metadataPublisher;
   private final NamespaceQueryAdmin namespaceQueryAdmin;
   private final RemoteClientFactory remoteClientFactory;
+  private final CommonNettyHttpServiceFactory commonNettyHttpServiceFactory;
+  private final AppStateStoreProvider appStateStoreProvider;
 
   @Inject
   SparkProgramRunner(CConfiguration cConf, Configuration hConf, LocationFactory locationFactory,
@@ -122,7 +127,9 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
                      MessagingService messagingService, ServiceAnnouncer serviceAnnouncer,
                      PluginFinder pluginFinder, MetadataReader metadataReader, MetadataPublisher metadataPublisher,
                      FieldLineageWriter fieldLineageWriter, NamespaceQueryAdmin namespaceQueryAdmin,
-                     RemoteClientFactory remoteClientFactory) {
+                     RemoteClientFactory remoteClientFactory,
+                     CommonNettyHttpServiceFactory commonNettyHttpServiceFactory,
+                     AppStateStoreProvider appStateStoreProvider) {
     super(cConf);
     this.cConf = cConf;
     this.hConf = hConf;
@@ -142,6 +149,8 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
     this.metadataPublisher = metadataPublisher;
     this.namespaceQueryAdmin = namespaceQueryAdmin;
     this.remoteClientFactory = remoteClientFactory;
+    this.commonNettyHttpServiceFactory = commonNettyHttpServiceFactory;
+    this.appStateStoreProvider = appStateStoreProvider;
   }
 
   @Override
@@ -172,8 +181,8 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
 
       // Get the WorkflowProgramInfo if it is started by Workflow
       WorkflowProgramInfo workflowInfo = WorkflowProgramInfo.create(arguments);
-      DatasetFramework programDatasetFramework = workflowInfo == null ?
-        datasetFramework :
+      DatasetFramework programDatasetFramework = workflowInfo == null
+        ? datasetFramework :
         NameMappedDatasetFramework.createFromWorkflowProgramInfo(datasetFramework, workflowInfo, appSpec);
 
       // Setup dataset framework context, if required
@@ -195,8 +204,8 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
                                                                    messagingService, serviceAnnouncer, pluginFinder,
                                                                    locationFactory, metadataReader, metadataPublisher,
                                                                    namespaceQueryAdmin, fieldLineageWriter,
-                                                                   remoteClientFactory, () -> { }
-      );
+                                                                   remoteClientFactory, () -> { },
+                                                                   appStateStoreProvider);
       closeables.addFirst(runtimeContext);
 
       Spark spark;
@@ -212,17 +221,25 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
       // If MasterEnvironment is not available, use non-master env spark submitters
       MasterEnvironment masterEnv = MasterEnvironments.getMasterEnvironment();
       if (masterEnv != null && cConf.getBoolean(Constants.Environment.PROGRAM_SUBMISSION_MASTER_ENV_ENABLED, true)) {
-        submitter = new MasterEnvironmentSparkSubmitter(cConf, locationFactory, host, runtimeContext, masterEnv);
+        submitter = new MasterEnvironmentSparkSubmitter(cConf, locationFactory, host, runtimeContext,
+                                                        masterEnv, options);
       } else {
+        String launchModeStr = options.getArguments()
+            .getOption(ProgramOptionConstants.LAUNCH_MODE, LaunchMode.CLUSTER.name());
+        LaunchMode launchMode = LaunchMode.valueOf(launchModeStr);
+        String schedulerQueue = options.getArguments().getOption(AppFabric.APP_SCHEDULER_QUEUE);
         submitter = isLocal
           ? new LocalSparkSubmitter()
           : new DistributedSparkSubmitter(hConf, locationFactory, host, runtimeContext,
-                                          options.getArguments().getOption(Constants.AppFabric.APP_SCHEDULER_QUEUE));
+                                          schedulerQueue, launchMode);
       }
 
-      Service sparkRuntimeService = new SparkRuntimeService(cConf, spark, getPluginArchive(options),
-                                                            runtimeContext, submitter, locationFactory, isLocal,
-                                                            fieldLineageWriter, masterEnv);
+      String jvmOpts = options.getUserArguments().getOption(SystemArguments.JVM_OPTS);
+      SparkRuntimeService sparkRuntimeService = new SparkRuntimeService(cConf, spark, getPluginArchive(options),
+                                                                        jvmOpts, runtimeContext, submitter,
+                                                                        locationFactory, isLocal,
+                                                                        fieldLineageWriter, masterEnv,
+                                                                        commonNettyHttpServiceFactory);
 
       sparkRuntimeService.addListener(createRuntimeServiceListener(closeables), Threads.SAME_THREAD_EXECUTOR);
       ProgramController controller = new SparkProgramController(sparkRuntimeService, runtimeContext);
@@ -242,7 +259,7 @@ public final class SparkProgramRunner extends AbstractProgramRunnerWithPlugin
 
   @Override
   public ClassLoader createProgramClassLoaderParent() {
-    return new FilterClassLoader(getClass().getClassLoader(), SparkResourceFilters.SPARK_PROGRAM_CLASS_LOADER_FILTER);
+    return new FilterClassLoader(getClass().getClassLoader(), new SparkResourceFilter());
   }
 
   /**

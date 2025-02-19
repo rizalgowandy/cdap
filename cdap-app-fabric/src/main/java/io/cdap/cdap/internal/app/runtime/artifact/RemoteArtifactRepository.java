@@ -23,11 +23,11 @@ import io.cdap.cdap.api.artifact.ArtifactSummary;
 import io.cdap.cdap.api.artifact.CloseableClassLoader;
 import io.cdap.cdap.api.plugin.PluginClass;
 import io.cdap.cdap.api.plugin.PluginSelector;
-import io.cdap.cdap.app.runtime.ProgramRunnerFactory;
 import io.cdap.cdap.common.ArtifactNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.id.Id;
+import io.cdap.cdap.internal.app.runtime.ProgramRuntimeProviderLoader;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginNotExistsException;
 import io.cdap.cdap.proto.artifact.ApplicationClassInfo;
 import io.cdap.cdap.proto.artifact.ApplicationClassSummary;
@@ -35,8 +35,6 @@ import io.cdap.cdap.proto.artifact.ArtifactSortOrder;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.impersonation.EntityImpersonator;
-import org.apache.twill.filesystem.Location;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,25 +43,28 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
 
 /**
  * RemoteArtifactRepository provides a remote implementation of ArtifactRepository
  */
 public class RemoteArtifactRepository implements ArtifactRepository {
+
   private final ArtifactRepositoryReader artifactRepositoryReader;
   private final ArtifactClassLoaderFactory artifactClassLoaderFactory;
 
   @VisibleForTesting
   @Inject
-  public RemoteArtifactRepository(CConfiguration cConf, ArtifactRepositoryReader artifactRepositoryReader,
-                                  ProgramRunnerFactory programRunnerFactory) {
+  public RemoteArtifactRepository(CConfiguration cConf,
+      ArtifactRepositoryReader artifactRepositoryReader) {
     this.artifactRepositoryReader = artifactRepositoryReader;
-    this.artifactClassLoaderFactory = new ArtifactClassLoaderFactory(cConf, programRunnerFactory);
+    this.artifactClassLoaderFactory = new ArtifactClassLoaderFactory(cConf,
+        new ProgramRuntimeProviderLoader(cConf));
   }
 
   @Override
   public CloseableClassLoader createArtifactClassLoader(ArtifactDescriptor artifactDescriptor,
-                                                        EntityImpersonator entityImpersonator) throws IOException {
+      EntityImpersonator entityImpersonator) throws IOException {
     Location location = getArtifactLocation(artifactDescriptor);
     return artifactClassLoaderFactory.createClassLoader(location, entityImpersonator);
   }
@@ -74,61 +75,65 @@ public class RemoteArtifactRepository implements ArtifactRepository {
   }
 
   @Override
-  public List<ArtifactSummary> getArtifactSummaries(NamespaceId namespace, boolean includeSystem) throws Exception {
+  public List<ArtifactSummary> getArtifactSummaries(NamespaceId namespace, boolean includeSystem)
+      throws Exception {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public List<ArtifactSummary> getArtifactSummaries(NamespaceId namespace, String name, int limit,
-                                                    ArtifactSortOrder order) throws Exception {
+      ArtifactSortOrder order) throws Exception {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public List<ArtifactSummary> getArtifactSummaries(ArtifactRange range, int limit,
-                                                    ArtifactSortOrder order) throws Exception {
+      ArtifactSortOrder order) throws Exception {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public List<ApplicationClassSummary> getApplicationClasses(NamespaceId namespace,
-                                                             boolean includeSystem) throws IOException {
+      boolean includeSystem) throws IOException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public List<ApplicationClassInfo> getApplicationClasses(NamespaceId namespace, String className) throws IOException {
+  public List<ApplicationClassInfo> getApplicationClasses(NamespaceId namespace, String className)
+      throws IOException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public SortedMap<ArtifactDescriptor, Set<PluginClass>>
   getPlugins(NamespaceId namespace,
-             Id.Artifact artifactId) throws IOException, ArtifactNotFoundException {
+      Id.Artifact artifactId) throws IOException, ArtifactNotFoundException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public SortedMap<ArtifactDescriptor, Set<PluginClass>>
   getPlugins(NamespaceId namespace, Id.Artifact artifactId,
-             String pluginType) throws IOException, ArtifactNotFoundException {
+      String pluginType) throws IOException, ArtifactNotFoundException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public SortedMap<ArtifactDescriptor, PluginClass>
   getPlugins(NamespaceId namespace, Id.Artifact artifactId,
-             String pluginType, String pluginName,
-             Predicate<ArtifactId> pluginPredicate, int limit,
-             ArtifactSortOrder order) throws IOException, PluginNotExistsException, ArtifactNotFoundException {
+      String pluginType, String pluginName,
+      Predicate<ArtifactId> pluginPredicate, int limit,
+      ArtifactSortOrder order)
+      throws IOException, PluginNotExistsException, ArtifactNotFoundException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public Map.Entry<ArtifactDescriptor, PluginClass>
   findPlugin(NamespaceId namespace, ArtifactRange artifactRange,
-             String pluginType, String pluginName,
-             PluginSelector selector) throws IOException, PluginNotExistsException, ArtifactNotFoundException {
+      String pluginType, String pluginName,
+      PluginSelector selector)
+      throws IOException, PluginNotExistsException, ArtifactNotFoundException {
     throw new UnsupportedOperationException();
   }
 
@@ -139,26 +144,28 @@ public class RemoteArtifactRepository implements ArtifactRepository {
 
   @Override
   public ArtifactDetail addArtifact(Id.Artifact artifactId, File artifactFile,
-                                    @Nullable Set<ArtifactRange> parentArtifacts,
-                                    @Nullable Set<PluginClass> additionalPlugins) throws Exception {
+      @Nullable Set<ArtifactRange> parentArtifacts,
+      @Nullable Set<PluginClass> additionalPlugins) throws Exception {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public ArtifactDetail addArtifact(Id.Artifact artifactId, File artifactFile,
-                                    @Nullable Set<ArtifactRange> parentArtifacts,
-                                    @Nullable Set<PluginClass> additionalPlugins,
-                                    Map<String, String> properties) throws Exception {
+      @Nullable Set<ArtifactRange> parentArtifacts,
+      @Nullable Set<PluginClass> additionalPlugins,
+      Map<String, String> properties) throws Exception {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void writeArtifactProperties(Id.Artifact artifactId, Map<String, String> properties) throws Exception {
+  public void writeArtifactProperties(Id.Artifact artifactId, Map<String, String> properties)
+      throws Exception {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void writeArtifactProperty(Id.Artifact artifactId, String key, String value) throws Exception {
+  public void writeArtifactProperty(Id.Artifact artifactId, String key, String value)
+      throws Exception {
     throw new UnsupportedOperationException();
   }
 
@@ -199,7 +206,7 @@ public class RemoteArtifactRepository implements ArtifactRepository {
 
   @Override
   public List<ArtifactDetail> getArtifactDetails(ArtifactRange range, int limit,
-                                                 ArtifactSortOrder order) throws Exception {
+      ArtifactSortOrder order) throws Exception {
     return artifactRepositoryReader.getArtifactDetails(range, limit, order);
   }
 

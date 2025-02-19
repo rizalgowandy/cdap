@@ -18,8 +18,6 @@ package io.cdap.cdap.internal.capability;
 
 import com.google.gson.JsonObject;
 import io.cdap.cdap.api.artifact.ArtifactSummary;
-import org.json.JSONObject;
-
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -30,15 +28,13 @@ public class SystemApplication {
 
   private final String namespace;
   private final String name;
-  private final String version;
   private final ArtifactSummary artifact;
   private final JsonObject config;
 
-  public SystemApplication(String namespace, String applicationName, @Nullable String version,
-                           ArtifactSummary artifact, @Nullable JsonObject config) {
+  public SystemApplication(String namespace, String applicationName,
+      ArtifactSummary artifact, @Nullable JsonObject config) {
     this.namespace = namespace;
     this.name = applicationName;
-    this.version = version;
     this.artifact = artifact;
     this.config = config;
   }
@@ -58,14 +54,6 @@ public class SystemApplication {
   }
 
   /**
-   * @return version {@link String}, could be null
-   */
-  @Nullable
-  public String getVersion() {
-    return version;
-  }
-
-  /**
    * @return {@link ArtifactSummary}
    */
   public ArtifactSummary getArtifact() {
@@ -73,7 +61,7 @@ public class SystemApplication {
   }
 
   /**
-   * @return {@link JSONObject} configuration
+   * @return {@link JsonObject} configuration
    */
   @Nullable
   public JsonObject getConfig() {
@@ -89,15 +77,14 @@ public class SystemApplication {
       return false;
     }
     SystemApplication otherApplication = (SystemApplication) other;
-    return Objects.equals(namespace, otherApplication.namespace) &&
-      Objects.equals(name, otherApplication.name) &&
-      Objects.equals(version, otherApplication.version) &&
-      Objects.equals(artifact, otherApplication.artifact) &&
-      Objects.equals(config, otherApplication.config);
+    return Objects.equals(namespace, otherApplication.namespace)
+        && Objects.equals(name, otherApplication.name)
+        && Objects.equals(artifact, otherApplication.artifact)
+        && Objects.equals(config, otherApplication.config);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(namespace, name, version, artifact, config);
+    return Objects.hash(namespace, name, artifact, config);
   }
 }

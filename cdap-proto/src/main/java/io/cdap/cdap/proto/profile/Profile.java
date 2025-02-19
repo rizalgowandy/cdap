@@ -19,21 +19,23 @@ package io.cdap.cdap.proto.profile;
 import io.cdap.cdap.proto.EntityScope;
 import io.cdap.cdap.proto.provisioner.ProvisionerInfo;
 import io.cdap.cdap.runtime.spi.profile.ProfileStatus;
-
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 /**
- * Information of a profile. It encapsulates any information required to setup and teardown the program execution
- * environment. A profile is identified by name and must be assigned a provisioner and its related configuration.
+ * Information of a profile. It encapsulates any information required to setup and teardown the
+ * program execution environment. A profile is identified by name and must be assigned a provisioner
+ * and its related configuration.
  */
 public class Profile {
+
   public static final String NATIVE_NAME = "native";
-  public static final Profile NATIVE = new Profile(NATIVE_NAME, NATIVE_NAME, "Runs programs locally on the cluster",
-                                                   EntityScope.SYSTEM,
-                                                   new ProvisionerInfo(NATIVE_NAME, Collections.emptyList()));
+  public static final Profile NATIVE = new Profile(NATIVE_NAME, NATIVE_NAME,
+      "Runs programs locally on the cluster",
+      EntityScope.SYSTEM,
+      new ProvisionerInfo(NATIVE_NAME, Collections.emptyList()));
   private final String name;
   private final String label;
   private final String description;
@@ -48,18 +50,20 @@ public class Profile {
   }
 
   public Profile(String name, String label, String description, EntityScope scope,
-                 ProvisionerInfo provisioner) {
+      ProvisionerInfo provisioner) {
     this(name, label, description, scope, ProfileStatus.ENABLED, provisioner);
   }
 
-  public Profile(String name, String label, String description, EntityScope scope, ProfileStatus status,
-                 ProvisionerInfo provisioner) {
+  public Profile(String name, String label, String description, EntityScope scope,
+      ProfileStatus status,
+      ProvisionerInfo provisioner) {
     this(name, label, description, scope, status, provisioner,
-         TimeUnit.SECONDS.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS));
+        TimeUnit.SECONDS.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS));
   }
 
-  public Profile(String name, String label, String description, EntityScope scope, ProfileStatus status,
-                 ProvisionerInfo provisioner, long created) {
+  public Profile(String name, String label, String description, EntityScope scope,
+      ProfileStatus status,
+      ProvisionerInfo provisioner, long created) {
     this.name = name;
     this.label = label;
     this.description = description;
@@ -113,12 +117,12 @@ public class Profile {
       return false;
     }
     Profile profile = (Profile) o;
-    return Objects.equals(name, profile.name) &&
-      Objects.equals(label, profile.label) &&
-      Objects.equals(description, profile.description) &&
-      Objects.equals(scope, profile.scope) &&
-      Objects.equals(status, profile.status) &&
-      Objects.equals(provisioner, profile.provisioner);
+    return Objects.equals(name, profile.name)
+        && Objects.equals(label, profile.label)
+        && Objects.equals(description, profile.description)
+        && Objects.equals(scope, profile.scope)
+        && Objects.equals(status, profile.status)
+        && Objects.equals(provisioner, profile.provisioner);
   }
 
   @Override
@@ -128,14 +132,14 @@ public class Profile {
 
   @Override
   public String toString() {
-    return "Profile{" +
-      "name='" + name + '\'' +
-      ", label='" + label + '\'' +
-      ", description='" + description + '\'' +
-      ", scope=" + scope +
-      ", status=" + status +
-      ", provisioner=" + provisioner +
-      ", creationTimeSeconds=" + created +
-      '}';
+    return "Profile{"
+        + "name='" + name + '\''
+        + ", label='" + label + '\''
+        + ", description='" + description + '\''
+        + ", scope=" + scope
+        + ", status=" + status
+        + ", provisioner=" + provisioner
+        + ", creationTimeSeconds=" + created
+        + '}';
   }
 }

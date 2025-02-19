@@ -18,25 +18,24 @@ package io.cdap.cdap.messaging.context;
 
 import io.cdap.cdap.api.messaging.MessagePublisher;
 import io.cdap.cdap.api.messaging.TopicNotFoundException;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.RollbackDetail;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.RollbackDetail;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.proto.id.TopicId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-import org.apache.tephra.Transaction;
-import org.apache.tephra.TransactionAware;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.tephra.Transaction;
+import org.apache.tephra.TransactionAware;
 
 /**
- * Implementation of {@link MessagePublisher} that implements {@link TransactionAware} so that messages will be
- * published transactionally if there is an active transaction. If there is no active transaction, it will
- * delegate to {@link DirectMessagePublisher} for publishing.
+ * Implementation of {@link MessagePublisher} that implements {@link TransactionAware} so that
+ * messages will be published transactionally if there is an active transaction. If there is no
+ * active transaction, it will delegate to {@link DirectMessagePublisher} for publishing.
  */
 final class BasicMessagePublisher extends AbstractMessagePublisher implements TransactionAware {
 
@@ -57,7 +56,7 @@ final class BasicMessagePublisher extends AbstractMessagePublisher implements Tr
 
   @Override
   public void publish(TopicId topicId, Iterator<byte[]> payloads)
-    throws IOException, TopicNotFoundException, UnauthorizedException {
+      throws IOException, TopicNotFoundException, UnauthorizedException {
     if (transaction == null) {
       directMessagePublisher.publish(topicId, payloads);
       return;

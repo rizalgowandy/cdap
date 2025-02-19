@@ -25,8 +25,8 @@ import io.cdap.cdap.client.config.ConnectionConfig;
 import io.cdap.cdap.common.FeatureDisabledException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.http.AuthenticationChannelHandler;
 import io.cdap.cdap.common.http.CommonNettyHttpServiceBuilder;
+import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.proto.element.EntityType;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.EntityId;
@@ -39,11 +39,10 @@ import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.Role;
 import io.cdap.cdap.proto.security.StandardPermission;
 import io.cdap.cdap.security.auth.context.MasterAuthenticationContext;
-import io.cdap.cdap.security.authorization.AccessControllerInstantiator;
 import io.cdap.cdap.security.authorization.AuthorizationContextFactory;
-import io.cdap.cdap.security.authorization.InMemoryAccessController;
+import io.cdap.cdap.security.authorization.InMemoryPermissionManager;
+import io.cdap.cdap.security.authorization.InMemoryRoleController;
 import io.cdap.cdap.security.authorization.NoOpAuthorizationContextFactory;
-import io.cdap.cdap.security.spi.authorization.AccessController;
 import io.cdap.cdap.security.spi.authorization.AlreadyExistsException;
 import io.cdap.http.ChannelPipelineModifier;
 import io.cdap.http.NettyHttpService;
@@ -51,15 +50,14 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpRequest;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Tests for {@link AuthorizationHandler}.
@@ -83,15 +81,12 @@ public class AuthorizationHandlerTest {
     conf.setBoolean(Constants.Security.Authorization.ENABLED, true);
     conf.setBoolean(Constants.Security.ENABLED, true);
     properties.setProperty("superusers", admin.getName());
-    final InMemoryAccessController auth = new InMemoryAccessController();
-    auth.initialize(FACTORY.create(properties));
-    service = new CommonNettyHttpServiceBuilder(conf, getClass().getSimpleName())
-      .setHttpHandlers(new AuthorizationHandler(auth, new AccessControllerInstantiator(conf, FACTORY) {
-        @Override
-        public AccessController get() {
-          return auth;
-        }
-      }, conf, new MasterAuthenticationContext()))
+    final InMemoryPermissionManager auth = new InMemoryPermissionManager();
+    final InMemoryRoleController inMemoryRoleController = new InMemoryRoleController();
+    //    auth.initialize(FACTORY.create(properties)); //Will be used on migration to SPI implementation
+    service = new CommonNettyHttpServiceBuilder(conf, getClass().getSimpleName(), new NoOpMetricsCollectionService(),
+                                                auditLogContexts -> {})
+      .setHttpHandlers(new AuthorizationHandler(auth, conf, new MasterAuthenticationContext(), inMemoryRoleController))
       .setChannelPipelineModifier(new ChannelPipelineModifier() {
         @Override
         public void modify(ChannelPipeline pipeline) {
@@ -136,15 +131,13 @@ public class AuthorizationHandlerTest {
 
   private void testDisabled(CConfiguration cConf, FeatureDisabledException.Feature feature,
                             String configSetting) throws Exception {
-    final InMemoryAccessController accessController = new InMemoryAccessController();
-    NettyHttpService service = new CommonNettyHttpServiceBuilder(cConf, getClass().getSimpleName())
+    final InMemoryPermissionManager accessController = new InMemoryPermissionManager();
+    final InMemoryRoleController inMemoryRoleController = new InMemoryRoleController();
+    NettyHttpService service = new CommonNettyHttpServiceBuilder(cConf, getClass().getSimpleName(),
+                                                                 new NoOpMetricsCollectionService(),
+                                                                 auditLogContexts -> {})
       .setHttpHandlers(new AuthorizationHandler(
-        accessController, new AccessControllerInstantiator(cConf, FACTORY) {
-        @Override
-        public AccessController get() {
-          return accessController;
-        }
-      }, cConf, new MasterAuthenticationContext()))
+        accessController, cConf, new MasterAuthenticationContext(), inMemoryRoleController))
       .build();
     service.start();
     try {
@@ -277,7 +270,7 @@ public class AuthorizationHandlerTest {
   }
 
   @Test
-  public void testRBAC() throws Exception {
+  public void testRbac() throws Exception {
     Role admins = new Role("admins");
     Role engineers = new Role("engineers");
     // create a role

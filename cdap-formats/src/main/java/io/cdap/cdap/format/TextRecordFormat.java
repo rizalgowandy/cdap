@@ -22,7 +22,6 @@ import io.cdap.cdap.api.data.format.RecordFormat;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.data.schema.UnsupportedTypeException;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.List;
@@ -32,6 +31,7 @@ import java.util.Map;
  * A {@link RecordFormat} that interprets the entire input as a single string.
  */
 public class TextRecordFormat extends RecordFormat<ByteBuffer, StructuredRecord> {
+
   public static final String CHARSET = "charset";
   private Charset charset = Charsets.UTF_8;
   private String fieldName = "body";

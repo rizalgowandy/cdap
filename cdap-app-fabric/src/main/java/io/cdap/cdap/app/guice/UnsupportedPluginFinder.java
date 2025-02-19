@@ -23,20 +23,19 @@ import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginNotExistsException;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.util.Map;
 
 /**
- * A {@link PluginFinder} implementation that throws {@link UnsupportedOperationException} on
- * every method call. This is used in runtime environment that dynamic plugin loading is not supported.
+ * A {@link PluginFinder} implementation that throws {@link UnsupportedOperationException} on every
+ * method call. This is used in runtime environment that dynamic plugin loading is not supported.
  */
 public class UnsupportedPluginFinder implements PluginFinder {
 
   @Override
   public Map.Entry<ArtifactDescriptor, PluginClass> findPlugin(NamespaceId pluginNamespaceId,
-                                                               ArtifactId parentArtifactId, String pluginType,
-                                                               String pluginName, PluginSelector selector)
-    throws PluginNotExistsException {
+      ArtifactId parentArtifactId, String pluginType,
+      String pluginName, PluginSelector selector)
+      throws PluginNotExistsException {
 
     throw new UnsupportedOperationException("Dynamic plugin configuration is not supported");
   }

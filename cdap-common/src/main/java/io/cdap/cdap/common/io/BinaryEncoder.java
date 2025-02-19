@@ -17,13 +17,12 @@
 package io.cdap.cdap.common.io;
 
 import com.google.common.base.Charsets;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 /**
- *  An {@link Encoder} for binary-format data.
+ * An {@link Encoder} for binary-format data.
  */
 public final class BinaryEncoder implements Encoder {
 

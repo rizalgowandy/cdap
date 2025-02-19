@@ -20,18 +20,18 @@ import com.google.inject.Inject;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.util.Map;
 
 /**
  * Default implementation of {@link EntityExistenceVerifier}.
  */
 public class DefaultEntityExistenceVerifier implements EntityExistenceVerifier<EntityId> {
+
   private final Map<Class<? extends EntityId>, EntityExistenceVerifier<? extends EntityId>> existenceVerifiers;
 
   @Inject
   DefaultEntityExistenceVerifier(Map<Class<? extends EntityId>,
-                                     EntityExistenceVerifier<? extends EntityId>> existenceVerifiers) {
+      EntityExistenceVerifier<? extends EntityId>> existenceVerifiers) {
     this.existenceVerifiers = existenceVerifiers;
   }
 

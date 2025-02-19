@@ -19,24 +19,21 @@ package io.cdap.cdap.cli;
 import io.cdap.cdap.cli.util.InstanceURIParser;
 import io.cdap.cdap.cli.util.table.CsvTableRenderer;
 import io.cdap.cdap.client.ProgramClient;
-import io.cdap.cdap.client.QueryClient;
 import io.cdap.cdap.client.app.FakeApp;
 import io.cdap.cdap.client.config.ClientConfig;
 import io.cdap.cdap.client.config.ConnectionConfig;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.test.XSlowTests;
 import io.cdap.common.cli.CLI;
+import java.net.URI;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
-
-import java.net.URI;
 
 @Category(XSlowTests.class)
 public class CLIMainLinkTest extends CLITestBase {
 
   private static ProgramClient programClient;
-  private static QueryClient queryClient;
   private static CLIConfig cliConfig;
   private static CLIMain cliMain;
   private static CLI cli;
@@ -48,7 +45,6 @@ public class CLIMainLinkTest extends CLITestBase {
                                                     false, null, LaunchOptions.DEFAULT.getUri());
     cliMain = new CLIMain(launchOptions, cliConfig);
     programClient = new ProgramClient(cliConfig.getClientConfig());
-    queryClient = new QueryClient(cliConfig.getClientConfig());
 
     cli = cliMain.getCLI();
 
@@ -59,8 +55,6 @@ public class CLIMainLinkTest extends CLITestBase {
   public static void tearDownClass() throws Exception {
     programClient.stopAll(NamespaceId.DEFAULT);
     testCommandOutputContains(cli, "delete app " + FakeApp.NAME, "Successfully deleted app");
-    testCommandOutputContains(cli, String.format("delete app %s version %s", FakeApp.NAME, V1_SNAPSHOT),
-                              "Successfully deleted app");
   }
 
   public static CLIConfig createCLIConfigWithURIPrefix(URI standaloneUri) throws Exception {
@@ -88,10 +82,5 @@ public class CLIMainLinkTest extends CLITestBase {
   @Override
   CLIConfig getCliConfig() {
     return cliConfig;
-  }
-
-  @Override
-  QueryClient getQueryClient() {
-    return queryClient;
   }
 }

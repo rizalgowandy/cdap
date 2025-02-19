@@ -22,18 +22,19 @@ import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles ping requests.
  */
 public class PingHandler extends AbstractHttpHandler {
+
   private static final Logger LOG = LoggerFactory.getLogger(PingHandler.class);
   protected static final JsonObject OK_JSON;
+
   static {
     OK_JSON = new JsonObject();
     OK_JSON.addProperty("status", Constants.Monitor.STATUS_OK);
@@ -41,7 +42,8 @@ public class PingHandler extends AbstractHttpHandler {
 
   @Path("/ping")
   @GET
-  public void ping(@SuppressWarnings("UnusedParameters") HttpRequest request, HttpResponder responder) {
+  public void ping(@SuppressWarnings("UnusedParameters") HttpRequest request,
+      HttpResponder responder) {
     LOG.trace("Ping request received");
     responder.sendString(HttpResponseStatus.OK, "OK.\n");
   }

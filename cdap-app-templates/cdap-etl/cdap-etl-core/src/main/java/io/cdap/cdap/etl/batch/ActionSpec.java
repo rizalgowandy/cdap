@@ -17,13 +17,13 @@
 package io.cdap.cdap.etl.batch;
 
 import io.cdap.cdap.etl.proto.v2.spec.PluginSpec;
-
 import java.util.Objects;
 
 /**
  * Specification for a batch action.
  */
 public class ActionSpec {
+
   private final String name;
   private final PluginSpec plugin;
 
@@ -51,8 +51,8 @@ public class ActionSpec {
 
     ActionSpec that = (ActionSpec) o;
 
-    return Objects.equals(name, that.name) &&
-      Objects.equals(plugin, that.plugin);
+    return Objects.equals(name, that.name)
+        && Objects.equals(plugin, that.plugin);
   }
 
   @Override
@@ -62,9 +62,9 @@ public class ActionSpec {
 
   @Override
   public String toString() {
-    return "ActionSpec{" +
-      "name='" + name + '\'' +
-      ", plugin=" + plugin +
-      '}';
+    return "ActionSpec{"
+        + "name='" + name + '\''
+        + ", plugin=" + plugin
+        + '}';
   }
 }

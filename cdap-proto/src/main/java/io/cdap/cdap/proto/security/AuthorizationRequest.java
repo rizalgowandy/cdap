@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto.security;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -34,7 +33,7 @@ public class AuthorizationRequest {
   private final Set<? extends Permission> permissions;
 
   protected AuthorizationRequest(Authorizable authorizable, @Nullable Principal principal,
-                                 @Nullable Set<? extends Permission> permissions) {
+      @Nullable Set<? extends Permission> permissions) {
     if (authorizable == null) {
       throw new IllegalArgumentException("Authorizable is required");
     }
@@ -53,7 +52,8 @@ public class AuthorizationRequest {
     return principal;
   }
 
-  @Nullable @Deprecated
+  @Nullable
+  @Deprecated
   public Set<Action> getActions() {
     return actions;
   }

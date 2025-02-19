@@ -25,13 +25,13 @@ import io.cdap.cdap.internal.app.services.ApplicationLifecycleService;
 import io.cdap.cdap.operations.OperationalStats;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.util.List;
 
 /**
  * {@link OperationalStats} for reporting CDAP entities.
  */
 public class CDAPEntities extends AbstractCDAPStats implements CDAPEntitiesMXBean {
+
   private NamespaceQueryAdmin nsQueryAdmin;
   private ApplicationLifecycleService appLifecycleService;
   private ArtifactRepository artifactRepository;
@@ -88,15 +88,16 @@ public class CDAPEntities extends AbstractCDAPStats implements CDAPEntitiesMXBea
     artifacts += artifactRepository.getArtifactSummaries(NamespaceId.SYSTEM, false).size();
 
     for (NamespaceMeta meta : namespaceMetas) {
+      // Scan the latest active versions for stats
       ScanApplicationsRequest scanApplicationsRequest =
-          ScanApplicationsRequest.builder().setNamespaceId(meta.getNamespaceId()).build();
+          ScanApplicationsRequest.builder().setNamespaceId(meta.getNamespaceId()).setLatestOnly(true).build();
 
       appLifecycleService.scanApplications(scanApplicationsRequest,
           d -> {
-              this.apps++;
-              programs += d.getPrograms().size();
-            }
-          );
+            this.apps++;
+            programs += d.getPrograms().size();
+          }
+      );
 
       artifacts += artifactRepository.getArtifactSummaries(meta.getNamespaceId(), false).size();
       datasets += dsFramework.getInstances(meta.getNamespaceId()).size();

@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto.metadata.lineage;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,10 +27,12 @@ import java.util.Objects;
  */
 @Beta
 public class ProgramFieldOperationInfo {
+
   private final List<ProgramInfo> programs;
   private final List<FieldOperationInfo> operations;
 
-  public ProgramFieldOperationInfo(List<ProgramInfo> programs, List<FieldOperationInfo> operations) {
+  public ProgramFieldOperationInfo(List<ProgramInfo> programs,
+      List<FieldOperationInfo> operations) {
     this.programs = Collections.unmodifiableList(new ArrayList<>(programs));
     this.operations = Collections.unmodifiableList(new ArrayList<>(operations));
   }
@@ -53,8 +54,8 @@ public class ProgramFieldOperationInfo {
       return false;
     }
     ProgramFieldOperationInfo info = (ProgramFieldOperationInfo) o;
-    return Objects.equals(programs, info.programs) &&
-            Objects.equals(operations, info.operations);
+    return Objects.equals(programs, info.programs)
+        && Objects.equals(operations, info.operations);
   }
 
   @Override

@@ -28,19 +28,19 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.StoreRequest;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.StoreRequest;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.io.IOException;
 
 /**
  * Preview data publisher that publishes to the TMS.
  */
 public class MessagingPreviewDataPublisher implements PreviewDataPublisher {
+
   private static final Gson GSON = new Gson();
 
   private final TopicId topic;
@@ -49,7 +49,7 @@ public class MessagingPreviewDataPublisher implements PreviewDataPublisher {
 
   @Inject
   MessagingPreviewDataPublisher(CConfiguration cConf,
-                                @Named(PreviewConfigModule.GLOBAL_TMS) MessagingService messagingService) {
+      @Named(PreviewConfigModule.GLOBAL_TMS) MessagingService messagingService) {
     this.topic = NamespaceId.SYSTEM.topic(cConf.get(Constants.Preview.MESSAGING_TOPIC));
     this.messagingService = messagingService;
     this.retryStrategy = RetryStrategies.fromConfiguration(cConf, "system.preview.");
@@ -57,13 +57,15 @@ public class MessagingPreviewDataPublisher implements PreviewDataPublisher {
 
   @Override
   public void publish(EntityId entityId, PreviewMessage previewMessage) {
-    StoreRequest request = StoreRequestBuilder.of(topic).addPayload(GSON.toJson(previewMessage)).build();
+    StoreRequest request = StoreRequestBuilder.of(topic).addPayload(GSON.toJson(previewMessage))
+        .build();
     try {
       Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy,
-                              t -> t instanceof IOException || t instanceof RetryableException);
+          t -> t instanceof IOException || t instanceof RetryableException);
     } catch (Exception e) {
-      throw new RuntimeException("Failed to publish preview message " + previewMessage + " for application " + entityId,
-                                 e);
+      throw new RuntimeException(
+          "Failed to publish preview message " + previewMessage + " for application " + entityId,
+          e);
     }
   }
 }

@@ -16,19 +16,22 @@
 
 package io.cdap.cdap.internal.tethering;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * Control messages sent from tether server to the client.
  */
 public class TetheringControlMessage {
+
   /**
    * Control messages type.
    */
   public enum Type {
     KEEPALIVE,
-    RUN_PIPELINE,
-    STOP_PIPELINE
+    START_PROGRAM,
+    STOP_PROGRAM,
+    KILL_PROGRAM
   }
 
   private final Type type;
@@ -61,8 +64,8 @@ public class TetheringControlMessage {
     }
 
     TetheringControlMessage that = (TetheringControlMessage) o;
-    return Objects.equals(type, that.type) &&
-      Objects.equals(payload, that.payload);
+    return Objects.equals(type, that.type)
+        && Arrays.equals(payload, that.payload);
   }
 
   @Override

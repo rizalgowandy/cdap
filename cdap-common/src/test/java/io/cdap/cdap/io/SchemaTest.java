@@ -26,14 +26,6 @@ import io.cdap.cdap.api.data.schema.SchemaCache;
 import io.cdap.cdap.api.data.schema.UnsupportedTypeException;
 import io.cdap.cdap.internal.io.ReflectionSchemaGenerator;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
-import org.apache.avro.LogicalType;
-import org.apache.avro.LogicalTypes;
-import org.apache.commons.lang.SerializationUtils;
-import org.codehaus.jackson.node.IntNode;
-import org.codehaus.jackson.node.TextNode;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,8 +33,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.LogicalType;
+import org.apache.avro.LogicalTypes;
+import org.apache.commons.lang3.SerializationUtils;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Test for schema generation.
@@ -59,6 +57,7 @@ public class SchemaTest {
 
   /**
    * Test parent.
+   *
    * @param <T> Parameter
    */
   public class Parent<T> {
@@ -68,6 +67,7 @@ public class SchemaTest {
 
   /**
    * Test child.
+   *
    * @param <T> Paramter.
    */
   public class Child<T> extends Parent<Map<String, T>> {
@@ -82,7 +82,6 @@ public class SchemaTest {
   public enum State {
     OK, ERROR
   }
-
 
   @Test
   public void testGenerateSchema() throws UnsupportedTypeException {
@@ -161,8 +160,8 @@ public class SchemaTest {
   public static final class Node5 {
     private static final Schema SCHEMA = Schema.recordOf(
       Node5.class.getName(),
-      Schema.Field.of("x", Schema.nullableOf(Node4.SCHEMA)));
-    private Node4 x;
+      Schema.Field.of("x4", Schema.nullableOf(Node4.SCHEMA)));
+    private Node4 x4;
   }
 
   /**
@@ -171,10 +170,10 @@ public class SchemaTest {
   public static final class Node6 {
     private static final Schema SCHEMA = Schema.recordOf(
       Node6.class.getName(),
-      Schema.Field.of("x", Schema.nullableOf(Node4.SCHEMA)),
-      Schema.Field.of("y", Schema.nullableOf(Node5.SCHEMA)));
-    private Node4 x;
-    private Node5 y;
+      Schema.Field.of("x4", Schema.nullableOf(Node4.SCHEMA)),
+      Schema.Field.of("y5", Schema.nullableOf(Node5.SCHEMA)));
+    private Node4 x4;
+    private Node5 y5;
   }
 
   @Test
@@ -192,21 +191,16 @@ public class SchemaTest {
     org.apache.avro.Schema avroStringSchema = org.apache.avro.Schema.create(org.apache.avro.Schema.Type.STRING);
     org.apache.avro.Schema avroIntSchema = org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT);
 
+    List<org.apache.avro.Schema.Field> fields = new ArrayList<>();
+    org.apache.avro.Schema.Field field = new org.apache.avro.Schema.Field("username", avroStringSchema,
+                                                                          "Field represents username", "unknown");
+    fields.add(field);
+
+    field = new org.apache.avro.Schema.Field("age", avroIntSchema, "Field represents age of user", -1);
+    fields.add(field);
 
     org.apache.avro.Schema schema = org.apache.avro.Schema.createRecord("UserInfo", "Describes user information",
                                                                         "org.example.schema", false);
-
-    List<org.apache.avro.Schema.Field> fields = new ArrayList<>();
-
-    org.apache.avro.Schema.Field field = new org.apache.avro.Schema.Field("username", avroStringSchema,
-                                                                          "Field represents username",
-                                                                          new TextNode("unknown"));
-    fields.add(field);
-
-    field = new org.apache.avro.Schema.Field("age", avroIntSchema, "Field represents age of user",
-                                             new IntNode(-1));
-    fields.add(field);
-
     schema.setFields(fields);
     Schema parsedSchema = Schema.parseJson(schema.toString());
     Assert.assertTrue("UserInfo".equals(parsedSchema.getRecordName()));
@@ -261,28 +255,29 @@ public class SchemaTest {
   }
 
   @Test
-  public void testParseFlatSQL() throws IOException {
+  public void testParseFlatSql() throws IOException {
     // simple, non-nested types
-    String schemaStr = "bool_field boolean, " +
-      "int_field int not null, " +
-      "long_field long not null, " +
-      "float_field float NOT NULL, " +
-      "double_field double NOT NULL, " +
-      "bytes_field bytes not null, " +
-      "array_field array<string> not null, " +
-      "map_field map<string,int> not null, " +
-      "record_field record<x:int,y:double>, " +
-      "string_field string";
+    String schemaStr = "bool_field boolean, "
+        + "int_field int not null, "
+        + "long_field long not null, "
+        + "float_field float NOT NULL, "
+        + "double_field double NOT NULL, "
+        + "bytes_field bytes not null, "
+        + "array_field array<string> not null, "
+        + "map_field map<string,int> not null, "
+        + "record_field record<x:int,y:double>, "
+        + "string_field string";
     Schema expected = Schema.recordOf(
-      "rec",
-      Schema.Field.of("bool_field", Schema.nullableOf(Schema.of(Schema.Type.BOOLEAN))),
-      Schema.Field.of("int_field", Schema.of(Schema.Type.INT)),
-      Schema.Field.of("long_field", Schema.of(Schema.Type.LONG)),
-      Schema.Field.of("float_field", Schema.of(Schema.Type.FLOAT)),
-      Schema.Field.of("double_field", Schema.of(Schema.Type.DOUBLE)),
-      Schema.Field.of("bytes_field", Schema.of(Schema.Type.BYTES)),
-      Schema.Field.of("array_field", Schema.arrayOf(Schema.nullableOf(Schema.of(Schema.Type.STRING)))),
-      Schema.Field.of("map_field", Schema.mapOf(
+        "rec",
+        Schema.Field.of("bool_field", Schema.nullableOf(Schema.of(Schema.Type.BOOLEAN))),
+        Schema.Field.of("int_field", Schema.of(Schema.Type.INT)),
+        Schema.Field.of("long_field", Schema.of(Schema.Type.LONG)),
+        Schema.Field.of("float_field", Schema.of(Schema.Type.FLOAT)),
+        Schema.Field.of("double_field", Schema.of(Schema.Type.DOUBLE)),
+        Schema.Field.of("bytes_field", Schema.of(Schema.Type.BYTES)),
+        Schema.Field.of("array_field",
+            Schema.arrayOf(Schema.nullableOf(Schema.of(Schema.Type.STRING)))),
+        Schema.Field.of("map_field", Schema.mapOf(
         Schema.nullableOf(Schema.of(Schema.Type.STRING)),
         Schema.nullableOf(Schema.of(Schema.Type.INT)))),
       Schema.Field.of("record_field", Schema.nullableOf(Schema.recordOf(
@@ -295,7 +290,7 @@ public class SchemaTest {
   }
 
   @Test
-  public void testNestedSQL() throws IOException {
+  public void testNestedSql() throws IOException {
     Schema expected = Schema.recordOf(
       "rec",
       Schema.Field.of(
@@ -310,53 +305,54 @@ public class SchemaTest {
                           Schema.Field.of("z", Schema.mapOf(Schema.of(Schema.Type.BYTES),
                                                             Schema.of(Schema.Type.DOUBLE)))),
           Schema.arrayOf(Schema.recordOf(
-            "rec2",
-            Schema.Field.of("x",
-                            // Map<array<byte[]>, Map<boolean,byte[]> x
-                            Schema.mapOf(Schema.arrayOf(Schema.of(Schema.Type.BYTES)),
-                                         Schema.mapOf(Schema.of(Schema.Type.BOOLEAN),
-                                                      Schema.of(Schema.Type.BYTES)))
-          )))
+              "rec2",
+              Schema.Field.of("x",
+                  // Map<array<byte[]>, Map<boolean,byte[]> x
+                  Schema.mapOf(Schema.arrayOf(Schema.of(Schema.Type.BYTES)),
+                      Schema.mapOf(Schema.of(Schema.Type.BOOLEAN),
+                          Schema.of(Schema.Type.BYTES)))
+              )))
         )),
-      Schema.Field.of("y", Schema.of(Schema.Type.INT)));
+        Schema.Field.of("y", Schema.of(Schema.Type.INT)));
     String schemaStr =
-      "x map<" +
-        "record<" +
-          "x:string not null," +
-          "y:array<string not null> not null," +
-          "z:map<bytes not null,double not null> not null" +
-        "> not null," +
-        "array<" +
-          "record<" +
-            "x:map<" +
-              "array<bytes not null> not null," +
-              "map<boolean not null,bytes not null> not null" +
-            "> not null" +
-          "> not null" +
-        "> not null" +
-      "> not null, y int not null";
+        "x map<"
+            + "record<"
+            + "x:string not null,"
+            + "y:array<string not null> not null,"
+            + "z:map<bytes not null,double not null> not null"
+            + "> not null,"
+            + "array<"
+            + "record<"
+            + "x:map<"
+            + "array<bytes not null> not null,"
+            + "map<boolean not null,bytes not null> not null"
+            + "> not null"
+            + "> not null"
+            + "> not null"
+            + "> not null, y int not null";
     Assert.assertEquals(expected, Schema.parseSQL(schemaStr));
   }
 
   @Test
-  public void testParseSQLWithWhitespace() throws IOException {
-    String schemaStr = "map_field map< string , int >   not null,\n" +
-      "arr_field array< record< x:int , y:double >\t> not null";
+  public void testParseSqlWithWhitespace() throws IOException {
+    String schemaStr = "map_field map< string , int >   not null,\n"
+        + "arr_field array< record< x:int , y:double >\t> not null";
     Schema expectedSchema = Schema.recordOf(
-      "rec",
-      Schema.Field.of("map_field", Schema.mapOf(
-        Schema.nullableOf(Schema.of(Schema.Type.STRING)), Schema.nullableOf(Schema.of(Schema.Type.INT)))),
-      Schema.Field.of("arr_field",
-                      Schema.arrayOf(Schema.nullableOf(
-                        Schema.recordOf("rec1",
-                                        Schema.Field.of("x", Schema.nullableOf(Schema.of(Schema.Type.INT))),
-                                        Schema.Field.of("y", Schema.nullableOf(Schema.of(Schema.Type.DOUBLE)))))))
+        "rec",
+        Schema.Field.of("map_field", Schema.mapOf(
+            Schema.nullableOf(Schema.of(Schema.Type.STRING)),
+            Schema.nullableOf(Schema.of(Schema.Type.INT)))),
+        Schema.Field.of("arr_field",
+            Schema.arrayOf(Schema.nullableOf(
+                Schema.recordOf("rec1",
+                    Schema.Field.of("x", Schema.nullableOf(Schema.of(Schema.Type.INT))),
+                    Schema.Field.of("y", Schema.nullableOf(Schema.of(Schema.Type.DOUBLE)))))))
     );
     Assert.assertEquals(expectedSchema, Schema.parseSQL(schemaStr));
   }
 
   @Test
-  public void testInvalidSQL() {
+  public void testInvalidSql() {
     verifyThrowsException("int x");
     verifyThrowsException("x map<int, int");
     verifyThrowsException("x array<string");
@@ -666,6 +662,43 @@ public class SchemaTest {
   public void testCachedJavaSerialization() throws UnsupportedTypeException {
     Schema s1 = SchemaCache.intern(new ReflectionSchemaGenerator().generate(Node.class));
     Assert.assertSame(s1, SerializationUtils.clone(s1));
+  }
+
+  @Test
+  public void testNamedEnums() throws Exception {
+    List<String> enumValues = Arrays.asList("OK", "ERROR");
+    org.apache.avro.Schema avroEnumSchema = org.apache.avro.Schema.createEnum("state", null, null, enumValues);
+    List<org.apache.avro.Schema.Field> fields = new ArrayList<>();
+    fields.add(new org.apache.avro.Schema.Field("f1", avroEnumSchema, null, null));
+    fields.add(new org.apache.avro.Schema.Field("f2", avroEnumSchema, null, null));
+    org.apache.avro.Schema avroSchema = org.apache.avro.Schema.createRecord("x", null, null, false, fields);
+    // named enums will only define the full type once. All other times it will be referenced by the enum name
+    String schemaStr = avroSchema.toString();
+
+    // should be parsed correctly, remembering the named enum
+    List<Schema.Field> expectedFields = new ArrayList<>();
+    Schema enumSchema = Schema.enumWith("state", enumValues);
+    expectedFields.add(Schema.Field.of("f1", enumSchema));
+    expectedFields.add(Schema.Field.of("f2", enumSchema));
+    Schema expected = Schema.recordOf("x", expectedFields);
+    Schema schema = Schema.parseJson(schemaStr);
+    Assert.assertEquals(expected, schema);
+
+    // test that the enum name is used when writing out the schema
+    Assert.assertEquals(expected.toString(), schemaStr);
+  }
+
+  @Test
+  public void testCompatibleWithAvroMaps() throws Exception {
+    // Avro maps always have String keys whereas CDAP allows the key to be a different type
+    // Test that a map type without an explicit key type resolves to a String key type.
+    org.apache.avro.Schema avroSchema = org.apache.avro.Schema.createMap(
+      org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
+
+    String schemaStr = avroSchema.toString();
+    Schema schema = Schema.parseJson(schemaStr);
+    Schema expected = Schema.mapOf(Schema.nullableOf(Schema.of(Schema.Type.STRING)), Schema.of(Schema.Type.INT));
+    Assert.assertEquals(expected, schema);
   }
 
   private void verifyThrowsException(String toParse) {

@@ -17,7 +17,6 @@
 package io.cdap.cdap.operations.cdap;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import javax.management.MXBean;
 
 /**
@@ -31,19 +30,20 @@ public interface CDAPConnectionsMXBean {
   long getTotalRequests();
 
   /**
-   * Returns the number of requests that were responded to with a {@link HttpResponseStatus#OK} in the last hour.
+   * Returns the number of requests that were responded to with a {@link HttpResponseStatus#OK} in
+   * the last hour.
    */
   long getSuccessful();
 
   /**
-   * Returns the number of requests that were responded to with a {@link HttpResponseStatus#BAD_REQUEST}
-   * in the last hour.
+   * Returns the number of requests that were responded to with a {@link
+   * HttpResponseStatus#BAD_REQUEST} in the last hour.
    */
   long getClientErrors();
 
   /**
-   * Returns the number of requests that were responded to with a {@link HttpResponseStatus#INTERNAL_SERVER_ERROR}
-   * in the last hour.
+   * Returns the number of requests that were responded to with a {@link
+   * HttpResponseStatus#INTERNAL_SERVER_ERROR} in the last hour.
    */
   long getServerErrors();
 

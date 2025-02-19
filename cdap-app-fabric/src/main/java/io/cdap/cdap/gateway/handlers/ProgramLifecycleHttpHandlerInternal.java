@@ -24,14 +24,12 @@ import io.cdap.cdap.gateway.handlers.util.AbstractAppFabricHttpHandler;
 import io.cdap.cdap.internal.app.services.ProgramLifecycleService;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.proto.ProgramType;
-import io.cdap.cdap.proto.id.ApplicationId;
-import io.cdap.cdap.proto.id.ProgramId;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.http.HttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -41,6 +39,7 @@ import javax.ws.rs.PathParam;
  */
 @Path(Constants.Gateway.INTERNAL_API_VERSION_3 + "/namespaces/{namespace-id}")
 public class ProgramLifecycleHttpHandlerInternal extends AbstractAppFabricHttpHandler {
+
   private static final Gson GSON = new Gson();
 
   private final ProgramLifecycleService programLifecycleService;
@@ -66,15 +65,16 @@ public class ProgramLifecycleHttpHandlerInternal extends AbstractAppFabricHttpHa
   @GET
   @Path("/apps/{app-name}/versions/{app-version}/{program-type}/{program-name}/runs/{run-id}")
   public void getProgramRunRecordMeta(HttpRequest request, HttpResponder responder,
-                                      @PathParam("namespace-id") String namespaceId,
-                                      @PathParam("app-name") String appName,
-                                      @PathParam("app-version") String appVersion,
-                                      @PathParam("program-type") String type,
-                                      @PathParam("program-name") String programName,
-                                      @PathParam("run-id") String runid) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("app-name") String appName,
+      @PathParam("app-version") String appVersion,
+      @PathParam("program-type") String type,
+      @PathParam("program-name") String programName,
+      @PathParam("run-id") String runid) throws Exception {
     ProgramType programType = ProgramType.valueOfCategoryName(type, BadRequestException::new);
-    ProgramId programId = new ApplicationId(namespaceId, appName, appVersion).program(programType, programName);
-    RunRecordDetail runRecordMeta = programLifecycleService.getRunRecordMeta(programId.run(runid));
+    ProgramReference programRef = new ProgramReference(namespaceId, appName, programType,
+        programName);
+    RunRecordDetail runRecordMeta = programLifecycleService.getRunRecordMeta(programRef, runid);
     responder.sendJson(HttpResponseStatus.OK, GSON.toJson(runRecordMeta));
   }
 }

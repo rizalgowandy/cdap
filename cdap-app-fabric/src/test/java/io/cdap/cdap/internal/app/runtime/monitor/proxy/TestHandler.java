@@ -26,7 +26,6 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import javax.ws.rs.GET;
@@ -57,7 +56,7 @@ public final class TestHandler extends AbstractHttpHandler {
 
     responder.sendContent(HttpResponseStatus.OK, new BodyProducer() {
 
-      int count = 0;
+      int count;
 
       @Override
       public ByteBuf nextChunk() {

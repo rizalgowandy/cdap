@@ -25,15 +25,14 @@ import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategies;
 import io.cdap.cdap.common.service.RetryStrategy;
 import io.cdap.cdap.data2.metadata.writer.MetadataMessage;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.StoreRequest;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.StoreRequest;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.nio.charset.StandardCharsets;
 import java.util.stream.StreamSupport;
 
@@ -61,7 +60,7 @@ public class MessagingUsageWriter implements UsageWriter {
       doRegisterAll(users, datasetId);
     } catch (Exception e) {
       throw new RuntimeException("Failed to publish usage for " + datasetId
-                                   + " with owners " + Iterables.toString(users), e);
+          + " with owners " + Iterables.toString(users), e);
     }
   }
 
@@ -76,27 +75,32 @@ public class MessagingUsageWriter implements UsageWriter {
   @Override
   public void register(ProgramId programId, DatasetId datasetId) {
     MetadataMessage message = new MetadataMessage(MetadataMessage.Type.USAGE, programId,
-                                                  GSON.toJsonTree(new DatasetUsage(datasetId)));
+        GSON.toJsonTree(new DatasetUsage(datasetId)));
     StoreRequest request = StoreRequestBuilder.of(topic).addPayload(GSON.toJson(message)).build();
 
     try {
-      Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy, Retries.ALWAYS_TRUE);
+      Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy,
+          Retries.ALWAYS_TRUE);
     } catch (Exception e) {
-      throw new RuntimeException("Failed to publish usage for " + datasetId + " for program " + programId, e);
+      throw new RuntimeException(
+          "Failed to publish usage for " + datasetId + " for program " + programId, e);
     }
   }
 
-  private void doRegisterAll(Iterable<? extends EntityId> users, EntityId entityId) throws Exception {
+  private void doRegisterAll(Iterable<? extends EntityId> users, EntityId entityId)
+      throws Exception {
     // Only record usage from program
     StoreRequest request = StoreRequestBuilder.of(topic).addPayloads(
-      StreamSupport.stream(users.spliterator(), false)
-        .filter(ProgramId.class::isInstance)
-        .map(ProgramId.class::cast)
-        .map(id -> new MetadataMessage(MetadataMessage.Type.USAGE, id, GSON.toJsonTree(new DatasetUsage(entityId))))
-        .map(GSON::toJson)
-        .map(s -> s.getBytes(StandardCharsets.UTF_8))
-        .iterator()
+        StreamSupport.stream(users.spliterator(), false)
+            .filter(ProgramId.class::isInstance)
+            .map(ProgramId.class::cast)
+            .map(id -> new MetadataMessage(MetadataMessage.Type.USAGE, id,
+                GSON.toJsonTree(new DatasetUsage(entityId))))
+            .map(GSON::toJson)
+            .map(s -> s.getBytes(StandardCharsets.UTF_8))
+            .iterator()
     ).build();
-    Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy, Retries.ALWAYS_TRUE);
+    Retries.callWithRetries(() -> messagingService.publish(request), retryStrategy,
+        Retries.ALWAYS_TRUE);
   }
 }

@@ -25,7 +25,6 @@ import io.cdap.cdap.cli.exception.CommandInputError;
 import io.cdap.cdap.cli.util.ArgumentParser;
 import io.cdap.cdap.client.PreferencesClient;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.Map;
 
@@ -33,6 +32,7 @@ import java.util.Map;
  * Sets preferences for instance, namespace, application, program.
  */
 public class SetPreferencesCommand extends AbstractSetPreferencesCommand {
+
   protected static final String SUCCESS = "Set preferences successfully for the '%s'";
   private final ElementType type;
 
@@ -58,7 +58,8 @@ public class SetPreferencesCommand extends AbstractSetPreferencesCommand {
       }
     }
     String preferences = arguments.get(ArgumentName.PREFERENCES.toString());
-    Map<String, String> args = ArgumentParser.parseMap(preferences, ArgumentName.PREFERENCES.toString());
+    Map<String, String> args = ArgumentParser.parseMap(preferences,
+        ArgumentName.PREFERENCES.toString());
     setPreferences(arguments, printStream, args, programIdParts);
   }
 
@@ -69,7 +70,8 @@ public class SetPreferencesCommand extends AbstractSetPreferencesCommand {
 
   @Override
   public String getDescription() {
-    return String.format("Sets the preferences of %s. '<%s>' is specified in the format 'key1=v1 key2=v2'.",
-                         Fragment.of(Article.A, type.getName()), ArgumentName.PREFERENCES);
+    return String.format(
+        "Sets the preferences of %s. '<%s>' is specified in the format 'key1=v1 key2=v2'.",
+        Fragment.of(Article.A, type.getName()), ArgumentName.PREFERENCES);
   }
 }

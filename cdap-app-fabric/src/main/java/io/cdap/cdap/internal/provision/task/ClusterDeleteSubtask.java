@@ -22,7 +22,6 @@ import io.cdap.cdap.runtime.spi.provisioner.Cluster;
 import io.cdap.cdap.runtime.spi.provisioner.ClusterStatus;
 import io.cdap.cdap.runtime.spi.provisioner.Provisioner;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerContext;
-
 import java.util.Collections;
 import java.util.Optional;
 import java.util.function.Function;
@@ -33,7 +32,7 @@ import java.util.function.Function;
 public class ClusterDeleteSubtask extends ProvisioningSubtask {
 
   public ClusterDeleteSubtask(Provisioner provisioner, ProvisionerContext provisionerContext,
-                              Function<Cluster, Optional<ProvisioningOp.Status>> transition) {
+      Function<Cluster, Optional<ProvisioningOp.Status>> transition) {
     super(provisioner, provisionerContext, transition);
   }
 
@@ -41,7 +40,7 @@ public class ClusterDeleteSubtask extends ProvisioningSubtask {
   public Cluster execute(Cluster cluster) throws Exception {
     ClusterStatus clusterStatus = provisioner.deleteClusterWithStatus(provisionerContext, cluster);
     return new Cluster(cluster == null ? null : cluster.getName(), clusterStatus,
-                       cluster == null ? Collections.emptyList() : cluster.getNodes(),
-                       cluster == null ? Collections.emptyMap() : cluster.getProperties());
+        cluster == null ? Collections.emptyList() : cluster.getNodes(),
+        cluster == null ? Collections.emptyMap() : cluster.getProperties());
   }
 }

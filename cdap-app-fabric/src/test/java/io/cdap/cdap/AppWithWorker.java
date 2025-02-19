@@ -23,9 +23,8 @@ import io.cdap.cdap.api.data.DatasetContext;
 import io.cdap.cdap.api.dataset.lib.KeyValueTable;
 import io.cdap.cdap.api.worker.AbstractWorker;
 import io.cdap.cdap.api.worker.WorkerContext;
-import org.apache.tephra.TransactionFailureException;
-
 import java.util.concurrent.TimeUnit;
+import org.apache.tephra.TransactionFailureException;
 
 /**
  * Worker at App Level.
@@ -71,7 +70,7 @@ public class AppWithWorker extends AbstractApplication {
         try {
           TimeUnit.MILLISECONDS.sleep(100);
         } catch (InterruptedException e) {
-
+          // ignore
         }
       }
     }

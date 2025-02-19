@@ -16,10 +16,15 @@
 
 package io.cdap.cdap.etl.spark.batch;
 
+import io.cdap.cdap.api.data.schema.Schema;
+import io.cdap.cdap.api.feature.FeatureFlagsProvider;
+import io.cdap.cdap.etl.api.engine.sql.StandardSQLCapabilities;
+import io.cdap.cdap.etl.api.relational.Capability;
 import io.cdap.cdap.etl.api.relational.Engine;
 import io.cdap.cdap.etl.api.relational.Relation;
 import io.cdap.cdap.etl.api.relational.RelationalTranformContext;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -30,12 +35,22 @@ import java.util.Set;
 public class BasicRelationalTransformContext implements RelationalTranformContext {
   private final Engine engine;
   private final Map<String, Relation> inputMap;
+  private final Map<String, Schema> inputSchemas;
+  private final Schema outputSchema;
+  private final FeatureFlagsProvider featureFlagsProvider;
   private Relation outputRelation;
 
 
-  public BasicRelationalTransformContext(Engine engine, Map<String, Relation> inputMap) {
+  public BasicRelationalTransformContext(Engine engine,
+                                         Map<String, Relation> inputMap,
+                                         Map<String, Schema> inputSchemas,
+                                         Schema outputSchema,
+                                         FeatureFlagsProvider featureFlagsProvider) {
     this.engine = engine;
     this.inputMap = inputMap;
+    this.inputSchemas = inputSchemas;
+    this.outputSchema = outputSchema;
+    this.featureFlagsProvider = featureFlagsProvider;
   }
 
   @Override
@@ -54,6 +69,16 @@ public class BasicRelationalTransformContext implements RelationalTranformContex
   }
 
   @Override
+  public Schema getInputSchema(String inputStage) {
+    return inputSchemas.get(inputStage);
+  }
+
+  @Override
+  public Schema getOutputSchema() {
+    return outputSchema;
+  }
+
+  @Override
   public void setOutputRelation(Relation outputRelation) {
     this.outputRelation = outputRelation;
   }
@@ -63,7 +88,16 @@ public class BasicRelationalTransformContext implements RelationalTranformContex
     throw new UnsupportedOperationException("Only single output is supported");
   }
 
+  @Override
+  public boolean isFeatureEnabled(String name) {
+    return this.featureFlagsProvider.isFeatureEnabled(name);
+  }
+
   public Relation getOutputRelation() {
     return outputRelation;
+  }
+
+  public Collection<Capability> getDefaultLanguageCapabilityList() {
+    return Collections.singleton(StandardSQLCapabilities.POSTGRES);
   }
 }

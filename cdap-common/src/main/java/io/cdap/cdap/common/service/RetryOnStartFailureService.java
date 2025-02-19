@@ -22,17 +22,16 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.Uninterruptibles;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.apache.twill.common.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import javax.annotation.Nullable;
-
 /**
- * A Guava {@link Service} that wrap around another {@link Service} such that, if the wrapped service failed
- * to start, it will get restarted based on the {@link RetryStrategy}.
+ * A Guava {@link Service} that wrap around another {@link Service} such that, if the wrapped
+ * service failed to start, it will get restarted based on the {@link RetryStrategy}.
  */
 public class RetryOnStartFailureService extends AbstractService {
 
@@ -44,7 +43,7 @@ public class RetryOnStartFailureService extends AbstractService {
   private volatile Thread startupThread;
   private volatile Service currentDelegate;
   private volatile Service startedService;
-  private volatile boolean stopped = false;
+  private volatile boolean stopped;
 
   /**
    * Creates a new instance.
@@ -81,7 +80,7 @@ public class RetryOnStartFailureService extends AbstractService {
             long delay = retryStrategy.nextRetry(++failures, startTime);
             if (delay < 0) {
               LOG.error("Failed to start service {} after {} retries in {}ms",
-                        delegateServiceName, failures, System.currentTimeMillis() - startTime);
+                  delegateServiceName, failures, System.currentTimeMillis() - startTime);
               notifyFailed(t);
               break;
             }
@@ -145,8 +144,8 @@ public class RetryOnStartFailureService extends AbstractService {
   }
 
   /**
-   * Returns the {@link Service} instance that was started successfully by this service. If the underlying
-   * service hasn't been started successfully, {@code null} will be returned.
+   * Returns the {@link Service} instance that was started successfully by this service. If the
+   * underlying service hasn't been started successfully, {@code null} will be returned.
    */
   @VisibleForTesting
   @Nullable

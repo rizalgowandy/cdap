@@ -23,12 +23,11 @@ import io.cdap.cdap.client.ProgramClient;
 import io.cdap.cdap.client.ServiceClient;
 import io.cdap.cdap.client.config.ClientConfig;
 import io.cdap.cdap.client.util.RESTClient;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.proto.id.ServiceId;
 import io.cdap.cdap.test.AbstractProgramManager;
 import io.cdap.cdap.test.ServiceManager;
-
 import java.net.URL;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +35,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Remote implementation of {@link ServiceManager}.
  */
-public class RemoteServiceManager extends AbstractProgramManager<ServiceManager> implements ServiceManager {
+public class RemoteServiceManager extends AbstractProgramManager<ServiceManager> implements
+    ServiceManager {
 
   private final MetricsClient metricsClient;
   private final ProgramClient programClient;
@@ -44,7 +44,7 @@ public class RemoteServiceManager extends AbstractProgramManager<ServiceManager>
   private final ServiceId serviceId;
 
   public RemoteServiceManager(ServiceId serviceId, ClientConfig clientConfig, RESTClient restClient,
-                              RemoteApplicationManager remoteApplicationManager) {
+      RemoteApplicationManager remoteApplicationManager) {
     super(serviceId, remoteApplicationManager);
     this.serviceId = serviceId;
     this.metricsClient = new MetricsClient(clientConfig, restClient);
@@ -95,7 +95,7 @@ public class RemoteServiceManager extends AbstractProgramManager<ServiceManager>
           }
         }
       }, timeout, timeoutUnit);
-      return serviceClient.getVersionedServiceURL(serviceId);
+      return serviceClient.getServiceURL(serviceId);
     } catch (Exception e) {
       throw Throwables.propagate(e);
     }

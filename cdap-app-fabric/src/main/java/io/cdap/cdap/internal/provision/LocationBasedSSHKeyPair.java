@@ -20,12 +20,11 @@ import com.google.common.io.ByteStreams;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.runtime.spi.ssh.SSHKeyPair;
 import io.cdap.cdap.runtime.spi.ssh.SSHPublicKey;
-import org.apache.twill.filesystem.Location;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
+import org.apache.twill.filesystem.Location;
 
 /**
  * A {@link SSHKeyPair} that loads public and private keys from a given {@link Location}.
@@ -36,15 +35,18 @@ public class LocationBasedSSHKeyPair extends SSHKeyPair {
     super(createSSHPublicKey(keysDir, sshUser), createPrivateKeySupplier(keysDir));
   }
 
-  private static SSHPublicKey createSSHPublicKey(Location keysDir, String sshUser) throws IOException  {
+  private static SSHPublicKey createSSHPublicKey(Location keysDir, String sshUser)
+      throws IOException {
     try (InputStream is = keysDir.append(Constants.RuntimeMonitor.PUBLIC_KEY).getInputStream()) {
-      return new SSHPublicKey(sshUser, new String(ByteStreams.toByteArray(is), StandardCharsets.UTF_8));
+      return new SSHPublicKey(sshUser,
+          new String(ByteStreams.toByteArray(is), StandardCharsets.UTF_8));
     }
   }
 
   private static Supplier<byte[]> createPrivateKeySupplier(Location keysDir) {
     return () -> {
-      try (InputStream input = keysDir.append(Constants.RuntimeMonitor.PRIVATE_KEY).getInputStream()) {
+      try (InputStream input = keysDir.append(Constants.RuntimeMonitor.PRIVATE_KEY)
+          .getInputStream()) {
         return ByteStreams.toByteArray(input);
       } catch (IOException e) {
         throw new RuntimeException("Failed to load private key", e);

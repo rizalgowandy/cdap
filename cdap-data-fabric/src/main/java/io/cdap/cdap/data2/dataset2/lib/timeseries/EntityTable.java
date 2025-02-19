@@ -22,28 +22,31 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.data2.dataset2.lib.table.MetricsTable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class handle assignment of unique ID to entity name, persisted by a OVCTable.
  *
- * Entity table is for storing mapping between name to unique ID. There are two set of rows in this table,
- * one is for generating the next sequence ID using increment, the other stores the actual mappings.
+ * Entity table is for storing mapping between name to unique ID. There are two set of rows in this
+ * table, one is for generating the next sequence ID using increment, the other stores the actual
+ * mappings.
  *
  * <h5>Generator rows</h5>
  * Row key is formated as {@code [type].maxId} and there is only one column "maxId" which stores the
- * last ID being generated. Each time when a new ID is needed for a given type, and increment and get on the
- * corresponding row would be called.
+ * last ID being generated. Each time when a new ID is needed for a given type, and increment and
+ * get on the corresponding row would be called.
  *
  * <h5>Entity mapping rows</h5>
- * Each entity would have two rows. One is keyed by {@code [type].[entityName]} and have one "id" column which
- * stores the unique ID. The other is a reverse map from {@code [type].id} to entity name in "name" column.
+ * Each entity would have two rows. One is keyed by {@code [type].[entityName]} and have one "id"
+ * column which stores the unique ID. The other is a reverse map from {@code [type].id} to entity
+ * name in "name" column.
  */
 public final class EntityTable implements Closeable {
 
@@ -52,7 +55,7 @@ public final class EntityTable implements Closeable {
   private static final byte[] ID = Bytes.toBytes("id");
   private static final byte[] MAX_ID = Bytes.toBytes("maxId");
   private static final byte[] NAME = Bytes.toBytes("name");
-  private static final byte[] DOT = { '.' };
+  private static final byte[] DOT = {'.'};
   // max number of distinct values of entity of a single type
   private static final long MAX_ID_COUNT = 0x1000000L;
 
@@ -91,21 +94,41 @@ public final class EntityTable implements Closeable {
 
   /**
    * Returns an unique id for the given name.
-   * @param name The {@link EntityName} to lookup. Can be {@code null}, which is treated as a normal value.
+   *
+   * @param name The {@link EntityName} to lookup. Can be {@code null}, which is treated as a
+   *     normal value.
    * @return Unique ID, it is guaranteed to be smaller than the maxId passed in constructor.
    */
   public long getId(String type, @Nullable String name) {
+    return getId(type, name, (n, cache) -> cache.get());
+  }
+
+  /**
+   * Returns an unique id for the given name.
+   *
+   * @param name The {@link EntityName} to lookup. Can be {@code null}, which is treated as a
+   *     normal value.
+   * @param fastCache additional thread-local cache function that can be consulted before going
+   *     to concurrent cache or doing database retrieval. May call provided supplier right away if
+   *     thraed-local cache is not used.
+   * @return Unique ID, it is guaranteed to be smaller than the maxId passed in constructor.
+   */
+  public long getId(String type, @Nullable String name,
+      BiFunction<EntityName, Supplier<Long>, Long> fastCache) {
     if (name == null) {
       return 0;
     }
-    return entityCache.getUnchecked(new EntityName(type, name)) % maxId;
+    EntityName entityName = new EntityName(type, name);
+    return fastCache.apply(entityName, () -> entityCache.getUnchecked(entityName)) % maxId;
   }
 
   /**
    * Returns the entity name for the given id and type.
+   *
    * @param id The id to lookup
    * @param type The type of the entity.
-   * @return The entity name with the given id assigned to or {@code null} if given id is an encoded null value
+   * @return The entity name with the given id assigned to or {@code null} if given id is an encoded
+   *     null value
    * @throws IllegalArgumentException if the given ID does not map to any name.
    */
   @Nullable
@@ -155,8 +178,8 @@ public final class EntityTable implements Closeable {
         }
 
         if (key.getName() == null || key.getName().isEmpty()) {
-          LOG.warn("Adding mapping for " + (key.getName() == null ? "null" : "empty") + " name, " +
-                     " with type " + key.getType() + ", new id is " + newId);
+          LOG.warn("Adding mapping for " + (key.getName() == null ? "null" : "empty") + " name, "
+              + " with type " + key.getType() + ", new id is " + newId);
         }
 
         // Save the mapping
@@ -196,7 +219,8 @@ public final class EntityTable implements Closeable {
         byte[] rowKey = Bytes.concat(Bytes.toBytes(key.getType()), DOT, Bytes.toBytes(key.getId()));
         byte[] result = table.get(rowKey, NAME);
         if (result == null) {
-          throw new IllegalArgumentException("Entity name not found for type " + key.getType() + ", id " + key.getId());
+          throw new IllegalArgumentException(
+              "Entity name not found for type " + key.getType() + ", id " + key.getId());
         }
         return new EntityName(key.getType(), Bytes.toString(result));
       }
@@ -227,7 +251,7 @@ public final class EntityTable implements Closeable {
   /**
    * Package private class to represent an entity name, which compose of type and name.
    */
-  private static final class EntityName {
+  public static final class EntityName {
 
     private final String type;
     private final String name;
@@ -270,9 +294,9 @@ public final class EntityTable implements Closeable {
     @Override
     public String toString() {
       return Objects.toStringHelper(this)
-                    .add("type", type)
-                    .add("name", name)
-                    .toString();
+          .add("type", type)
+          .add("name", name)
+          .toString();
     }
   }
 

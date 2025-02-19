@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,6 +13,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package io.cdap.cdap.gateway.handlers.metrics;
 
 import com.google.common.collect.ImmutableMap;
@@ -34,6 +35,7 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.NamespaceAdminTestModule;
 import io.cdap.cdap.common.guice.NonCustomLocationUnitTestModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.data.runtime.DataFabricModules;
 import io.cdap.cdap.data.runtime.DataSetServiceModules;
 import io.cdap.cdap.data.runtime.DataSetsModules;
@@ -41,7 +43,6 @@ import io.cdap.cdap.data2.datafabric.dataset.service.DatasetService;
 import io.cdap.cdap.data2.datafabric.dataset.service.executor.DatasetOpExecutorService;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.internal.app.store.DefaultStore;
 import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.metrics.guice.MetricsHandlerModule;
@@ -56,6 +57,14 @@ import io.cdap.cdap.security.impersonation.UnsupportedUGIProvider;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.store.StoreDefinition;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import java.net.InetAddress;
+import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLContext;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -74,15 +83,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.TemporaryFolder;
-
-import java.net.InetAddress;
-import java.net.URI;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import javax.net.ssl.SSLContext;
 
 /**
  * Provides base test class for MetricsServiceTestsSuite.
@@ -124,6 +124,9 @@ public abstract class MetricsSuiteTestBase {
     conf.setBoolean(Constants.Dangerous.UNRECOVERABLE_RESET, true);
     conf.setBoolean(Constants.Metrics.CONFIG_AUTHENTICATION_REQUIRED, true);
     conf.set(Constants.Metrics.CLUSTER_NAME, CLUSTER);
+    //Disable coarsing as it will be flacky on integration test level due to variable timing.
+    //It's tested on lower level
+    conf.setInt(Constants.Metrics.COARSE_ROUND_FACTOR, 1);
 
     Injector injector = startMetricsService(conf);
     store = injector.getInstance(Store.class);
@@ -147,6 +150,7 @@ public abstract class MetricsSuiteTestBase {
   public static Injector startMetricsService(CConfiguration conf) throws Exception {
     Injector injector = Guice.createInjector(Modules.override(
       new ConfigModule(conf),
+      RemoteAuthenticatorModules.getNoOpModule(),
       new NonCustomLocationUnitTestModule(),
       new InMemoryDiscoveryModule(),
       new MetricsHandlerModule(),
@@ -154,7 +158,6 @@ public abstract class MetricsSuiteTestBase {
       new DataFabricModules().getInMemoryModules(),
       new DataSetsModules().getStandaloneModules(),
       new DataSetServiceModules().getInMemoryModules(),
-      new ExploreClientModule(),
       new NamespaceAdminTestModule(),
       new AuthorizationTestModule(),
       new AuthorizationEnforcementModule().getInMemoryModules(),
@@ -208,8 +211,7 @@ public abstract class MetricsSuiteTestBase {
   }
 
   public static URI getEndPoint(String path) {
-    // Replace "%" with "%%" for literal path
-    return URIScheme.createURI(discoverable, path.replace("%", "%%"));
+    return URIScheme.createURI(discoverable, "%s", path);
   }
 
   public static HttpResponse doGet(String resource) throws Exception {

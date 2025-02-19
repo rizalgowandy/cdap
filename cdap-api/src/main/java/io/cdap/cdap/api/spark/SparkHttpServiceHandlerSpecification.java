@@ -19,7 +19,6 @@ package io.cdap.cdap.api.spark;
 import io.cdap.cdap.api.annotation.UseDataSet;
 import io.cdap.cdap.api.common.PropertyProvider;
 import io.cdap.cdap.api.service.http.ServiceHttpEndpoint;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,7 +39,7 @@ public final class SparkHttpServiceHandlerSpecification implements PropertyProvi
   private final List<ServiceHttpEndpoint> endpoints;
 
   public SparkHttpServiceHandlerSpecification(String className, Map<String, String> properties,
-                                              Set<String> datasets, List<ServiceHttpEndpoint> endpoints) {
+      Set<String> datasets, List<ServiceHttpEndpoint> endpoints) {
     this.className = className;
     this.properties = Collections.unmodifiableMap(new HashMap<>(properties));
     this.datasets = Collections.unmodifiableSet(new HashSet<>(datasets));

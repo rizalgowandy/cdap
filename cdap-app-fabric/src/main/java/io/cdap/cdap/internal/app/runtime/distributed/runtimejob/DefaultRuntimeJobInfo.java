@@ -19,13 +19,12 @@ package io.cdap.cdap.internal.app.runtime.distributed.runtimejob;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.runtime.spi.ProgramRunInfo;
 import io.cdap.cdap.runtime.spi.runtimejob.RuntimeJobInfo;
-import org.apache.twill.api.LocalFile;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.apache.twill.api.LocalFile;
 
 /**
  * Default implementation of {@link RuntimeJobInfo}.
@@ -36,9 +35,13 @@ public class DefaultRuntimeJobInfo implements RuntimeJobInfo {
   private final Collection<? extends LocalFile> files;
   private final Map<String, String> jvmProperties;
 
+  private final Map<String, String> arguments;
+  private final int virtualCores;
+  private final int memoryMb;
 
   public DefaultRuntimeJobInfo(ProgramRunId programRunId, Collection<? extends LocalFile> files,
-                               Map<String, String> jvmProperties) {
+      Map<String, String> jvmProperties, Map<String, String> arguments,
+      int virtualCores, int memoryMb) {
     this.info = new ProgramRunInfo.Builder()
       .setNamespace(programRunId.getNamespace())
       .setApplication(programRunId.getApplication())
@@ -48,6 +51,9 @@ public class DefaultRuntimeJobInfo implements RuntimeJobInfo {
       .setRun(programRunId.getRun()).build();
     this.files = Collections.unmodifiableCollection(new ArrayList<>(files));
     this.jvmProperties = Collections.unmodifiableMap(new LinkedHashMap<>(jvmProperties));
+    this.arguments = Collections.unmodifiableMap(arguments);
+    this.virtualCores = virtualCores;
+    this.memoryMb = memoryMb;
   }
 
   @Override
@@ -68,5 +74,20 @@ public class DefaultRuntimeJobInfo implements RuntimeJobInfo {
   @Override
   public Map<String, String> getJvmProperties() {
     return jvmProperties;
+  }
+
+  @Override
+  public Map<String, String> getArguments() {
+    return arguments;
+  }
+
+  @Override
+  public int getVirtualCores() {
+    return virtualCores;
+  }
+
+  @Override
+  public int getMemoryMb() {
+    return memoryMb;
   }
 }

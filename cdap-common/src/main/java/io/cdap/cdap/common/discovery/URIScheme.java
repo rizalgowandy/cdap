@@ -17,28 +17,32 @@
 package io.cdap.cdap.common.discovery;
 
 import io.cdap.http.NettyHttpService;
-import org.apache.twill.discovery.Discoverable;
-
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import org.apache.twill.discovery.Discoverable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Enum representing URI scheme.
  */
 public enum URIScheme {
 
-  HTTP("http", new byte[0], 80),
-  HTTPS("https", "https://".getBytes(StandardCharsets.UTF_8), 443);
+  HTTP("http", new byte[0], 80), HTTPS("https",
+      "https://".getBytes(StandardCharsets.UTF_8), 443);
+
+  private static final Logger LOG = LoggerFactory.getLogger(URIScheme.class);
 
   private final String scheme;
   private final byte[] discoverablePayload;
   private final int defaultPort;
 
   /**
-   * Returns the {@link URIScheme} based on the given {@link Discoverable} payload.
+   * Returns the {@link URIScheme} based on the given {@link Discoverable}
+   * payload.
    */
   public static URIScheme getScheme(Discoverable discoverable) {
     for (URIScheme scheme : values()) {
@@ -59,14 +63,15 @@ public enum URIScheme {
       if (scheme.scheme.equalsIgnoreCase(protocol)) {
         int port = url.getPort();
         return scheme.createDiscoverable(serviceName,
-                                         new InetSocketAddress(url.getHost(), port == -1 ? scheme.defaultPort : port));
+            new InetSocketAddress(url.getHost(), port == -1 ? scheme.defaultPort : port));
       }
     }
     throw new IllegalArgumentException("Unsupported protocol from URL " + url);
   }
 
   /**
-   * Creates a {@link Discoverable} for the given service name that represents the given {@link NettyHttpService}.
+   * Creates a {@link Discoverable} for the given service name that represents the given {@link
+   * NettyHttpService}.
    */
   public static Discoverable createDiscoverable(String serviceName, NettyHttpService httpService) {
     URIScheme scheme = httpService.isSSLEnabled() ? HTTPS : HTTP;
@@ -76,14 +81,22 @@ public enum URIScheme {
   /**
    * Creates a {@link URI} based on the scheme from the given {@link Discoverable}.
    */
-  public static URI createURI(Discoverable discoverable, String pathFmt, Object...objs) {
+  public static URI createURI(Discoverable discoverable, String pathFmt, Object... objs) {
+    if (objs.length == 0) {
+      LOG.warn("Received 0 arguments for substitution in the path format. "
+               + "If no substitutions are required, use '%s' as the path format "
+               + "and provide the literal path as as a substitution argument to avoid issues "
+               + "with url encoded strings.");
+    }
     String scheme = getScheme(discoverable).scheme;
     InetSocketAddress address = discoverable.getSocketAddress();
     String path = String.format(pathFmt, objs);
     if (path.startsWith("/")) {
       path = path.substring(1);
     }
-    return URI.create(String.format("%s://%s:%d/%s", scheme, address.getHostName(), address.getPort(), path));
+    return URI.create(
+        String.format("%s://%s:%d/%s", scheme, address.getHostName(),
+            address.getPort(), path));
   }
 
 
@@ -94,7 +107,8 @@ public enum URIScheme {
   }
 
   /**
-   * Returns {@code true} if the given {@link Discoverable} has payload that matches with this scheme.
+   * Returns {@code true} if the given {@link Discoverable} has payload that matches with this
+   * scheme.
    */
   public boolean isMatch(Discoverable discoverable) {
     return Arrays.equals(discoverablePayload, discoverable.getPayload());
@@ -112,5 +126,12 @@ public enum URIScheme {
    */
   public String getScheme() {
     return scheme;
+  }
+
+  /**
+   * Returns the default port.
+   */
+  public int getDefaultPort() {
+    return defaultPort;
   }
 }

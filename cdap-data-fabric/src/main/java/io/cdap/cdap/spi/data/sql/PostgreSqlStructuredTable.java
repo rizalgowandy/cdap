@@ -17,13 +17,8 @@
 package io.cdap.cdap.spi.data.sql;
 
 import com.google.common.base.Joiner;
-import com.google.inject.Guice;
-import com.google.inject.Inject;
-import com.google.inject.Injector;
 import io.cdap.cdap.api.dataset.lib.AbstractCloseableIterator;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
-import io.cdap.cdap.common.conf.CConfiguration;
-import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.spi.data.InvalidFieldException;
 import io.cdap.cdap.spi.data.SortOrder;
 import io.cdap.cdap.spi.data.StructuredRow;
@@ -34,9 +29,6 @@ import io.cdap.cdap.spi.data.table.field.FieldType;
 import io.cdap.cdap.spi.data.table.field.FieldValidator;
 import io.cdap.cdap.spi.data.table.field.Fields;
 import io.cdap.cdap.spi.data.table.field.Range;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -50,34 +42,38 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Sql structured table implementation.
  */
 public class PostgreSqlStructuredTable implements StructuredTable {
+
   private static final Logger LOG = LoggerFactory.getLogger(PostgreSqlStructuredTable.class);
 
 
   private final Connection connection;
   private final StructuredTableSchema tableSchema;
   private final FieldValidator fieldValidator;
-  private final int scanFetchSize;
+  private final int fetchSize;
 
-  public PostgreSqlStructuredTable(Connection connection, StructuredTableSchema tableSchema, int scanFetchSize) {
+  /**
+   * Default constructor for PostgreSqlStructuredTable.
+   */
+  public PostgreSqlStructuredTable(Connection connection, StructuredTableSchema tableSchema,
+      int fetchSize) {
     this.connection = connection;
     this.tableSchema = tableSchema;
     this.fieldValidator = new FieldValidator(tableSchema);
-    this.scanFetchSize = scanFetchSize;
+    this.fetchSize = fetchSize;
   }
 
   @Override
@@ -86,8 +82,8 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     Set<String> fieldNames = fields.stream().map(Field::getName).collect(Collectors.toSet());
     if (!fieldNames.containsAll(tableSchema.getPrimaryKeys())) {
       throw new InvalidFieldException(tableSchema.getTableId(), fields,
-                                      String.format("Given fields %s do not contain all the " +
-                                                      "primary keys %s", fieldNames, tableSchema.getPrimaryKeys()));
+          String.format("Given fields %s do not contain all the "
+              + "primary keys %s", fieldNames, tableSchema.getPrimaryKeys()));
     }
     upsertInternal(fields);
   }
@@ -98,20 +94,21 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     Set<String> fieldNames = fields.stream().map(Field::getName).collect(Collectors.toSet());
     if (!fieldNames.containsAll(tableSchema.getPrimaryKeys())) {
       throw new InvalidFieldException(tableSchema.getTableId(), fields,
-                                      String.format("Given fields %s do not contain all the " +
-                                                      "primary keys %s", fieldNames, tableSchema.getPrimaryKeys()));
+          String.format("Given fields %s do not contain all the "
+              + "primary keys %s", fieldNames, tableSchema.getPrimaryKeys()));
     }
     updateInternal(fields);
   }
 
   @Override
-  public Optional<StructuredRow> read(Collection<Field<?>> keys) throws InvalidFieldException, IOException {
+  public Optional<StructuredRow> read(Collection<Field<?>> keys)
+      throws InvalidFieldException, IOException {
     return readRow(keys, null);
   }
 
   @Override
   public Optional<StructuredRow> read(Collection<Field<?>> keys,
-                                      Collection<String> columns) throws InvalidFieldException, IOException {
+      Collection<String> columns) throws InvalidFieldException, IOException {
     if (columns == null || columns.isEmpty()) {
       throw new IllegalArgumentException("No columns are specified to read");
     }
@@ -124,7 +121,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
 
   @Override
   public Collection<StructuredRow> multiRead(Collection<? extends Collection<Field<?>>> multiKeys)
-    throws InvalidFieldException, IOException {
+      throws InvalidFieldException, IOException {
     LOG.trace("Table {}: Read with multiple keys {}", tableSchema.getTableId(), multiKeys);
 
     if (multiKeys.isEmpty()) {
@@ -135,13 +132,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       fieldValidator.validatePrimaryKeys(keys, false);
     }
 
-    // Collapse values of each key
-    Map<String, Set<Field<?>>> keyFields = new LinkedHashMap<>();
-    multiKeys.stream()
-      .flatMap(Collection::stream)
-      .forEach(field -> keyFields.computeIfAbsent(field.getName(), k -> new LinkedHashSet<>()).add(field));
-
-    try (PreparedStatement statement = prepareMultiReadQuery(keyFields)) {
+    try (PreparedStatement statement = prepareMultiReadQuery(multiKeys)) {
       LOG.trace("SQL statement: {}", statement);
       Collection<StructuredRow> result = new ArrayList<>();
       try (ResultSet resultSet = statement.executeQuery()) {
@@ -152,38 +143,40 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       }
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to read from table %s with multi keys %s",
-                                          tableSchema.getTableId().getName(), multiKeys), e);
+          tableSchema.getTableId().getName(), multiKeys), e);
     }
   }
 
   /**
-   * Creates a SELECT query that fetches rows from a given set of keys.
+   * Creates a SELECT query that fetches rows from a given set of keys. This has OR with nested AND
+   * logic. E.g. SELECT * FROM table WHERE (key1 = ? AND key2 = ?) OR (key1 = ? AND key2 = ?) OR ...
+   * LIMIT limit
    *
-   * @param keyFields a map from field name to set of field values to query
+   * @param multiKeys a map from field name to set of field values to query
    * @return a SELECT query ready to be used for creating prepared statement
    */
-  private PreparedStatement prepareMultiReadQuery(Map<String, Set<Field<?>>> keyFields) throws SQLException {
+  private PreparedStatement prepareMultiReadQuery(
+      Collection<? extends Collection<Field<?>>> multiKeys)
+      throws SQLException {
     StringBuilder queryString =
-      new StringBuilder("SELECT ")
-        .append("*")
-        .append(" FROM ")
-        .append(tableSchema.getTableId().getName())
-        .append(" WHERE ");
+        new StringBuilder("SELECT * FROM ")
+            .append(tableSchema.getTableId().getName())
+            .append(" WHERE ");
 
-    Joiner.on(" AND ").appendTo(
-      queryString, keyFields.entrySet().stream()
-        .map(e -> {
-          StringBuilder fieldBuilder = new StringBuilder(e.getKey()).append(" IN (");
-          Joiner.on(',').appendTo(fieldBuilder, IntStream.range(0, e.getValue().size()).mapToObj(i -> "?").iterator());
-          return fieldBuilder.append(")").toString();
-        }).iterator()
+    Joiner.on(" OR ").appendTo(
+        queryString, multiKeys.stream().map(keys -> "(" + getEqualsClause(keys) + ")").iterator()
     );
     queryString.append(";");
 
     PreparedStatement preparedStatement = connection.prepareStatement(queryString.toString());
+    preparedStatement.setFetchSize(fetchSize);
 
     // Set fields to the statement
-    setFields(preparedStatement, keyFields.values().stream().flatMap(Collection::stream)::iterator, 1);
+    int beginIndex = 1;
+    for (Collection<Field<?>> keys : multiKeys) {
+      beginIndex = setFields(preparedStatement, keys, beginIndex);
+    }
+
     return preparedStatement;
   }
 
@@ -205,23 +198,24 @@ public class PostgreSqlStructuredTable implements StructuredTable {
   }
 
   @Override
-  public CloseableIterator<StructuredRow> scan(Range keyRange, int limit) throws InvalidFieldException, IOException {
+  public CloseableIterator<StructuredRow> scan(Range keyRange, int limit)
+      throws InvalidFieldException, IOException {
     return scan(keyRange, limit, SortOrder.ASC);
   }
 
   @Override
   public CloseableIterator<StructuredRow> scan(Range keyRange, int limit, SortOrder sortOrder)
-    throws InvalidFieldException, IOException {
+      throws InvalidFieldException, IOException {
 
-    LOG.trace("Table {}: Scan range {} with limit {} order {}", tableSchema.getTableId(), keyRange, limit, sortOrder);
-    fieldValidator.validatePrimaryKeys(keyRange.getBegin(), true);
-    fieldValidator.validatePrimaryKeys(keyRange.getEnd(), true);
-    String scanQuery = getScanQuery(keyRange, limit, sortOrder);
+    LOG.trace("Table {}: Scan range {} with limit {} order {}", tableSchema.getTableId(), keyRange,
+        limit, sortOrder);
+    fieldValidator.validateScanRange(keyRange);
+    String scanQuery = getScanQuery(keyRange, limit, tableSchema.getPrimaryKeys(), sortOrder);
 
     // We don't close the statement here because once it is closed, the result set is also closed.
     try {
       PreparedStatement statement = connection.prepareStatement(scanQuery);
-      statement.setFetchSize(scanFetchSize);
+      statement.setFetchSize(fetchSize);
       setStatementFieldByRange(keyRange, statement);
       LOG.trace("SQL statement: {}", statement);
 
@@ -229,14 +223,15 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       return new ResultSetIterator(statement, resultSet, tableSchema);
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to scan from table %s with range %s",
-                                          tableSchema.getTableId().getName(), keyRange), e);
+          tableSchema.getTableId().getName(), keyRange), e);
     }
   }
 
   @Override
   public CloseableIterator<StructuredRow> multiScan(Collection<Range> keyRanges,
-                                                    int limit) throws InvalidFieldException, IOException {
-    LOG.trace("Table {}: MultiScan ranges {} with limit {}", tableSchema.getTableId(), keyRanges, limit);
+      int limit) throws InvalidFieldException, IOException {
+    LOG.trace("Table {}: MultiScan ranges {} with limit {}", tableSchema.getTableId(), keyRanges,
+        limit);
 
     if (keyRanges.isEmpty()) {
       return CloseableIterator.empty();
@@ -244,15 +239,14 @@ public class PostgreSqlStructuredTable implements StructuredTable {
 
     // Validate all ranges. Also, find if there is any range that is open on both ends.
     // Also split the scans into actual range scans and singleton scan, which can be done via IN condition.
-    Map<String, Set<Field<?>>> keyFields = new LinkedHashMap<>();
+    List<Range> singletonScans = new ArrayList<>();
     List<Range> rangeScans = new ArrayList<>();
     boolean scanAll = false;
     for (Range range : keyRanges) {
-      fieldValidator.validatePrimaryKeys(range.getBegin(), true);
-      fieldValidator.validatePrimaryKeys(range.getEnd(), true);
+      fieldValidator.validateScanRange(range);
 
       if (range.isSingleton()) {
-        range.getBegin().forEach(f -> keyFields.computeIfAbsent(f.getName(), k -> new LinkedHashSet<>()).add(f));
+        singletonScans.add(range);
       } else {
         if (range.getBegin().isEmpty() && range.getEnd().isEmpty()) {
           scanAll = true;
@@ -266,49 +260,53 @@ public class PostgreSqlStructuredTable implements StructuredTable {
 
     try {
       // Don't close the statement. Leave it to the ResultSetIterator.close() to close it.
-      PreparedStatement statement = prepareMultiScanQuery(keyFields, rangeScans, limit);
+      PreparedStatement statement = prepareMultiScanQuery(singletonScans, rangeScans, limit);
       LOG.trace("MultiScan SQL statement: {}", statement);
 
       ResultSet resultSet = statement.executeQuery();
       return new ResultSetIterator(statement, resultSet, tableSchema);
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to scan from table %s with ranges %s",
-                                          tableSchema.getTableId().getName(), keyRanges), e);
+          tableSchema.getTableId().getName(), keyRanges), e);
     }
   }
 
   /**
-   * Generates a SELECT query for scanning over all the provided ranges. For each of the range, it generates a where
-   * clause using the {@link #appendRange(StringBuilder, Range)} method. The where clause of each range are OR together.
-   * E.g.
+   * Generates a SELECT query for scanning over all the provided ranges. For each of the range, it
+   * generates a where clause using the {@link #appendRange(StringBuilder, Range)} method. The where
+   * clause of each range are OR together. E.g.
    *
-   * SELECT * FROM table WHERE key1 in (?,?) AND key2 in (?,?)
-   * OR ((key3 >= ?) AND (key3 <= ?)) OR ((key4 >= ?) AND (key4 <= ?)) LIMIT limit
+   * <p>SELECT * FROM table WHERE (key1 = ? AND key2 = ?) OR (key1 = ? AND key2 = ?) OR ((key3 >=
+   * ?) AND (key3 <= ?)) OR ((key4 >= ?) AND (key4 <= ?)) LIMIT limit
    *
-   * @param keyFields a map from field name to field values that the query has to match with
+   * @param singletonRanges the list of singleton ranges to scan
    * @param ranges the list of ranges to scan
    * @param limit number of result
    * @return a select query
    */
-  private PreparedStatement prepareMultiScanQuery(Map<String, Set<Field<?>>> keyFields,
-                                                  Collection<Range> ranges, int limit) throws SQLException {
+  private PreparedStatement prepareMultiScanQuery(Collection<Range> singletonRanges,
+      Collection<Range> ranges, int limit) throws SQLException {
+    // TODO: CDAP-19734, refactor cases like
+    //  (namespace >= 'default' and namespace <= 'default' and app >='a' and app <= 'b')
+    //  to (namespace = 'default' and app >='a' and app <= 'b')
     StringBuilder query = new StringBuilder("SELECT * FROM ")
-      .append(tableSchema.getTableId().getName()).append(" WHERE ");
+        .append(tableSchema.getTableId().getName()).append(" WHERE ");
 
-    // Generates "key1 in (?,?) AND key2 in (?,?)..." clause
+    // Generates "(key1 = ? AND key2 = ?) OR (key1 = ? AND key2 = ?)..." clause
     String separator = "";
-    for (Map.Entry<String, Set<Field<?>>> entry : keyFields.entrySet()) {
+    Collection<Field<?>> singletonFields = new ArrayList<>();
+    for (Range singleton : singletonRanges) {
       query
-        .append(separator)
-        .append(entry.getKey()).append(" IN (")
-        .append(IntStream.range(0, entry.getValue().size()).mapToObj(i -> "?").collect(Collectors.joining(",")))
-        .append(")");
-      separator = " AND ";
+          .append(separator)
+          .append(singleton.getBegin().stream().map(field -> field.getName() + " = ?")
+              .collect(Collectors.joining(" AND ", "(", ")")));
+      separator = " OR ";
+      singletonFields.addAll(singleton.getBegin());
     }
 
     // Generates the ((key3 >= ?) AND (key3 <= ?)) OR ((key4 >= ?) AND (key4 <= ?))
     if (!ranges.isEmpty()) {
-      separator = keyFields.isEmpty() ? "(" : " OR (";
+      separator = singletonRanges.isEmpty() ? "(" : " OR (";
       for (Range range : ranges) {
         query.append(separator).append("(");
         appendRange(query, range);
@@ -321,10 +319,10 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     query.append(" LIMIT ").append(limit).append(";");
 
     PreparedStatement statement = connection.prepareStatement(query.toString());
-    statement.setFetchSize(scanFetchSize);
+    statement.setFetchSize(fetchSize);
 
     // Set the parameters
-    int index = setFields(statement, keyFields.values().stream().flatMap(Collection::stream)::iterator, 1);
+    int index = setFields(statement, singletonFields, 1);
     for (Range range : ranges) {
       index = setStatementFieldByRange(range, statement, index);
     }
@@ -332,44 +330,126 @@ public class PostgreSqlStructuredTable implements StructuredTable {
   }
 
   @Override
-  public CloseableIterator<StructuredRow> scan(Field<?> index) throws InvalidFieldException, IOException {
+  public CloseableIterator<StructuredRow> scan(Field<?> index)
+      throws InvalidFieldException, IOException {
     LOG.trace("Table {}: Scan index {}", tableSchema.getTableId(), index);
     fieldValidator.validateField(index);
     if (!tableSchema.isIndexColumn(index.getName())) {
-      throw new InvalidFieldException(tableSchema.getTableId(), index.getName(), "is not an indexed column");
+      throw new InvalidFieldException(tableSchema.getTableId(), index.getName(),
+          "is not an indexed column");
     }
 
     String sql = getReadQuery(Collections.singleton(index), null, false);
     // We don't close the statement here because once it is closed, the result set is also closed.
     try {
       PreparedStatement statement = connection.prepareStatement(sql);
-      statement.setFetchSize(scanFetchSize);
+      statement.setFetchSize(fetchSize);
       setField(statement, index, 1);
       LOG.trace("SQL statement: {}", statement);
       ResultSet resultSet = statement.executeQuery();
       return new ResultSetIterator(statement, resultSet, tableSchema);
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to scan from table %s with index %s",
-                                          tableSchema.getTableId().getName(), index), e);
+          tableSchema.getTableId().getName(), index), e);
+    }
+  }
+
+  @Override
+  public CloseableIterator<StructuredRow> scan(Range keyRange, int limit,
+      Collection<Field<?>> filterIndexes)
+      throws InvalidFieldException, IOException {
+    return scan(keyRange, limit, filterIndexes, SortOrder.ASC);
+  }
+
+  @Override
+  public CloseableIterator<StructuredRow> scan(Range keyRange, int limit,
+      Collection<Field<?>> filterIndexes, SortOrder sortOrder)
+      throws InvalidFieldException, IOException {
+    return scan(keyRange, limit, filterIndexes, tableSchema.getPrimaryKeys(), sortOrder);
+  }
+
+  private CloseableIterator<StructuredRow> scan(Range keyRange, int limit,
+      Collection<Field<?>> filterIndexes, Collection<String> fieldsToSort, SortOrder sortOrder)
+      throws InvalidFieldException, IOException {
+    fieldValidator.validateScanRange(keyRange);
+    filterIndexes.forEach(fieldValidator::validateField);
+    if (!tableSchema.isIndexColumns(
+        filterIndexes.stream().map(Field::getName).collect(Collectors.toList()))) {
+      throw new InvalidFieldException(tableSchema.getTableId(), filterIndexes,
+          "are not all indexed columns");
+    }
+
+    LOG.trace("Table {}: Scan range {} with filterIndexes {} limit {} sortOrder {}",
+        tableSchema.getTableId(), keyRange, filterIndexes, limit, sortOrder);
+
+    String scanQuery = getScanIndexesQuery(keyRange, limit, filterIndexes, fieldsToSort, sortOrder);
+    // Since in getScanIndexesQuery we directly set the NULL checks, we need to skip the null fields
+    filterIndexes = filterIndexes.stream().filter(f -> f.getValue() != null)
+        .collect(Collectors.toList());
+
+    try {
+      PreparedStatement statement = connection.prepareStatement(scanQuery);
+      statement.setFetchSize(fetchSize);
+      int nextIndex = setStatementFieldByRange(keyRange, statement, 1);
+      setFields(statement, filterIndexes, nextIndex);
+      LOG.trace("SQL statement: {}", statement);
+
+      ResultSet resultSet = statement.executeQuery();
+      return new ResultSetIterator(statement, resultSet, tableSchema);
+    } catch (SQLException e) {
+      throw new IOException(String.format("Failed to scan from table %s with range %s and index %s",
+          tableSchema.getTableId().getName(), keyRange, filterIndexes), e);
+    }
+  }
+
+  @Override
+  public CloseableIterator<StructuredRow> scan(Range keyRange, int limit, String orderByField,
+      SortOrder sortOrder)
+      throws InvalidFieldException, IOException {
+
+    LOG.trace("Table {}: Scan range {} with limit {} order {} on index field {}",
+        tableSchema.getTableId(), keyRange, limit, sortOrder, orderByField);
+    fieldValidator.validateScanRange(keyRange);
+    if (!tableSchema.isIndexColumn(orderByField) && !tableSchema.isPrimaryKeyColumn(orderByField)) {
+      throw new InvalidFieldException(tableSchema.getTableId(), orderByField,
+          "is not an indexed column or primary key");
+    }
+
+    String scanQuery = getScanQuery(keyRange, limit, Collections.singleton(orderByField),
+        sortOrder);
+
+    try {
+      PreparedStatement statement = connection.prepareStatement(scanQuery);
+      statement.setFetchSize(fetchSize);
+      setStatementFieldByRange(keyRange, statement);
+      LOG.trace("SQL statement: {}", statement);
+
+      ResultSet resultSet = statement.executeQuery();
+      return new ResultSetIterator(statement, resultSet, tableSchema);
+    } catch (SQLException e) {
+      throw new IOException(String.format("Failed to scan from table %s with range %s",
+          tableSchema.getTableId().getName(), keyRange), e);
     }
   }
 
   @Override
   public boolean compareAndSwap(Collection<Field<?>> keys, Field<?> oldValue, Field<?> newValue)
-    throws InvalidFieldException, IOException {
-    LOG.trace("Table {}: CompareAndSwap with keys {}, oldValue {}, newValue {}", tableSchema.getTableId(), keys,
-              oldValue, newValue);
+      throws InvalidFieldException, IOException {
+    LOG.trace("Table {}: CompareAndSwap with keys {}, oldValue {}, newValue {}",
+        tableSchema.getTableId(), keys,
+        oldValue, newValue);
     fieldValidator.validatePrimaryKeys(keys, false);
     fieldValidator.validateField(oldValue);
     if (oldValue.getFieldType() != newValue.getFieldType()) {
       throw new IllegalArgumentException(
-        String.format("Field types of oldValue (%s) and newValue (%s) are not the same",
-                      oldValue.getFieldType(), newValue.getFieldType()));
+          String.format("Field types of oldValue (%s) and newValue (%s) are not the same",
+              oldValue.getFieldType(), newValue.getFieldType()));
     }
     if (!oldValue.getName().equals(newValue.getName())) {
       throw new IllegalArgumentException(
-        String.format("Trying to compare and swap different fields. Old Value = %s, New Value = %s",
-                      oldValue, newValue));
+          String.format(
+              "Trying to compare and swap different fields. Old Value = %s, New Value = %s",
+              oldValue, newValue));
     }
     if (tableSchema.isPrimaryKeyColumn(oldValue.getName())) {
       throw new IllegalArgumentException("Cannot use compare and swap on a primary key field");
@@ -378,6 +458,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     // First compare
     String readQuery = getReadQuery(keys, Collections.singleton(oldValue.getName()), true);
     try (PreparedStatement statement = connection.prepareStatement(readQuery)) {
+      statement.setFetchSize(fetchSize);
       int index = 1;
       for (Field<?> key : keys) {
         setField(statement, key, index);
@@ -401,7 +482,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       }
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to read from table %s with keys %s",
-                                          tableSchema.getTableId().getName(), keys), e);
+          tableSchema.getTableId().getName(), keys), e);
     }
 
     // Then write
@@ -414,15 +495,17 @@ public class PostgreSqlStructuredTable implements StructuredTable {
 
   @Override
   public void increment(Collection<Field<?>> keys, String column, long amount)
-    throws InvalidFieldException, IOException {
-    LOG.trace("Table {}: Increment with keys {}, column {}, amount {}", tableSchema.getTableId(), keys, column, amount);
+      throws InvalidFieldException, IOException {
+    LOG.trace("Table {}: Increment with keys {}, column {}, amount {}", tableSchema.getTableId(),
+        keys, column, amount);
     FieldType.Type colType = tableSchema.getType(column);
     if (colType == null) {
       throw new InvalidFieldException(tableSchema.getTableId(), column);
     } else if (colType != FieldType.Type.LONG) {
       throw new IllegalArgumentException(
-        String.format("Trying to increment a column of type %s. Only %s column type can be incremented",
-                      colType, FieldType.Type.LONG));
+          String.format(
+              "Trying to increment a column of type %s. Only %s column type can be incremented",
+              colType, FieldType.Type.LONG));
     }
     if (tableSchema.isPrimaryKeyColumn(column)) {
       throw new IllegalArgumentException("Cannot use increment on a primary key field");
@@ -444,8 +527,9 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       LOG.trace("SQL statement: {}", statement);
       statement.executeUpdate();
     } catch (SQLException e) {
-      throw new IOException(String.format("Failed to increment column %s of table %s with increment value %d",
-                                          column, tableSchema.getTableId().getName(), amount), e);
+      throw new IOException(
+          String.format("Failed to increment column %s of table %s with increment value %d",
+              column, tableSchema.getTableId().getName(), amount), e);
     }
   }
 
@@ -464,15 +548,27 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       statement.executeUpdate();
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to delete the row from table %s with fields %s",
-                                          tableSchema.getTableId().getName(), keys), e);
+          tableSchema.getTableId().getName(), keys), e);
     }
   }
 
   @Override
   public void deleteAll(Range keyRange) throws InvalidFieldException, IOException {
     LOG.trace("Table {}: DeleteAll with range {}", tableSchema.getTableId(), keyRange);
-    fieldValidator.validatePrimaryKeys(keyRange.getBegin(), true);
-    fieldValidator.validatePrimaryKeys(keyRange.getEnd(), true);
+    fieldValidator.validateScanRange(keyRange);
+    executeDeleteAll(keyRange);
+  }
+
+  @Override
+  public void scanDeleteAll(Range keyRange)
+      throws InvalidFieldException, UnsupportedOperationException, IOException {
+    LOG.trace("Table {}: ScanDeleteAll with range {}", tableSchema.getTableId(), keyRange);
+    keyRange.getBegin().forEach(fieldValidator::validateField);
+    keyRange.getEnd().forEach(fieldValidator::validateField);
+    executeDeleteAll(keyRange);
+  }
+
+  private void executeDeleteAll(Range keyRange) throws IOException {
     String sql = getDeleteAllStatement(keyRange);
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       setStatementFieldByRange(keyRange, statement);
@@ -481,16 +577,29 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       statement.executeUpdate();
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to delete the rows from table %s with range %s",
-                                          tableSchema.getTableId().getName(), keyRange), e);
+          tableSchema.getTableId().getName(), keyRange), e);
     }
+  }
+
+  @Override
+  public void updateAll(Range keyRange, Collection<Field<?>> fields)
+      throws InvalidFieldException, IOException {
+    LOG.trace("Table {}: Update fields {} in range {}", tableSchema.getTableId(), fields, keyRange);
+    // validate that the range is strictly a primary key prefix
+    fieldValidator.validatePrimaryKeys(keyRange.getBegin(), true);
+    fieldValidator.validatePrimaryKeys(keyRange.getEnd(), true);
+    // validate that we cannot update the primary key
+    fieldValidator.validateNotPrimaryKeys(fields);
+    updateRangeInternal(keyRange, fields);
   }
 
   @Override
   public long count(Collection<Range> keyRanges) throws IOException {
     LOG.trace("Table {}: count with ranges {}", tableSchema.getTableId(), keyRanges);
-    String sql = getCountStatement(keyRanges);
+    String sql = getCountStatement(keyRanges, Collections.emptyList());
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
-      setStatementFieldByRange(keyRanges, statement);
+      statement.setFetchSize(fetchSize);
+      setStatementFieldByRange(keyRanges, statement, 1);
       LOG.trace("SQL statement: {}", statement);
 
       statement.executeQuery();
@@ -503,7 +612,37 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       }
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to get count from table %s",
-                                          tableSchema.getTableId().getName()), e);
+          tableSchema.getTableId().getName()), e);
+    }
+  }
+
+  @Override
+  public long count(Collection<Range> keyRanges,
+      Collection<Field<?>> filterIndexes) throws IOException {
+    LOG.trace("Table {}: count with ranges {}", tableSchema.getTableId(), keyRanges);
+    String sql = getCountStatement(keyRanges, filterIndexes);
+    // Since in getCountStatement we directly set the NULL checks, we need to skip the null fields
+    filterIndexes = filterIndexes.stream().filter(f -> f.getValue() != null)
+        .collect(Collectors.toList());
+    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+      statement.setFetchSize(fetchSize);
+      int nextIndex = setStatementFieldByRange(keyRanges, statement, 1);
+      setFields(statement, filterIndexes, nextIndex);
+
+      LOG.trace("SQL statement: {}", statement);
+      statement.executeQuery();
+
+      try (ResultSet resultSet = statement.executeQuery()) {
+        if (!resultSet.next()) {
+          LOG.warn("Failed to get count from table {}", tableSchema.getTableId().getName());
+          return 0;
+        }
+        return resultSet.getLong(1);
+      }
+    } catch (SQLException e) {
+      throw new IOException(String.format("Failed to get count from table %s",
+          tableSchema.getTableId().getName()), e);
     }
   }
 
@@ -528,7 +667,25 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       statement.executeUpdate();
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to write to table %s with fields %s",
-                                          tableSchema.getTableId().getName(), fields), e);
+          tableSchema.getTableId().getName(), fields), e);
+    }
+  }
+
+  private void updateRangeInternal(Range keyRange, Collection<Field<?>> fields) throws IOException {
+    String sqlQuery = getUpdateRangeSqlQuery(keyRange, fields);
+    try (PreparedStatement statement = connection.prepareStatement(sqlQuery)) {
+      int index = 1;
+      // set field values to update
+      for (Field<?> field : fields) {
+        setField(statement, field, index);
+        index++;
+      }
+      setStatementFieldByRange(keyRange, statement, index);
+      LOG.trace("SQL statement: {}", statement);
+      statement.executeUpdate();
+    } catch (SQLException e) {
+      throw new IOException(String.format("Failed to update table %s with range %s and fields %s",
+          tableSchema.getTableId().getName(), keyRange, fields), e);
     }
   }
 
@@ -536,7 +693,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     String sqlQuery = getUpdateSqlQuery(fields);
     try (PreparedStatement statement = connection.prepareStatement(sqlQuery)) {
       Map<Boolean, List<Field<?>>> lists = fields.stream().collect(
-        Collectors.partitioningBy(field -> tableSchema.isPrimaryKeyColumn(field.getName())));
+          Collectors.partitioningBy(field -> tableSchema.isPrimaryKeyColumn(field.getName())));
       int index = 1;
       // set field values to update
       for (Field<?> field : lists.get(false)) {
@@ -552,7 +709,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       statement.executeUpdate();
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to write to table %s with fields %s",
-                                          tableSchema.getTableId().getName(), fields), e);
+          tableSchema.getTableId().getName(), fields), e);
     }
   }
 
@@ -564,11 +721,15 @@ public class PostgreSqlStructuredTable implements StructuredTable {
    * @return an optional containing the row or empty optional if the row does not exist
    */
   private Optional<StructuredRow> readRow(
-    Collection<Field<?>> keys, @Nullable Collection<String> columns) throws InvalidFieldException, IOException {
-    LOG.trace("Table {}: Read with keys {} and columns {}", tableSchema.getTableId(), keys, columns);
+      Collection<Field<?>> keys, @Nullable Collection<String> columns)
+      throws InvalidFieldException, IOException {
+    LOG.trace("Table {}: Read with keys {} and columns {}", tableSchema.getTableId(), keys,
+        columns);
     fieldValidator.validatePrimaryKeys(keys, false);
     String readQuery = getReadQuery(keys, columns, false);
     try (PreparedStatement statement = connection.prepareStatement(readQuery)) {
+      statement.setFetchSize(fetchSize);
+
       int index = 1;
       for (Field<?> key : keys) {
         setField(statement, key, index);
@@ -583,7 +744,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       }
     } catch (SQLException e) {
       throw new IOException(String.format("Failed to read from table %s with keys %s",
-                                          tableSchema.getTableId().getName(), keys), e);
+          tableSchema.getTableId().getName(), keys), e);
     }
   }
 
@@ -594,10 +755,9 @@ public class PostgreSqlStructuredTable implements StructuredTable {
    * @param fields the list of fields to set
    * @param beginIndex the first argument index to use to set the fields
    * @return the next argument index that have been set up to
-   * @throws SQLException
    */
   private int setFields(PreparedStatement statement, Iterable<? extends Field<?>> fields,
-                        int beginIndex) throws SQLException {
+      int beginIndex) throws SQLException {
     int index = beginIndex;
     for (Field<?> keyField : fields) {
       setField(statement, keyField, index);
@@ -607,7 +767,7 @@ public class PostgreSqlStructuredTable implements StructuredTable {
   }
 
   private void setField(PreparedStatement statement, Field field,
-                        int parameterIndex) throws SQLException, InvalidFieldException {
+      int parameterIndex) throws SQLException, InvalidFieldException {
     fieldValidator.validateField(field);
     Object value = field.getValue();
     FieldType.Type type = tableSchema.getType(field.getName());
@@ -658,6 +818,13 @@ public class PostgreSqlStructuredTable implements StructuredTable {
           statement.setBytes(parameterIndex, (byte[]) value);
         }
         break;
+      case BOOLEAN:
+        if (value == null) {
+          statement.setNull(parameterIndex, Types.BOOLEAN);
+        } else {
+          statement.setBoolean(parameterIndex, (boolean) value);
+        }
+        break;
       default:
         // this should not happen since we validate the field before setting
         throw new InvalidFieldException(tableSchema.getTableId(), field.getName());
@@ -668,29 +835,33 @@ public class PostgreSqlStructuredTable implements StructuredTable {
    * Sets the {@link PreparedStatement} arguments by the key {@link Range}.
    */
   private void setStatementFieldByRange(Range keyRange,
-                                        PreparedStatement statement) throws SQLException, InvalidFieldException {
+      PreparedStatement statement) throws SQLException, InvalidFieldException {
     setStatementFieldByRange(keyRange, statement, 1);
   }
 
   /**
-   * Sets the {@link PreparedStatement} arguments by the key {@link Collection<Range>}.
+   * Sets the {@link PreparedStatement} arguments by the key
+   * {@link Collection}&lt;{@link Range}&gt;}.
+   *
+   * @return the next argument index that have been set up to
    */
-  private void setStatementFieldByRange(Collection<Range> keyRanges,
-                                        PreparedStatement statement) throws SQLException, InvalidFieldException {
-    int nextIndex = 1;
-    for (Range keyRange: keyRanges) {
+  private int setStatementFieldByRange(Collection<Range> keyRanges,
+      PreparedStatement statement, int nextIndex) throws SQLException, InvalidFieldException {
+    for (Range keyRange : keyRanges) {
       nextIndex = setStatementFieldByRange(keyRange, statement, nextIndex);
     }
+    return nextIndex;
   }
 
 
   /**
-   * Sets the {@link PreparedStatement} arguments by the key {@link Range} starting from the given argument index.
+   * Sets the {@link PreparedStatement} arguments by the key {@link Range} starting from the given
+   * argument index.
    *
    * @return the next argument index that have been set up to
    */
   private int setStatementFieldByRange(Range keyRange, PreparedStatement statement,
-                                       int startIndex) throws SQLException, InvalidFieldException {
+      int startIndex) throws SQLException, InvalidFieldException {
     int index = startIndex;
 
     for (Field<?> key : keyRange.getBegin()) {
@@ -706,10 +877,10 @@ public class PostgreSqlStructuredTable implements StructuredTable {
   }
 
   /**
-   * Get the write sql query for PreparedStatement for the fields given. For example, if "simpletable" has 5 columns,
-   * (key1, key2, col1, col2, col3), this write query will generate the following query:
-   * INSERT INTO simpletable (key1,key2,col1,col2,col3) VALUES (?,?,?,?,?) ON CONFLICT (key1,key2)
-   * DO UPDATE SET col1=EXCLUDED.col1,col2=EXCLUDED.col2,col3=EXCLUDED.col3;
+   * Get the write sql query for PreparedStatement for the fields given. For example, if
+   * "simpletable" has 5 columns, (key1, key2, col1, col2, col3), this write query will generate the
+   * following query: INSERT INTO simpletable (key1,key2,col1,col2,col3) VALUES (?,?,?,?,?) ON
+   * CONFLICT (key1,key2) DO UPDATE SET col1=EXCLUDED.col1,col2=EXCLUDED.col2,col3=EXCLUDED.col3;
    *
    * @param fields fields to write
    * @param incrementField the field to increment if conflict. If null, then do not increment
@@ -717,11 +888,11 @@ public class PostgreSqlStructuredTable implements StructuredTable {
    */
   private String getWriteSqlQuery(Collection<Field<?>> fields, @Nullable String incrementField) {
     StringJoiner insertPart = new StringJoiner(",",
-                                               "INSERT INTO " + tableSchema.getTableId().getName() + " (",
-                                               ") ");
+        "INSERT INTO " + tableSchema.getTableId().getName() + " (",
+        ") ");
     StringJoiner valuePart = new StringJoiner(",", "VALUES (", ") ");
     StringJoiner conflictPart = new StringJoiner(",", "ON CONFLICT (", ") ");
-    StringJoiner updatePart = new StringJoiner(",",  "DO UPDATE SET ", ";");
+    StringJoiner updatePart = new StringJoiner(",", "DO UPDATE SET ", ";");
 
     for (Field<?> field : fields) {
       insertPart.add(field.getName());
@@ -729,18 +900,20 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       if (tableSchema.isPrimaryKeyColumn(field.getName())) {
         conflictPart.add(field.getName());
       } else if (field.getName().equals(incrementField)) {
-        updatePart.add(field.getName() + " = " + tableSchema.getTableId().getName() + "." + field.getName() + " + ?");
+        updatePart.add(
+            field.getName() + " = " + tableSchema.getTableId().getName() + "." + field.getName()
+                + " + ?");
       } else {
         updatePart.add(field.getName() + "=EXCLUDED." + field.getName());
       }
     }
-    return insertPart.toString() + valuePart.toString() + conflictPart.toString() + updatePart.toString();
+    return insertPart + valuePart.toString() + conflictPart + updatePart;
   }
 
   private String getUpdateSqlQuery(Collection<Field<?>> fields) {
     String tablePart = "UPDATE " + tableSchema.getTableId().getName();
     StringJoiner updatePart = new StringJoiner(", ", " SET ", "");
-    StringJoiner conditionPart = new StringJoiner(" AND ", " WHERE " , ";");
+    StringJoiner conditionPart = new StringJoiner(" AND ", " WHERE ", ";");
     for (Field<?> field : fields) {
       if (tableSchema.isPrimaryKeyColumn(field.getName())) {
         conditionPart.add(field.getName() + "=?");
@@ -751,7 +924,23 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     return tablePart + updatePart + conditionPart;
   }
 
-  private String getReadQuery(Collection<Field<?>> keys, Collection<String> columns, boolean forUpdate) {
+  private String getUpdateRangeSqlQuery(Range keyRange, Collection<Field<?>> fields) {
+    String tablePart = "UPDATE " + tableSchema.getTableId().getName();
+    StringJoiner updatePart = new StringJoiner(", ", " SET ", "");
+    StringBuilder conditionPart = new StringBuilder();
+    for (Field<?> field : fields) {
+      updatePart.add(field.getName() + "=?");
+    }
+
+    if (!keyRange.getBegin().isEmpty() || !keyRange.getEnd().isEmpty()) {
+      conditionPart.append(" WHERE ");
+      appendRange(conditionPart, keyRange);
+    }
+    return tablePart + updatePart + conditionPart;
+  }
+
+  private String getReadQuery(Collection<Field<?>> keys, Collection<String> columns,
+      boolean forUpdate) {
     return new StringBuilder("SELECT ")
         .append(columns == null ? "*" : Joiner.on(",").join(columns))
         .append(" FROM ")
@@ -763,37 +952,74 @@ public class PostgreSqlStructuredTable implements StructuredTable {
   }
 
   /**
-   * Get the scan query for the range given. For example, if the range provides key1, key2 as the begin and end to
-   * scan, both rows are inclusive, it will generate the following query:
+   * Get the scan query for the range given. For example, if the range provides key1, key2 as the
+   * beginning and end to scan, both rows are inclusive, it will generate the following query:
    * SELECT * FROM simpletable WHERE (key1,key2)>=(?,?) AND (key1,key2)<=(?,?) LIMIT 10;
    *
    * @param range the range to scan.
    * @param limit limit number of row
+   * @param fieldsToSort The fields to be sorted, have to be indexed or primary keys
    * @param sortOrder sort order
    * @return the scan query
    */
-  private String getScanQuery(Range range, int limit, SortOrder sortOrder) {
-    StringBuilder queryString = new StringBuilder("SELECT * FROM ").append(tableSchema.getTableId().getName());
+  private String getScanQuery(Range range, int limit, Collection<String> fieldsToSort,
+      SortOrder sortOrder) {
+    StringBuilder queryString = new StringBuilder("SELECT * FROM ").append(
+        tableSchema.getTableId().getName());
     if (!range.getBegin().isEmpty() || !range.getEnd().isEmpty()) {
       queryString.append(" WHERE ");
       appendRange(queryString, range);
     }
 
-    queryString.append(getOrderByClause(tableSchema.getPrimaryKeys(), sortOrder));
+    queryString.append(getOrderByClause(fieldsToSort, sortOrder));
+    queryString.append(" LIMIT ").append(limit).append(";");
+    return queryString.toString();
+  }
+
+  /**
+   * Get the scan query for the given range and index field.
+   *
+   * @param range the range to scan.
+   * @param limit limit number of row
+   * @param filterIndexes index fields
+   * @param sortOrder sort order by primary keys
+   * @return the scan query
+   */
+  private String getScanIndexesQuery(Range range, int limit, Collection<Field<?>> filterIndexes,
+      Collection<String> fieldsToSort, SortOrder sortOrder) {
+    StringBuilder queryString = new StringBuilder("SELECT * FROM ")
+        .append(tableSchema.getTableId().getName())
+        .append(" WHERE ");
+
+    if (!range.getBegin().isEmpty() || !range.getEnd().isEmpty()) {
+      appendRange(queryString, range);
+    }
+
+    if (!filterIndexes.isEmpty()) {
+      // only add AND if there was range clause applied
+      if (!range.getBegin().isEmpty() || !range.getEnd().isEmpty()) {
+        queryString.append(" AND ");
+      }
+      queryString.append(getIndexesFilterClause(filterIndexes));
+    }
+
+    queryString.append(getOrderByClause(fieldsToSort, sortOrder));
     queryString.append(" LIMIT ").append(limit).append(";");
     return queryString.toString();
   }
 
   private void appendRange(StringBuilder query, Range range) {
-    appendScanBound(query, range.getBegin(), range.getBeginBound().equals(Range.Bound.INCLUSIVE) ? ">=" : ">");
+    appendScanBound(query, range.getBegin(),
+        range.getBeginBound().equals(Range.Bound.INCLUSIVE) ? ">=" : ">");
     if (!range.getBegin().isEmpty() && !range.getEnd().isEmpty()) {
       query.append(" AND ");
     }
-    appendScanBound(query, range.getEnd(), range.getEndBound().equals(Range.Bound.INCLUSIVE) ? "<=" : "<");
+    appendScanBound(query, range.getEnd(),
+        range.getEndBound().equals(Range.Bound.INCLUSIVE) ? "<=" : "<");
   }
 
   private void appendScanBound(StringBuilder sb,
-                               Collection<Field<?>> keys, String comparator) {
+      Collection<Field<?>> keys, String comparator) {
     if (keys.isEmpty()) {
       return;
     }
@@ -805,17 +1031,19 @@ public class PostgreSqlStructuredTable implements StructuredTable {
       valueJoiner.add("?");
     }
 
-    sb.append(keyJoiner.toString())
-      .append(comparator)
-      .append(valueJoiner.toString());
+    sb.append(keyJoiner)
+        .append(comparator)
+        .append(valueJoiner);
   }
 
   private String getDeleteQuery(Collection<Field<?>> keys) {
-    return String.format("DELETE FROM %s WHERE %s;", tableSchema.getTableId().getName(), getEqualsClause(keys));
+    return String.format("DELETE FROM %s WHERE %s;", tableSchema.getTableId().getName(),
+        getEqualsClause(keys));
   }
 
   private String getDeleteAllStatement(Range range) {
-    StringBuilder statement = new StringBuilder("DELETE FROM ").append(tableSchema.getTableId().getName());
+    StringBuilder statement = new StringBuilder("DELETE FROM ").append(
+        tableSchema.getTableId().getName());
 
     if (!range.getBegin().isEmpty() || !range.getEnd().isEmpty()) {
       statement.append(" WHERE ");
@@ -824,17 +1052,20 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     return statement.toString();
   }
 
-  private String getCountStatement(Collection<Range> ranges) {
-    StringBuilder statement =  new StringBuilder("SELECT COUNT(*) FROM ").append(tableSchema.getTableId().getName());
+  private String getCountStatement(Collection<Range> ranges, Collection<Field<?>> filterIndexes) {
+    StringBuilder statement = new StringBuilder("SELECT COUNT(*) FROM ").append(
+        tableSchema.getTableId().getName());
     boolean whereAdded = false;
-    for (Range range: ranges) {
-      fieldValidator.validatePrimaryKeys(range.getBegin(), true);
-      fieldValidator.validatePrimaryKeys(range.getEnd(), true);
+    for (Range range : ranges) {
+      fieldValidator.validateScanRange(range);
 
       if (!range.getBegin().isEmpty() || !range.getEnd().isEmpty()) {
         if (!whereAdded) {
           // first WHERE condition
           statement.append(" WHERE ");
+          if (!filterIndexes.isEmpty()) {
+            statement.append("(");
+          }
           whereAdded = true;
         } else {
           // subsequent WHERE conditions
@@ -843,6 +1074,18 @@ public class PostgreSqlStructuredTable implements StructuredTable {
         appendRange(statement, range);
       }
     }
+
+    if (!filterIndexes.isEmpty()) {
+      // only add AND if there was range clause applied
+      if (!ranges.isEmpty()) {
+        statement.append(") AND ");
+      } else {
+        // first WHERE condition
+        statement.append(" WHERE ");
+      }
+      statement.append(getIndexesFilterClause(filterIndexes));
+    }
+
     return statement.toString();
   }
 
@@ -854,11 +1097,19 @@ public class PostgreSqlStructuredTable implements StructuredTable {
     return joiner.toString();
   }
 
+  private String getIndexesFilterClause(Collection<Field<?>> indexes) {
+    StringJoiner joiner = new StringJoiner(" OR ", "(", ")");
+    for (Field<?> key : indexes) {
+      joiner.add(key.getName() + (key.getValue() == null ? " is NULL" : " = ?"));
+    }
+    return joiner.toString();
+  }
+
   private String getOrderByClause(List<String> keys) {
     return getOrderByClause(keys, SortOrder.ASC);
   }
 
-  private String getOrderByClause(List<String> keys, SortOrder sortOrder) {
+  private String getOrderByClause(Collection<String> keys, SortOrder sortOrder) {
     StringJoiner joiner = new StringJoiner(", ", " ORDER BY ", "");
     for (String key : keys) {
       joiner.add(sortOrder == SortOrder.ASC ? key : key + " DESC");
@@ -880,19 +1131,23 @@ public class PostgreSqlStructuredTable implements StructuredTable {
         return Fields.floatField(name, (Float) value);
       case STRING:
         return Fields.stringField(name, (String) value);
-        default:
-          throw new IllegalStateException("Unknown field type " + type);
+      case BOOLEAN:
+        return Fields.booleanField(name, (Boolean) value);
+      default:
+        throw new IllegalStateException("Unknown field type " + type);
     }
   }
 
   private static final class ResultSetIterator extends AbstractCloseableIterator<StructuredRow> {
+
     private final Statement statement;
     private final ResultSet resultSet;
     private final Set<String> columnNames;
     private final StructuredTableSchema schema;
 
 
-    ResultSetIterator(Statement statement, ResultSet resultSet, StructuredTableSchema schema) throws SQLException {
+    ResultSetIterator(Statement statement, ResultSet resultSet, StructuredTableSchema schema)
+        throws SQLException {
       this.statement = statement;
       this.resultSet = resultSet;
       this.columnNames = createColNames(resultSet.getMetaData());

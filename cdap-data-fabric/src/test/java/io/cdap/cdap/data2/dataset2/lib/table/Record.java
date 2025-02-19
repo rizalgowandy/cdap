@@ -17,7 +17,6 @@
 package io.cdap.cdap.data2.dataset2.lib.table;
 
 import com.google.common.base.Objects;
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
@@ -58,14 +57,14 @@ public class Record {
 
     Record that = (Record) o;
 
-    return Objects.equal(intField, that.intField) &&
-      Objects.equal(longField, that.longField) &&
-      Objects.equal(floatField, that.floatField) &&
-      Objects.equal(doubleField, that.doubleField) &&
-      Objects.equal(stringField, that.stringField) &&
-      Arrays.equals(byteArrayField, that.byteArrayField) &&
-      Objects.equal(byteBufferField, that.byteBufferField) &&
-      Objects.equal(uuidField, that.uuidField);
+    return Objects.equal(intField, that.intField)
+        && Objects.equal(longField, that.longField)
+        && Objects.equal(floatField, that.floatField)
+        && Objects.equal(doubleField, that.doubleField)
+        && Objects.equal(stringField, that.stringField)
+        && Arrays.equals(byteArrayField, that.byteArrayField)
+        && Objects.equal(byteBufferField, that.byteBufferField)
+        && Objects.equal(uuidField, that.uuidField);
   }
 
   @Override

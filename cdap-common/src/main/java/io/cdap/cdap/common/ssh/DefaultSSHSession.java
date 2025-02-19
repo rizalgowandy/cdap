@@ -30,9 +30,6 @@ import io.cdap.cdap.runtime.spi.ssh.PortForwarding;
 import io.cdap.cdap.runtime.spi.ssh.RemotePortForwarding;
 import io.cdap.cdap.runtime.spi.ssh.SSHProcess;
 import io.cdap.cdap.runtime.spi.ssh.SSHSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,6 +50,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The default implementation of {@link SSHSession} that uses {@link JSch} library.
@@ -133,7 +132,7 @@ public class DefaultSSHSession implements SSHSession {
         // Otherwise JSch will write the output to some default stream, causing data missing from
         // the InputStream that acquired later.
         SSHProcess process = new DefaultSSHProcess(channelExec, channelExec.getOutputStream(),
-                                                   channelExec.getInputStream(), channelExec.getErrStream());
+            channelExec.getInputStream(), channelExec.getErrStream());
         channelExec.setCommand(String.join(";", commands));
         channelExec.connect();
 
@@ -153,8 +152,10 @@ public class DefaultSSHSession implements SSHSession {
     SSHProcess process = execute(commands);
 
     // Reading will be blocked until the process finished
-    String out = CharStreams.toString(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-    String err = CharStreams.toString(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8));
+    String out = CharStreams.toString(
+        new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+    String err = CharStreams.toString(
+        new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8));
 
     // Await uninterruptedly
     boolean interrupted = false;
@@ -163,8 +164,9 @@ public class DefaultSSHSession implements SSHSession {
         try {
           int exitCode = process.waitFor();
           if (exitCode != 0) {
-            throw new IOException("Commands execution failed with exit code (" + exitCode + ") Commands: " +
-                                    commands + ", Output: " + out + " Error: " + err);
+            throw new IOException(
+                "Commands execution failed with exit code (" + exitCode + ") Commands: "
+                    + commands + ", Output: " + out + " Error: " + err);
           }
           return out;
         } catch (InterruptedException e) {
@@ -196,13 +198,14 @@ public class DefaultSSHSession implements SSHSession {
     // Copy the file
     try (InputStream is = Files.newInputStream(sourceFile)) {
       copy(is, targetPath, sourceFile.getFileName().toString(), attrs.size(), permissions,
-           attrs.lastAccessTime().toMillis(), attrs.lastModifiedTime().toMillis());
+          attrs.lastAccessTime().toMillis(), attrs.lastModifiedTime().toMillis());
     }
   }
 
   @Override
-  public void copy(InputStream input, String targetPath, String targetName, long size, int permission,
-                   @Nullable Long lastAccessTime, @Nullable Long lastModifiedTime) throws IOException {
+  public void copy(InputStream input, String targetPath, String targetName, long size,
+      int permission,
+      @Nullable Long lastAccessTime, @Nullable Long lastModifiedTime) throws IOException {
 
     boolean preserveTimestamp = lastAccessTime != null && lastModifiedTime != null;
     String command = "scp " + (preserveTimestamp ? "-p" : "") + " -t " + targetPath;
@@ -214,13 +217,13 @@ public class DefaultSSHSession implements SSHSession {
       // Get I/O streams for remote scp. This has to be done before connecting the channel,
       // otherwise data received from remote server might get dropped, resulting in reading from the input stream hanged
       try (OutputStream out = channel.getOutputStream();
-           InputStream in = channel.getInputStream()) {
+          InputStream in = channel.getInputStream()) {
         channel.connect();
         checkAck(in);
 
         if (preserveTimestamp) {
           command = String.format("T%d 0 %d 0\n", TimeUnit.MILLISECONDS.toSeconds(lastModifiedTime),
-                                  TimeUnit.MILLISECONDS.toSeconds(lastAccessTime));
+              TimeUnit.MILLISECONDS.toSeconds(lastAccessTime));
           out.write(command.getBytes(StandardCharsets.UTF_8));
           out.flush();
           checkAck(in);
@@ -249,7 +252,7 @@ public class DefaultSSHSession implements SSHSession {
 
   @Override
   public PortForwarding createLocalPortForward(String targetHost, int targetPort, int originatePort,
-                                               PortForwarding.DataConsumer dataConsumer) throws IOException {
+      PortForwarding.DataConsumer dataConsumer) throws IOException {
     String originateIP = InetAddress.getLoopbackAddress().getHostAddress();
 
     try {
@@ -267,12 +270,13 @@ public class DefaultSSHSession implements SSHSession {
   }
 
   @Override
-  public RemotePortForwarding createRemotePortForward(int remotePort, int localPort) throws IOException {
+  public RemotePortForwarding createRemotePortForward(int remotePort, int localPort)
+      throws IOException {
     try {
       int port = session.setPortForwardingR(String.format("%d:%s:%d",
-                                                          remotePort,
-                                                          InetAddress.getLoopbackAddress().getHostAddress(),
-                                                          localPort));
+          remotePort,
+          InetAddress.getLoopbackAddress().getHostAddress(),
+          localPort));
       return new RemotePortForwarding() {
         @Override
         public int getRemotePort() {
@@ -323,7 +327,6 @@ public class DefaultSSHSession implements SSHSession {
         sb.append((char) c);
       } while (c != '\n');
 
-
       if (b == 1) { // error
         throw new IOException("Error in ack: " + sb.toString());
       }
@@ -373,8 +376,9 @@ public class DefaultSSHSession implements SSHSession {
     JSch jSch = new JSch();
 
     // Detect and try to set configurations via OpenSSH configurations
-    for (Path configPath : Arrays.asList(Paths.get(System.getProperty("user.home"), ".ssh", "config"),
-                                         Paths.get(File.separator, "etc", "ssh", "config"))) {
+    for (Path configPath : Arrays.asList(
+        Paths.get(System.getProperty("user.home"), ".ssh", "config"),
+        Paths.get(File.separator, "etc", "ssh", "config"))) {
       if (Files.exists(configPath)) {
         try {
           OpenSSHConfig config = OpenSSHConfig.parseFile(configPath.toAbsolutePath().toString());

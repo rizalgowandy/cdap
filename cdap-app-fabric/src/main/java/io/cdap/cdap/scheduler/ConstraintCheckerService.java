@@ -17,12 +17,15 @@
 package io.cdap.cdap.scheduler;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
+import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.app.store.Store;
 import io.cdap.cdap.common.ConflictException;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -40,23 +43,25 @@ import io.cdap.cdap.internal.app.runtime.schedule.store.Schedulers;
 import io.cdap.cdap.internal.app.services.ProgramLifecycleService;
 import io.cdap.cdap.internal.app.services.PropertiesResolver;
 import io.cdap.cdap.internal.schedule.constraint.Constraint;
+import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.spi.data.transaction.TransactionException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Polls the JobQueue, checks the jobs for constraint satisfaction, and launches them.
  */
 class ConstraintCheckerService extends AbstractIdleService {
+
   private static final Logger LOG = LoggerFactory.getLogger(ConstraintCheckerService.class);
 
   private final Store store;
@@ -67,28 +72,33 @@ class ConstraintCheckerService extends AbstractIdleService {
   private final TransactionRunner transactionRunner;
   private ScheduleTaskRunner taskRunner;
   private ListeningExecutorService taskExecutorService;
-  private volatile boolean stopping = false;
+  private volatile boolean stopping;
+  private MetricsCollectionService metricsCollectionService;
 
   @Inject
   ConstraintCheckerService(Store store,
-                           ProgramLifecycleService lifecycleService, PropertiesResolver propertiesResolver,
-                           NamespaceQueryAdmin namespaceQueryAdmin,
-                           CConfiguration cConf,
-                           TransactionRunner transactionRunner) {
+      ProgramLifecycleService lifecycleService, PropertiesResolver propertiesResolver,
+      NamespaceQueryAdmin namespaceQueryAdmin,
+      CConfiguration cConf,
+      TransactionRunner transactionRunner,
+      MetricsCollectionService metricsCollectionService) {
     this.store = store;
     this.lifecycleService = lifecycleService;
     this.propertiesResolver = propertiesResolver;
     this.namespaceQueryAdmin = namespaceQueryAdmin;
     this.cConf = cConf;
     this.transactionRunner = transactionRunner;
+    this.metricsCollectionService = metricsCollectionService;
   }
 
   @Override
   protected void startUp() throws Exception {
     LOG.info("Starting ConstraintCheckerService.");
     taskExecutorService = MoreExecutors.listeningDecorator(
-      Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("constraint-checker-task-%d").build()));
-    taskRunner = new ScheduleTaskRunner(store, lifecycleService, propertiesResolver, namespaceQueryAdmin, cConf);
+        Executors.newCachedThreadPool(
+            new ThreadFactoryBuilder().setNameFormat("constraint-checker-task-%d").build()));
+    taskRunner = new ScheduleTaskRunner(store, lifecycleService, propertiesResolver,
+        namespaceQueryAdmin, cConf);
 
     int numPartitions = cConf.getInt(Constants.Scheduler.JOB_QUEUE_NUM_PARTITIONS);
     for (int partition = 0; partition < numPartitions; partition++) {
@@ -116,6 +126,7 @@ class ConstraintCheckerService extends AbstractIdleService {
   }
 
   private class ConstraintCheckerThread implements Runnable {
+
     private final RetryStrategy scheduleStrategy;
     private final int partition;
     private final Deque<Job> readyJobs = new ArrayDeque<>();
@@ -125,7 +136,8 @@ class ConstraintCheckerService extends AbstractIdleService {
     ConstraintCheckerThread(int partition) {
       // TODO: [CDAP-11370] Need to be configured in cdap-default.xml. Retry with delay ranging from 0.1s to 30s
       scheduleStrategy =
-        io.cdap.cdap.common.service.RetryStrategies.exponentialDelay(100, 30000, TimeUnit.MILLISECONDS);
+          io.cdap.cdap.common.service.RetryStrategies.exponentialDelay(100, 30000,
+              TimeUnit.MILLISECONDS);
       this.partition = partition;
     }
 
@@ -200,21 +212,24 @@ class ConstraintCheckerService extends AbstractIdleService {
       long now = System.currentTimeMillis();
       if (job.isToBeDeleted()) {
         // only delete jobs that are pending trigger or pending constraint. If pending launch, the launcher will delete
-        if ((job.getState() == Job.State.PENDING_CONSTRAINT ||
-          // if pending trigger, we need to check if now - deletionTime > 2 * txTimeout. Otherwise the subscriber thread
-          // might update this job concurrently (because its tx does not see the delete flag) and cause a conflict.
-          // It's 2 * txTimeout for:
-          // - the transaction the marked it as to be deleted
-          // - the subscriber's transaction that may not have seen that change
-          (job.getState() == Job.State.PENDING_TRIGGER &&
-            now - job.getDeleteTimeMillis() > 2 * Schedulers.SUBSCRIBER_TX_TIMEOUT_MILLIS))) {
+        if ((job.getState() == Job.State.PENDING_CONSTRAINT
+            || // if pending trigger, we need to check if now - deletionTime > 2 * txTimeout.
+            // Otherwise the subscriber thread might update this job concurrently (because
+            // its tx does not see the delete flag) and cause a conflict.
+            // It's 2 * txTimeout for:
+            // - the transaction the marked it as to be deleted
+            // - the subscriber's transaction that may not have seen that change
+            (job.getState() == Job.State.PENDING_TRIGGER
+                && now - job.getDeleteTimeMillis()
+                > 2 * Schedulers.SUBSCRIBER_TX_TIMEOUT_MILLIS))) {
           jobQueue.deleteJob(job);
         }
         return;
       }
-      if (now - job.getCreationTime() >= job.getSchedule().getTimeoutMillis() +
-        2 * Schedulers.SUBSCRIBER_TX_TIMEOUT_MILLIS) {
-        LOG.info("Deleted job {}, due to timeout value of {}.", job.getJobKey(), job.getSchedule().getTimeoutMillis());
+      if (now - job.getCreationTime() >= job.getSchedule().getTimeoutMillis()
+          + 2 * Schedulers.SUBSCRIBER_TX_TIMEOUT_MILLIS) {
+        LOG.info("Deleted job {}, due to timeout value of {}.", job.getJobKey(),
+            job.getSchedule().getTimeoutMillis());
         jobQueue.deleteJob(job);
         return;
       }
@@ -243,7 +258,7 @@ class ConstraintCheckerService extends AbstractIdleService {
           }, TransactionException.class);
         } catch (TransactionException e) {
           LOG.warn("Failed to run program {} in schedule {}. Skip running this program.",
-                   job.getSchedule().getProgramId(), job.getSchedule().getName(), e);
+              job.getSchedule().getProgramId(), job.getSchedule().getName(), e);
         }
         readyJobsIter.remove();
       }
@@ -271,11 +286,19 @@ class ConstraintCheckerService extends AbstractIdleService {
 
       try {
         taskRunner.launch(job);
+        emitScheduleJobSuccessAndLatencyMetric(job.getSchedule().getScheduleId().getApplication(),
+            job.getSchedule().getName(), job.getCreationTime());
       } catch (ConflictException e) {
-        LOG.error("Skip job {} because it was rejected while launching: {}", job.getJobKey(), e.getMessage());
+        LOG.error("Skip job {} because it was rejected while launching: {}", job.getJobKey(),
+            e.getMessage());
+        emitScheduleJobFailureMetric(job.getSchedule().getScheduleId().getApplication(),
+            job.getSchedule().getName());
       } catch (Exception e) {
-        LOG.error("Skip launching job {} because the program {} encountered an exception while launching.",
-                  job.getJobKey(), job.getSchedule().getProgramId(), e);
+        LOG.error(
+            "Skip launching job {} because the program {} encountered an exception while launching.",
+            job.getJobKey(), job.getSchedule().getProgramId(), e);
+        emitScheduleJobFailureMetric(job.getSchedule().getScheduleId().getApplication(),
+            job.getSchedule().getName());
       }
       // this should not have a conflict, because any updates to the job will first check to make sure that
       // it is not PENDING_LAUNCH
@@ -291,8 +314,8 @@ class ConstraintCheckerService extends AbstractIdleService {
         if (!(constraint instanceof CheckableConstraint)) {
           // this shouldn't happen, since implementation of Constraint in ProgramSchedule
           // should implement CheckableConstraint
-          throw new IllegalArgumentException("Implementation of Constraint in ProgramSchedule" +
-                                               " must implement CheckableConstraint");
+          throw new IllegalArgumentException("Implementation of Constraint in ProgramSchedule"
+              + " must implement CheckableConstraint");
         }
 
         CheckableConstraint abstractConstraint = (CheckableConstraint) constraint;
@@ -308,5 +331,29 @@ class ConstraintCheckerService extends AbstractIdleService {
       return satisfiedState;
     }
 
+    private void emitScheduleJobSuccessAndLatencyMetric(String application, String schedule,
+        long jobCreationTime) {
+      MetricsContext collector = metricsCollectionService.getContext(
+          getScheduleJobMetricsContext(application, schedule));
+      collector.increment(Constants.Metrics.ScheduledJob.SCHEDULE_SUCCESS, 1);
+
+      long currTime = System.currentTimeMillis();
+      long latency = currTime - jobCreationTime;
+      collector.gauge(Constants.Metrics.ScheduledJob.SCHEDULE_LATENCY, latency);
+    }
+
+    private void emitScheduleJobFailureMetric(String application, String schedule) {
+      MetricsContext collector = metricsCollectionService.getContext(
+          getScheduleJobMetricsContext(application, schedule));
+      collector.increment(Constants.Metrics.ScheduledJob.SCHEDULE_FAILURE, 1);
+    }
+
+    private Map<String, String> getScheduleJobMetricsContext(String application, String schedule) {
+      return ImmutableMap.of(
+          Constants.Metrics.Tag.NAMESPACE, NamespaceId.SYSTEM.getEntityName(),
+          Constants.Metrics.Tag.APP, application,
+          Constants.Metrics.Tag.COMPONENT, "constraintchecker",
+          Constants.Metrics.Tag.SCHEDULE, schedule);
+    }
   }
 }

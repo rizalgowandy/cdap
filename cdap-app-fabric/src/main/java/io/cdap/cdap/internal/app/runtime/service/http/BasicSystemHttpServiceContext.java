@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,6 @@
 
 package io.cdap.cdap.internal.app.runtime.service.http;
 
-import com.google.gson.Gson;
 import io.cdap.cdap.api.NamespaceSummary;
 import io.cdap.cdap.api.artifact.ArtifactManager;
 import io.cdap.cdap.api.macro.InvalidMacroException;
@@ -35,18 +34,19 @@ import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
+import io.cdap.cdap.common.internal.remote.RemoteTaskExecutor;
 import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
 import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
-import io.cdap.cdap.internal.app.RemoteTaskExecutor;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.plugin.MacroParser;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
 import io.cdap.cdap.internal.app.services.DefaultSystemTableConfigurer;
 import io.cdap.cdap.internal.app.worker.SystemAppTask;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.metadata.PreferencesFetcher;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.spi.authorization.ContextAccessEnforcer;
@@ -55,9 +55,7 @@ import io.cdap.cdap.spi.data.table.StructuredTableId;
 import io.cdap.cdap.spi.data.transaction.TransactionException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TxRunnable;
-import org.apache.tephra.TransactionSystemClient;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
+import io.cdap.common.http.HttpRequestConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,13 +63,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
+import org.apache.tephra.TransactionSystemClient;
+import org.apache.twill.discovery.DiscoveryServiceClient;
 
 /**
  * Default implementation of {@link SystemHttpServiceContext} for system app services to use.
  */
-public class BasicSystemHttpServiceContext extends BasicHttpServiceContext implements SystemHttpServiceContext {
-
-  private static final Gson GSON = new Gson();
+public class BasicSystemHttpServiceContext extends BasicHttpServiceContext implements
+    SystemHttpServiceContext {
 
   private final NamespaceId namespaceId;
   private final TransactionRunner transactionRunner;
@@ -85,30 +84,40 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
    * Creates a BasicSystemHttpServiceContext.
    */
   public BasicSystemHttpServiceContext(Program program, ProgramOptions programOptions,
-                                       CConfiguration cConf, @Nullable HttpServiceHandlerSpecification spec,
-                                       int instanceId, AtomicInteger instanceCount,
-                                       MetricsCollectionService metricsCollectionService,
-                                       DatasetFramework dsFramework, DiscoveryServiceClient discoveryServiceClient,
-                                       TransactionSystemClient txClient,
-                                       @Nullable PluginInstantiator pluginInstantiator,
-                                       SecureStore secureStore, SecureStoreManager secureStoreManager,
-                                       MessagingService messagingService, ArtifactManager artifactManager,
-                                       MetadataReader metadataReader, MetadataPublisher metadataPublisher,
-                                       NamespaceQueryAdmin namespaceQueryAdmin, PluginFinder pluginFinder,
-                                       FieldLineageWriter fieldLineageWriter, TransactionRunner transactionRunner,
-                                       PreferencesFetcher preferencesFetcher, RemoteClientFactory remoteClientFactory,
-                                       ContextAccessEnforcer contextAccessEnforcer) {
-    super(program, programOptions, cConf, spec, instanceId, instanceCount, metricsCollectionService, dsFramework,
-          discoveryServiceClient, txClient, pluginInstantiator, secureStore, secureStoreManager, messagingService,
-          artifactManager, metadataReader, metadataPublisher, namespaceQueryAdmin, pluginFinder, fieldLineageWriter,
-          remoteClientFactory);
+      CConfiguration cConf, @Nullable HttpServiceHandlerSpecification spec,
+      int instanceId, AtomicInteger instanceCount,
+      MetricsCollectionService metricsCollectionService,
+      DatasetFramework dsFramework, DiscoveryServiceClient discoveryServiceClient,
+      TransactionSystemClient txClient,
+      @Nullable PluginInstantiator pluginInstantiator,
+      SecureStore secureStore, SecureStoreManager secureStoreManager,
+      MessagingService messagingService, ArtifactManager artifactManager,
+      MetadataReader metadataReader, MetadataPublisher metadataPublisher,
+      NamespaceQueryAdmin namespaceQueryAdmin, PluginFinder pluginFinder,
+      FieldLineageWriter fieldLineageWriter, TransactionRunner transactionRunner,
+      PreferencesFetcher preferencesFetcher, RemoteClientFactory remoteClientFactory,
+      ContextAccessEnforcer contextAccessEnforcer,
+      AppStateStoreProvider appStateStoreProvider) {
+    super(program, programOptions, cConf, spec, instanceId, instanceCount, metricsCollectionService,
+        dsFramework,
+        discoveryServiceClient, txClient, pluginInstantiator, secureStore, secureStoreManager,
+        messagingService,
+        artifactManager, metadataReader, metadataPublisher, namespaceQueryAdmin, pluginFinder,
+        fieldLineageWriter,
+        remoteClientFactory, appStateStoreProvider);
 
     this.namespaceId = program.getId().getNamespaceId();
     this.transactionRunner = transactionRunner;
     this.preferencesFetcher = preferencesFetcher;
     this.cConf = cConf;
     this.contextAccessEnforcer = contextAccessEnforcer;
-    this.remoteTaskExecutor = new RemoteTaskExecutor(cConf, metricsCollectionService, remoteClientFactory);
+    int connectTimeout = cConf.getInt(
+        Constants.TaskWorker.SYSTEMAPP_HTTP_CLIENT_CONNECTION_TIMEOUT_MS);
+    int readTimeout = cConf.getInt(Constants.TaskWorker.SYSTEMAPP_HTTP_CLIENT_READ_TIMEOUT_MS);
+    HttpRequestConfig httpRequestConfig = new HttpRequestConfig(connectTimeout, readTimeout, false);
+    this.remoteTaskExecutor = new RemoteTaskExecutor(cConf, metricsCollectionService,
+        remoteClientFactory,
+        RemoteTaskExecutor.Type.TASK_WORKER, httpRequestConfig);
     this.namespaceQueryAdmin = namespaceQueryAdmin;
   }
 
@@ -118,18 +127,19 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
       // should not happen in normal circumstances, as this is checked when the application is deployed.
       // could possibly be called if the user is directly casting to a SystemHttpServiceContext in user services.
       throw new IllegalStateException("System table transactions can only be run by "
-                                        + "applications in the system namespace.");
+          + "applications in the system namespace.");
     }
     // table names are prefixed to prevent clashes with CDAP platform tables.
     transactionRunner.run(context -> runnable.run(
-      tableId -> context.getTable(new StructuredTableId(DefaultSystemTableConfigurer.PREFIX + tableId.getName()))));
+        tableId -> context.getTable(
+            new StructuredTableId(DefaultSystemTableConfigurer.PREFIX + tableId.getName()))));
   }
 
 
   @Override
   public Map<String, String> evaluateMacros(String namespace, Map<String, String> macros,
-                                            MacroEvaluator evaluator,
-                                            MacroParserOptions options) throws InvalidMacroException {
+      MacroEvaluator evaluator,
+      MacroParserOptions options) throws InvalidMacroException {
     MacroParser macroParser = new MacroParser(evaluator, options);
     Map<String, String> evaluated = new HashMap<>();
 
@@ -146,20 +156,22 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
    * Get preferences for the supplied namespace.
    *
    * @param namespace the name of the namespace to fetch preferences for.
-   * @param resolved  true if resolved properties are desired.
+   * @param resolved true if resolved properties are desired.
    * @return Map containing the preferences for this namespace
    * @throws IOException if the preferencesFetcher could not complete the request.
    * @throws IllegalArgumentException if the supplied namespace doesn't exist.
    */
   @Override
   public Map<String, String> getPreferencesForNamespace(String namespace, boolean resolved)
-    throws IOException, IllegalArgumentException, UnauthorizedException {
+      throws IOException, IllegalArgumentException, UnauthorizedException {
     try {
       return Retries
-        .callWithRetries(() -> preferencesFetcher.get(new NamespaceId(namespace), resolved).getProperties(),
-                         getRetryStrategy());
+          .callWithRetries(
+              () -> preferencesFetcher.get(new NamespaceId(namespace), resolved).getProperties(),
+              getRetryStrategy());
     } catch (NotFoundException nfe) {
-      throw new IllegalArgumentException(String.format("Namespace '%s' does not exist", namespace), nfe);
+      throw new IllegalArgumentException(String.format("Namespace '%s' does not exist", namespace),
+          nfe);
     } catch (IOException | IllegalArgumentException | UnauthorizedException e) {
       //keep the behavior same prior to retry logic
       throw e;
@@ -175,10 +187,10 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
     }
     String systemAppClassName = SystemAppTask.class.getName();
     RunnableTaskRequest taskRequest = RunnableTaskRequest.getBuilder(systemAppClassName)
-      .withNamespace(getNamespace())
-      .withArtifact(getArtifactId().toApiArtifactId())
-      .withEmbeddedTaskRequest(runnableTaskRequest)
-      .build();
+        .withNamespace(getNamespace())
+        .withArtifact(getArtifactId().toApiArtifactId())
+        .withEmbeddedTaskRequest(runnableTaskRequest)
+        .build();
     return remoteTaskExecutor.runTask(taskRequest);
   }
 
@@ -191,7 +203,8 @@ public class BasicSystemHttpServiceContext extends BasicHttpServiceContext imple
   public List<NamespaceSummary> listNamespaces() throws Exception {
     List<NamespaceSummary> summaries = new ArrayList<>();
     namespaceQueryAdmin.list().forEach(
-      ns -> summaries.add(new NamespaceSummary(ns.getName(), ns.getDescription(), ns.getGeneration())));
+        ns -> summaries.add(
+            new NamespaceSummary(ns.getName(), ns.getDescription(), ns.getGeneration())));
     return summaries;
   }
 

@@ -26,7 +26,6 @@ import io.cdap.cdap.api.data.batch.Split;
 import io.cdap.cdap.api.data.batch.SplitReader;
 import io.cdap.cdap.api.dataset.DatasetSpecification;
 import io.cdap.cdap.api.dataset.table.Table;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -38,26 +37,28 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 /**
- * Defines a Dataset implementation for managing time series data. This class offers simple ways to process read
- * operations for time ranges.
+ * Defines a Dataset implementation for managing time series data. This class offers simple ways to
+ * process read operations for time ranges.
  *
  * <p>
- * This Dataset works by partitioning time into bins representing time intervals. Entries added to the Dataset
- * are added to a bin based on their timestamp and row key. Hence, every row in the underlying table contains entries
- * that share the same time interval and row key. Data for each entry is stored in separate columns.
+ * This Dataset works by partitioning time into bins representing time intervals. Entries added to
+ * the Dataset are added to a bin based on their timestamp and row key. Hence, every row in the
+ * underlying table contains entries that share the same time interval and row key. Data for each
+ * entry is stored in separate columns.
  * </p>
  *
  * <p>
- * A user can set the time interval length for partitioning data into rows (as defined by 
- * <code>timeIntervalToStorePerRow</code> in the {@link io.cdap.cdap.api.dataset.DatasetSpecification} properties).
- * This interval should be chosen according to the use case at hand. In general, larger time interval sizes mean
- * faster reading of small-to-medium time ranges (range size up to several time intervals) of entries data,
- * while having slower reading of very small time ranges of entries data (range size a small portion of the time
- * interval). Using a larger time interval also helps with faster batched writing of entries.
+ * A user can set the time interval length for partitioning data into rows (as defined by
+ * <code>timeIntervalToStorePerRow</code> in the {@link io.cdap.cdap.api.dataset.DatasetSpecification}
+ * properties). This interval should be chosen according to the use case at hand. In general, larger
+ * time interval sizes mean faster reading of small-to-medium time ranges (range size up to several
+ * time intervals) of entries data, while having slower reading of very small time ranges of entries
+ * data (range size a small portion of the time interval). Using a larger time interval also helps
+ * with faster batched writing of entries.
  * </p>
  *
- * <p>Vice versa, setting smaller time intervals provides faster reading of very small time ranges of entries data,
- * but has slower batched writing of entries.
+ * <p>Vice versa, setting smaller time intervals provides faster reading of very small time ranges
+ * of entries data, but has slower batched writing of entries.
  * </p>
  *
  * <p>
@@ -65,23 +66,24 @@ import java.util.Objects;
  * generally avoid storing more than 50 megabytes of data per row, since it affects performance.
  * </p>
  * <p>
- * The default value for time interval length is one hour and is generally suggested for users to use a value of
- * between one minute and several hours. In cases where the amount of written entries is small, the rule of thumb is:
- * <br/><br/>
+ * The default value for time interval length is one hour and is generally suggested for users to
+ * use a value of between one minute and several hours. In cases where the amount of written entries
+ * is small, the rule of thumb is: <br/><br/>
  * <code>row partition interval size = 5 * (average size of the time range to be read)</code>
  * </p>
  *
  * <p>
- * TimeseriesTable supports tagging, where each entry is (optionally) labeled with a set of tags used for filtering of
- * items during data retrievals. For an entry to be retrievable using a given tag, the tag must be provided when
- * the entry was written. If multiple tags are provided during reading, an entry must contain every one of these tags
- * in order to qualify for return.
+ * TimeseriesTable supports tagging, where each entry is (optionally) labeled with a set of tags
+ * used for filtering of items during data retrievals. For an entry to be retrievable using a given
+ * tag, the tag must be provided when the entry was written. If multiple tags are provided during
+ * reading, an entry must contain every one of these tags in order to qualify for return.
  * </p>
  *
  * <p>
- * Due to the data format used for storing, filtering by tags during reading is done on client-side (not on a cluster).
- * At the same time, filtering by entry keys happens on the server side, which is much more efficient performance-wise.
- * Depending on the use-case you may want to push some of the tags you would use into the entry key for faster reading.
+ * Due to the data format used for storing, filtering by tags during reading is done on client-side
+ * (not on a cluster). At the same time, filtering by entry keys happens on the server side, which
+ * is much more efficient performance-wise. Depending on the use-case you may want to push some of
+ * the tags you would use into the entry key for faster reading.
  * </p>
  *
  * <p>
@@ -108,9 +110,12 @@ import java.util.Objects;
  * </p>
  *
  * @see CounterTimeseriesTable
+ * @deprecated table based datasets will be removed in a future version
  */
+@Deprecated
 public class TimeseriesTable extends TimeseriesDataset
-  implements BatchReadable<byte[], TimeseriesTable.Entry>, BatchWritable<byte[], TimeseriesTable.Entry> {
+    implements BatchReadable<byte[], TimeseriesTable.Entry>,
+    BatchWritable<byte[], TimeseriesTable.Entry> {
 
   /**
    * Creates an instance of the table.
@@ -130,27 +135,26 @@ public class TimeseriesTable extends TimeseriesDataset
   }
 
   /**
-   * Reads entries for a given time range and returns an <code>Iterator<Entry></code>.
-   * Provides the same functionality as {@link #read(byte[], long, long, byte[][]) read(byte[], long, long, byte[]...)} 
-   * but accepts additional parameters for pagination purposes.
-   * NOTE: A limit is placed on the max number of time intervals to be scanned during a read, as defined by
-   * {@link #MAX_ROWS_TO_SCAN_PER_READ}.
+   * Reads entries for a given time range and returns an <code>Iterator<Entry></code>. Provides the
+   * same functionality as {@link #read(byte[], long, long, byte[][]) read(byte[], long, long,
+   * byte[]...)} but accepts additional parameters for pagination purposes. NOTE: A limit is placed
+   * on the max number of time intervals to be scanned during a read, as defined by {@link
+   * #MAX_ROWS_TO_SCAN_PER_READ}.
    *
    * @param key key of the entries to read
    * @param startTime defines start of the time range to read, inclusive
    * @param endTime defines end of the time range to read, inclusive
    * @param offset the number of initial entries to ignore and not add to the results
-   * @param limit upper limit on number of results returned. If limit is exceeded, the first <code>limit</code> results
-   *              are returned
-   * @param tags a set of tags which entries returned must contain. Tags for entries are defined at write-time and an
-   *             entry is only returned if it contains all of these tags.
-   *
+   * @param limit upper limit on number of results returned. If limit is exceeded, the first
+   *     <code>limit</code> results are returned
+   * @param tags a set of tags which entries returned must contain. Tags for entries are defined
+   *     at write-time and an entry is only returned if it contains all of these tags.
    * @return an iterator over entries that satisfy provided conditions
    * @throws IllegalArgumentException when provided condition is incorrect
    */
   @ReadOnly
   public final Iterator<Entry> read(byte[] key, long startTime, long endTime,
-                                    int offset, final int limit, byte[]... tags) {
+      int offset, final int limit, byte[]... tags) {
     final Iterator<Entry> iterator = read(key, startTime, endTime, tags);
     int advance = offset;
     while (advance > 0 && iterator.hasNext()) {
@@ -159,7 +163,7 @@ public class TimeseriesTable extends TimeseriesDataset
     }
 
     return new Iterator<Entry>() {
-      int count = 0;
+      int count;
 
       @Override
       public boolean hasNext() {
@@ -183,21 +187,21 @@ public class TimeseriesTable extends TimeseriesDataset
   }
 
   /**
-   * Reads entries for a given time range and returns an <code>Iterator<Entry></code>.
-   * NOTE: A limit is placed on the max number of time intervals to be scanned during a read, as defined by
-   * {@link #MAX_ROWS_TO_SCAN_PER_READ}.
+   * Reads entries for a given time range and returns an <code>Iterator<Entry></code>. NOTE: A limit
+   * is placed on the max number of time intervals to be scanned during a read, as defined by {@link
+   * #MAX_ROWS_TO_SCAN_PER_READ}.
    *
    * @param key key of the entries to read
    * @param startTime defines start of the time range to read, inclusive
    * @param endTime defines end of the time range to read, inclusive
-   * @param tags a set of tags which entries returned must contain. Tags for entries are defined at write-time and an
-   *             entry is only returned if it contains all of these tags.
-   *
+   * @param tags a set of tags which entries returned must contain. Tags for entries are defined
+   *     at write-time and an entry is only returned if it contains all of these tags.
    * @return an iterator over entries that satisfy provided conditions
    */
   @ReadOnly
   public Iterator<Entry> read(byte[] key, long startTime, long endTime, byte[]... tags) {
-    final Iterator<TimeseriesDataset.Entry> internalIterator = readInternal(key, startTime, endTime, tags);
+    final Iterator<TimeseriesDataset.Entry> internalIterator = readInternal(key, startTime, endTime,
+        tags);
     return new Iterator<Entry>() {
       @Override
       public boolean hasNext() {
@@ -218,11 +222,11 @@ public class TimeseriesTable extends TimeseriesDataset
   }
 
 
-
   /**
    * A method for using a Dataset as input for a MapReduce job.
    */
   public static final class InputSplit extends Split {
+
     private byte[] key;
     private long startTime;
     private long endTime;
@@ -299,10 +303,10 @@ public class TimeseriesTable extends TimeseriesDataset
         return false;
       }
       InputSplit that = (InputSplit) o;
-      return startTime == that.startTime &&
-        endTime == that.endTime &&
-        Arrays.equals(key, that.key) &&
-        Arrays.equals(tags, that.tags);
+      return startTime == that.startTime
+          && endTime == that.endTime
+          && Arrays.equals(key, that.key)
+          && Arrays.equals(tags, that.tags);
     }
 
     @Override
@@ -318,18 +322,20 @@ public class TimeseriesTable extends TimeseriesDataset
    * @param key key of the entries to read
    * @param startTime defines start of the time range to read, inclusive
    * @param endTime defines end of the time range to read, inclusive
-   * @param tags a set of tags which entries returned must contain. Tags for entries are defined at write-time and an
-   *             entry is only returned if it contains all of these tags.
+   * @param tags a set of tags which entries returned must contain. Tags for entries are defined
+   *     at write-time and an entry is only returned if it contains all of these tags.
    * @return the list of splits
    */
-  public List<Split> getInputSplits(int splitsCount, byte[] key, long startTime, long endTime, byte[]... tags) {
+  public List<Split> getInputSplits(int splitsCount, byte[] key, long startTime, long endTime,
+      byte[]... tags) {
     long timeIntervalPerSplit = (endTime - startTime) / splitsCount;
     // we don't want splits to be empty
     timeIntervalPerSplit = timeIntervalPerSplit > 0 ? timeIntervalPerSplit : 1;
 
     List<Split> splits = new ArrayList<>();
     long start;
-    for (start = startTime; start + timeIntervalPerSplit <= endTime; start += timeIntervalPerSplit) {
+    for (start = startTime; start + timeIntervalPerSplit <= endTime;
+        start += timeIntervalPerSplit) {
       splits.add(new InputSplit(key, start, start + timeIntervalPerSplit, tags));
     }
 
@@ -343,10 +349,11 @@ public class TimeseriesTable extends TimeseriesDataset
 
   @Override
   public List<Split> getSplits() {
-    throw new UnsupportedOperationException("Cannot use TimeSeriesTable as input for Batch directly. " +
-                                              "Use getInput(...) and call " +
-                                              "MapReduceContext.setInput(tsTable, splits) in the " +
-                                              "initialize(MapReduceContext context) method of the MapReduce app.");
+    throw new UnsupportedOperationException(
+        "Cannot use TimeSeriesTable as input for Batch directly. "
+            + "Use getInput(...) and call "
+            + "MapReduceContext.setInput(tsTable, splits) in the "
+            + "initialize(MapReduceContext context) method of the MapReduce app.");
   }
 
   @ReadOnly
@@ -356,11 +363,13 @@ public class TimeseriesTable extends TimeseriesDataset
   }
 
   /**
-   * Writes an entry to the Dataset. This method overrides {@code write(key, value)} in {@link BatchWritable}.
-   * The key is ignored in this method and instead it uses the key provided in the <code>Entry</code> object.
+   * Writes an entry to the Dataset. This method overrides {@code write(key, value)} in {@link
+   * BatchWritable}. The key is ignored in this method and instead it uses the key provided in the
+   * <code>Entry</code> object.
    *
    * @param key row key to write to. Value is ignored
-   * @param value entry to write. The key used to write to the table is extracted from this object
+   * @param value entry to write. The key used to write to the table is extracted from this
+   *     object
    */
   @WriteOnly
   @Override
@@ -372,6 +381,7 @@ public class TimeseriesTable extends TimeseriesDataset
    * A record reader for time series.
    */
   public final class TimeseriesTableRecordsReader extends IteratorBasedSplitReader<byte[], Entry> {
+
     @Override
     public Iterator<Entry> createIterator(final Split split) {
       InputSplit s = (InputSplit) split;
@@ -395,7 +405,8 @@ public class TimeseriesTable extends TimeseriesDataset
      * @param key key of the entry
      * @param value value to store
      * @param timestamp timestamp of the entry
-     * @param tags optional list of tags associated with the entry. See class description for more details.
+     * @param tags optional list of tags associated with the entry. See class description for
+     *     more details.
      */
     public Entry(byte[] key, byte[] value, long timestamp, byte[]... tags) {
       super(key, value, timestamp, tags);

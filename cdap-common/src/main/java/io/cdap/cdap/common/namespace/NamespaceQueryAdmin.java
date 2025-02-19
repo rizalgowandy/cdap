@@ -20,13 +20,13 @@ import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.util.List;
 
 /**
  * Admin for querying namespace. For namespace manipulation operation see {@link NamespaceAdmin}
  */
 public interface NamespaceQueryAdmin {
+
   /**
    * Lists all namespaces.
    *

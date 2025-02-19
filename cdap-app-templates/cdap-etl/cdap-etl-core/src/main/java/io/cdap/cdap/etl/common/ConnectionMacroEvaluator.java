@@ -19,12 +19,13 @@ package io.cdap.cdap.etl.common;
 
 import com.google.gson.Gson;
 import io.cdap.cdap.api.ServiceDiscoverer;
+import io.cdap.cdap.api.exception.ErrorCategory;
+import io.cdap.cdap.api.exception.ErrorCategory.ErrorCategoryEnum;
 import io.cdap.cdap.api.macro.InvalidMacroException;
 import io.cdap.cdap.api.macro.MacroEvaluator;
 import io.cdap.cdap.api.retry.RetryableException;
 import io.cdap.cdap.etl.proto.connection.Connection;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URLEncoder;
@@ -32,10 +33,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * A {@link MacroEvaluator} for resolving the {@code ${conn(connection-name)}} macro function. It uses
- * the studio service for getting connection information at runtime.
+ * A {@link MacroEvaluator} for resolving the {@code ${conn(connection-name)}} macro function. It
+ * uses the studio service for getting connection information at runtime.
  */
 public class ConnectionMacroEvaluator extends AbstractServiceRetryableMacroEvaluator {
+
   public static final String FUNCTION_NAME = "conn";
   private static final String SERVICE_NAME = "Connection";
 
@@ -44,23 +46,28 @@ public class ConnectionMacroEvaluator extends AbstractServiceRetryableMacroEvalu
   private final Gson gson;
 
   public ConnectionMacroEvaluator(String namespace, ServiceDiscoverer serviceDiscoverer) {
-    super(FUNCTION_NAME);
+    super(SERVICE_NAME, FUNCTION_NAME);
     this.namespace = namespace;
     this.serviceDiscoverer = serviceDiscoverer;
     this.gson = new Gson();
   }
 
   /**
-   * Evaluates the connection macro function by calling the Connection service to retrieve the connection information.
+   * Evaluates the connection macro function by calling the Connection service to retrieve the
+   * connection information.
    *
-   * @param args should contains exactly one arguments. The argument should contain the connection name
+   * @param args should contains exactly one arguments. The argument should contain the
+   *     connection name
    * @return the json representation of the properties of the connection
    */
   @Override
   Map<String, String> evaluateMacroMap(String macroFunction,
-                                       String... args) throws InvalidMacroException, IOException, RetryableException {
+      String... args) throws InvalidMacroException, IOException, RetryableException {
     if (args.length != 1) {
-      throw new InvalidMacroException("Macro '" + FUNCTION_NAME + "' should have exactly 1 arguments");
+      throw new InvalidMacroException(
+          "Macro '" + FUNCTION_NAME + "' should have exactly 1 arguments",
+          new ErrorCategory(ErrorCategoryEnum.MACROS, String.format("%s-%s", SERVICE_NAME,
+              FUNCTION_NAME)));
     }
 
     // only encode the connection name here since / will get encoded to %2f and some router cannot recognize it
@@ -69,11 +76,20 @@ public class ConnectionMacroEvaluator extends AbstractServiceRetryableMacroEvalu
     String connName = URLEncoder.encode(args[0], StandardCharsets.UTF_8.name());
 
     HttpURLConnection urlConn = serviceDiscoverer.openConnection(NamespaceId.SYSTEM.getNamespace(),
-                                                                 Constants.PIPELINEID,
-                                                                 Constants.STUDIO_SERVICE_NAME,
-                                                                 String.format("v1/contexts/%s/connections/%s",
-                                                                               namespace, connName));
-    Connection connection = gson.fromJson(validateAndRetrieveContent(SERVICE_NAME, urlConn), Connection.class);
+        Constants.PIPELINEID,
+        Constants.STUDIO_SERVICE_NAME,
+        String.format("v1/contexts/%s/connections/%s",
+            namespace, connName));
+    Connection connection = gson.fromJson(validateAndRetrieveContent(SERVICE_NAME, urlConn),
+        Connection.class);
     return connection.getPlugin().getProperties();
+  }
+
+  @Override
+  String evaluateMacro(String macroFunction, String... args)
+      throws InvalidMacroException, RetryableException {
+    throw new UnsupportedOperationException(
+        String.format("This function %s can only be evaluated as map, use evaluateMacroMap instead",
+            macroFunction));
   }
 }

@@ -26,7 +26,6 @@ import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.etl.api.AlertPublisherContext;
 import io.cdap.cdap.etl.api.lineage.field.FieldOperation;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -34,12 +33,14 @@ import java.util.Map;
 /**
  * Default implementation of {@link AlertPublisherContext}.
  */
-public class DefaultAlertPublisherContext extends AbstractStageContext implements AlertPublisherContext {
+public class DefaultAlertPublisherContext extends AbstractStageContext implements
+    AlertPublisherContext {
+
   private final MessagingContext messagingContext;
   private final MessagingAdmin messagingAdmin;
 
   public DefaultAlertPublisherContext(PipelineRuntime pipelineRuntime, StageSpec stageSpec,
-                                      MessagingContext messagingContext, MessagingAdmin messagingAdmin) {
+      MessagingContext messagingContext, MessagingAdmin messagingAdmin) {
     super(pipelineRuntime, stageSpec);
     this.messagingContext = messagingContext;
     this.messagingAdmin = messagingAdmin;
@@ -61,31 +62,33 @@ public class DefaultAlertPublisherContext extends AbstractStageContext implement
   }
 
   @Override
-  public void createTopic(String topic) throws TopicAlreadyExistsException, IOException, AccessException {
+  public void createTopic(String topic)
+      throws TopicAlreadyExistsException, IOException, AccessException {
     messagingAdmin.createTopic(topic);
   }
 
   @Override
   public void createTopic(String topic,
-                          Map<String, String> properties)
-    throws TopicAlreadyExistsException, IOException, AccessException {
+      Map<String, String> properties)
+      throws TopicAlreadyExistsException, IOException, AccessException {
     messagingAdmin.createTopic(topic, properties);
   }
 
   @Override
   public Map<String, String> getTopicProperties(String topic)
-    throws TopicNotFoundException, IOException, AccessException {
+      throws TopicNotFoundException, IOException, AccessException {
     return messagingAdmin.getTopicProperties(topic);
   }
 
   @Override
   public void updateTopic(String topic, Map<String, String> properties)
-    throws TopicNotFoundException, IOException, AccessException {
+      throws TopicNotFoundException, IOException, AccessException {
     messagingAdmin.updateTopic(topic, properties);
   }
 
   @Override
-  public void deleteTopic(String topic) throws TopicNotFoundException, IOException, AccessException {
+  public void deleteTopic(String topic)
+      throws TopicNotFoundException, IOException, AccessException {
     messagingAdmin.deleteTopic(topic);
   }
 

@@ -22,13 +22,12 @@ import io.cdap.cdap.logging.appender.LogAppender;
 import io.cdap.cdap.logging.appender.LogMessage;
 import io.cdap.cdap.logging.context.LoggingContextHelper;
 import io.cdap.cdap.logging.serialize.LoggingEventSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import javax.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Log processor which writes the logging event to a {@link LogAppender}
@@ -37,7 +36,7 @@ public class LogAppenderLogProcessor implements RemoteExecutionLogProcessor {
 
   private static final Logger LOG = LoggerFactory.getLogger(LogAppenderLogProcessor.class);
   private static final ThreadLocal<LoggingEventSerializer> LOGGING_EVENT_SERIALIZER =
-          ThreadLocal.withInitial(LoggingEventSerializer::new);
+      ThreadLocal.withInitial(LoggingEventSerializer::new);
   private final LogAppender logAppender;
 
   @Inject
@@ -51,7 +50,8 @@ public class LogAppenderLogProcessor implements RemoteExecutionLogProcessor {
     loggingEventBytes.forEachRemaining(bytes -> {
       try {
         ILoggingEvent iLoggingEvent = serializer.fromBytes(ByteBuffer.wrap(bytes));
-        LoggingContext loggingContext = LoggingContextHelper.getLoggingContext(iLoggingEvent.getMDCPropertyMap());
+        LoggingContext loggingContext = LoggingContextHelper.getLoggingContext(
+            iLoggingEvent.getMDCPropertyMap());
         if (loggingContext == null) {
           // This shouldn't happen
           LOG.debug("Ignore logging event due to missing logging context: {}", iLoggingEvent);

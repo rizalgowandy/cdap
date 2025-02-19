@@ -27,16 +27,17 @@ import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLPullDataset;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLPullRequest;
 import io.cdap.cdap.format.StructuredRecordStringConverter;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
-
 import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 
 /**
  * Pull Dataset implementation for unit test
  */
-public class MockPullDataset implements SQLPullDataset<StructuredRecord, Object, Object>, Serializable {
+public class MockPullDataset implements SQLPullDataset<StructuredRecord, Object, Object>,
+    Serializable {
+
   private static final Gson GSON = new Gson();
   private final AtomicLong numRows = new AtomicLong(0L);
   private final SQLPullRequest pullRequest;
@@ -61,9 +62,11 @@ public class MockPullDataset implements SQLPullDataset<StructuredRecord, Object,
   public Transform<KeyValue<Object, Object>, StructuredRecord> fromKeyValue() {
     return new SerializableTransform<KeyValue<Object, Object>, StructuredRecord>() {
       @Override
-      public void transform(KeyValue<Object, Object> input, Emitter<StructuredRecord> emitter) throws Exception {
+      public void transform(KeyValue<Object, Object> input, Emitter<StructuredRecord> emitter)
+          throws Exception {
         numRows.incrementAndGet();
-        emitter.emit(StructuredRecordStringConverter.fromJsonString(input.getValue().toString(), getSchema()));
+        emitter.emit(StructuredRecordStringConverter.fromJsonString(input.getValue().toString(),
+            getSchema()));
       }
     };
   }

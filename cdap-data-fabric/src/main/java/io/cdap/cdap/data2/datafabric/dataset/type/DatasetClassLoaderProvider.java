@@ -17,7 +17,6 @@
 package io.cdap.cdap.data2.datafabric.dataset.type;
 
 import io.cdap.cdap.proto.DatasetModuleMeta;
-
 import java.io.Closeable;
 import java.io.IOException;
 
@@ -32,7 +31,6 @@ public interface DatasetClassLoaderProvider extends Closeable {
    * @param moduleMeta the metadata for the dataset module to get a classloader for
    * @param parentClassLoader the class loader to use as the parent
    * @return classloader for the given dataset module
-   * @throws IOException
    */
   ClassLoader get(DatasetModuleMeta moduleMeta, ClassLoader parentClassLoader) throws IOException;
 }

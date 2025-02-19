@@ -18,13 +18,13 @@ package io.cdap.cdap.api.customaction;
 import io.cdap.cdap.api.common.PropertyProvider;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.api.workflow.Workflow;
-
 import java.util.Set;
 
 /**
  * Specification for the custom java code that will be executed as a part of {@link Workflow}.
  */
 public interface CustomActionSpecification extends PropertyProvider {
+
   /**
    * @return Class name of the custom action.
    */

@@ -24,7 +24,6 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.authentication.client.AccessToken;
 import io.cdap.common.http.HttpRequestConfig;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
@@ -45,6 +44,8 @@ public class ClientConfig {
   private static final int DEFAULT_READ_TIMEOUT = 15000;
   private static final int DEFAULT_CONNECT_TIMEOUT = 15000;
 
+  private static final int DEFAULT_APP_LIST_PAGE_SIZE = 25;
+
   private static final String DEFAULT_VERSION = Constants.Gateway.API_VERSION_3_TOKEN;
 
   @Nullable
@@ -57,16 +58,17 @@ public class ClientConfig {
   private int uploadConnectTimeout;
 
   private int unavailableRetryLimit;
+  private int appListPageSize;
   private String apiVersion;
   private Supplier<AccessToken> accessToken;
   private Map<String, String> additionalHeaders;
 
   private ClientConfig(@Nullable ConnectionConfig connectionConfig,
-                       boolean verifySSLCert, int unavailableRetryLimit,
-                       String apiVersion, Supplier<AccessToken> accessToken,
-                       int defaultReadTimeout, int defaultConnectTimeout,
-                       int uploadReadTimeout, int uploadConnectTimeout,
-                       Map<String, String> additionalHeaders) {
+      boolean verifySSLCert, int unavailableRetryLimit,
+      String apiVersion, Supplier<AccessToken> accessToken,
+      int defaultReadTimeout, int defaultConnectTimeout,
+      int uploadReadTimeout, int uploadConnectTimeout,
+      Map<String, String> additionalHeaders, int appListPageSize) {
     this.connectionConfig = connectionConfig;
     this.verifySSLCert = verifySSLCert;
     this.apiVersion = apiVersion;
@@ -77,21 +79,23 @@ public class ClientConfig {
     this.uploadReadTimeout = uploadReadTimeout;
     this.uploadConnectTimeout = uploadConnectTimeout;
     this.additionalHeaders = additionalHeaders;
+    this.appListPageSize = appListPageSize;
   }
 
   public static ClientConfig getDefault() {
     return ClientConfig.builder().build();
   }
 
-  private URL resolveURL(String apiVersion, String path) throws DisconnectedException, MalformedURLException {
+  private URL resolveURL(String apiVersion, String path)
+      throws DisconnectedException, MalformedURLException {
     return getConnectionConfig().resolveURI(apiVersion, path).toURL();
   }
 
   /**
    * Resolves a path against the target CDAP server
    *
-   * @param path Path to the HTTP endpoint. For example, "apps" would result
-   *             in a URL like "http://example.com:11015/v2/apps".
+   * @param path Path to the HTTP endpoint. For example, "apps" would result in a URL like
+   *     "http://example.com:11015/v2/apps".
    * @return URL of the resolved path
    */
   public URL resolveURL(String path) throws DisconnectedException, MalformedURLException {
@@ -105,8 +109,8 @@ public class ClientConfig {
   /**
    * Resolves a path against the target CDAP server
    *
-   * @param path Path to the HTTP endpoint. For example, "apps" would result
-   *             in a URL like "http://example.com:11015/v2/apps".
+   * @param path Path to the HTTP endpoint. For example, "apps" would result in a URL like
+   *     "http://example.com:11015/v2/apps".
    * @return URL of the resolved path
    */
   public URL resolveURLV3(String path) throws MalformedURLException {
@@ -123,13 +127,14 @@ public class ClientConfig {
   /**
    * Resolves a path against the target CDAP server with the provided namespace, using V3 APIs
    *
-   * @param path Path to the HTTP endpoint. For example, "apps" would result
-   *             in a URL like "http://example.com:11015/v3/&lt;namespace&gt;/apps".
+   * @param path Path to the HTTP endpoint. For example, "apps" would result in a URL like
+   *     "http://example.com:11015/v3/&lt;namespace&gt;/apps".
    * @return URL of the resolved path
-   * @throws MalformedURLException
    */
-  public URL resolveNamespacedURLV3(NamespaceId namespace, String path) throws MalformedURLException {
-    return getConnectionConfig().resolveNamespacedURI(namespace, Constants.Gateway.API_VERSION_3_TOKEN, path).toURL();
+  public URL resolveNamespacedURLV3(NamespaceId namespace, String path)
+      throws MalformedURLException {
+    return getConnectionConfig().resolveNamespacedURI(namespace,
+        Constants.Gateway.API_VERSION_3_TOKEN, path).toURL();
   }
 
   public HttpRequestConfig getDefaultRequestConfig() {
@@ -140,8 +145,8 @@ public class ClientConfig {
   }
 
   /**
-   * @return a {@link HttpRequestConfig} used for operations whose duration varies based on the operation, such as
-   * application deployment and query execution.
+   * @return a {@link HttpRequestConfig} used for operations whose duration varies based on the
+   *     operation, such as application deployment and query execution.
    */
   public HttpRequestConfig getUploadRequestConfig() {
     if (connectionConfig == null) {
@@ -165,6 +170,8 @@ public class ClientConfig {
   public int getUploadConnectTimeout() {
     return uploadConnectTimeout;
   }
+
+  public int getAppListPageSize() { return appListPageSize; }
 
   public Map<String, String> getAdditionalHeaders() {
     return additionalHeaders;
@@ -195,6 +202,10 @@ public class ClientConfig {
 
   public void setDefaultConnectTimeout(int defaultConnectTimeout) {
     this.defaultConnectTimeout = defaultConnectTimeout;
+  }
+
+  public void setAppListPageSize(int appListPageSize) {
+    this.appListPageSize = appListPageSize;
   }
 
   public void setUploadReadTimeout(int uploadReadTimeout) {
@@ -263,11 +274,13 @@ public class ClientConfig {
     private int uploadConnectTimeout = DEFAULT_UPLOAD_CONNECT_TIMEOUT;
     private int defaultReadTimeout = DEFAULT_READ_TIMEOUT;
     private int defaultConnectTimeout = DEFAULT_CONNECT_TIMEOUT;
+    private int appListPageSize = DEFAULT_APP_LIST_PAGE_SIZE;
 
     private int unavailableRetryLimit = DEFAULT_SERVICE_UNAVAILABLE_RETRY_LIMIT;
     private Map<String, String> additionalHeaders = new HashMap<>();
 
-    public Builder() { }
+    public Builder() {
+    }
 
     public Builder(ClientConfig clientConfig) {
       this.connectionConfig = clientConfig.connectionConfig;
@@ -279,6 +292,7 @@ public class ClientConfig {
       this.defaultReadTimeout = clientConfig.defaultReadTimeout;
       this.defaultConnectTimeout = clientConfig.defaultConnectTimeout;
       this.unavailableRetryLimit = clientConfig.unavailableRetryLimit;
+      this.appListPageSize = clientConfig.appListPageSize;
     }
 
     public Builder setConnectionConfig(ConnectionConfig connectionConfig) {
@@ -311,6 +325,11 @@ public class ClientConfig {
       return this;
     }
 
+    public Builder setAppListPageSize(int appListPageSize) {
+      this.appListPageSize = appListPageSize;
+      return this;
+    }
+
     public Builder setAccessToken(Supplier<AccessToken> accessToken) {
       this.accessToken = accessToken;
       return this;
@@ -338,9 +357,10 @@ public class ClientConfig {
 
     public ClientConfig build() {
       return new ClientConfig(connectionConfig, verifySSLCert,
-                              unavailableRetryLimit, apiVersion, accessToken,
-                              defaultReadTimeout, defaultConnectTimeout,
-                              uploadReadTimeout, uploadConnectTimeout, ImmutableMap.copyOf(additionalHeaders));
+          unavailableRetryLimit, apiVersion, accessToken,
+          defaultReadTimeout, defaultConnectTimeout,
+          uploadReadTimeout, uploadConnectTimeout, ImmutableMap.copyOf(additionalHeaders),
+          appListPageSize);
     }
   }
 

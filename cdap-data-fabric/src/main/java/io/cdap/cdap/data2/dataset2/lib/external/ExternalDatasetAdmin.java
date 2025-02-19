@@ -17,13 +17,13 @@
 package io.cdap.cdap.data2.dataset2.lib.external;
 
 import io.cdap.cdap.api.dataset.DatasetAdmin;
-
 import java.io.IOException;
 
 /**
  * Admin for {@link ExternalDataset}.
  */
 public class ExternalDatasetAdmin implements DatasetAdmin {
+
   @Override
   public boolean exists() throws IOException {
     // this dataset always exists since it is a trivial implementation

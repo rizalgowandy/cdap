@@ -29,13 +29,12 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
 
 /**
  * Internal {@link HttpHandler} for fetching file from {@link LocationFactory}
@@ -68,6 +67,6 @@ public class FileFetcherHttpHandlerInternal extends AbstractHttpHandler {
       throw new NotFoundException(String.format("Path %s is not found", path));
     }
     responder.sendContent(HttpResponseStatus.OK, new LocationBodyProducer(location),
-                          new DefaultHttpHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM));
+        new DefaultHttpHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM));
   }
 }

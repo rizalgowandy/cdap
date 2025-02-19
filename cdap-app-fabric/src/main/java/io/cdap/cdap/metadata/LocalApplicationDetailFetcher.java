@@ -17,6 +17,7 @@
 package io.cdap.cdap.metadata;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import io.cdap.cdap.common.NamespaceNotFoundException;
 import io.cdap.cdap.common.NotFoundException;
@@ -24,70 +25,62 @@ import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
 import io.cdap.cdap.internal.app.services.ApplicationLifecycleService;
 import io.cdap.cdap.proto.ApplicationDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Predicate;
+import java.util.function.Consumer;
 
 /**
- * Fetch {@link ApplicationDetail} from local store via {@link ApplicationLifecycleService}
+ * Fetch {@link ApplicationDetail} from local store via {@link ApplicationLifecycleService}.
  */
 public class LocalApplicationDetailFetcher implements ApplicationDetailFetcher {
+
   private final ApplicationLifecycleService applicationLifecycleService;
   private final NamespaceQueryAdmin namespaceQueryAdmin;
 
   @Inject
   public LocalApplicationDetailFetcher(ApplicationLifecycleService applicationLifecycleService,
-                                       NamespaceQueryAdmin namespaceQueryAdmin) {
+      NamespaceQueryAdmin namespaceQueryAdmin) {
     this.applicationLifecycleService = applicationLifecycleService;
     this.namespaceQueryAdmin = namespaceQueryAdmin;
   }
 
   /**
-   * Get {@link ApplicationDetail} for the given {@link ApplicationId}
+   * Get {@link ApplicationDetail} for the given {@link ApplicationId}.
    *
-   * @param appId the id of the application
+   * @param appRef the versionless id of the application
    * @return {@link ApplicationDetail} for the given application
-   * @throws IOException if failed to get {@link ApplicationDetail} for the given {@link ApplicationId}
-   * @throws NotFoundException if the given the given application doesn't exist
+   * @throws IOException if failed to get {@link ApplicationDetail} for the given
+   *     {@link ApplicationId}
+   * @throws NotFoundException if the given application doesn't exist
    */
   @Override
-  public ApplicationDetail get(ApplicationId appId) throws IOException, NotFoundException {
-    ApplicationDetail detail = null;
+  public ApplicationDetail get(ApplicationReference appRef) throws IOException, NotFoundException {
     try {
-      detail = applicationLifecycleService.getAppDetail(appId);
+      return applicationLifecycleService.getLatestAppDetail(appRef);
     } catch (Exception e) {
       Throwables.propagateIfPossible(e, NotFoundException.class, IOException.class);
       throw new IOException(e);
     }
-    return detail;
   }
 
   /**
-   * Get a list of {@link ApplicationDetail} for all applications in the given namespace
-   *
-   * @param namespace the name of the namespace to get the list of applications
-   * @return a list of {@link ApplicationDetail} for all applications in the given namespace
-   * @throws IOException if failed to get the list of {@link ApplicationDetail}
-   * @throws NamespaceNotFoundException if the given namespace doesn't exit
+   * Scans all the latest application details in the given namespace.
    */
   @Override
-  public List<ApplicationDetail> list(String namespace) throws IOException, NamespaceNotFoundException {
+  public void scan(String namespace, Consumer<ApplicationDetail> consumer, Integer batchSize)
+      throws IOException, NamespaceNotFoundException {
     NamespaceId namespaceId = new NamespaceId(namespace);
-    List<ApplicationDetail> detailList = Collections.emptyList();
     try {
       // Check if the namespace exists before calling ApplicationLifecycleService, since it doesn't check
       // the existence of the namespace. Does a check here to explicitly throw an exception if nonexistent.
       if (!namespaceQueryAdmin.exists(namespaceId)) {
         throw new NamespaceNotFoundException(namespaceId);
       }
-      detailList = applicationLifecycleService.getApps(namespaceId);
+      applicationLifecycleService.scanApplications(namespaceId, ImmutableList.of(), consumer);
     } catch (Exception e) {
       Throwables.propagateIfPossible(e, NamespaceNotFoundException.class, IOException.class);
       throw new IOException(e);
     }
-    return detailList;
   }
 }

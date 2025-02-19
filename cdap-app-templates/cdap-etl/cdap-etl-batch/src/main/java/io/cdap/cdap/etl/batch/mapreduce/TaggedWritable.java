@@ -16,6 +16,9 @@
 
 package io.cdap.cdap.etl.batch.mapreduce;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.ObjectWritable;
@@ -23,16 +26,15 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-
 /**
- * Map output for which includes stageName and the record provided. This can be used to tag map output with stageName.
+ * Map output for which includes stageName and the record provided. This can be used to tag map
+ * output with stageName.
+ *
  * @param <RECORD> Writable record to be serialized along with stageName
  */
 public class TaggedWritable<RECORD extends Writable> implements
-  WritableComparable<TaggedWritable<RECORD>>, Configurable {
+    WritableComparable<TaggedWritable<RECORD>>, Configurable {
+
   private String stageName;
   private RECORD record;
   private Configuration conf;

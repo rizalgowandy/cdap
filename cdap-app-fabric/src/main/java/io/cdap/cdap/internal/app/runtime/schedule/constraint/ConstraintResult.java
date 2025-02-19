@@ -17,16 +17,17 @@
 package io.cdap.cdap.internal.app.runtime.schedule.constraint;
 
 import com.google.common.base.Preconditions;
-
 import javax.annotation.Nullable;
 
 /**
- * The result of a Constraint check. Indicates whether it was satisfied or not, and if not, the duration that
- * the constraint will likely not be satisfied for.
+ * The result of a Constraint check. Indicates whether it was satisfied or not, and if not, the
+ * duration that the constraint will likely not be satisfied for.
  */
 public class ConstraintResult {
+
   public static final ConstraintResult SATISFIED = new ConstraintResult(SatisfiedState.SATISFIED);
-  public static final ConstraintResult NEVER_SATISFIED = new ConstraintResult(SatisfiedState.NEVER_SATISFIED);
+  public static final ConstraintResult NEVER_SATISFIED = new ConstraintResult(
+      SatisfiedState.NEVER_SATISFIED);
 
   /**
    * Indicates whether a Constraint was satisfied or not.
@@ -34,6 +35,7 @@ public class ConstraintResult {
   public enum SatisfiedState {
     SATISFIED, NOT_SATISFIED, NEVER_SATISFIED
   }
+
   private final SatisfiedState satisfiedState;
   private final Long nextCheckTime;
 

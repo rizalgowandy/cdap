@@ -23,25 +23,27 @@ import io.cdap.cdap.etl.api.batch.BatchJoiner;
 import io.cdap.cdap.etl.api.batch.BatchJoinerContext;
 import io.cdap.cdap.etl.api.batch.BatchJoinerRuntimeContext;
 import io.cdap.cdap.etl.common.TypeChecker;
-
 import java.util.Collection;
 import java.util.concurrent.Callable;
 
 /**
- * Wrapper around {@link BatchJoiner} that makes sure logging, classloading, and other pipeline capabilities
- * are setup correctly.
+ * Wrapper around {@link BatchJoiner} that makes sure logging, classloading, and other pipeline
+ * capabilities are setup correctly.
  *
  * @param <JOIN_KEY> type of join key. Must be a supported type
  * @param <INPUT_RECORD> type of input record. Must be a supported type
  * @param <OUT> type of output object
  */
-public class WrappedBatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> extends BatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> {
+public class WrappedBatchJoiner<JOIN_KEY, INPUT_RECORD, OUT>
+    extends BatchJoiner<JOIN_KEY, INPUT_RECORD, OUT>
+    implements PluginWrapper<BatchJoiner<JOIN_KEY, INPUT_RECORD, OUT>> {
+
   private final BatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> joiner;
   private final Caller caller;
   private final OperationTimer operationTimer;
 
   public WrappedBatchJoiner(BatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> joiner, Caller caller,
-                            OperationTimer operationTimer) {
+      OperationTimer operationTimer) {
     this.joiner = joiner;
     this.caller = caller;
     this.operationTimer = operationTimer;
@@ -101,7 +103,8 @@ public class WrappedBatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> extends BatchJoiner
   }
 
   @Override
-  public Collection<JOIN_KEY> getJoinKeys(String stageName, INPUT_RECORD inputRecord) throws Exception {
+  public Collection<JOIN_KEY> getJoinKeys(String stageName, INPUT_RECORD inputRecord)
+      throws Exception {
     operationTimer.start();
     try {
       return caller.call(() -> joiner.getJoinKeys(stageName, inputRecord));
@@ -116,12 +119,18 @@ public class WrappedBatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> extends BatchJoiner
   }
 
   @Override
-  public OUT merge(JOIN_KEY joinKey, Iterable<JoinElement<INPUT_RECORD>> joinResult) throws Exception {
+  public OUT merge(JOIN_KEY joinKey, Iterable<JoinElement<INPUT_RECORD>> joinResult)
+      throws Exception {
     operationTimer.start();
     try {
       return caller.call(() -> joiner.merge(joinKey, joinResult));
     } finally {
       operationTimer.reset();
     }
+  }
+
+  @Override
+  public BatchJoiner<JOIN_KEY, INPUT_RECORD, OUT> getWrapped() {
+    return joiner;
   }
 }

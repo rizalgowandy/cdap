@@ -30,7 +30,8 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 public class MessagingServiceManager extends AbstractMasterServiceManager {
 
   @Inject
-  MessagingServiceManager(CConfiguration cConf, TwillRunner twillRunner, DiscoveryServiceClient discoveryClient) {
+  MessagingServiceManager(CConfiguration cConf, TwillRunner twillRunner,
+      DiscoveryServiceClient discoveryClient) {
     super(cConf, discoveryClient, Constants.Service.MESSAGING_SERVICE, twillRunner);
   }
 
@@ -41,6 +42,6 @@ public class MessagingServiceManager extends AbstractMasterServiceManager {
 
   @Override
   public int getMaxInstances() {
-    return getCConf().getInt(Constants.MessagingSystem.MAX_INSTANCES);
+    return getCconf().getInt(Constants.MessagingSystem.MAX_INSTANCES);
   }
 }

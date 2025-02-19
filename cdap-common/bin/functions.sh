@@ -357,7 +357,7 @@ cdap_set_java () {
 
 #
 # cdap_set_classpath <home-dir> <conf-dir> [verbose: true/false]
-# Assembles CLASSPATH from home-dir, hbase classpath, and conf-dir and optionally echoes if verbose is set true
+# Assembles CLASSPATH from home-dir and conf-dir and optionally echoes if verbose is set true
 # NOTE: this function is also sourced and invoked by the CSD control script, found here:
 #   https://github.com/caskdata/cm_csd/blob/develop/src/scripts/cdap-control.sh
 #   Any changes to this function must be compatible with the CSD's invocation
@@ -365,26 +365,19 @@ cdap_set_java () {
 cdap_set_classpath() {
   local readonly __home=${1} __conf=${2} __verbose=${3:-false}
   local readonly __homelib=$(find -L "${__home}"/lib -type f 2>/dev/null | sort | tr '\n' ':')
-  local __cp __hbase_cp
+  local __cp __hadoop_cp
 
-  # Get HBase's CLASSPATH
-  if [[ -n ${HBASE_CLASSPATH} ]] && [[ ${HBASE_CLASSPATH} != '' ]]; then
-    __cp=${__homelib}:${HBASE_CLASSPATH}:${__conf}/:${__home}/conf/:${EXTRA_CLASSPATH}
-  elif [[ -n ${HBASE_HOME} ]] && [[ -d ${HBASE_HOME} ]]; then
-    __hbase_cp=$("${HBASE_HOME}"/bin/hbase classpath)
-  elif [[ $(which hbase 2>/dev/null) ]]; then
-    __hbase_cp=$(hbase classpath)
-  elif [[ -n ${HADOOP_HOME} ]] && [[ -d ${HADOOP_HOME} ]]; then
-    # For the no hbase case, we still want to setup the Hadoop classpath
-    __hbase_cp=$("${HADOOP_HOME}"/bin/hadoop classpath)
+  # Get Hadoop's CLASSPATH
+  if [[ -n ${HADOOP_HOME} ]] && [[ -d ${HADOOP_HOME} ]]; then
+    __hadoop_cp=$("${HADOOP_HOME}"/bin/hadoop classpath)
   else
-    # assume Hadoop/HBase libs are included via EXTRA_CLASSPATH
-    logecho "[WARN] Could not find Hadoop and HBase libraries, using EXTRA_CLASSPATH"
+    # assume Hadoop libs are included via EXTRA_CLASSPATH
+    logecho "[WARN] Could not find Hadoop libraries, using EXTRA_CLASSPATH"
     __cp=${__homelib}:${__conf}/:${__home}/conf/:${EXTRA_CLASSPATH}
   fi
-  # Add HBase's CLASSPATH, if found and not provided
-  if [[ -n ${__hbase_cp} ]] && [[ -z ${__cp} ]]; then
-    __cp=${__homelib}:${__hbase_cp}:${__conf}/:${__home}/conf/:${EXTRA_CLASSPATH}
+  # Add Hadoop's CLASSPATH, if found and not provided
+  if [[ -n ${__hadoop_cp} ]] && [[ -z ${__cp} ]]; then
+    __cp=${__homelib}:${__hadoop_cp}:${__conf}/:${__home}/conf/:${EXTRA_CLASSPATH}
   fi
   if [[ -n ${CLASSPATH} ]]; then
     CLASSPATH+=:${__cp}
@@ -396,109 +389,6 @@ cdap_set_classpath() {
     echo ${CLASSPATH}
   fi
   return 0
-}
-
-#
-# cdap_set_hbase
-# Sets the correct HBase support library to use, based on what version exists in the CLASSPATH
-# NOTE: this function is also sourced and invoked by the CSD control script, found here:
-#   https://github.com/caskdata/cm_csd/blob/develop/src/scripts/cdap-control.sh
-#   Any changes to this function must be compatible with the CSD's invocation
-#
-cdap_set_hbase() {
-  local readonly __compat __compatlib __class=io.cdap.cdap.data2.util.hbase.HBaseVersion
-  HBASE_VERSION=${HBASE_VERSION:-$("${JAVA}" -cp ${CLASSPATH} ${__class} 2>/dev/null)}
-  case ${HBASE_VERSION} in
-    1.0-cdh5.5*|1.0-cdh5.6*) __compat=hbase-compat-1.0-cdh5.5.0 ;; # 5.5 and 5.6 are compatible
-    1.0-cdh*) __compat=hbase-compat-1.0-cdh ;;
-    1.0*) __compat=hbase-compat-1.0 ;;
-    1.1*) __compat=hbase-compat-1.1 ;;
-    1.2-cdh*) __compat=hbase-compat-1.2-cdh5.7.0 ;; # 5.7 and 5.8 are compatible
-    1.2*) __compat=hbase-compat-1.1 ;; # 1.1 and 1.2 are compatible
-    "") die "Unable to determine HBase version! Aborting." ;;
-    *)
-      if [[ $(cdap_get_conf "hbase.version.resolution.strategy" "${CDAP_CONF}"/cdap-site.xml auto.strict) == 'auto.latest' ]]; then
-        local readonly __latest_hbase_compat
-        if [[ ${HBASE_VERSION} =~ -cdh ]]; then
-          __compat=hbase-compat-1.2-cdh5.7.0 # must be updated if a new CDH HBase version is added
-        else
-          __compat=hbase-compat-1.1 # must be updated if a new HBase version is added
-        fi
-        echo "Using ${__compat} for HBase version ${HBASE_VERSION} due to 'auto.latest' resolution strategy."
-      else
-        die "Unknown or unsupported HBase version found: ${HBASE_VERSION}"
-      fi
-      ;;
-  esac
-  __compatlib=$(find -L "${CDAP_HOME}"/${__compat}/lib -type f 2>/dev/null | sort | tr '\n' ':')
-  export CLASSPATH="${__compatlib}"${CLASSPATH}
-  return 0
-}
-
-#
-# cdap_set_hive_classpath
-# Determine Hive's CLASSPATH, and set EXPLORE_CLASSPATH.
-# Hive classpath is not added as part of system classpath as hive jars bundle unrelated jars like guava,
-# and hence need to be isolated.
-# NOTE: this function is also sourced and invoked by the CSD control script, found here:
-#   https://github.com/caskdata/cm_csd/blob/develop/src/scripts/cdap-control.sh
-#   Any changes to this function must be compatible with the CSD's invocation
-#
-cdap_set_hive_classpath() {
-  local __explore=${EXPLORE_ENABLED:-$(cdap_get_conf "explore.enabled" "${CDAP_CONF}"/cdap-site.xml true)}
-  if [[ ${__explore} == true ]]; then
-    if [[ -z ${HIVE_HOME} ]] || [[ -z ${HIVE_CONF_DIR} ]] || [[ -z ${HADOOP_CONF_DIR} ]] || [[ -z ${HIVE_EXEC_ENGINE} ]] || [[ -z ${HIVE_CLASSPATH} ]]; then
-      __secure=${KERBEROS_ENABLED:-$(cdap_get_conf "kerberos.auth.enabled" "${CDAP_CONF}"/cdap-site.xml false)}
-      if [[ ${__secure} == true ]]; then
-        cdap_kinit || return 1
-      fi
-
-      if [[ -n ${HIVE_HOME} ]] && [[ -d ${HIVE_HOME} ]] && [[ -x ${HIVE_HOME}/bin/hive ]]; then
-        HIVE_CMD="${HIVE_HOME}"/bin/hive
-      else
-        HIVE_CMD=hive
-      fi
-
-      if [[ $(which ${HIVE_CMD} 2>/dev/null) ]]; then
-        ERR_FILE=$(mktemp)
-        HIVE_VAR_OUT=$(${HIVE_CMD} -e 'set -v' 2>${ERR_FILE})
-        __ret=$?
-        HIVE_ERR_MSG=$(< ${ERR_FILE})
-        rm ${ERR_FILE}
-        if [ ${__ret} -ne 0 ]; then
-          echo "[ERROR] While determining Hive classpath, failed to get Hive settings using: hive -e 'set -v'"
-          echo "  If you do not want CDAP with Hive functionality, set the 'explore.enabled' property in cdap-site.xml to 'false'"
-          echo "  Otherwise, check that the Hive client is installed, and that Hive and HDFS are running."
-          echo "  stderr:"
-          echo "${HIVE_ERR_MSG}"
-          return 1
-        fi
-        HIVE_VARS=$(echo ${HIVE_VAR_OUT} | tr ' ' '\n')
-        # Quotes preserve whitespace
-        HIVE_HOME=${HIVE_HOME:-$(echo -e "${HIVE_VARS}" | grep '^env:HIVE_HOME=' | cut -d= -f2)}
-        HIVE_CONF_DIR=${HIVE_CONF_DIR:-$(echo -e "${HIVE_VARS}" | grep '^env:HIVE_CONF_DIR=' | cut -d= -f2)}
-        HADOOP_CONF_DIR=${HADOOP_CONF_DIR:-$(echo -e "${HIVE_VARS}" | grep '^env:HADOOP_CONF_DIR=' | cut -d= -f2)}
-        HIVE_CLASSPATH=${HIVE_CLASSPATH:-$(echo -e "${HIVE_VARS}" | grep '^env:CLASSPATH=' | cut -d= -f2)}
-        HIVE_EXEC_ENGINE=${HIVE_EXEC_ENGINE:-$(echo -e "${HIVE_VARS}" | grep '^hive.execution.engine=' | cut -d= -f2)}
-      fi
-    fi
-
-    # If Hive classpath is successfully determined, derive explore
-    # classpath from it and export it to use it in the launch command
-    if [[ -n ${HIVE_HOME} ]] && [[ -n ${HIVE_CONF_DIR} ]] && [[ -n ${HADOOP_CONF_DIR} ]] && [[ -n ${HIVE_CLASSPATH} ]]; then
-      EXPLORE_CONF_DIRS="${HIVE_CONF_DIR}:${HADOOP_CONF_DIR}"
-      EXPLORE_CLASSPATH=${HIVE_CLASSPATH}
-      if [[ -n ${TEZ_HOME} ]] && [[ -n ${TEZ_CONF_DIR} ]]; then
-        # tez-site.xml also need to be passed to explore service
-        EXPLORE_CONF_DIRS="${EXPLORE_CONF_DIRS}:${TEZ_CONF_DIR}"
-      fi
-      if [[ ${HIVE_EXEC_ENGINE} == spark ]]; then
-        # We require SPARK_HOME to be set for CDAP to include the Spark assembly JAR for Explore
-        cdap_set_spark || die "Unable to get SPARK_HOME, but default Hive engine is Spark"
-      fi
-      export EXPLORE_CONF_DIRS EXPLORE_CLASSPATH
-    fi
-  fi
 }
 
 #
@@ -693,7 +583,7 @@ cdap_service() {
       ;;
     classpath)
       cdap_set_classpath "${CDAP_HOME}"/${__comp_home} "${CDAP_CONF}"
-      [[ ${__service} == master ]] && cdap_set_java && cdap_set_hbase
+      [[ ${__service} == master ]] && cdap_set_java
       echo ${CLASSPATH}
       __ret=0
       ;;
@@ -776,12 +666,6 @@ cdap_start_java() {
     if [[ -n ${SPARK_COMPAT} ]]; then
       __defines+=" -Dapp.program.spark.compat=${SPARK_COMPAT}"
     fi
-    # Master requires setting hive classpath
-    cdap_set_hive_classpath || return 1
-    local readonly __explore="-Dexplore.conf.dirs=${EXPLORE_CONF_DIRS} -Dexplore.classpath=${EXPLORE_CLASSPATH}"
-    __defines+=" ${__explore}"
-    # Add proper HBase compatibility to CLASSPATH
-    cdap_set_hbase || return 1
     # Master requires this local directory
     cdap_create_local_dir || die "Could not create Master local directory"
     # Check for JAVA_LIBRARY_PATH
@@ -808,14 +692,10 @@ cdap_start_java() {
       fi
     done
 
-    # Build and upload coprocessor jars
-    logecho "$(date) Ensuring required HBase coprocessors are on HDFS"
-    cdap_setup_coprocessors </dev/null >>${__logfile} 2>&1 || die "Could not setup coprocessors. Please check ${__logfile} for more information."
-
     __startup_checks=${CDAP_STARTUP_CHECKS:-$(cdap_get_conf "master.startup.checks.enabled" "${CDAP_CONF}"/cdap-site.xml true)}
     if [[ ${__startup_checks} == true ]]; then
       logecho "$(date) Running CDAP Master startup checks -- this may take a few minutes"
-      "${JAVA}" ${JAVA_HEAPMAX} ${__explore} ${JVM_OPTS[@]} -cp ${CLASSPATH} io.cdap.cdap.master.startup.MasterStartupTool </dev/null >>${__logfile} 2>&1
+      "${JAVA}" ${JAVA_HEAPMAX} ${JVM_OPTS[@]} -cp ${CLASSPATH} io.cdap.cdap.master.startup.MasterStartupTool </dev/null >>${__logfile} 2>&1
       if [ $? -ne 0 ]; then
         die "Master startup checks failed. Please check ${__logfile} to address issues."
       fi
@@ -851,9 +731,6 @@ cdap_run_class() {
   # Setup Java
   cdap_set_java || return 1
   cdap_set_spark || logecho "$(date) [WARN] Could not determine SPARK_HOME! Spark support unavailable!"
-  cdap_set_hive_classpath || return 1
-  # Add proper HBase compatibility to CLASSPATH
-  cdap_set_hbase || exit 1
   cdap_create_local_dir || die "Could not create local directory"
   if [[ -n ${__args} ]] && [[ ${__args} != '' ]]; then
     echo "$(date) Running class ${__class} with arguments: ${__args}"
@@ -883,9 +760,6 @@ cdap_exec_class() {
   # Setup Java
   cdap_set_java || return 1
   cdap_set_spark || logecho "$(date) [WARN] Could not determine SPARK_HOME! Spark support unavailable!"
-  cdap_set_hive_classpath || return 1
-  # Add proper HBase compatibility to CLASSPATH
-  cdap_set_hbase || exit 1
   cdap_create_local_dir || die "Could not create local directory"
   if [[ -n ${__args} ]] && [[ ${__args} != '' ]]; then
     echo "$(date) Running class ${__class} with arguments: ${__args}"
@@ -1143,7 +1017,7 @@ cdap_auth() {
   local readonly JAVA_HEAP_VAR=AUTH_JAVA_HEAPMAX
   local readonly JAVA_OPTS_VAR=AUTH_JAVA_OPTS
   local AUTH_JAVA_HEAPMAX=${AUTH_JAVA_HEAPMAX:--Xmx1024m}
-  local EXTRA_CLASSPATH="${EXTRA_CLASSPATH}:/etc/hbase/conf/"
+  local EXTRA_CLASSPATH="${EXTRA_CLASSPATH}"
   cdap_start_java || die "Failed to start CDAP ${CDAP_SERVICE} service"
 }
 
@@ -1171,7 +1045,7 @@ cdap_master() {
   local readonly JAVA_OPTS_VAR=MASTER_JAVA_OPTS
   local MASTER_JAVA_HEAPMAX=${MASTER_JAVA_HEAPMAX:--Xmx1024m}
   # Assuming update-alternatives convention
-  local EXTRA_CLASSPATH="${EXTRA_CLASSPATH}:/etc/hbase/conf/"
+  local EXTRA_CLASSPATH="${EXTRA_CLASSPATH}"
   cdap_start_java || die "Failed to start CDAP ${CDAP_SERVICE} service"
 }
 
@@ -1294,14 +1168,7 @@ cdap_config_tool() {
 #
 cdap_upgrade_tool() {
   local readonly __ret __class=io.cdap.cdap.data.tools.UpgradeTool
-
-  # check arguments
-  if [[ ${1} == 'hbase' ]]; then
-    shift
-    set -- "upgrade_hbase" ${@}
-  else
-    set -- "upgrade" ${@}
-  fi
+  set -- "upgrade" ${@}
 
   cdap_run_class ${__class} ${@}
   __ret=${?}

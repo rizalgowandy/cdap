@@ -18,18 +18,20 @@ package io.cdap.cdap.api.dataset.lib.partitioned;
 
 import io.cdap.cdap.api.dataset.lib.PartitionDetail;
 import io.cdap.cdap.api.dataset.lib.PartitionKey;
-
 import java.util.List;
 
 /**
- * Returns access to a list of partitions for consuming, as well as a list of {@link PartitionKey}s corresponding
- * to partitions that have previously failed processing the configured number of tries.
+ * Returns access to a list of partitions for consuming, as well as a list of {@link PartitionKey}s
+ * corresponding to partitions that have previously failed processing the configured number of
+ * tries.
  */
 public class PartitionConsumerResult {
+
   private final List<PartitionDetail> partitions;
   private final List<PartitionDetail> failedPartitions;
 
-  public PartitionConsumerResult(List<PartitionDetail> partitions, List<PartitionDetail> failedPartitions) {
+  public PartitionConsumerResult(List<PartitionDetail> partitions,
+      List<PartitionDetail> failedPartitions) {
     this.partitions = partitions;
     this.failedPartitions = failedPartitions;
   }
@@ -42,8 +44,8 @@ public class PartitionConsumerResult {
   }
 
   /**
-   * @return a list of {@link PartitionDetail}s, corresponding to partitions that have failed processing the configured
-   *         number of times.
+   * @return a list of {@link PartitionDetail}s, corresponding to partitions that have failed
+   *     processing the configured number of times.
    */
   public List<PartitionDetail> getFailedPartitions() {
     return failedPartitions;

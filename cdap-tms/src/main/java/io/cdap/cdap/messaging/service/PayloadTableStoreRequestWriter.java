@@ -17,11 +17,10 @@
 package io.cdap.cdap.messaging.service;
 
 import io.cdap.cdap.common.utils.TimeProvider;
-import io.cdap.cdap.messaging.StoreRequest;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.spi.StoreRequest;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.store.PayloadTable;
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.io.IOException;
 import java.util.Iterator;
 import javax.annotation.Nullable;
@@ -43,15 +42,16 @@ final class PayloadTableStoreRequestWriter extends StoreRequestWriter<PayloadTab
   }
 
   @Override
-  PayloadTable.Entry getEntry(TopicMetadata metadata, boolean transactional, long transactionWritePointer,
-                              long writeTimestamp, short sequenceId, @Nullable byte[] payload) {
+  PayloadTable.Entry getEntry(TopicMetadata metadata, boolean transactional,
+      long transactionWritePointer,
+      long writeTimestamp, short sequenceId, @Nullable byte[] payload) {
     return entry
-      .setTopicId(metadata.getTopicId())
-      .setGeneration(metadata.getGeneration())
-      .setTransactionWritePointer(transactionWritePointer)
-      .setPayloadWriteTimestamp(writeTimestamp)
-      .setPayloadSequenceId(sequenceId)
-      .setPayload(payload);
+        .setTopicId(metadata.getTopicId())
+        .setGeneration(metadata.getGeneration())
+        .setTransactionWritePointer(transactionWritePointer)
+        .setPayloadWriteTimestamp(writeTimestamp)
+        .setPayloadSequenceId(sequenceId)
+        .setPayload(payload);
   }
 
   @Override

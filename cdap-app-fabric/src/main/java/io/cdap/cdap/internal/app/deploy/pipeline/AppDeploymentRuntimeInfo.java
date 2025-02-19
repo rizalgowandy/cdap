@@ -18,26 +18,29 @@
 package io.cdap.cdap.internal.app.deploy.pipeline;
 
 import io.cdap.cdap.api.app.ApplicationSpecification;
-
 import java.util.Map;
 import javax.annotation.Nullable;
 
 /**
- * App deployment runtime information, including program options and existing app spec, existing app spec will be null
- * if this is a preview run
+ * App deployment runtime information, including program options and existing app spec, existing app
+ * spec will be null if this is a preview run
  */
 public class AppDeploymentRuntimeInfo {
+
+  @Deprecated
   private final ApplicationSpecification existingAppSpec;
   private final Map<String, String> userArguments;
   private final Map<String, String> systemArguments;
 
-  public AppDeploymentRuntimeInfo(@Nullable ApplicationSpecification existingAppSpec, Map<String, String> userArguments,
-                                  Map<String, String> systemArguments) {
+  public AppDeploymentRuntimeInfo(@Nullable ApplicationSpecification existingAppSpec,
+      Map<String, String> userArguments,
+      Map<String, String> systemArguments) {
     this.existingAppSpec = existingAppSpec;
     this.userArguments = userArguments;
     this.systemArguments = systemArguments;
   }
 
+  @Deprecated
   @Nullable
   public ApplicationSpecification getExistingAppSpec() {
     return existingAppSpec;

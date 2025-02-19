@@ -23,7 +23,6 @@ import io.cdap.cdap.cli.CLIConfig;
 import io.cdap.cdap.cli.util.AbstractCommand;
 import io.cdap.cdap.client.MetadataClient;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
@@ -42,7 +41,7 @@ public class RemoveMetadataPropertiesCommand extends AbstractCommand {
   @Override
   public void perform(Arguments arguments, PrintStream output) throws Exception {
     MetadataEntity metadataEntity =
-      MetadataCommandHelper.toMetadataEntity(arguments.get(ArgumentName.ENTITY.toString()));
+        MetadataCommandHelper.toMetadataEntity(arguments.get(ArgumentName.ENTITY.toString()));
     client.removeProperties(metadataEntity);
     output.println("Successfully removed metadata properties");
   }
@@ -54,6 +53,7 @@ public class RemoveMetadataPropertiesCommand extends AbstractCommand {
 
   @Override
   public String getDescription() {
-    return "Removes all metadata properties for an entity. " + ArgumentName.ENTITY_DESCRIPTION_STRING;
+    return "Removes all metadata properties for an entity. "
+        + ArgumentName.ENTITY_DESCRIPTION_STRING;
   }
 }

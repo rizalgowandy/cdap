@@ -102,13 +102,18 @@ public class ETLSpark extends AbstractSpark {
     // turn off auto-broadcast by default until we better understand the implications and can set this to a
     // value that we are confident is safe.
     sparkConf.set("spark.sql.autoBroadcastJoinThreshold", "-1");
-    sparkConf.set("spark.maxRemoteBlockSizeFetchToMem", String.valueOf(Integer.MAX_VALUE - 512));
+    // NOTE: If you change this value, also update io.netty.maxDirectMemory in
+    // KubeMasterEnvironment
+    sparkConf.set("spark.network.maxRemoteBlockSizeFetchToMem", String.valueOf(Integer.MAX_VALUE - 512));
     sparkConf.set("spark.network.timeout", "600s");
     // Disable yarn app retries since spark already performs retries at a task level.
     sparkConf.set("spark.yarn.maxAppAttempts", "1");
     // to make sure fields that are the same but different casing are treated as different fields in auto-joins
     // see CDAP-17024
     sparkConf.set("spark.sql.caseSensitive", "true");
+    //For spark 3.2 onwards the spark.hadoopRDD.ignoreEmptySplits is set to true, which created ZERO stages while using
+    //database plugins : see CDAP-20651
+    sparkConf.set("spark.hadoopRDD.ignoreEmptySplits", "false");
     context.setSparkConf(sparkConf);
 
     Map<String, String> properties = context.getSpecification().getProperties();

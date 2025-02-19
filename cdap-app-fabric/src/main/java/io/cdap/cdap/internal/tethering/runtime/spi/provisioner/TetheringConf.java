@@ -16,12 +16,14 @@
 
 package io.cdap.cdap.internal.tethering.runtime.spi.provisioner;
 
+import io.cdap.cdap.proto.id.EntityId;
 import java.util.Map;
 
 /**
  * Configuration for the Tethering Provisioner.
  */
 public class TetheringConf {
+
   public static final String TETHERED_INSTANCE_PROPERTY = "tetheredInstanceName";
   public static final String TETHERED_NAMESPACE_PROPERTY = "tetheredNamespace";
 
@@ -39,13 +41,16 @@ public class TetheringConf {
   public static TetheringConf fromProperties(Map<String, String> properties) {
     String tetheredInstanceName = getString(properties, TETHERED_INSTANCE_PROPERTY);
     String tetheredNamespace = getString(properties, TETHERED_NAMESPACE_PROPERTY);
+    EntityId.ensureValidNamespace(tetheredNamespace);
+    EntityId.ensureValidId("tetheredInstanceName", tetheredInstanceName);
     return new TetheringConf(tetheredInstanceName, tetheredNamespace);
   }
 
   private static String getString(Map<String, String> properties, String key) {
     String val = properties.get(key);
     if (val == null) {
-      throw new IllegalArgumentException(String.format("Invalid tethering config. '%s' must be specified.", key));
+      throw new IllegalArgumentException(
+          String.format("Invalid tethering config. '%s' must be specified.", key));
     }
     return val;
   }

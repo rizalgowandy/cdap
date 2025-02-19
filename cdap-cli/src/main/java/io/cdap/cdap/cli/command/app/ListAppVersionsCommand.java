@@ -26,7 +26,6 @@ import io.cdap.cdap.cli.util.RowMaker;
 import io.cdap.cdap.cli.util.table.Table;
 import io.cdap.cdap.client.ApplicationClient;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -49,13 +48,13 @@ public class ListAppVersionsCommand extends AbstractAuthCommand {
     List<String> versions = appClient.listAppVersions(cliConfig.getCurrentNamespace(), appName);
 
     Table table = Table.builder()
-      .setHeader("version")
-      .setRows(versions, new RowMaker<String>() {
-        @Override
-        public List<String> makeRow(String version) {
-          return Lists.newArrayList(version);
-        }
-      }).build();
+        .setHeader("version")
+        .setRows(versions, new RowMaker<String>() {
+          @Override
+          public List<String> makeRow(String version) {
+            return Lists.newArrayList(version);
+          }
+        }).build();
     cliConfig.getTableRenderer().render(cliConfig, output, table);
   }
 

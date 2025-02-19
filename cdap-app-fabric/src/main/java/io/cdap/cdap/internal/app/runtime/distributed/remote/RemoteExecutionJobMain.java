@@ -1,5 +1,5 @@
 /*
- * Copyright © 2020 Cask Data, Inc.
+ * Copyright © 2020-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -34,6 +34,7 @@ import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.logging.common.UncaughtExceptionHandler;
 import io.cdap.cdap.internal.app.runtime.distributed.runtimejob.DefaultRuntimeJob;
 import io.cdap.cdap.runtime.spi.provisioner.ClusterProperties;
@@ -42,6 +43,13 @@ import io.cdap.cdap.security.TokenSecureStoreRenewer;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.impersonation.CurrentUGIProvider;
 import io.cdap.cdap.security.impersonation.UGIProvider;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.twill.api.RunId;
 import org.apache.twill.api.TwillRunner;
@@ -52,14 +60,6 @@ import org.apache.twill.filesystem.LocationFactory;
 import org.apache.twill.internal.zookeeper.InMemoryZKServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The main class to setup the {@link RuntimeJobEnvironment} for remote execution.
@@ -83,7 +83,8 @@ public class RemoteExecutionJobMain {
   }
 
   /**
-   * The main method for the Application. It expects the first argument contains the program run id.
+   * The main method for the Application. It expects the first argument contains the program run
+   * id.
    *
    * @param args arguments provided to the application
    * @throws Exception if failed to the the job
@@ -112,9 +113,6 @@ public class RemoteExecutionJobMain {
     RunId runId = RunIds.fromString(arguments.get(RUN_ID));
     CConfiguration cConf = CConfiguration.create();
 
-    // Not support explore functionality in remote execution
-    cConf.setBoolean(Constants.Explore.EXPLORE_ENABLED, false);
-
     // Namespace the HDFS on the current cluster to segregate multiple runs on the same cluster
     cConf.set(Constants.CFG_HDFS_NAMESPACE, "/twill-" + runId);
 
@@ -139,31 +137,33 @@ public class RemoteExecutionJobMain {
     cConf.set(Constants.Zookeeper.QUORUM, zkConnectStr);
 
     Injector injector = Guice.createInjector(
-      new ConfigModule(cConf),
-      new DFSLocationModule(),
-      new InMemoryDiscoveryModule(),
-      new TwillModule(),
-      new AuthenticationContextModules().getProgramContainerModule(cConf),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          // don't need to perform any impersonation from within user programs
-          bind(UGIProvider.class).to(CurrentUGIProvider.class).in(Scopes.SINGLETON);
+        new ConfigModule(cConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new DFSLocationModule(),
+        new InMemoryDiscoveryModule(),
+        new TwillModule(),
+        new AuthenticationContextModules().getProgramContainerModule(cConf),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            // don't need to perform any impersonation from within user programs
+            bind(UGIProvider.class).to(CurrentUGIProvider.class).in(Scopes.SINGLETON);
 
-          // Binds a no-op SecureStore for the TwillModule to setup TokenSecureStoreRenewer.
-          bind(SecureStore.class).toInstance(new SecureStore() {
-            @Override
-            public List<SecureStoreMetadata> list(String namespace) {
-              return Collections.emptyList();
-            }
+            // Binds a no-op SecureStore for the TwillModule to setup TokenSecureStoreRenewer.
+            bind(SecureStore.class).toInstance(new SecureStore() {
+              @Override
+              public List<SecureStoreMetadata> list(String namespace) {
+                return Collections.emptyList();
+              }
 
-            @Override
-            public SecureStoreData get(String namespace, String name) throws Exception {
-              throw new NotFoundException("Secure key " + name + " not found in namespace " + namespace);
-            }
-          });
+              @Override
+              public SecureStoreData get(String namespace, String name) throws Exception {
+                throw new NotFoundException(
+                    "Secure key " + name + " not found in namespace " + namespace);
+              }
+            });
+          }
         }
-      }
     );
 
     Map<String, String> properties = new HashMap<>();
@@ -176,14 +176,17 @@ public class RemoteExecutionJobMain {
     twillRunnerService.start();
 
     if (UserGroupInformation.isSecurityEnabled()) {
-      TokenSecureStoreRenewer secureStoreRenewer = injector.getInstance(TokenSecureStoreRenewer.class);
-      secureStoreUpdateCancellable = twillRunnerService.setSecureStoreRenewer(secureStoreRenewer, 30000L,
-                                                                              secureStoreRenewer.getUpdateInterval(),
-                                                                              30000L,
-                                                                              TimeUnit.MILLISECONDS);
+      TokenSecureStoreRenewer secureStoreRenewer = injector.getInstance(
+          TokenSecureStoreRenewer.class);
+      secureStoreUpdateCancellable = twillRunnerService.setSecureStoreRenewer(secureStoreRenewer,
+          30000L,
+          secureStoreRenewer.getUpdateInterval(),
+          30000L,
+          TimeUnit.MILLISECONDS);
     }
 
-    return new RemoteExecutionRuntimeJobEnvironment(locationFactory, twillRunnerService, properties);
+    return new RemoteExecutionRuntimeJobEnvironment(locationFactory, twillRunnerService,
+        properties);
   }
 
   @VisibleForTesting
@@ -224,8 +227,9 @@ public class RemoteExecutionJobMain {
     private final TwillRunner twillRunner;
     private final Map<String, String> properties;
 
-    private RemoteExecutionRuntimeJobEnvironment(LocationFactory locationFactory, TwillRunner twillRunner,
-                                                 Map<String, String> properties) {
+    private RemoteExecutionRuntimeJobEnvironment(LocationFactory locationFactory,
+        TwillRunner twillRunner,
+        Map<String, String> properties) {
       this.locationFactory = locationFactory;
       this.twillRunner = twillRunner;
       this.properties = Collections.unmodifiableMap(properties);

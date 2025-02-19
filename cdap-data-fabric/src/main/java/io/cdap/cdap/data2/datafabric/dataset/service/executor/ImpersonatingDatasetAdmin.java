@@ -20,11 +20,10 @@ import com.google.common.base.Throwables;
 import io.cdap.cdap.api.dataset.DatasetAdmin;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.security.impersonation.Impersonator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {link DatasetAdmin} that executes operations, while impersonating.
@@ -119,7 +118,8 @@ class ImpersonatingDatasetAdmin implements DatasetAdmin {
 
       // since the callables we execute only throw IOException (besides unchecked exceptions),
       // this should never happen
-      LOG.warn("Unexpected exception while executing dataset admin operation in namespace {}.", datasetId, t);
+      LOG.warn("Unexpected exception while executing dataset admin operation in namespace {}.",
+          datasetId, t);
       // the only checked exception that the Callables in this class is IOException, and we handle that in the previous
       // catch statement. So, no checked exceptions should be wrapped by the following statement. However, we need it
       // because ImpersonationUtils#doAs declares 'throws Exception', because it can throw other checked exceptions

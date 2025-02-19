@@ -23,13 +23,12 @@ import io.cdap.cdap.cli.LaunchOptions;
 import io.cdap.cdap.cli.util.InstanceURIParser;
 import io.cdap.common.cli.Arguments;
 import io.cdap.common.cli.Command;
-
 import java.io.PrintStream;
 import javax.inject.Inject;
 
 /**
- * Connects to a CDAP instance. This command implements the deprecated connect command.
- * The class ConnectLinkCommand implements the preferred connect-link command.
+ * Connects to a CDAP instance. This command implements the deprecated connect command. The class
+ * ConnectLinkCommand implements the preferred connect-link command.
  */
 public class ConnectCommand implements Command {
 
@@ -39,7 +38,7 @@ public class ConnectCommand implements Command {
 
   @Inject
   public ConnectCommand(CLIConfig cliConfig, InstanceURIParser instanceURIParser,
-                        LaunchOptions launchOptions) {
+      LaunchOptions launchOptions) {
     this.cliConfig = cliConfig;
     this.instanceURIParser = instanceURIParser;
     this.debug = launchOptions.isDebug();
@@ -49,7 +48,8 @@ public class ConnectCommand implements Command {
   public void execute(Arguments arguments, PrintStream output) throws Exception {
     String instanceURI = arguments.get(ArgumentName.INSTANCE_URI.toString());
     String verifySSLCertString = arguments.getOptional(ArgumentName.VERIFY_SSL_CERT.toString());
-    boolean verifySSLCert = verifySSLCertString != null ? Boolean.valueOf(verifySSLCertString) : true;
+    boolean verifySSLCert =
+        verifySSLCertString != null ? Boolean.valueOf(verifySSLCertString) : true;
 
     CLIConnectionConfig connection = instanceURIParser.parse(instanceURI);
     try {
@@ -66,7 +66,7 @@ public class ConnectCommand implements Command {
   @Override
   public String getPattern() {
     return String.format("connect <%s> [<%s>]",
-                         ArgumentName.INSTANCE_URI, ArgumentName.VERIFY_SSL_CERT);
+        ArgumentName.INSTANCE_URI, ArgumentName.VERIFY_SSL_CERT);
   }
 
   @Override

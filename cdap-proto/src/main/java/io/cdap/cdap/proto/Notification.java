@@ -21,7 +21,6 @@ import com.google.gson.GsonBuilder;
 import io.cdap.cdap.api.dataset.lib.PartitionKey;
 import io.cdap.cdap.api.dataset.lib.partitioned.PartitionKeyCodec;
 import io.cdap.cdap.proto.id.DatasetId;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +36,7 @@ public class Notification {
   public static final String PARTITION_KEYS = "partitionKeys";
 
   private static final Gson GSON =
-    new GsonBuilder().registerTypeAdapter(PartitionKey.class, new PartitionKeyCodec()).create();
+      new GsonBuilder().registerTypeAdapter(PartitionKey.class, new PartitionKeyCodec()).create();
 
   /**
    * The type of the notification.
@@ -46,7 +45,8 @@ public class Notification {
     TIME,
     PARTITION,
     PROGRAM_STATUS,
-    PROGRAM_HEART_BEAT
+    PROGRAM_HEART_BEAT,
+    OPERATION_STATUS
   }
 
   private final Type notificationType;
@@ -58,7 +58,7 @@ public class Notification {
   }
 
   public static Notification forPartitions(DatasetId datasetId,
-                                           Collection<? extends PartitionKey> partitionKeys) {
+      Collection<? extends PartitionKey> partitionKeys) {
     Map<String, String> properties = new HashMap<>();
     properties.put(DATASET_ID, datasetId.toString());
     properties.put(NUM_PARTITIONS, Integer.toString(partitionKeys.size()));
@@ -86,7 +86,7 @@ public class Notification {
     Notification that = (Notification) o;
 
     return Objects.equals(notificationType, that.notificationType)
-      && Objects.equals(properties, that.properties);
+        && Objects.equals(properties, that.properties);
   }
 
   @Override
@@ -96,9 +96,9 @@ public class Notification {
 
   @Override
   public String toString() {
-    return "Notification{" +
-      "notificationType=" + notificationType +
-      ", properties=" + properties +
-      '}';
+    return "Notification{"
+        + "notificationType=" + notificationType
+        + ", properties=" + properties
+        + '}';
   }
 }

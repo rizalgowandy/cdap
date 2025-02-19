@@ -17,13 +17,13 @@
 package io.cdap.cdap.internal.pipeline;
 
 import io.cdap.cdap.api.plugin.Requirements;
-
 import java.util.Objects;
 
 /**
  * A wrapper class around plugin name, type and it's requirements
  */
 public class PluginRequirement {
+
   private final String name;
   private final String type;
   private final Requirements requirements;
@@ -64,9 +64,9 @@ public class PluginRequirement {
       return false;
     }
     PluginRequirement that = (PluginRequirement) o;
-    return Objects.equals(name, that.name) &&
-      Objects.equals(type, that.type) &&
-      Objects.equals(requirements, that.requirements);
+    return Objects.equals(name, that.name)
+        && Objects.equals(type, that.type)
+        && Objects.equals(requirements, that.requirements);
   }
 
   @Override
@@ -76,10 +76,10 @@ public class PluginRequirement {
 
   @Override
   public String toString() {
-    return "PluginRequirement{" +
-      "name='" + name + '\'' +
-      ", type='" + type + '\'' +
-      ", requirements=" + requirements +
-      '}';
+    return "PluginRequirement{"
+        + "name='" + name + '\''
+        + ", type='" + type + '\''
+        + ", requirements=" + requirements
+        + '}';
   }
 }

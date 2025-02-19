@@ -16,6 +16,11 @@
 
 package io.cdap.cdap.security.server;
 
+import static org.mockito.Matchers.contains;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.gson.JsonObject;
@@ -38,14 +43,6 @@ import io.cdap.cdap.security.auth.AccessTokenCodec;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.junit.Assert;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -60,11 +57,12 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.security.auth.login.Configuration;
-
-import static org.mockito.Matchers.contains;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
+import org.apache.twill.discovery.Discoverable;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base test class for ExternalAuthenticationServer.
@@ -117,7 +115,8 @@ public abstract class ExternalAuthenticationServerTestBase {
     Injector injector = Guice.createInjector(new IOModule(), externalAuthenticationModule,
                                              new CoreSecurityRuntimeModule().getInMemoryModules(),
                                              new ConfigModule(getConfiguration(configuration),
-                                                              HBaseConfiguration.create(), sConfiguration),
+                                                              new org.apache.hadoop.conf.Configuration(),
+                                                              sConfiguration),
                                              new InMemoryDiscoveryModule());
     server = injector.getInstance(ExternalAuthenticationServer.class);
     tokenCodec = injector.getInstance(AccessTokenCodec.class);
@@ -141,7 +140,7 @@ public abstract class ExternalAuthenticationServerTestBase {
   /**
    * Returns the full URL for the given request path
    */
-  protected URL getURL(String path) throws MalformedURLException {
+  protected URL getUrl(String path) throws MalformedURLException {
     InetSocketAddress serverAddr = server.getSocketAddress();
     while (path.startsWith("/")) {
       path = path.substring(1);
@@ -159,12 +158,10 @@ public abstract class ExternalAuthenticationServerTestBase {
 
   /**
    * Test an authorized request to server.
-   *
-   * @throws Exception
    */
   @Test
   public void testValidAuthentication() throws Exception {
-    HttpURLConnection urlConn = openConnection(getURL(GrantAccessToken.Paths.GET_TOKEN));
+    HttpURLConnection urlConn = openConnection(getUrl(GrantAccessToken.Paths.GET_TOKEN));
     try {
       Optional.ofNullable(getAuthRequestHeader()).ifPresent(m -> m.forEach(urlConn::addRequestProperty));
       Assert.assertEquals(200, urlConn.getResponseCode());
@@ -178,7 +175,7 @@ public abstract class ExternalAuthenticationServerTestBase {
 
       Assert.assertEquals("no-store", cacheControlHeader);
       Assert.assertEquals("no-cache", pragmaHeader);
-      Assert.assertEquals("application/json;charset=UTF-8", contentType);
+      Assert.assertEquals("application/json;charset=utf-8", contentType.toLowerCase());
 
       // Test correct response body
       ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -211,12 +208,10 @@ public abstract class ExternalAuthenticationServerTestBase {
 
   /**
    * Test an unauthorized request to server.
-   *
-   * @throws Exception
    */
   @Test
   public void testInvalidAuthentication() throws Exception {
-    HttpURLConnection urlConn = openConnection(getURL(GrantAccessToken.Paths.GET_TOKEN));
+    HttpURLConnection urlConn = openConnection(getUrl(GrantAccessToken.Paths.GET_TOKEN));
     try {
       Optional.ofNullable(getAuthRequestHeader())
         .ifPresent(m -> m.forEach((k, v) -> urlConn.addRequestProperty(k, "xxxxx")));
@@ -231,12 +226,10 @@ public abstract class ExternalAuthenticationServerTestBase {
 
   /**
    * Test an unauthorized status request to server.
-   *
-   * @throws Exception
    */
   @Test
   public void testStatusResponse() throws Exception {
-    HttpURLConnection urlConn = openConnection(getURL(Constants.EndPoints.STATUS));
+    HttpURLConnection urlConn = openConnection(getUrl(Constants.EndPoints.STATUS));
     try {
       // Status request is authorized without any extra headers
       Assert.assertEquals(200, urlConn.getResponseCode());
@@ -247,12 +240,10 @@ public abstract class ExternalAuthenticationServerTestBase {
 
   /**
    * Test getting a long lasting Access Token.
-   *
-   * @throws Exception
    */
   @Test
   public void testExtendedToken() throws Exception {
-    HttpURLConnection urlConn = openConnection(getURL(GrantAccessToken.Paths.GET_EXTENDED_TOKEN));
+    HttpURLConnection urlConn = openConnection(getUrl(GrantAccessToken.Paths.GET_EXTENDED_TOKEN));
     try {
       Optional.ofNullable(getAuthRequestHeader()).ifPresent(m -> m.forEach(urlConn::addRequestProperty));
 
@@ -285,12 +276,10 @@ public abstract class ExternalAuthenticationServerTestBase {
 
   /**
    * Test that invalid paths return a 404 Not Found.
-   *
-   * @throws Exception
    */
   @Test
   public void testInvalidPath() throws Exception {
-    HttpURLConnection urlConn = openConnection(getURL("invalid"));
+    HttpURLConnection urlConn = openConnection(getUrl("invalid"));
     try {
       Optional.ofNullable(getAuthRequestHeader()).ifPresent(m -> m.forEach(urlConn::addRequestProperty));
       Assert.assertEquals(404, urlConn.getResponseCode());

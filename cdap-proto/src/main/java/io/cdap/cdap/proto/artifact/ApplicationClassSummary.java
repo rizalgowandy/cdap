@@ -17,13 +17,13 @@
 package io.cdap.cdap.proto.artifact;
 
 import io.cdap.cdap.api.artifact.ArtifactSummary;
-
 import java.util.Objects;
 
 /**
  * Represents the objects returned by /classes/app
  */
 public class ApplicationClassSummary {
+
   private final ArtifactSummary artifact;
   private final String className;
 
@@ -61,9 +61,9 @@ public class ApplicationClassSummary {
 
   @Override
   public String toString() {
-    return "ApplicationClassSummary{" +
-      "artifact=" + artifact +
-      ", className='" + className + '\'' +
-      '}';
+    return "ApplicationClassSummary{"
+        + "artifact=" + artifact
+        + ", className='" + className + '\''
+        + '}';
   }
 }

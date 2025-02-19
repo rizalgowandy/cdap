@@ -17,7 +17,6 @@
 package io.cdap.cdap.internal.app.runtime.batch;
 
 import io.cdap.cdap.api.data.batch.OutputFormatProvider;
-
 import java.util.Map;
 
 /**
@@ -28,7 +27,8 @@ public class BasicOutputFormatProvider implements OutputFormatProvider {
   private final String outputFormatClassName;
   private final Map<String, String> outputFormatConfiguration;
 
-  public BasicOutputFormatProvider(String outputFormatClassName, Map<String, String> outputFormatConfiguration) {
+  public BasicOutputFormatProvider(String outputFormatClassName,
+      Map<String, String> outputFormatConfiguration) {
     this.outputFormatClassName = outputFormatClassName;
     this.outputFormatConfiguration = outputFormatConfiguration;
   }

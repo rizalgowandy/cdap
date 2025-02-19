@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.api;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.data.schema.Schema;
-
 import javax.annotation.Nullable;
 
 /**
@@ -37,6 +36,13 @@ public interface StageConfigurer {
   Schema getInputSchema();
 
   /**
+   * Returns the name of the stage.
+   *
+   * @return the name of the stage
+   */
+  String getStageName();
+
+  /**
    * set the output schema for this stage, or null if its unknown
    *
    * @param outputSchema output schema for this stage
@@ -44,9 +50,9 @@ public interface StageConfigurer {
   void setOutputSchema(@Nullable Schema outputSchema);
 
   /**
-   * set the error schema for this stage, or null if its unknown.
-   * If no error schema is set, it will default to the input schema for the stage. Note that since source
-   * plugins do not have an input schema, it will default to null for sources.
+   * set the error schema for this stage, or null if its unknown. If no error schema is set, it will
+   * default to the input schema for the stage. Note that since source plugins do not have an input
+   * schema, it will default to null for sources.
    *
    * @param errorSchema error schema for this stage
    */

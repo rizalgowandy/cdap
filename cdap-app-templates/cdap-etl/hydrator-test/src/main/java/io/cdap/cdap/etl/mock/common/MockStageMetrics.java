@@ -18,13 +18,13 @@ package io.cdap.cdap.etl.mock.common;
 
 import io.cdap.cdap.api.metrics.Metrics;
 import io.cdap.cdap.etl.api.StageMetrics;
-
 import java.util.Map;
 
 /**
  * Mock StageMetrics for unit tests
  */
 public class MockStageMetrics implements StageMetrics {
+
   private final String stageName;
   private final MockMetrics mockMetrics;
 

@@ -24,7 +24,6 @@ import io.cdap.cdap.internal.app.runtime.schedule.ProgramSchedule;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.ProtoTrigger;
 import io.cdap.cdap.proto.id.ProgramId;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,7 +35,9 @@ import javax.annotation.Nullable;
  * Abstract base class for composite trigger.
  */
 public abstract class AbstractSatisfiableCompositeTrigger
-  extends ProtoTrigger.AbstractCompositeTrigger<SatisfiableTrigger> implements SatisfiableTrigger {
+    extends ProtoTrigger.AbstractCompositeTrigger<SatisfiableTrigger> implements
+    SatisfiableTrigger {
+
   // A map of non-composite trigger type and set of triggers of the same type
   private Map<Type, Set<SatisfiableTrigger>> unitTriggers;
 
@@ -56,7 +57,7 @@ public abstract class AbstractSatisfiableCompositeTrigger
 
   @Override
   public void updateLaunchArguments(ProgramSchedule schedule, List<Notification> notifications,
-                                    Map<String, String> systemArgs, Map<String, String> userArgs) {
+      Map<String, String> systemArgs, Map<String, String> userArgs) {
     for (SatisfiableTrigger trigger : getTriggers()) {
       trigger.updateLaunchArguments(schedule, notifications, systemArgs, userArgs);
     }
@@ -80,7 +81,7 @@ public abstract class AbstractSatisfiableCompositeTrigger
       if (trigger instanceof AbstractSatisfiableCompositeTrigger) {
         // If the current trigger is a composite trigger, add each of its unit triggers to the set according to type
         for (Map.Entry<Type, Set<SatisfiableTrigger>> entry :
-          ((AbstractSatisfiableCompositeTrigger) trigger).getUnitTriggers().entrySet()) {
+            ((AbstractSatisfiableCompositeTrigger) trigger).getUnitTriggers().entrySet()) {
           Set<SatisfiableTrigger> innerUnitTriggerSet = unitTriggers.get(entry.getKey());
           if (innerUnitTriggerSet == null) {
             innerUnitTriggerSet = new HashSet<>();
@@ -115,7 +116,8 @@ public abstract class AbstractSatisfiableCompositeTrigger
 
   /**
    * Create a new trigger where all sub-triggers related to the given program have been removed.
-   * Returns null if removing relevant sub-triggers results in a trigger that can never be satisfied.
+   * Returns null if removing relevant sub-triggers results in a trigger that can never be
+   * satisfied.
    *
    * @param programId the program id of the deleted program
    * @return the new trigger, or {@code null} if result trigger will never be satisfied

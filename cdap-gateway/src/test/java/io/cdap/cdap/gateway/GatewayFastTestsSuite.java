@@ -17,7 +17,6 @@
 package io.cdap.cdap.gateway;
 
 import com.google.common.collect.ObjectArrays;
-import com.google.common.io.Files;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.test.AppJarHelper;
@@ -25,6 +24,8 @@ import io.cdap.cdap.common.utils.DirUtils;
 import io.cdap.cdap.gateway.handlers.PingHandlerTestRun;
 import io.cdap.cdap.gateway.handlers.RuntimeArgumentTestRun;
 import io.cdap.cdap.gateway.handlers.hooks.MetricsReporterHookTestRun;
+import java.io.File;
+import java.io.IOException;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpDelete;
@@ -41,9 +42,6 @@ import org.apache.twill.filesystem.Location;
 import org.apache.twill.filesystem.LocationFactory;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * Test Suite for running all API tests.

@@ -15,13 +15,12 @@
  */
 package io.cdap.cdap.common.zookeeper.coordination;
 
+import java.util.Collection;
 import org.apache.twill.discovery.Discoverable;
 
-import java.util.Collection;
-
 /**
- * Handle changes in resource assignment. It takes resource assignment changes and invoke changes specific to
- * the {@link Discoverable} given in the constructor.
+ * Handle changes in resource assignment. It takes resource assignment changes and invoke changes
+ * specific to the {@link Discoverable} given in the constructor.
  */
 public abstract class ResourceHandler implements AssignmentChangeListener {
 

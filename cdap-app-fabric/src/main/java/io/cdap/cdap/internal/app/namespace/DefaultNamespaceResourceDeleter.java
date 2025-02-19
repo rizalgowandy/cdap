@@ -25,26 +25,27 @@ import io.cdap.cdap.config.PreferencesService;
 import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.services.ApplicationLifecycleService;
+import io.cdap.cdap.internal.app.services.SourceControlManagementService;
 import io.cdap.cdap.internal.profile.ProfileService;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
 import io.cdap.cdap.security.impersonation.Impersonator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract class for deleting namespace components
  */
 public class DefaultNamespaceResourceDeleter implements NamespaceResourceDeleter {
+
   private static final Logger LOG = LoggerFactory.getLogger(DefaultNamespaceResourceDeleter.class);
 
   private final Impersonator impersonator;
@@ -53,25 +54,29 @@ public class DefaultNamespaceResourceDeleter implements NamespaceResourceDeleter
   private final DatasetFramework dsFramework;
   private final MetricsSystemClient metricsSystemClient;
   private final ApplicationLifecycleService applicationLifecycleService;
+  private final SourceControlManagementService sourceControlService;
   private final ArtifactRepository artifactRepository;
   private final StorageProviderNamespaceAdmin storageProviderNamespaceAdmin;
   private final MessagingService messagingService;
   private final ProfileService profileService;
 
   @Inject
-  DefaultNamespaceResourceDeleter(Impersonator impersonator, Store store, PreferencesService preferencesService,
-                                  DatasetFramework dsFramework,
-                                  MetricsSystemClient metricsSystemClient,
-                                  ApplicationLifecycleService applicationLifecycleService,
-                                  ArtifactRepository artifactRepository,
-                                  StorageProviderNamespaceAdmin storageProviderNamespaceAdmin,
-                                  MessagingService messagingService, ProfileService profileService) {
+  DefaultNamespaceResourceDeleter(Impersonator impersonator, Store store,
+      PreferencesService preferencesService,
+      DatasetFramework dsFramework,
+      MetricsSystemClient metricsSystemClient,
+      ApplicationLifecycleService applicationLifecycleService,
+      SourceControlManagementService sourceControlService,
+      ArtifactRepository artifactRepository,
+      StorageProviderNamespaceAdmin storageProviderNamespaceAdmin,
+      MessagingService messagingService, ProfileService profileService) {
     this.impersonator = impersonator;
     this.store = store;
     this.preferencesService = preferencesService;
     this.dsFramework = dsFramework;
     this.metricsSystemClient = metricsSystemClient;
     this.applicationLifecycleService = applicationLifecycleService;
+    this.sourceControlService = sourceControlService;
     this.artifactRepository = artifactRepository;
     this.storageProviderNamespaceAdmin = storageProviderNamespaceAdmin;
     this.messagingService = messagingService;
@@ -84,6 +89,8 @@ public class DefaultNamespaceResourceDeleter implements NamespaceResourceDeleter
 
     // Delete Preferences associated with this namespace
     preferencesService.deleteProperties(namespaceId);
+    // Delete Source Control repository configuration
+    sourceControlService.deleteRepository(namespaceId);
     // Delete all applications
     applicationLifecycleService.removeAll(namespaceId);
     // Delete datasets and modules
@@ -125,7 +132,7 @@ public class DefaultNamespaceResourceDeleter implements NamespaceResourceDeleter
     Map<String, String> tags = new LinkedHashMap<>();
     tags.put(Constants.Metrics.Tag.NAMESPACE, namespaceId.getNamespace());
     MetricDeleteQuery deleteQuery = new MetricDeleteQuery(0, endTs, Collections.emptySet(), tags,
-                                                          new ArrayList<>(tags.keySet()));
+        new ArrayList<>(tags.keySet()));
     metricsSystemClient.delete(deleteQuery);
   }
 }

@@ -18,6 +18,10 @@ package io.cdap.cdap.internal.app.runtime.batch.dataset.input;
 
 import com.google.common.base.Preconditions;
 import io.cdap.cdap.common.conf.ConfigurationUtil;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -28,18 +32,12 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.ReflectionUtils;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 /**
  * An {@link InputFormat} that delegates behavior of InputFormat to multiple other InputFormats.
  *
- * @see MultipleInputs#addInput(Job, String, String, Map, Class)
- *
  * @param <K> Type of key
  * @param <V> Type of value
+ * @see MultipleInputs#addInput(Job, String, String, Map, Class)
  */
 public class MultiInputFormat<K, V> extends InputFormat<K, V> {
 
@@ -47,7 +45,8 @@ public class MultiInputFormat<K, V> extends InputFormat<K, V> {
   @SuppressWarnings("unchecked")
   public List<InputSplit> getSplits(JobContext job) throws IOException, InterruptedException {
     List<InputSplit> splits = new ArrayList<>();
-    Map<String, MultipleInputs.MapperInput> mapperInputMap = MultipleInputs.getInputMap(job.getConfiguration());
+    Map<String, MultipleInputs.MapperInput> mapperInputMap = MultipleInputs.getInputMap(
+        job.getConfiguration());
 
     for (Map.Entry<String, MultipleInputs.MapperInput> mapperInputEntry : mapperInputMap.entrySet()) {
       String inputName = mapperInputEntry.getKey();
@@ -59,11 +58,13 @@ public class MultiInputFormat<K, V> extends InputFormat<K, V> {
       // set configuration specific for this input onto the jobCopy
       ConfigurationUtil.setAll(mapperInput.getInputFormatConfiguration(), confCopy);
 
-      Class<?> inputFormatClass = confCopy.getClassByNameOrNull(mapperInput.getInputFormatClassName());
+      Class<?> inputFormatClass = confCopy.getClassByNameOrNull(
+          mapperInput.getInputFormatClassName());
       Preconditions.checkNotNull(inputFormatClass,
-                                 "Class could not be found: %s", mapperInput.getInputFormatClassName());
+          "Class could not be found: %s", mapperInput.getInputFormatClassName());
 
-      InputFormat<K, V> inputFormat = (InputFormat) ReflectionUtils.newInstance(inputFormatClass, confCopy);
+      InputFormat<K, V> inputFormat = (InputFormat) ReflectionUtils.newInstance(inputFormatClass,
+          confCopy);
       //some input format need a jobId to getSplits
       jobCopy.setJobID(new JobID(inputName, inputName.hashCode()));
 
@@ -71,8 +72,9 @@ public class MultiInputFormat<K, V> extends InputFormat<K, V> {
       // and Mapper types by wrapping in a MultiInputTaggedSplit.
       List<InputSplit> formatSplits = inputFormat.getSplits(jobCopy);
       for (InputSplit split : formatSplits) {
-        splits.add(new MultiInputTaggedSplit(split, confCopy, inputName, mapperInput.getInputFormatConfiguration(),
-                                             inputFormat.getClass(), mapperClassName));
+        splits.add(new MultiInputTaggedSplit(split, confCopy, inputName,
+            mapperInput.getInputFormatConfiguration(),
+            inputFormat.getClass(), mapperClassName));
       }
     }
     return splits;
@@ -80,11 +82,11 @@ public class MultiInputFormat<K, V> extends InputFormat<K, V> {
 
   @Override
   public RecordReader<K, V> createRecordReader(InputSplit split,
-                                               TaskAttemptContext context) throws IOException, InterruptedException {
+      TaskAttemptContext context) throws IOException, InterruptedException {
     MultiInputTaggedSplit taggedInputSplit = (MultiInputTaggedSplit) split;
     ConfigurationUtil.setAll((taggedInputSplit).getInputConfigs(), context.getConfiguration());
     InputFormat<K, V> inputFormat = (InputFormat<K, V>) ReflectionUtils.newInstance(
-      taggedInputSplit.getInputFormatClass(), context.getConfiguration());
+        taggedInputSplit.getInputFormatClass(), context.getConfiguration());
     InputSplit inputSplit = taggedInputSplit.getInputSplit();
     // we can't simply compute the underlying RecordReader and return it, because we need to override its
     // initialize method in order to initialize the underlying RecordReader with the underlying InputSplit

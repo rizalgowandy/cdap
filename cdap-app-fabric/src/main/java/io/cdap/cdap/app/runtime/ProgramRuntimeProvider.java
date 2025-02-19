@@ -19,7 +19,6 @@ package io.cdap.cdap.app.runtime;
 import com.google.inject.Injector;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.proto.ProgramType;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -55,17 +54,28 @@ public interface ProgramRuntimeProvider {
    *
    * @param programType the {@link ProgramType} that the {@link ProgramRunner} will be used on
    * @param mode The execution mode that the {@link ProgramRunner} will be used one
-   * @param injector the CDAP app-fabric Guice {@link Injector} for acquiring system services to interact with CDAP
+   * @param injector the CDAP app-fabric Guice {@link Injector} for acquiring system services to
+   *     interact with CDAP
    */
   ProgramRunner createProgramRunner(ProgramType programType, Mode mode, Injector injector);
 
   /**
-   * Return whether the specified program type is supported. If not,
-   * {@link #createProgramRunner(ProgramType, Mode, Injector)} will not be called.
+   * Return whether the specified program type is supported. If not, {@link
+   * #createProgramRunner(ProgramType, Mode, Injector)} will not be called.
    *
    * @param programType the {@link ProgramType} to check support for
    * @param cConf the CDAP configuration
    * @return whether the specified program type is supported
    */
   boolean isSupported(ProgramType programType, CConfiguration cConf);
+
+  /**
+   * Creates a ClassLoader for the given program type. This is useful if you need the program class
+   * loader but do not need to run a program.
+   *
+   * @param cConf The configuration to use
+   * @param programType The type of program
+   * @return a {@link ClassLoader} for the given program runner
+   */
+  ClassLoader createProgramClassLoader(CConfiguration cConf, ProgramType programType);
 }

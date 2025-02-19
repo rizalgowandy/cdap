@@ -22,10 +22,8 @@ import io.cdap.cdap.api.Config;
 import io.cdap.cdap.api.app.Application;
 import io.cdap.cdap.api.artifact.ArtifactId;
 import io.cdap.cdap.api.artifact.ArtifactScope;
-import io.cdap.cdap.api.artifact.ArtifactVersion;
 import io.cdap.cdap.internal.lang.Reflections;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.lang.reflect.Type;
 
 /**
@@ -34,7 +32,8 @@ import java.lang.reflect.Type;
 public final class Artifacts {
 
   public static String getFileName(ArtifactId artifactId) {
-    return String.format("%s-%s-%s.jar", artifactId.getScope(), artifactId.getName(), artifactId.getVersion());
+    return String.format("%s-%s-%s.jar", artifactId.getScope(), artifactId.getName(),
+        artifactId.getVersion());
   }
 
   /**
@@ -45,7 +44,8 @@ public final class Artifacts {
    * @throws IllegalArgumentException if the config type is not a valid type
    */
   public static Type getConfigType(Class<? extends Application> appClass) {
-    TypeToken<?> configType = TypeToken.of(appClass).resolveType(Application.class.getTypeParameters()[0]);
+    TypeToken<?> configType = TypeToken.of(appClass)
+        .resolveType(Application.class.getTypeParameters()[0]);
     if (Reflections.isResolved(configType.getType())) {
       // Default the type to Config.class if the resolved type is not subclass of Config.
       // It normally won't happen, unless someone generate the bytecode directly.
@@ -59,8 +59,8 @@ public final class Artifacts {
 
     // It has to be Config
     Preconditions.checkArgument(Config.class == configType.getRawType(),
-      "Application config type " + configType + " not supported. " +
-      "Type must extend Config and cannot be parameterized.");
+        "Application config type " + configType + " not supported. "
+            + "Type must extend Config and cannot be parameterized.");
     return Config.class;
   }
 
@@ -70,9 +70,11 @@ public final class Artifacts {
    * @param namespaceId the user namespace to use
    * @param artifactId the artifact id to convert
    */
-  public static io.cdap.cdap.proto.id.ArtifactId toProtoArtifactId(NamespaceId namespaceId, ArtifactId artifactId) {
+  public static io.cdap.cdap.proto.id.ArtifactId toProtoArtifactId(NamespaceId namespaceId,
+      ArtifactId artifactId) {
     ArtifactScope scope = artifactId.getScope();
-    NamespaceId artifactNamespace = scope == ArtifactScope.SYSTEM ? NamespaceId.SYSTEM : namespaceId;
+    NamespaceId artifactNamespace =
+        scope == ArtifactScope.SYSTEM ? NamespaceId.SYSTEM : namespaceId;
     return artifactNamespace.artifact(artifactId.getName(), artifactId.getVersion().getVersion());
   }
 

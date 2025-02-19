@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.api.engine.sql.request;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.etl.api.engine.sql.SQLEngineOutput;
-
 import java.io.Serializable;
 
 /**
@@ -26,6 +25,7 @@ import java.io.Serializable;
  */
 @Beta
 public class SQLWriteRequest implements Serializable {
+
   private final String datasetName;
   private final SQLEngineOutput output;
 
@@ -33,6 +33,7 @@ public class SQLWriteRequest implements Serializable {
 
   /**
    * Creates a new SQLWriteRequest instance
+   *
    * @param datasetName dataset name
    * @param output SQL engine output configuration
    */

@@ -18,16 +18,15 @@ package io.cdap.cdap.messaging.context;
 
 import io.cdap.cdap.api.messaging.MessageFetcher;
 import io.cdap.cdap.api.messaging.MessagePublisher;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import java.util.Collection;
+import java.util.Collections;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionAware;
 
-import java.util.Collection;
-import java.util.Collections;
-
 /**
- * A {@link TransactionAware} that maintains {@link MessagePublisher},
- * {@link MessageFetcher} and {@link Transaction} information for a thread.
+ * A {@link TransactionAware} that maintains {@link MessagePublisher}, {@link MessageFetcher} and
+ * {@link Transaction} information for a thread.
  */
 final class BasicMessagingContext implements TransactionAware {
 

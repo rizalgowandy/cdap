@@ -28,15 +28,16 @@ import io.cdap.cdap.api.service.worker.RunnableTaskRequest;
 import io.cdap.cdap.app.deploy.ConfigResponse;
 import io.cdap.cdap.app.deploy.Configurator;
 import io.cdap.cdap.common.conf.CConfiguration;
+import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
+import io.cdap.cdap.common.internal.remote.RemoteTaskExecutor;
 import io.cdap.cdap.internal.app.ApplicationSpecificationAdapter;
-import io.cdap.cdap.internal.app.RemoteTaskExecutor;
 import io.cdap.cdap.internal.app.deploy.pipeline.AppDeploymentInfo;
 import io.cdap.cdap.internal.app.runtime.artifact.ApplicationClassCodec;
 import io.cdap.cdap.internal.app.runtime.artifact.RequirementsCodec;
 import io.cdap.cdap.internal.app.worker.ConfiguratorTask;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
-
+import io.cdap.common.http.HttpRequestConfig;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -44,33 +45,41 @@ import java.nio.charset.StandardCharsets;
  */
 public class RemoteConfigurator implements Configurator {
 
-  private static final Gson GSON = ApplicationSpecificationAdapter.addTypeAdapters(new GsonBuilder())
-    .registerTypeAdapter(Schema.class, new SchemaTypeAdapter())
-    .registerTypeAdapter(ApplicationClass.class, new ApplicationClassCodec())
-    .registerTypeAdapter(Requirements.class, new RequirementsCodec())
-    .create();
+  private static final Gson GSON = ApplicationSpecificationAdapter.addTypeAdapters(
+          new GsonBuilder())
+      .registerTypeAdapter(Schema.class, new SchemaTypeAdapter())
+      .registerTypeAdapter(ApplicationClass.class, new ApplicationClassCodec())
+      .registerTypeAdapter(Requirements.class, new RequirementsCodec())
+      .create();
 
   private final AppDeploymentInfo deploymentInfo;
   private final RemoteTaskExecutor remoteTaskExecutor;
 
   @Inject
   public RemoteConfigurator(CConfiguration cConf, MetricsCollectionService metricsCollectionService,
-                            @Assisted AppDeploymentInfo deploymentInfo,
-                            RemoteClientFactory remoteClientFactory) {
+      @Assisted AppDeploymentInfo deploymentInfo,
+      RemoteClientFactory remoteClientFactory) {
     this.deploymentInfo = deploymentInfo;
-    this.remoteTaskExecutor = new RemoteTaskExecutor(cConf, metricsCollectionService, remoteClientFactory);
+    int connectTimeout = cConf.getInt(
+        Constants.TaskWorker.CONFIGURATOR_HTTP_CLIENT_CONNECTION_TIMEOUT_MS);
+    int readTimeout = cConf.getInt(Constants.TaskWorker.CONFIGURATOR_HTTP_CLIENT_READ_TIMEOUT_MS);
+    HttpRequestConfig httpRequestConfig = new HttpRequestConfig(connectTimeout, readTimeout, false);
+    this.remoteTaskExecutor = new RemoteTaskExecutor(cConf, metricsCollectionService,
+        remoteClientFactory,
+        RemoteTaskExecutor.Type.TASK_WORKER, httpRequestConfig);
   }
 
   @Override
   public ListenableFuture<ConfigResponse> config() {
     try {
       RunnableTaskRequest request = RunnableTaskRequest.getBuilder(ConfiguratorTask.class.getName())
-        .withParam(GSON.toJson(deploymentInfo))
-        .build();
+          .withParam(GSON.toJson(deploymentInfo))
+          .withNamespace(deploymentInfo.getNamespaceId().getNamespace())
+          .build();
 
       byte[] result = remoteTaskExecutor.runTask(request);
       return Futures.immediateFuture(GSON.fromJson(new String(result, StandardCharsets.UTF_8),
-                                                   DefaultConfigResponse.class));
+          DefaultConfigResponse.class));
     } catch (Exception ex) {
       return Futures.immediateFailedFuture(ex);
     }

@@ -21,7 +21,6 @@ import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.api.metadata.MetadataScope;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespacedEntityId;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,6 +31,7 @@ import java.util.Objects;
  */
 @Beta
 public class MetadataSearchResultRecord {
+
   private final MetadataEntity metadataEntity;
   private final Map<MetadataScope, Metadata> metadata;
 
@@ -43,11 +43,13 @@ public class MetadataSearchResultRecord {
     this(metadataEntity, Collections.emptyMap());
   }
 
-  public MetadataSearchResultRecord(NamespacedEntityId entityId, Map<MetadataScope, Metadata> metadata) {
+  public MetadataSearchResultRecord(NamespacedEntityId entityId,
+      Map<MetadataScope, Metadata> metadata) {
     this(entityId.toMetadataEntity(), metadata);
   }
 
-  public MetadataSearchResultRecord(MetadataEntity metadataEntity, Map<MetadataScope, Metadata> metadata) {
+  public MetadataSearchResultRecord(MetadataEntity metadataEntity,
+      Map<MetadataScope, Metadata> metadata) {
     this.metadataEntity = metadataEntity;
     this.metadata = new HashMap<>(metadata);
   }
@@ -73,8 +75,8 @@ public class MetadataSearchResultRecord {
       return false;
     }
     MetadataSearchResultRecord that = (MetadataSearchResultRecord) o;
-    return Objects.equals(metadataEntity, that.metadataEntity) &&
-      Objects.equals(metadata, that.metadata);
+    return Objects.equals(metadataEntity, that.metadataEntity)
+        && Objects.equals(metadata, that.metadata);
   }
 
   @Override
@@ -84,9 +86,9 @@ public class MetadataSearchResultRecord {
 
   @Override
   public String toString() {
-    return "MetadataSearchResultRecord{" +
-      "metadataEntity=" + metadataEntity +
-      ", metadata=" + metadata +
-      '}';
+    return "MetadataSearchResultRecord{"
+        + "metadataEntity=" + metadataEntity
+        + ", metadata=" + metadata
+        + '}';
   }
 }

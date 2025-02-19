@@ -22,21 +22,22 @@ import com.google.inject.Injector;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.encryption.NoOpAeadCipher;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.internal.guice.AppFabricTestModule;
 import io.cdap.cdap.security.auth.TokenValidator;
 import io.cdap.cdap.security.auth.UserIdentityExtractor;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
+import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.junit.rules.ExternalResource;
 
-import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
-
 class RouterResource extends ExternalResource {
+
   private final String hostname;
   private final DiscoveryService discoveryService;
   private final Map<String, String> additionalConfig;
@@ -47,7 +48,8 @@ class RouterResource extends ExternalResource {
     this(hostname, discoveryService, new HashMap<>());
   }
 
-  RouterResource(String hostname, DiscoveryService discoveryService, Map<String, String> additionalConfig) {
+  RouterResource(String hostname, DiscoveryService discoveryService,
+      Map<String, String> additionalConfig) {
     this.hostname = hostname;
     this.discoveryService = discoveryService;
     this.additionalConfig = additionalConfig;
@@ -57,10 +59,11 @@ class RouterResource extends ExternalResource {
   protected void before() {
     CConfiguration cConf = CConfiguration.create();
     Injector injector = Guice.createInjector(new CoreSecurityRuntimeModule().getStandaloneModules(),
-                                             new ExternalAuthenticationModule(),
-                                             new InMemoryDiscoveryModule(),
-                                             new AppFabricTestModule(cConf));
-    DiscoveryServiceClient discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
+        new ExternalAuthenticationModule(),
+        new InMemoryDiscoveryModule(),
+        new AppFabricTestModule(cConf));
+    DiscoveryServiceClient discoveryServiceClient = injector
+        .getInstance(DiscoveryServiceClient.class);
     TokenValidator mockValidator = new MockTokenValidator("failme");
     UserIdentityExtractor extractor = new MockAccessTokenIdentityExtractor(mockValidator);
     SConfiguration sConf = injector.getInstance(SConfiguration.class);
@@ -70,9 +73,10 @@ class RouterResource extends ExternalResource {
       cConf.set(entry.getKey(), entry.getValue());
     }
     router =
-      new NettyRouter(cConf, sConf, InetAddresses.forString(hostname),
-                      new RouterServiceLookup(cConf, (DiscoveryServiceClient) discoveryService, new RouterPathLookup()),
-                      mockValidator, extractor, discoveryServiceClient);
+        new NettyRouter(cConf, sConf, InetAddresses.forString(hostname),
+            new RouterServiceLookup(cConf, (DiscoveryServiceClient) discoveryService,
+                new RouterPathLookup()),
+            mockValidator, extractor, discoveryServiceClient, new NoOpAeadCipher());
     router.startAndWait();
   }
 

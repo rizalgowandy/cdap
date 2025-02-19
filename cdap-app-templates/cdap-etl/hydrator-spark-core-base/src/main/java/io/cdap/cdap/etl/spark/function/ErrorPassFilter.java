@@ -22,7 +22,6 @@ import io.cdap.cdap.etl.common.RecordInfo;
 import io.cdap.cdap.etl.common.RecordType;
 import org.apache.spark.api.java.function.FlatMapFunction;
 
-import java.util.Collections;
 import java.util.Iterator;
 
 /**
@@ -35,7 +34,7 @@ public class ErrorPassFilter<T> implements FlatMapFunction<RecordInfo<Object>, E
   @Override
   public Iterator<ErrorRecord<T>> call(RecordInfo<Object> input) throws Exception {
     //noinspection unchecked
-    return input.getType() == RecordType.ERROR ?
-      Iterators.singletonIterator((ErrorRecord<T>) input.getValue()) : Iterators.emptyIterator();
+    return input.getType() == RecordType.ERROR
+      ? Iterators.singletonIterator((ErrorRecord<T>) input.getValue()) : Iterators.emptyIterator();
   }
 }

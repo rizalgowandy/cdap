@@ -16,12 +16,11 @@
 
 package io.cdap.cdap.api.data.schema;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests the schema walker.
@@ -106,8 +105,8 @@ public class SchemaWalkerTest {
         return false;
       }
       Pair pair = (Pair) o;
-      return Objects.equals(field, pair.field) &&
-        Objects.equals(schema, pair.schema);
+      return Objects.equals(field, pair.field)
+          && Objects.equals(schema, pair.schema);
     }
 
     @Override

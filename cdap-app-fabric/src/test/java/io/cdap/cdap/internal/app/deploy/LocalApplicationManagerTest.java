@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -37,21 +37,9 @@ import io.cdap.cdap.internal.app.deploy.pipeline.ApplicationWithPrograms;
 import io.cdap.cdap.internal.app.runtime.artifact.Artifacts;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.ProgramType;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Arrays;
@@ -65,6 +53,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * Tests the functionality of Deploy Manager.
@@ -127,9 +127,13 @@ public class LocalApplicationManagerTest {
     ArtifactId artifactId = new ArtifactId("dummy", new ArtifactVersion("1.0.0-SNAPSHOT"), ArtifactScope.USER);
     String className = "some.class.name";
     ApplicationClass applicationClass = new ApplicationClass(className, "", null);
-    AppDeploymentInfo info = new AppDeploymentInfo(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId),
-                                                   jarLoc, NamespaceId.DEFAULT, applicationClass, null,
-                                                   null, null);
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId))
+      .setArtifactLocation(jarLoc)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(applicationClass)
+      .setChangeDetail(new ChangeDetail(null, null, null, System.currentTimeMillis()))
+      .build();
     AppFabricTestHelper.getLocalManager().deploy(info).get();
   }
 
@@ -141,9 +145,13 @@ public class LocalApplicationManagerTest {
     Location deployedJar = AppJarHelper.createDeploymentJar(lf, AllProgramsApp.class);
     ArtifactId artifactId = new ArtifactId("app", new ArtifactVersion("1.0.0-SNAPSHOT"), ArtifactScope.USER);
     ApplicationClass applicationClass = new ApplicationClass(AllProgramsApp.class.getName(), "", null);
-    AppDeploymentInfo info = new AppDeploymentInfo(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId),
-                                                   deployedJar, NamespaceId.DEFAULT,
-                                                   applicationClass, null, null, null);
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId))
+      .setArtifactLocation(deployedJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(applicationClass)
+      .setChangeDetail(new ChangeDetail(null, null, null, System.currentTimeMillis()))
+      .build();
     ApplicationWithPrograms input = AppFabricTestHelper.getLocalManager().deploy(info).get();
 
     ApplicationSpecification appSpec = Specifications.from(new AllProgramsApp());
@@ -166,9 +174,15 @@ public class LocalApplicationManagerTest {
     ConfigTestApp.ConfigClass config = new ConfigTestApp.ConfigClass("myTable");
     ArtifactId artifactId = new ArtifactId("configtest", new ArtifactVersion("1.0.0-SNAPSHOT"), ArtifactScope.USER);
     ApplicationClass applicationClass = new ApplicationClass(ConfigTestApp.class.getName(), "", null);
-    AppDeploymentInfo info = new AppDeploymentInfo(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId),
-                                                   deployedJar, NamespaceId.DEFAULT,
-                                                   applicationClass, "MyApp", null, GSON.toJson(config));
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId))
+      .setArtifactLocation(deployedJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(applicationClass)
+      .setAppName("MyApp")
+      .setConfigString(GSON.toJson(config))
+      .setChangeDetail(new ChangeDetail(null, null, null, System.currentTimeMillis()))
+      .build();
     AppFabricTestHelper.getLocalManager().deploy(info).get();
   }
 
@@ -177,10 +191,15 @@ public class LocalApplicationManagerTest {
     Location deployedJar = AppJarHelper.createDeploymentJar(lf, ConfigTestApp.class);
     ArtifactId artifactId = new ArtifactId("configtest", new ArtifactVersion("1.0.0-SNAPSHOT"), ArtifactScope.USER);
     ApplicationClass applicationClass = new ApplicationClass(ConfigTestApp.class.getName(), "", null);
-    AppDeploymentInfo info = new AppDeploymentInfo(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId),
-                                                   deployedJar, NamespaceId.DEFAULT,
-                                                   applicationClass, "BadApp", null,
-                                                   GSON.toJson("invalid"));
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId))
+      .setArtifactLocation(deployedJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(applicationClass)
+      .setAppName("BadApp")
+      .setConfigString(GSON.toJson("invalid"))
+      .setChangeDetail(new ChangeDetail(null, null, null, System.currentTimeMillis()))
+      .build();
     AppFabricTestHelper.getLocalManager().deploy(info).get();
   }
 
@@ -189,9 +208,14 @@ public class LocalApplicationManagerTest {
     Location deployedJar = AppJarHelper.createDeploymentJar(lf, AppWithCustomDatasetModule.class);
     ArtifactId artifactId = new ArtifactId("customDSModule", new ArtifactVersion("1.0.0-SNAPSHOT"), ArtifactScope.USER);
     ApplicationClass applicationClass = new ApplicationClass(AppWithCustomDatasetModule.class.getName(), "", null);
-    AppDeploymentInfo info = new AppDeploymentInfo(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId),
-                                                   deployedJar, NamespaceId.DEFAULT,
-                                                   applicationClass, "CustomDSApp", null, null);
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(Artifacts.toProtoArtifactId(NamespaceId.DEFAULT, artifactId))
+      .setArtifactLocation(deployedJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(applicationClass)
+      .setAppName("CustomDSApp")
+      .setChangeDetail(new ChangeDetail(null, null, null, System.currentTimeMillis()))
+      .build();
 
     try {
       AppFabricTestHelper.getLocalManager().deploy(info).get();

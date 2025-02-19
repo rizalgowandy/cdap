@@ -17,6 +17,7 @@
 package io.cdap.cdap.internal.app.runtime;
 
 import io.cdap.cdap.app.guice.ClusterMode;
+import io.cdap.cdap.master.spi.MasterOptionConstants;
 
 /**
  * Defines constants used across different modules.
@@ -48,6 +49,8 @@ public final class ProgramOptionConstants {
   public static final String PROGRAM_STATUS = "programStatus";
 
   public static final String PROGRAM_RUN_ID = "programRunId";
+
+  public static final String PROGRAM_ARTIFACT_ID = "programArtifactId";
 
   public static final String INSTANCE_ID = "instanceId";
 
@@ -95,6 +98,8 @@ public final class ProgramOptionConstants {
 
   public static final String TRIGGERING_SCHEDULE_INFO = "triggeringScheduleInfo";
 
+  public static final String TRIGGERING_SCHEDULE_INFO_TYPE = "triggeringScheduleInfoType";
+
   public static final String PROGRAM_ERROR = "programError";
 
   /**
@@ -108,6 +113,21 @@ public final class ProgramOptionConstants {
    * Option to a local file path of a directory containing plugins artifacts.
    */
   public static final String PLUGIN_DIR = "pluginDir";
+
+  /**
+   * Option to hash value of local file path of a directory containing plugins artifacts.
+   */
+  public static final String PLUGIN_DIR_HASH = "pluginDirHash";
+
+  /**
+   * Option to hash value of local file path of program.jar
+   */
+  public static final String PROGRAM_JAR_HASH = "ProgramJarHash";
+
+  /**
+   * Option to cacheable file names.
+   */
+  public static final String CACHEABLE_FILES = "cacheableFiles";
 
   /**
    * Option to a local file path of a JAR file containing plugins artifacts.
@@ -144,8 +164,34 @@ public final class ProgramOptionConstants {
   public static final String IS_PREVIEW = "isPreview";
 
   /**
-   * Option for the application class name for the program, this is needed for isolated mode to regenerate the app
-   * spec
+   * Option for the application class name for the program, this is needed for isolated mode to
+   * regenerate the app spec
    */
   public static final String APPLICATION_CLASS = "applicationClass";
+
+  /**
+   * Option for name of tethered peer, if any, that has initiated the program run
+   */
+  public static final String PEER_NAME = "peer";
+
+  /**
+   * Option for url of tethered peer, if any, that has initiated the program run
+   */
+  public static final String PEER_ENDPOINT = "peerEndpoint";
+
+  /**
+   * Option for name of the runtime namespace for the program run.
+   */
+  public static final String RUNTIME_NAMESPACE = MasterOptionConstants.RUNTIME_NAMESPACE;
+
+  /**
+   * Option for a URI to a directory containing additional resources needed for the program run.
+   * This is needed for running tethered programs
+   */
+  public static final String PROGRAM_RESOURCE_URI = "programResourceUri";
+
+  /**
+   * Option for the {@link io.cdap.cdap.runtime.spi.runtimejob.LaunchMode} for the run.
+   */
+  public static final String LAUNCH_MODE = "launchMode";
 }

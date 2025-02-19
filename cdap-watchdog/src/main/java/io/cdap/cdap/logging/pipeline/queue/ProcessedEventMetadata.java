@@ -17,22 +17,24 @@
 package io.cdap.cdap.logging.pipeline.queue;
 
 import io.cdap.cdap.logging.meta.Checkpoint;
-
 import java.util.Map;
 import javax.annotation.Nullable;
 
 /**
  * Holds information about metadata of processed log events.
+ *
  * @param <Offset> type of the offset stored
  */
 public class ProcessedEventMetadata<Offset> {
+
   private final int totalEventsProcessed;
   private final Map<Integer, Checkpoint<Offset>> checkpoints;
 
   /**
    * Processed event metadata containing total events processed and checkpoints for the partitions
    */
-  public ProcessedEventMetadata(int totalEventsProcessed, @Nullable Map<Integer, Checkpoint<Offset>> checkpoints) {
+  public ProcessedEventMetadata(int totalEventsProcessed,
+      @Nullable Map<Integer, Checkpoint<Offset>> checkpoints) {
     this.totalEventsProcessed = totalEventsProcessed;
     this.checkpoints = checkpoints;
   }

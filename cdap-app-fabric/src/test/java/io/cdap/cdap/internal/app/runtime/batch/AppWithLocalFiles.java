@@ -20,6 +20,7 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import io.cdap.cdap.api.ProgramLifecycle;
 import io.cdap.cdap.api.app.AbstractApplication;
+import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.data.batch.Input;
 import io.cdap.cdap.api.data.batch.Output;
 import io.cdap.cdap.api.dataset.lib.KeyValueTable;
@@ -27,13 +28,6 @@ import io.cdap.cdap.api.mapreduce.AbstractMapReduce;
 import io.cdap.cdap.api.mapreduce.MapReduceContext;
 import io.cdap.cdap.api.mapreduce.MapReduceTaskContext;
 import io.cdap.cdap.common.lang.jar.BundleJarUtil;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -43,6 +37,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
 
 /**
  * App to test local files in programs.
@@ -113,19 +112,24 @@ public class AppWithLocalFiles extends AbstractApplication {
       @Override
       public void initialize(MapReduceTaskContext context) throws Exception {
         Map<String, File> localFiles = context.getAllLocalFiles();
-        Preconditions.checkState(localFiles.size() == 2, "Expected 2 files to have been localized.");
+        Preconditions.checkState(localFiles.size() == 2,
+            "Expected 2 files to have been localized.");
         Map<String, String> args = context.getRuntimeArguments();
         Preconditions.checkArgument(args.containsKey(STOPWORDS_FILE_ARG),
-                                    "Runtime argument %s must be set.", STOPWORDS_FILE_ARG);
+            "Runtime argument %s must be set.", STOPWORDS_FILE_ARG);
         String localFilePath = URI.create(args.get(STOPWORDS_FILE_ARG)).getPath();
         // will throw FileNotFoundException if stopwords file does not exist
         File stopWordsFile = context.getLocalFile(STOPWORDS_FILE_ALIAS);
-        Preconditions.checkState(stopWordsFile.exists(), "Stopwords file %s must exist", localFilePath);
+        Preconditions.checkState(stopWordsFile.exists(), "Stopwords file %s must exist",
+            localFilePath);
         File localArchive = context.getLocalFile(LOCAL_ARCHIVE_ALIAS);
-        Preconditions.checkState(localArchive.exists(), "Local archive %s must exist", LOCAL_ARCHIVE_ALIAS);
-        Preconditions.checkState(localArchive.isDirectory(), "Local archive %s must have been extracted to a " +
-          "directory", LOCAL_ARCHIVE_ALIAS);
-        try (BufferedReader reader = Files.newBufferedReader(stopWordsFile.toPath(), Charsets.UTF_8)) {
+        Preconditions.checkState(localArchive.exists(), "Local archive %s must exist",
+            LOCAL_ARCHIVE_ALIAS);
+        Preconditions.checkState(localArchive.isDirectory(),
+            "Local archive %s must have been extracted to a "
+                + "directory", LOCAL_ARCHIVE_ALIAS);
+        try (BufferedReader reader = Files.newBufferedReader(stopWordsFile.toPath(),
+            Charsets.UTF_8)) {
           String line;
           while ((line = reader.readLine()) != null) {
             stopWords.add(line);

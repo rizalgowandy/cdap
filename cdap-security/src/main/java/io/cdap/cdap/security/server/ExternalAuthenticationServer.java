@@ -28,22 +28,6 @@ import io.cdap.cdap.common.conf.Configuration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
-import org.apache.twill.common.Cancellable;
-import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryService;
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.ContextHandler;
-import org.eclipse.jetty.server.handler.HandlerCollection;
-import org.eclipse.jetty.server.nio.SelectChannelConnector;
-import org.eclipse.jetty.server.ssl.SslSelectChannelConnector;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
-import org.eclipse.jetty.util.thread.QueuedThreadPool;
-import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -51,11 +35,26 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.twill.common.Cancellable;
+import org.apache.twill.discovery.Discoverable;
+import org.apache.twill.discovery.DiscoveryService;
+import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.server.handler.HandlerCollection;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.jboss.resteasy.plugins.server.servlet.HttpServletDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Jetty service for External Authentication.
  */
 public class ExternalAuthenticationServer extends AbstractIdleService {
+
   private static final Logger LOG = LoggerFactory.getLogger(ExternalAuthenticationServer.class);
   public static final String NAMED_EXTERNAL_AUTH = "external.auth";
 
@@ -76,6 +75,7 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
    * Constants for a valid JSON response.
    */
   public static final class ResponseFields {
+
     public static final String TOKEN_TYPE = "token_type";
     public static final String TOKEN_TYPE_BODY = "Bearer";
     public static final String ACCESS_TOKEN = "access_token";
@@ -86,25 +86,30 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
    * Constants for Handler types.
    */
   public static final class HandlerType {
+
     public static final String AUTHENTICATION_HANDLER = "AuthenticationHandler";
     public static final String GRANT_TOKEN_HANDLER = "GrantTokenHandler";
   }
 
+  /**
+   * Simple constructor for a jetty server for External Authentication.
+   */
   @Inject
   public ExternalAuthenticationServer(CConfiguration cConfiguration, SConfiguration sConfiguration,
-                                      DiscoveryService discoveryService,
-                                      @Named("security.handlers.map") Map<String, Object> handlers,
-                                      @Named(NAMED_EXTERNAL_AUTH) AuditLogHandler auditLogHandler) {
-    this.port = cConfiguration.getBoolean(Constants.Security.SSL.EXTERNAL_ENABLED) ?
-      cConfiguration.getInt(Constants.Security.AuthenticationServer.SSL_PORT) :
-      cConfiguration.getInt(Constants.Security.AUTH_SERVER_BIND_PORT);
+      DiscoveryService discoveryService,
+      @Named("security.handlers.map") Map<String, Object> handlers,
+      @Named(NAMED_EXTERNAL_AUTH) AuditLogHandler auditLogHandler) {
+    this.port = cConfiguration.getBoolean(Constants.Security.SSL.EXTERNAL_ENABLED)
+        ? cConfiguration.getInt(Constants.Security.AuthenticationServer.SSL_PORT) :
+        cConfiguration.getInt(Constants.Security.AUTH_SERVER_BIND_PORT);
     this.maxThreads = cConfiguration.getInt(Constants.Security.MAX_THREADS);
     this.handlers = handlers;
     this.discoveryService = discoveryService;
     this.cConfiguration = cConfiguration;
     this.sConfiguration = sConfiguration;
     this.grantAccessToken = (GrantAccessToken) handlers.get(HandlerType.GRANT_TOKEN_HANDLER);
-    this.authenticationHandler = (AbstractAuthenticationHandler) handlers.get(HandlerType.AUTHENTICATION_HANDLER);
+    this.authenticationHandler = (AbstractAuthenticationHandler) handlers.get(
+        HandlerType.AUTHENTICATION_HANDLER);
     this.auditLogHandler = auditLogHandler;
   }
 
@@ -120,17 +125,19 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
 
     // assumes we only have one connector
     Connector connector = server.getConnectors()[0];
-    return new InetSocketAddress(connector.getHost(), connector.getLocalPort());
+    ServerConnector serverConnector = (ServerConnector) connector;
+    return new InetSocketAddress(serverConnector.getHost(), serverConnector.getLocalPort());
   }
 
   @Override
   protected void startUp() throws Exception {
     server = new Server();
-    InetAddress bindAddress = InetAddress.getByName(cConfiguration.get(Constants.Security.AUTH_SERVER_BIND_ADDRESS));
+    InetAddress bindAddress = InetAddress.getByName(
+        cConfiguration.get(Constants.Security.AUTH_SERVER_BIND_ADDRESS));
 
     QueuedThreadPool threadPool = new QueuedThreadPool();
     threadPool.setMaxThreads(maxThreads);
-    server.setThreadPool(threadPool);
+    server = new Server(threadPool);
 
     initHandlers();
 
@@ -148,49 +155,54 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
 
     if (cConfiguration.getBoolean(Constants.Security.SSL.EXTERNAL_ENABLED, false)) {
       SslContextFactory sslContextFactory = new SslContextFactory();
-      String keyStorePath = sConfiguration.get(Constants.Security.AuthenticationServer.SSL_KEYSTORE_PATH);
-      String keyStorePassword = sConfiguration.get(Constants.Security.AuthenticationServer.SSL_KEYSTORE_PASSWORD);
-      String keyStoreType = sConfiguration.get(Constants.Security.AuthenticationServer.SSL_KEYSTORE_TYPE,
-                                               Constants.Security.AuthenticationServer.DEFAULT_SSL_KEYSTORE_TYPE);
-      String keyPassword = sConfiguration.get(Constants.Security.AuthenticationServer.SSL_KEYPASSWORD);
-
+      String keyStorePath = sConfiguration.get(
+          Constants.Security.AuthenticationServer.SSL_KEYSTORE_PATH);
+      String keyStorePassword = sConfiguration.get(
+          Constants.Security.AuthenticationServer.SSL_KEYSTORE_PASSWORD);
       Preconditions.checkArgument(keyStorePath != null, "Key Store Path Not Configured");
       Preconditions.checkArgument(keyStorePassword != null, "KeyStore Password Not Configured");
-
       sslContextFactory.setKeyStorePath(keyStorePath);
       sslContextFactory.setKeyStorePassword(keyStorePassword);
+      String keyStoreType = sConfiguration.get(
+          Constants.Security.AuthenticationServer.SSL_KEYSTORE_TYPE,
+          Constants.Security.AuthenticationServer.DEFAULT_SSL_KEYSTORE_TYPE);
       sslContextFactory.setKeyStoreType(keyStoreType);
+      String keyPassword = sConfiguration.get(
+          Constants.Security.AuthenticationServer.SSL_KEYPASSWORD);
       if (keyPassword != null && keyPassword.length() != 0) {
         sslContextFactory.setKeyManagerPassword(keyPassword);
       }
 
-      String trustStorePath = cConfiguration.get(Constants.Security.AuthenticationServer.SSL_TRUSTSTORE_PATH);
+      String trustStorePath = cConfiguration.get(
+          Constants.Security.AuthenticationServer.SSL_TRUSTSTORE_PATH);
       if (!Strings.isNullOrEmpty(trustStorePath)) {
         String trustStorePassword =
-          cConfiguration.get(Constants.Security.AuthenticationServer.SSL_TRUSTSTORE_PASSWORD);
-        String trustStoreType = cConfiguration.get(Constants.Security.AuthenticationServer.SSL_TRUSTSTORE_TYPE,
-                                                   Constants.Security.AuthenticationServer.DEFAULT_SSL_KEYSTORE_TYPE);
+            cConfiguration.get(Constants.Security.AuthenticationServer.SSL_TRUSTSTORE_PASSWORD);
+        String trustStoreType = cConfiguration.get(
+            Constants.Security.AuthenticationServer.SSL_TRUSTSTORE_TYPE,
+            Constants.Security.AuthenticationServer.DEFAULT_SSL_KEYSTORE_TYPE);
 
         // SSL handshaking will involve requesting for a client certificate, if cert is not provided
         // server continues with the connection but the client is considered to be unauthenticated
         sslContextFactory.setWantClientAuth(true);
 
-        sslContextFactory.setTrustStore(trustStorePath);
+        sslContextFactory.setTrustStorePath(trustStorePath);
         sslContextFactory.setTrustStorePassword(trustStorePassword);
         sslContextFactory.setTrustStoreType(trustStoreType);
         sslContextFactory.setValidateCerts(true);
       }
       // TODO Figure out how to pick a certificate from key store
 
-      SslSelectChannelConnector sslConnector = new SslSelectChannelConnector(sslContextFactory);
-      sslConnector.setHost(bindAddress.getCanonicalHostName());
-      sslConnector.setPort(port);
-      server.setConnectors(new Connector[]{sslConnector});
+      ServerConnector serverConnector = new ServerConnector(server, sslContextFactory);
+
+      serverConnector.setHost(bindAddress.getCanonicalHostName());
+      serverConnector.setPort(port);
+      server.setConnectors(new Connector[]{serverConnector});
     } else {
-      SelectChannelConnector connector = new SelectChannelConnector();
-      connector.setHost(bindAddress.getCanonicalHostName());
-      connector.setPort(port);
-      server.setConnectors(new Connector[]{connector});
+      ServerConnector serverConnector = new ServerConnector(server);
+      serverConnector.setHost(bindAddress.getCanonicalHostName());
+      serverConnector.setPort(port);
+      server.setConnectors(new Connector[]{serverConnector});
     }
 
     HandlerCollection handlers = new HandlerCollection();
@@ -205,16 +217,20 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
       server.start();
     } catch (Exception e) {
       if ((Throwables.getRootCause(e) instanceof BindException)) {
-        throw new ServiceBindException("Authentication Server", bindAddress.getCanonicalHostName(), port, e);
+        throw new ServiceBindException("Authentication Server", bindAddress.getCanonicalHostName(),
+            port, e);
       }
       throw e;
     }
 
     // assumes we only have one connector
     Connector connector = server.getConnectors()[0];
-    InetSocketAddress inetSocketAddress = new InetSocketAddress(connector.getHost(), connector.getLocalPort());
+    ServerConnector serverConnector = (ServerConnector) connector;
+    InetSocketAddress inetSocketAddress = new InetSocketAddress(serverConnector.getHost(),
+                                                                serverConnector.getLocalPort());
     serviceCancellable = discoveryService.register(
-      ResolvingDiscoverable.of(new Discoverable(Constants.Service.EXTERNAL_AUTHENTICATION, inetSocketAddress)));
+        ResolvingDiscoverable.of(
+            new Discoverable(Constants.Service.EXTERNAL_AUTHENTICATION, inetSocketAddress)));
   }
 
   /**
@@ -253,7 +269,8 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
     }
   }
 
-  private void copyPropIfExists(Map<String, String> toProps, Configuration fromConf, String property) {
+  private void copyPropIfExists(Map<String, String> toProps, Configuration fromConf,
+      String property) {
     String value = fromConf.get(property);
     if (value != null) {
       toProps.put(property, value);
@@ -284,7 +301,8 @@ public class ExternalAuthenticationServer extends AbstractIdleService {
     return new Executor() {
       @Override
       public void execute(Runnable runnable) {
-        Thread t = new Thread(runnable, String.format("ExternalAuthenticationServer-%d", id.incrementAndGet()));
+        Thread t = new Thread(runnable,
+            String.format("ExternalAuthenticationServer-%d", id.incrementAndGet()));
         t.start();
       }
     };

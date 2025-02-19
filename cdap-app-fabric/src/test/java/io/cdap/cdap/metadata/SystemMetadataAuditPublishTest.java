@@ -36,17 +36,16 @@ import io.cdap.cdap.proto.audit.AuditType;
 import io.cdap.cdap.proto.audit.payload.metadata.MetadataPayload;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.scheduler.Scheduler;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Tests for verifying that system metadata gets published to Kafka when publishing is enabled
@@ -88,7 +87,7 @@ public class SystemMetadataAuditPublishTest {
     AppFabricTestHelper.deployApplication(Id.Namespace.DEFAULT, AllProgramsApp.class, null, cConf);
     Set<String> addedMetadata = new HashSet<>();
     // TODO (CDAP-14670): this test is brittle, find a better condition to wait on
-    Tasks.waitFor(26, () -> addAllSystemMetadata(addedMetadata), 10, TimeUnit.SECONDS);
+    Tasks.waitFor(25, () -> addAllSystemMetadata(addedMetadata), 10, TimeUnit.SECONDS);
     namespaceAdmin.delete(NamespaceId.DEFAULT);
     Set<String> removedMetadata = new HashSet<>();
     // expect the same number of changes when namespace is deleted

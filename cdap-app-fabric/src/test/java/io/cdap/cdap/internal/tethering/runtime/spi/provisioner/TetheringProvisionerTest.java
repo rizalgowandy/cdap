@@ -28,8 +28,10 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.LocalLocationModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.data.runtime.StorageModule;
+import io.cdap.cdap.data.runtime.SystemDatasetRuntimeModule;
 import io.cdap.cdap.internal.provision.ProvisionerConfig;
 import io.cdap.cdap.internal.provision.ProvisionerConfigProvider;
 import io.cdap.cdap.internal.provision.ProvisionerModule;
@@ -37,12 +39,13 @@ import io.cdap.cdap.internal.provision.ProvisionerProvider;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
 import io.cdap.cdap.runtime.spi.provisioner.Provisioner;
 import io.cdap.cdap.security.FakeSecureStore;
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
+import java.util.Map;
+import org.apache.tephra.runtime.TransactionModules;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.util.Map;
 
 public class TetheringProvisionerTest {
 
@@ -59,8 +62,12 @@ public class TetheringProvisionerTest {
       new LocalLocationModule(),
       new InMemoryDiscoveryModule(),
       new StorageModule(),
+      new SystemDatasetRuntimeModule().getInMemoryModules(),
+      new TransactionModules().getInMemoryModules(),
       new ProvisionerModule(),
+      new AuthorizationEnforcementModule().getNoOpModules(),
       new MessagingServerRuntimeModule().getInMemoryModules(),
+      new NoOpAuditLogModule(),
       new AbstractModule() {
         @Override
         protected void configure() {

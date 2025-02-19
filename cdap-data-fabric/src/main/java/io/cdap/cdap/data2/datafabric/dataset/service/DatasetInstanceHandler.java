@@ -37,9 +37,6 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -52,6 +49,8 @@ import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles dataset instance management calls.
@@ -73,20 +72,21 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
   @GET
   @Path("/data/datasets/")
   public void list(HttpRequest request, HttpResponder responder,
-                   @PathParam("namespace-id") String namespaceId) throws Exception {
+      @PathParam("namespace-id") String namespaceId) throws Exception {
     logCallReceived(request);
     responder.sendJson(HttpResponseStatus.OK, GSON.toJson(ConversionHelpers.spec2Summary(
-      instanceService.list(ConversionHelpers.toNamespaceId(namespaceId)))));
+        instanceService.list(ConversionHelpers.toNamespaceId(namespaceId)))));
     logCallResponded(request);
   }
 
   @POST
   @Path("/data/datasets/")
   public void listWithSpecifiedProperties(FullHttpRequest request, HttpResponder responder,
-                                          @PathParam("namespace-id") String namespaceId) throws Exception {
+      @PathParam("namespace-id") String namespaceId) throws Exception {
     logCallReceived(request);
     responder.sendJson(HttpResponseStatus.OK, GSON.toJson(ConversionHelpers.spec2Summary(
-      instanceService.list(ConversionHelpers.toNamespaceId(namespaceId), getDatasetProperties(request)))));
+        instanceService.list(ConversionHelpers.toNamespaceId(namespaceId),
+            getDatasetProperties(request)))));
     logCallResponded(request);
   }
 
@@ -100,12 +100,12 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
   @GET
   @Path("/data/datasets/{name}")
   public void get(HttpRequest request, HttpResponder responder,
-                  @PathParam("namespace-id") String namespaceId,
-                  @PathParam("name") String name) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     logCallReceived(request);
     responder.sendJson(HttpResponseStatus.OK,
-                       GSON.toJson(instanceService.get(ConversionHelpers.toDatasetInstanceId(namespaceId, name)),
-                                   DatasetMeta.class));
+        GSON.toJson(instanceService.get(ConversionHelpers.toDatasetInstanceId(namespaceId, name)),
+            DatasetMeta.class));
     logCallResponded(request);
   }
 
@@ -118,10 +118,12 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
   @PUT
   @Path("/data/datasets/{name}")
   @AuditPolicy(AuditDetail.REQUEST_BODY)
-  public void create(FullHttpRequest request, HttpResponder responder, @PathParam("namespace-id") String namespaceId,
-                     @PathParam("name") String name) throws Exception {
+  public void create(FullHttpRequest request, HttpResponder responder,
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     logCallReceived(request);
-    DatasetInstanceConfiguration creationProperties = ConversionHelpers.getInstanceConfiguration(request);
+    DatasetInstanceConfiguration creationProperties = ConversionHelpers.getInstanceConfiguration(
+        request);
     try {
       instanceService.create(namespaceId, name, creationProperties);
       responder.sendStatus(HttpResponseStatus.OK);
@@ -140,13 +142,14 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
   @GET
   @Path("/data/datasets/{name}/properties")
   public void getProperties(HttpRequest request, HttpResponder responder,
-                            @PathParam("namespace-id") String namespaceId,
-                            @PathParam("name") String name) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     logCallReceived(request);
     DatasetId instance = ConversionHelpers.toDatasetInstanceId(namespaceId, name);
     responder.sendJson(HttpResponseStatus.OK,
-                       GSON.toJson(instanceService.getOriginalProperties(instance),
-                                   new TypeToken<Map<String, String>>() { }.getType()));
+        GSON.toJson(instanceService.getOriginalProperties(instance),
+            new TypeToken<Map<String, String>>() {
+            }.getType()));
     logCallResponded(request);
   }
 
@@ -155,14 +158,13 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
    *
    * @param namespaceId namespace of the dataset instance
    * @param name name of the dataset instance
-   * @throws Exception
    */
   @PUT
   @Path("/data/datasets/{name}/properties")
   @AuditPolicy(AuditDetail.REQUEST_BODY)
   public void update(FullHttpRequest request, HttpResponder responder,
-                     @PathParam("namespace-id") String namespaceId,
-                     @PathParam("name") String name) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     logCallReceived(request);
     DatasetId instance = ConversionHelpers.toDatasetInstanceId(namespaceId, name);
     Map<String, String> properties = ConversionHelpers.getProperties(request);
@@ -176,12 +178,12 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
    *
    * @param namespaceId namespace of the dataset instance
    * @param name name of the dataset instance
-   * @throws Exception
    */
   @DELETE
   @Path("/data/datasets/{name}")
-  public void drop(HttpRequest request, HttpResponder responder, @PathParam("namespace-id") String namespaceId,
-                   @PathParam("name") String name) throws Exception {
+  public void drop(HttpRequest request, HttpResponder responder,
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     logCallReceived(request);
     DatasetId instance = ConversionHelpers.toDatasetInstanceId(namespaceId, name);
     instanceService.drop(instance);
@@ -192,7 +194,7 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
   @DELETE
   @Path("/data/datasets")
   public void dropAll(HttpRequest request, HttpResponder responder,
-                      @PathParam("namespace-id") String namespaceId) throws Exception {
+      @PathParam("namespace-id") String namespaceId) throws Exception {
     logCallReceived(request);
     instanceService.dropAll(ConversionHelpers.toNamespaceId(namespaceId));
     responder.sendStatus(HttpResponseStatus.OK);
@@ -205,17 +207,18 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
    * @param namespaceId namespace of the dataset instance
    * @param name name of the dataset instance
    * @param method the admin operation to execute (e.g. "exists", "truncate", "upgrade")
-   * @throws Exception
    */
   @POST
   @Path("/data/datasets/{name}/admin/{method}")
-  public void executeAdmin(HttpRequest request, HttpResponder responder, @PathParam("namespace-id") String namespaceId,
-                           @PathParam("name") String name,
-                           @PathParam("method") String method) throws Exception {
+  public void executeAdmin(HttpRequest request, HttpResponder responder,
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name,
+      @PathParam("method") String method) throws Exception {
     logCallReceived(request);
     DatasetId instance = ConversionHelpers.toDatasetInstanceId(namespaceId, name);
     try {
-      responder.sendJson(HttpResponseStatus.OK, GSON.toJson(instanceService.executeAdmin(instance, method)));
+      responder.sendJson(HttpResponseStatus.OK,
+          GSON.toJson(instanceService.executeAdmin(instance, method)));
     } catch (HandlerException e) {
       responder.sendStatus(e.getFailureStatus());
     }
@@ -231,8 +234,9 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
    */
   @POST
   @Path("/data/datasets/{name}/data/{method}")
-  public void executeDataOp(HttpRequest request, HttpResponder responder, @PathParam("namespace-id") String namespaceId,
-                            @PathParam("name") String name, @PathParam("method") String method) {
+  public void executeDataOp(HttpRequest request, HttpResponder responder,
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name, @PathParam("method") String method) {
     // todo: execute data operation
     responder.sendStatus(HttpResponseStatus.NOT_IMPLEMENTED);
   }
@@ -244,8 +248,10 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
       return properties;
     }
 
-    try (Reader reader = new InputStreamReader(new ByteBufInputStream(request.content()), StandardCharsets.UTF_8)) {
-      properties = GSON.fromJson(reader, new TypeToken<Map<String, String>>() { }.getType());
+    try (Reader reader = new InputStreamReader(new ByteBufInputStream(request.content()),
+        StandardCharsets.UTF_8)) {
+      properties = GSON.fromJson(reader, new TypeToken<Map<String, String>>() {
+      }.getType());
     } catch (IOException e) {
       // no-op since is happens during closing of the reader
     }
@@ -255,14 +261,14 @@ public class DatasetInstanceHandler extends AbstractHttpHandler {
   private void logCallReceived(HttpRequest request) {
     if (LOG.isTraceEnabled()) {
       LOG.trace("Received {} for {} from {}",
-                request.method(), request.uri(), DatasetServiceClient.getCallerId(request));
+          request.method(), request.uri(), DatasetServiceClient.getCallerId(request));
     }
   }
 
   private void logCallResponded(HttpRequest request) {
     if (LOG.isTraceEnabled()) {
       LOG.trace("Responded to {} for {} from {}",
-                request.method(), request.uri(), DatasetServiceClient.getCallerId(request));
+          request.method(), request.uri(), DatasetServiceClient.getCallerId(request));
     }
   }
 }

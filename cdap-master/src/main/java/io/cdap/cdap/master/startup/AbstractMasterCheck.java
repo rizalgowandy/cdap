@@ -19,13 +19,13 @@ package io.cdap.cdap.master.startup;
 import io.cdap.cdap.common.MasterUtils;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.startup.Check;
-
 import java.util.Set;
 
 /**
  * Base for master startup checks.
  */
 public abstract class AbstractMasterCheck extends Check {
+
   protected final CConfiguration cConf;
   protected final Set<ServiceResourceKeys> systemServicesResourceKeys;
 

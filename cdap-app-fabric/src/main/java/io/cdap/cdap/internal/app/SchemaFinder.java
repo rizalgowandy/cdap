@@ -18,20 +18,20 @@ package io.cdap.cdap.internal.app;
 
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.common.utils.ImmutablePair;
-
 import java.util.Set;
 import javax.annotation.Nullable;
 
 /**
- * This class consolidates the functionalities related to find schemas
- * that are compatible for a connection.
+ * This class consolidates the functionalities related to find schemas that are compatible for a
+ * connection.
  */
 public final class SchemaFinder {
+
   /**
    * Given two schema's checks if there exists compatibility or equality.
    *
    * @param output Set of output {@link Schema}.
-   * @param input  Set of input {@link Schema}.
+   * @param input Set of input {@link Schema}.
    * @return true if and only if they are equal or compatible with constraints
    */
   public static boolean checkSchema(Set<Schema> output, Set<Schema> input) {
@@ -41,14 +41,15 @@ public final class SchemaFinder {
   /**
    * Finds the right schema to be used for the connections.
    * <p>
-   *   A connection should have the following:
+   * A connection should have the following:
    *   <ul>
    *     <li>Equal overrides compatible : So if there is equal, we use that</li>
    *     <li>In case of compatible, we try to find one schema and only one. More than one is a error.</li>
    *   </ul>
    * </p>
+   *
    * @param output Set of output {@link Schema}.
-   * @param input  Set of input {@link Schema}.
+   * @param input Set of input {@link Schema}.
    * @return An {@link ImmutablePair} with first as output schema and second as input schema.
    */
   @Nullable
@@ -75,5 +76,6 @@ public final class SchemaFinder {
     return compatibleSchema;
   }
 
-  private SchemaFinder() {}
+  private SchemaFinder() {
+  }
 }

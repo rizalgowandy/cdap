@@ -24,7 +24,6 @@ import io.cdap.cdap.cli.util.AbstractAuthCommand;
 import io.cdap.cdap.client.NamespaceClient;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
@@ -60,7 +59,7 @@ public class UseNamespaceCommand extends AbstractAuthCommand {
   @Override
   public String getDescription() {
     return String.format("Changes the current %s to '<%s>'",
-                         ElementType.NAMESPACE.getName(),
-                         ArgumentName.NAMESPACE_NAME);
+        ElementType.NAMESPACE.getName(),
+        ArgumentName.NAMESPACE_NAME);
   }
 }

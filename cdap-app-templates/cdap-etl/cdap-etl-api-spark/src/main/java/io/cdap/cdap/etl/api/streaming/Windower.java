@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.api.streaming;
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.etl.api.PipelineConfigurable;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
-
 import java.io.Serializable;
 
 /**
@@ -38,12 +37,14 @@ public abstract class Windower implements PipelineConfigurable, Serializable {
   }
 
   /**
-   * @return the width of the window in seconds. Must be a multiple of the underlying batch interval.
+   * @return the width of the window in seconds. Must be a multiple of the underlying batch
+   *     interval.
    */
   public abstract long getWidth();
 
   /**
-   * @return the slide interval of the window in seconds. Must be a multiple of the underlying batch interval.
+   * @return the slide interval of the window in seconds. Must be a multiple of the underlying batch
+   *     interval.
    */
   public abstract long getSlideInterval();
 }

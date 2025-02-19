@@ -20,9 +20,8 @@ import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.etl.api.PipelineConfigurable;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.SubmitterLifecycle;
-import org.apache.spark.api.java.JavaRDD;
-
 import java.io.Serializable;
+import org.apache.spark.api.java.JavaRDD;
 
 /**
  * Spark Compute stage.
@@ -32,7 +31,8 @@ import java.io.Serializable;
  */
 @Beta
 public abstract class SparkCompute<IN, OUT>
-  implements SubmitterLifecycle<SparkPluginContext>, PipelineConfigurable, Serializable {
+    implements SubmitterLifecycle<SparkPluginContext>, PipelineConfigurable, Serializable {
+
   public static final String PLUGIN_TYPE = "sparkcompute";
 
   private static final long serialVersionUID = -8156450728774382658L;
@@ -59,8 +59,8 @@ public abstract class SparkCompute<IN, OUT>
   }
 
   /**
-   * Initialize the plugin. Will be called before any calls to {@link #transform(SparkExecutionPluginContext, JavaRDD)}
-   * are made.
+   * Initialize the plugin. Will be called before any calls to {@link
+   * #transform(SparkExecutionPluginContext, JavaRDD)} are made.
    *
    * @param context {@link SparkExecutionPluginContext} for this job
    * @throws Exception if there is an error initializing
@@ -76,6 +76,7 @@ public abstract class SparkCompute<IN, OUT>
    * @param input input data to be transformed
    * @throws Exception if there is an error during this method invocation
    */
-  public abstract JavaRDD<OUT> transform(SparkExecutionPluginContext context, JavaRDD<IN> input) throws Exception;
+  public abstract JavaRDD<OUT> transform(SparkExecutionPluginContext context, JavaRDD<IN> input)
+      throws Exception;
 
 }

@@ -23,14 +23,14 @@ import io.cdap.cdap.config.Config;
 import io.cdap.cdap.config.ConfigNotFoundException;
 import io.cdap.cdap.config.ConfigStore;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.util.Collections;
 
 /**
- * Fetches and stores bootstrap state. This simply delegates to the ConfigStore in order to avoid have a table
- * that has just a single row in it.
+ * Fetches and stores bootstrap state. This simply delegates to the ConfigStore in order to avoid
+ * have a table that has just a single row in it.
  */
 public class BootstrapStore {
+
   private static final String TYPE = "bootstrap";
   private static final String NAME = "state";
   private final ConfigStore configStore;
@@ -57,7 +57,7 @@ public class BootstrapStore {
    */
   public void bootstrapped() {
     configStore.createOrUpdate(NamespaceId.SYSTEM.getNamespace(), TYPE,
-                               new Config(NAME, Collections.emptyMap()));
+        new Config(NAME, Collections.emptyMap()));
   }
 
   /**

@@ -26,7 +26,6 @@ import io.cdap.cdap.spi.data.StructuredTableContext;
 import io.cdap.cdap.spi.data.TableNotFoundException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -66,7 +65,7 @@ public class DefaultOwnerStore extends OwnerStore {
 
   @Override
   public void add(final NamespacedEntityId entityId,
-                  final KerberosPrincipalId kerberosPrincipalId) throws IOException, AlreadyExistsException {
+      final KerberosPrincipalId kerberosPrincipalId) throws IOException, AlreadyExistsException {
     validate(entityId, kerberosPrincipalId);
     TransactionRunners.run(txRunner, context -> {
       OwnerTable ownerTable = getOwnerTable(context);
@@ -85,7 +84,8 @@ public class DefaultOwnerStore extends OwnerStore {
   }
 
   @Override
-  public <T extends NamespacedEntityId> Map<T, KerberosPrincipalId> getOwners(Set<T> ids) throws IOException {
+  public <T extends NamespacedEntityId> Map<T, KerberosPrincipalId> getOwners(Set<T> ids)
+      throws IOException {
     ids.forEach(this::validate);
     return TransactionRunners.run(txRunner, context -> {
       return getOwnerTable(context).getOwners(ids);

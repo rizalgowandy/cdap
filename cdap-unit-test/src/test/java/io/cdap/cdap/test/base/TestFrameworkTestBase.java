@@ -28,7 +28,6 @@ import io.cdap.cdap.api.dataset.lib.partitioned.PartitionKeyCodec;
 import io.cdap.cdap.api.messaging.Message;
 import io.cdap.cdap.app.program.ManifestFields;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.artifact.AppRequest;
@@ -37,13 +36,6 @@ import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.test.ApplicationManager;
 import io.cdap.cdap.test.TestBase;
-import io.cdap.common.http.HttpRequest;
-import io.cdap.common.http.HttpRequests;
-import io.cdap.common.http.HttpResponse;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.junit.After;
-import org.junit.Assert;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,6 +45,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Manifest;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.junit.After;
+import org.junit.Assert;
 
 /**
  * TestBase for all test framework tests

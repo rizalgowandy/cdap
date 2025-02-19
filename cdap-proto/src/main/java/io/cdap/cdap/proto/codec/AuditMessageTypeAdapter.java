@@ -28,16 +28,17 @@ import io.cdap.cdap.proto.audit.AuditType;
 import io.cdap.cdap.proto.audit.payload.access.AccessPayload;
 import io.cdap.cdap.proto.audit.payload.metadata.MetadataPayload;
 import io.cdap.cdap.proto.id.EntityId;
-
 import java.lang.reflect.Type;
 
 /**
  * Code for {@link AuditMessage}.
  */
 public class AuditMessageTypeAdapter implements JsonDeserializer<AuditMessage> {
+
   @Override
-  public AuditMessage deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+  public AuditMessage deserialize(JsonElement json, Type typeOfT,
+      JsonDeserializationContext context)
+      throws JsonParseException {
     JsonObject jsonObj = json.getAsJsonObject();
     long timeMillis = jsonObj.get("time").getAsLong();
     MetadataEntity metadataEntity;
@@ -45,7 +46,8 @@ public class AuditMessageTypeAdapter implements JsonDeserializer<AuditMessage> {
     if (entityId != null) {
       metadataEntity = entityId.toMetadataEntity();
     } else {
-      metadataEntity = context.deserialize(jsonObj.getAsJsonObject("metadataEntity"), MetadataEntity.class);
+      metadataEntity = context.deserialize(jsonObj.getAsJsonObject("metadataEntity"),
+          MetadataEntity.class);
     }
     String user = jsonObj.get("user").getAsString();
     AuditType auditType = context.deserialize(jsonObj.getAsJsonPrimitive("type"), AuditType.class);

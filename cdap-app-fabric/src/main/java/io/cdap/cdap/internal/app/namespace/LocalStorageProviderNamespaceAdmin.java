@@ -20,16 +20,17 @@ import com.google.inject.Inject;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.namespace.NamespacePathLocator;
 import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
-import io.cdap.cdap.explore.client.ExploreFacade;
 
 /**
  * Manages namespaces on local underlying systems.
  */
-public final class LocalStorageProviderNamespaceAdmin extends AbstractStorageProviderNamespaceAdmin {
+public final class LocalStorageProviderNamespaceAdmin extends
+    AbstractStorageProviderNamespaceAdmin {
 
   @Inject
-  LocalStorageProviderNamespaceAdmin(CConfiguration cConf, NamespacePathLocator namespacePathLocator,
-                                     ExploreFacade exploreFacade, NamespaceQueryAdmin namespaceQueryAdmin) {
-    super(cConf, namespacePathLocator, exploreFacade, namespaceQueryAdmin);
+  LocalStorageProviderNamespaceAdmin(CConfiguration cConf,
+      NamespacePathLocator namespacePathLocator,
+      NamespaceQueryAdmin namespaceQueryAdmin) {
+    super(cConf, namespacePathLocator, namespaceQueryAdmin);
   }
 }

@@ -22,7 +22,6 @@ import io.cdap.cdap.api.Resources;
 import io.cdap.cdap.etl.common.PhaseSpec;
 import io.cdap.cdap.etl.common.PipelinePhase;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -30,6 +29,7 @@ import javax.annotation.Nullable;
  * Information required by one phase of a batch pipeline.
  */
 public class BatchPhaseSpec extends PhaseSpec {
+
   private final Resources resources;
   private final Resources driverResources;
   private final Resources clientResources;
@@ -40,11 +40,11 @@ public class BatchPhaseSpec extends PhaseSpec {
   private final StageSpec sqlEngineStageSpec;
 
   public BatchPhaseSpec(String phaseName, PipelinePhase phase,
-                        Resources resources, Resources driverResources, Resources clientResources,
-                        boolean isStageLoggingEnabled, boolean isProcessTimingEnabled,
-                        Map<String, String> connectorDatasets, int numOfRecordsPreview,
-                        Map<String, String> pipelineProperties, boolean isPipelineContainsCondition,
-                        @Nullable StageSpec sqlEngineStageSpec) {
+      Resources resources, Resources driverResources, Resources clientResources,
+      boolean isStageLoggingEnabled, boolean isProcessTimingEnabled,
+      Map<String, String> connectorDatasets, int numOfRecordsPreview,
+      Map<String, String> pipelineProperties, boolean isPipelineContainsCondition,
+      @Nullable StageSpec sqlEngineStageSpec) {
     super(phaseName, phase, connectorDatasets, isStageLoggingEnabled, isProcessTimingEnabled);
     this.resources = resources;
     this.driverResources = driverResources;
@@ -97,7 +97,8 @@ public class BatchPhaseSpec extends PhaseSpec {
     description.append("'");
 
     if (sqlEngineStageSpec != null) {
-      description.append(", using pushdown engine '").append(sqlEngineStageSpec.getPlugin().getName()).append("'");
+      description.append(", using pushdown engine '")
+          .append(sqlEngineStageSpec.getPlugin().getName()).append("'");
     }
 
     description.append(".");

@@ -43,6 +43,7 @@ import io.cdap.cdap.etl.batch.BatchPipelineSpec;
 import io.cdap.cdap.etl.common.BasicArguments;
 import io.cdap.cdap.etl.common.ConnectionMacroEvaluator;
 import io.cdap.cdap.etl.common.DefaultMacroEvaluator;
+import io.cdap.cdap.etl.common.OAuthAccessTokenMacroEvaluator;
 import io.cdap.cdap.etl.common.OAuthMacroEvaluator;
 import io.cdap.cdap.etl.common.SecureStoreMacroEvaluator;
 import io.cdap.cdap.etl.proto.v2.spec.PipelineSpec;
@@ -60,6 +61,7 @@ import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -104,18 +106,19 @@ public class ValidationHandler extends AbstractSystemHttpServiceHandler {
   private void validateRemotely(HttpServiceRequest request, HttpServiceResponder responder,
                                 String namespace) throws IOException {
     String validationRequestString = StandardCharsets.UTF_8.decode(request.getContent()).toString();
-    RemoteValidationRequest remoteValidationRequest = new RemoteValidationRequest(namespace, validationRequestString);
-    RunnableTaskRequest runnableTaskRequest = RunnableTaskRequest.getBuilder(RemoteValidationTask.class.getName()).
-      withParam(GSON.toJson(remoteValidationRequest)).
-      build();
+    RemoteValidationRequest remoteValidationRequest =
+        new RemoteValidationRequest(namespace, validationRequestString);
+    RunnableTaskRequest runnableTaskRequest =
+        RunnableTaskRequest.getBuilder(RemoteValidationTask.class.getName())
+            .withParam(GSON.toJson(remoteValidationRequest)).withNamespace(namespace).build();
     try {
       byte[] bytes = getContext().runTask(runnableTaskRequest);
       responder.sendString(Bytes.toString(bytes));
     } catch (RemoteExecutionException e) {
       RemoteTaskException remoteTaskException = e.getCause();
       responder.sendError(
-        getExceptionCode(remoteTaskException.getRemoteExceptionClassName(), remoteTaskException.getMessage(),
-                         namespace), remoteTaskException.getMessage());
+        getExceptionCode(remoteTaskException.getRemoteExceptionClassName(),
+            remoteTaskException.getMessage(), namespace), remoteTaskException.getMessage());
     } catch (Exception e) {
       responder.sendError(HttpURLConnection.HTTP_INTERNAL_ERROR, e.getMessage());
     }
@@ -123,8 +126,8 @@ public class ValidationHandler extends AbstractSystemHttpServiceHandler {
 
   private int getExceptionCode(String exceptionClass, String exceptionMessage, String namespace) {
     if (IllegalArgumentException.class.getName().equals(exceptionClass)) {
-      return String.format(RemoteValidationTask.NAMESPACE_DOES_NOT_EXIST, namespace).equals(exceptionMessage) ?
-        HttpURLConnection.HTTP_NOT_FOUND : HttpURLConnection.HTTP_BAD_REQUEST;
+      return String.format(RemoteValidationTask.NAMESPACE_DOES_NOT_EXIST, namespace).equals(exceptionMessage)
+        ? HttpURLConnection.HTTP_NOT_FOUND : HttpURLConnection.HTTP_BAD_REQUEST;
     }
     return HttpURLConnection.HTTP_INTERNAL_ERROR;
   }
@@ -162,15 +165,19 @@ public class ValidationHandler extends AbstractSystemHttpServiceHandler {
     Map<String, MacroEvaluator> evaluators = ImmutableMap.of(
       SecureStoreMacroEvaluator.FUNCTION_NAME, new SecureStoreMacroEvaluator(namespace, getContext()),
       OAuthMacroEvaluator.FUNCTION_NAME, new OAuthMacroEvaluator(getContext()),
-      ConnectionMacroEvaluator.FUNCTION_NAME, new ConnectionMacroEvaluator(namespace, getContext())
+      ConnectionMacroEvaluator.FUNCTION_NAME, new ConnectionMacroEvaluator(namespace, getContext()),
+      OAuthAccessTokenMacroEvaluator.FUNCTION_NAME, new OAuthAccessTokenMacroEvaluator(getContext())
     );
     MacroEvaluator macroEvaluator = new DefaultMacroEvaluator(new BasicArguments(arguments), evaluators,
                                                               DefaultMacroEvaluator.MAP_FUNCTIONS);
+    Set<String> doNotSkipInvalidMacroForFunctions = validationRequest.getDoNotSkipInvalidMacroForFunctions();
     MacroParserOptions macroParserOptions = MacroParserOptions.builder()
-      .skipInvalidMacros()
       .setEscaping(false)
       .setFunctionWhitelist(evaluators.keySet())
+      .skipInvalidMacros()
+      .setDoNotSkipInvalidMacroForFunctions(doNotSkipInvalidMacroForFunctions)
       .build();
+
     Function<Map<String, String>, Map<String, String>> macroFn =
       macroProperties -> getContext().evaluateMacros(namespace, macroProperties, macroEvaluator, macroParserOptions);
     String validationResponse = GSON.toJson(ValidationUtils.validate(

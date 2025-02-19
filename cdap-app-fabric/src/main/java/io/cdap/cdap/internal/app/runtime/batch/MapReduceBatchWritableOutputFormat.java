@@ -19,24 +19,26 @@ package io.cdap.cdap.internal.app.runtime.batch;
 import io.cdap.cdap.api.data.batch.BatchWritable;
 import io.cdap.cdap.internal.app.runtime.batch.dataset.AbstractBatchWritableOutputFormat;
 import io.cdap.cdap.internal.app.runtime.batch.dataset.CloseableBatchWritable;
+import java.util.Map;
 import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 
-import java.util.Map;
-
 /**
  * An {@link OutputFormat} for writing data from {@link BatchWritable} for MapReduce.
+ *
  * @param <KEY> Type of key.
  * @param <VALUE> Type of value.
  */
-public class MapReduceBatchWritableOutputFormat<KEY, VALUE> extends AbstractBatchWritableOutputFormat<KEY, VALUE> {
+public class MapReduceBatchWritableOutputFormat<KEY, VALUE> extends
+    AbstractBatchWritableOutputFormat<KEY, VALUE> {
 
   @Override
   protected CloseableBatchWritable<KEY, VALUE> createBatchWritable(TaskAttemptContext context,
-                                                                   String namespace,
-                                                                   String datasetName,
-                                                                   Map<String, String> datasetArgs) {
-    MapReduceClassLoader classLoader = MapReduceClassLoader.getFromConfiguration(context.getConfiguration());
+      String namespace,
+      String datasetName,
+      Map<String, String> datasetArgs) {
+    MapReduceClassLoader classLoader = MapReduceClassLoader.getFromConfiguration(
+        context.getConfiguration());
     BasicMapReduceTaskContext<?, ?> taskContext = classLoader.getTaskContextProvider().get(context);
     return taskContext.getBatchWritable(namespace, datasetName, datasetArgs);
   }

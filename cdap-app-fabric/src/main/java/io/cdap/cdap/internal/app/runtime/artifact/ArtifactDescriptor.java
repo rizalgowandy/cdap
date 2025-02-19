@@ -17,24 +17,24 @@
 package io.cdap.cdap.internal.app.runtime.artifact;
 
 import io.cdap.cdap.api.artifact.ArtifactId;
-import org.apache.twill.filesystem.Location;
-
 import java.net.URI;
 import java.util.Objects;
+import org.apache.twill.filesystem.Location;
 
 /**
- * Uniquely describes an artifact. Artifact descriptors are ordered by scope,
- * then by name, and finally by version.
+ * Uniquely describes an artifact. Artifact descriptors are ordered by scope, then by name, and
+ * finally by version.
  */
 public final class ArtifactDescriptor implements Comparable<ArtifactDescriptor> {
+
   private final String namespace;
   private final ArtifactId artifactId;
 
   /**
-   * Mark with transient to not serialize it. Store the location URI in separate field "locationURI" that
-   * gets serialized when this object needs to be transferred through the network.
-   * The recipient should instantiate a {@link Location} based on the received "locationURI"
-   * (e.g. {@link RemoteArtifactRepositoryReader#getArtifact}
+   * Mark with transient to not serialize it. Store the location URI in separate field "locationURI"
+   * that gets serialized when this object needs to be transferred through the network. The
+   * recipient should instantiate a {@link Location} based on the received "locationURI" (e.g.
+   * {@link RemoteArtifactRepositoryReader#getArtifact}
    */
   private final transient Location location;
   private final URI locationURI;
@@ -44,6 +44,13 @@ public final class ArtifactDescriptor implements Comparable<ArtifactDescriptor> 
     this.artifactId = artifactId;
     this.location = location;
     this.locationURI = location.toURI();
+  }
+
+  public ArtifactDescriptor(String namespace, ArtifactId artifactId, URI locationURI) {
+    this.namespace = namespace;
+    this.artifactId = artifactId;
+    this.location = null;
+    this.locationURI = locationURI;
   }
 
   public String getNamespace() {
@@ -63,6 +70,7 @@ public final class ArtifactDescriptor implements Comparable<ArtifactDescriptor> 
    * get location of artifact
    *
    * @return {@link Location} of artifact
+   * @deprecated This will be removed in CDAP-19150
    */
   public Location getLocation() {
     return location;
@@ -74,12 +82,12 @@ public final class ArtifactDescriptor implements Comparable<ArtifactDescriptor> 
 
   @Override
   public String toString() {
-    return "ArtifactDescriptor{" +
-      " artifactId=" + artifactId +
-      ", namespace=" + namespace +
-      ", locationURI=" + locationURI +
-      ", location=" + location +
-      '}';
+    return "ArtifactDescriptor{"
+        + " artifactId=" + artifactId
+        + ", namespace=" + namespace
+        + ", locationURI=" + locationURI
+        + ", location=" + location
+        + '}';
   }
 
   @Override

@@ -21,19 +21,19 @@ import io.cdap.cdap.api.metrics.MetricTimeSeries;
 import io.cdap.cdap.api.metrics.MetricsSystemClient;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.operations.OperationalStats;
-import org.apache.tephra.Transaction;
-import org.apache.tephra.TransactionSystemClient;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import org.apache.tephra.Transaction;
+import org.apache.tephra.TransactionSystemClient;
 
 /**
  * {@link OperationalStats} for reporting CDAP transaction statistics.
  */
 public class CDAPTransactions extends AbstractCDAPStats implements CDAPTransactionsMXBean {
 
-  private static final List<String> METRICS = Arrays.asList("system.committing.size", "system.committed.size");
+  private static final List<String> METRICS = Arrays.asList("system.committing.size",
+      "system.committed.size");
 
   private TransactionSystemClient txClient;
   private MetricsSystemClient metricsSystemClient;
@@ -87,8 +87,9 @@ public class CDAPTransactions extends AbstractCDAPStats implements CDAPTransacti
 
   @Override
   public void collect() throws Exception {
-    Collection<MetricTimeSeries> collection = metricsSystemClient.query(Constants.Metrics.TRANSACTION_MANAGER_CONTEXT,
-                                                                        METRICS);
+    Collection<MetricTimeSeries> collection = metricsSystemClient.query(
+        Constants.Metrics.TRANSACTION_MANAGER_CONTEXT,
+        METRICS);
     for (MetricTimeSeries metricTimeSeries : collection) {
       if (metricTimeSeries.getMetricName().equals("system.committing.size")) {
         numCommittingChangeSets = (int) aggregateMetricValue(metricTimeSeries);

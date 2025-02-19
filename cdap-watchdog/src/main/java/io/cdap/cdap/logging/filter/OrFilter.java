@@ -19,13 +19,13 @@ package io.cdap.cdap.logging.filter;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-
 import java.util.List;
 
 /**
  * Represents an Or filter where all sub expressions are or-ed together.
  */
 public class OrFilter implements Filter {
+
   private final List<? extends Filter> expressions;
 
   public OrFilter(List<? extends Filter> expressions) {
@@ -45,7 +45,7 @@ public class OrFilter implements Filter {
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
-      .add("expressions", expressions)
-      .toString();
+        .add("expressions", expressions)
+        .toString();
   }
 }

@@ -25,7 +25,6 @@ import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -33,7 +32,9 @@ import java.net.URL;
 /**
  * Common implementation of methods to interact with namespaces over HTTP.
  */
-public abstract class AbstractNamespaceClient extends AbstractNamespaceQueryClient implements NamespaceAdmin {
+public abstract class AbstractNamespaceClient extends AbstractNamespaceQueryClient implements
+    NamespaceAdmin {
+
   private static final Gson GSON = new Gson();
 
   @Override
@@ -49,7 +50,7 @@ public abstract class AbstractNamespaceClient extends AbstractNamespaceQueryClie
       return;
     }
     throw new IOException(String.format("Cannot delete namespace %s. Reason: %s",
-                                        namespaceId, response.getResponseBodyAsString()));
+        namespaceId, response.getResponseBodyAsString()));
   }
 
   @Override
@@ -58,7 +59,8 @@ public abstract class AbstractNamespaceClient extends AbstractNamespaceQueryClie
     HttpResponse response = execute(HttpRequest.put(url).withBody(GSON.toJson(metadata)).build());
     String responseBody = response.getResponseBodyAsString();
     if (response.getResponseCode() == HttpURLConnection.HTTP_OK) {
-      if (responseBody.equals(String.format("Namespace '%s' already exists.", metadata.getName()))) {
+      if (responseBody.equals(
+          String.format("Namespace '%s' already exists.", metadata.getName()))) {
         throw new NamespaceAlreadyExistsException(metadata.getNamespaceId());
       }
       return;
@@ -66,7 +68,8 @@ public abstract class AbstractNamespaceClient extends AbstractNamespaceQueryClie
     if (response.getResponseCode() == HttpURLConnection.HTTP_BAD_REQUEST) {
       throw new BadRequestException("Bad request: " + responseBody);
     }
-    throw new IOException(String.format("Cannot create namespace %s. Reason: %s", metadata.getName(), responseBody));
+    throw new IOException(
+        String.format("Cannot create namespace %s. Reason: %s", metadata.getName(), responseBody));
   }
 
   @Override
@@ -80,25 +83,28 @@ public abstract class AbstractNamespaceClient extends AbstractNamespaceQueryClie
     if (response.getResponseCode() == HttpURLConnection.HTTP_BAD_REQUEST) {
       throw new BadRequestException("Bad request: " + responseBody);
     }
-    throw new IOException(String.format("Cannot update namespace %s. Reason: %s", namespaceId, responseBody));
+    throw new IOException(
+        String.format("Cannot update namespace %s. Reason: %s", namespaceId, responseBody));
   }
 
   @Override
   public void deleteDatasets(NamespaceId namespaceId) throws Exception {
-    URL url = resolve(String.format("unrecoverable/namespaces/%s/datasets", namespaceId.getNamespace()));
+    URL url = resolve(
+        String.format("unrecoverable/namespaces/%s/datasets", namespaceId.getNamespace()));
     HttpResponse response = execute(HttpRequest.delete(url).build());
 
     if (response.getResponseCode() == HttpURLConnection.HTTP_NOT_FOUND) {
       throw new NamespaceNotFoundException(namespaceId);
     } else if (HttpURLConnection.HTTP_FORBIDDEN == response.getResponseCode()) {
-      String msg = String.format("Datasets in the namespace '%s' cannot be deleted. Reason: '%s'.", namespaceId,
-                                 response.getResponseBodyAsString());
+      String msg = String.format("Datasets in the namespace '%s' cannot be deleted. Reason: '%s'.",
+          namespaceId,
+          response.getResponseBodyAsString());
       throw new NamespaceCannotBeDeletedException(namespaceId, msg);
     } else if (response.getResponseCode() == HttpURLConnection.HTTP_OK) {
       return;
     }
     throw new IOException(String.format("Cannot delete datasets in namespace %s. Reason: %s",
-                                        namespaceId, response.getResponseBodyAsString()));
+        namespaceId, response.getResponseBodyAsString()));
   }
 
   public void deleteAll() throws Exception {

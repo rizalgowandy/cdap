@@ -20,7 +20,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonSerializationContext;
-
 import javax.annotation.Nullable;
 
 /**
@@ -30,7 +29,7 @@ public class ComparableCodec {
 
   @Nullable
   protected JsonElement serializeComparable(@Nullable Comparable comparable,
-                                            JsonSerializationContext jsonSerializationContext) {
+      JsonSerializationContext jsonSerializationContext) {
     if (comparable == null) {
       return null;
     }
@@ -42,7 +41,7 @@ public class ComparableCodec {
 
   @Nullable
   protected Comparable deserializeComparable(@Nullable JsonElement comparableJson,
-                                             JsonDeserializationContext jsonDeserializationContext) {
+      JsonDeserializationContext jsonDeserializationContext) {
     if (comparableJson == null) {
       return null;
     }

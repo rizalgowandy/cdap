@@ -19,7 +19,6 @@ package io.cdap.cdap.internal.app.runtime.plugin;
 import io.cdap.cdap.api.macro.MacroEvaluator;
 import io.cdap.cdap.api.macro.MacroFunction;
 import io.cdap.cdap.api.macro.Macros;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -28,13 +27,14 @@ import java.util.Set;
 /**
  * A macro evaluator used strictly for collecting macro properties and functions.
  *
- * The evaluator is passed as an argument to a {@link MacroParser} and internally keeps
- * track of macro properties and macro functions
+ * The evaluator is passed as an argument to a {@link MacroParser} and internally keeps track of
+ * macro properties and macro functions
  * TODO: CDAP-6628 this currently works only for simple properties lookup and simple functions,
  * nested macros wouldn't work and needs change in macroparser logic
  * TODO: consolidate this with TrackingMacroEvaluator
  */
 public class CollectMacroEvaluator implements MacroEvaluator {
+
   private final Set<String> lookupProperties;
   private final Set<MacroFunction> macroFunctions;
 

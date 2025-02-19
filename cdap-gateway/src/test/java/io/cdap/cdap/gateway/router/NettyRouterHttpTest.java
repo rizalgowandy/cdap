@@ -19,21 +19,24 @@ package io.cdap.cdap.gateway.router;
 import com.google.common.net.InetAddresses;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.ning.http.client.AsyncHttpClient;
+import com.ning.http.client.AsyncHttpClientConfig;
+import com.ning.http.client.providers.netty.NettyAsyncHttpProvider;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.encryption.NoOpAeadCipher;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.internal.guice.AppFabricTestModule;
 import io.cdap.cdap.security.auth.UserIdentityExtractor;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
+import java.net.InetSocketAddress;
+import javax.net.SocketFactory;
 import org.apache.commons.net.DefaultSocketFactory;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
-
-import java.net.InetSocketAddress;
-import javax.net.SocketFactory;
 
 /**
  * Tests Netty Router running on HTTP.
@@ -51,8 +54,19 @@ public class NettyRouterHttpTest extends NettyRouterTestBase {
   }
 
   @Override
-  protected DefaultHttpClient getHTTPClient() {
+  protected DefaultHttpClient getHttpClient() {
     return new DefaultHttpClient();
+  }
+
+  @Override
+  protected AsyncHttpClient getAsyncHttpClient() throws Exception {
+    AsyncHttpClientConfig.Builder configBuilder = new AsyncHttpClientConfig.Builder();
+
+    final AsyncHttpClient asyncHttpClient = new AsyncHttpClient(
+      new NettyAsyncHttpProvider(configBuilder.build()),
+      configBuilder.build());
+
+    return asyncHttpClient;
   }
 
   @Override
@@ -61,6 +75,7 @@ public class NettyRouterHttpTest extends NettyRouterTestBase {
   }
 
   private static class HttpRouterService extends RouterService {
+
     private final String hostname;
     private final DiscoveryService discoveryService;
 
@@ -74,21 +89,24 @@ public class NettyRouterHttpTest extends NettyRouterTestBase {
     @Override
     protected void startUp() {
       CConfiguration cConf = CConfiguration.create();
-      SConfiguration sConfiguration = SConfiguration.create();
       Injector injector = Guice.createInjector(new CoreSecurityRuntimeModule().getInMemoryModules(),
-                                               new ExternalAuthenticationModule(),
-                                               new InMemoryDiscoveryModule(),
-                                               new AppFabricTestModule(cConf));
-      DiscoveryServiceClient discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
-      UserIdentityExtractor userIdentityExtractor = injector.getInstance(UserIdentityExtractor.class);
+          new ExternalAuthenticationModule(),
+          new InMemoryDiscoveryModule(),
+          new AppFabricTestModule(cConf));
       cConf.set(Constants.Router.ADDRESS, hostname);
       cConf.setInt(Constants.Router.ROUTER_PORT, 0);
       cConf.setInt(Constants.Router.CONNECTION_TIMEOUT_SECS, CONNECTION_IDLE_TIMEOUT_SECS);
+      SConfiguration sConfiguration = SConfiguration.create();
+      DiscoveryServiceClient discoveryServiceClient = injector
+        .getInstance(DiscoveryServiceClient.class);
+      UserIdentityExtractor userIdentityExtractor = injector
+        .getInstance(UserIdentityExtractor.class);
       router =
-        new NettyRouter(cConf, sConfiguration, InetAddresses.forString(hostname),
-                        new RouterServiceLookup(cConf, (DiscoveryServiceClient) discoveryService,
-                                                new RouterPathLookup()),
-                        new SuccessTokenValidator(), userIdentityExtractor, discoveryServiceClient);
+          new NettyRouter(cConf, sConfiguration, InetAddresses.forString(hostname),
+              new RouterServiceLookup(cConf, (DiscoveryServiceClient) discoveryService,
+                  new RouterPathLookup()),
+              new SuccessTokenValidator(), userIdentityExtractor, discoveryServiceClient,
+              new NoOpAeadCipher());
       router.startAndWait();
     }
 

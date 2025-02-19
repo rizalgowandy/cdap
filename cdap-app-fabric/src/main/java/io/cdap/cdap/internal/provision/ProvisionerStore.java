@@ -21,7 +21,6 @@ import io.cdap.cdap.spi.data.StructuredTableContext;
 import io.cdap.cdap.spi.data.TableNotFoundException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-
 import java.io.IOException;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -30,8 +29,8 @@ import javax.inject.Inject;
 /**
  * Stores information used for provisioning.
  *
- * Stores subscriber offset information for TMS, cluster information for program runs, and state information for
- * each provision and deprovision operation.
+ * Stores subscriber offset information for TMS, cluster information for program runs, and state
+ * information for each provision and deprovision operation.
  *
  * Provisioner Store uses transactionRunners to perform underlying CRUD operations.
  */
@@ -39,7 +38,8 @@ final class ProvisionerStore {
 
   private final TransactionRunner txRunner;
 
-  private ProvisionerTable getProvisionerTable(StructuredTableContext context) throws TableNotFoundException {
+  private ProvisionerTable getProvisionerTable(StructuredTableContext context)
+      throws TableNotFoundException {
     return new ProvisionerTable(context);
   }
 
@@ -85,8 +85,10 @@ final class ProvisionerStore {
       // be deprovisioned and the task state cleaned up. When CDAP starts back up, it will see that the task is
       // cancelled and will not resume the task.
       ProvisioningOp newOp =
-        new ProvisioningOp(currentTaskInfo.getProvisioningOp().getType(), ProvisioningOp.Status.CANCELLED);
-      ProvisioningTaskInfo newTaskInfo = new ProvisioningTaskInfo(currentTaskInfo, newOp, currentTaskInfo.getCluster());
+          new ProvisioningOp(currentTaskInfo.getProvisioningOp().getType(),
+              ProvisioningOp.Status.CANCELLED);
+      ProvisioningTaskInfo newTaskInfo = new ProvisioningTaskInfo(currentTaskInfo, newOp,
+          currentTaskInfo.getCluster());
       table.putTaskInfo(newTaskInfo);
       return currentTaskInfo;
     }, IOException.class);

@@ -17,30 +17,25 @@
 package io.cdap.cdap.proto.security;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonDeserializationContext;
-import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSerializationContext;
-import com.google.gson.JsonSerializer;
 import com.google.gson.TypeAdapter;
 import com.google.gson.TypeAdapterFactory;
 import com.google.gson.internal.Streams;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-
 import java.io.IOException;
-import java.lang.reflect.Type;
 
 /**
- * This {@link com.google.gson.Gson} adapter factory allows to serialize actions or permissions,
- * but automatically converts to permissions on read.
- * To maintain backwards compatibility it uses same format (plan string) for actions and json object for permissions.
+ * This {@link com.google.gson.Gson} adapter factory allows to serialize actions or permissions, but
+ * automatically converts to permissions on read. To maintain backwards compatibility it uses same
+ * format (plan string) for actions and json object for permissions.
  */
-public class PermissionAdapterFactory extends TypeAdapter<ActionOrPermission> implements TypeAdapterFactory {
+public class PermissionAdapterFactory extends TypeAdapter<ActionOrPermission> implements
+    TypeAdapterFactory {
+
   @Override
   public ActionOrPermission read(JsonReader in) throws IOException {
     JsonElement json = Streams.parse(in);
@@ -71,10 +66,10 @@ public class PermissionAdapterFactory extends TypeAdapter<ActionOrPermission> im
     }
     Permission permission = (Permission) src;
     out
-      .beginObject()
-      .name("type").value(permission.getPermissionType().name())
-      .name("name").value(permission.name())
-      .endObject();
+        .beginObject()
+        .name("type").value(permission.getPermissionType().name())
+        .name("name").value(permission.name())
+        .endObject();
   }
 
   @Override

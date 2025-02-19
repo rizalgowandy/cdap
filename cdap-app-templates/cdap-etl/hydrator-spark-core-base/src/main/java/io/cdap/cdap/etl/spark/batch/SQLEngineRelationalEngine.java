@@ -20,9 +20,11 @@ import io.cdap.cdap.api.data.DatasetContext;
 import io.cdap.cdap.api.spark.JavaSparkExecutionContext;
 import io.cdap.cdap.etl.api.relational.Engine;
 import io.cdap.cdap.etl.api.relational.RelationalTransform;
+import io.cdap.cdap.etl.common.Constants;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
 import io.cdap.cdap.etl.spark.SparkCollection;
 import io.cdap.cdap.etl.spark.SparkCollectionRelationalEngine;
+import io.cdap.cdap.etl.spark.function.CountingFunction;
 import io.cdap.cdap.etl.spark.function.FunctionCache;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
@@ -67,8 +69,25 @@ public class SQLEngineRelationalEngine implements SparkCollectionRelationalEngin
   public <T> Optional<SparkCollection<T>> tryRelationalTransform(
     StageSpec stageSpec, RelationalTransform transform, Map<String, SparkCollection<Object>> input) {
 
-    return adapter.tryRelationalTransform(stageSpec, transform, input).map(job ->
-      new SQLEngineCollection<T>(sec, functionCacheFactory, jsc, sqlContext,
-                                 datasetContext, sinkFactory, stageSpec.getName(), adapter, job));
+     return adapter.tryRelationalTransform(stageSpec, transform, input)
+      .map(job -> {
+        SQLEngineCollection<T> sqlEngineCollection = new SQLEngineCollection<T>(sec, functionCacheFactory, jsc,
+                                                                                sqlContext, datasetContext, sinkFactory,
+                                                                                stageSpec.getName(), adapter, job);
+        // If it is a Spark Sql Job with a local engine, then Perform a Pull resulting in RddCollection.
+        if (adapter.getSQLEngineClassName().equals(SparkSQLEngine.class.getName())) {
+
+          // CDAP-20508 : Inorder to display records in Preview: In case of RDD based operations such as JOINS,
+          // we use the `CountingFunction` to push the records via `SparkDataTracer`. While other plugin stages is
+          // handled via Emitter.
+          if (adapter.isPreviewEnabled()) {
+            return sqlEngineCollection.pull().map(new CountingFunction<>(stageSpec.getName(), sec.getMetrics(),
+                                                                         Constants.Metrics.RECORDS_OUT,
+                                                                         sec.getDataTracer(stageSpec.getName())));
+          }
+          return sqlEngineCollection.pull();
+        }
+        return sqlEngineCollection;
+      });
   }
 }

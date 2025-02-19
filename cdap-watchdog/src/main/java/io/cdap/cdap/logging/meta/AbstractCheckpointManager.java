@@ -23,9 +23,6 @@ import io.cdap.cdap.spi.data.table.field.Fields;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
 import io.cdap.cdap.store.StoreDefinition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,12 +32,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract checkpoint manager.
+ *
  * @param <T> type of the offset
  */
 public abstract class AbstractCheckpointManager<T> implements CheckpointManager<T> {
+
   private static final Logger LOG = LoggerFactory.getLogger(AbstractCheckpointManager.class);
 
   private final String rowKeyPrefix;
@@ -55,7 +56,8 @@ public abstract class AbstractCheckpointManager<T> implements CheckpointManager<
   }
 
   @Override
-  public void saveCheckpoints(Map<Integer, ? extends Checkpoint<T>> checkpoints) throws IOException {
+  public void saveCheckpoints(Map<Integer, ? extends Checkpoint<T>> checkpoints)
+      throws IOException {
     // if the checkpoints have not changed, we skip writing to table and return.
     if (lastCheckpoint.equals(checkpoints)) {
       return;
@@ -63,14 +65,16 @@ public abstract class AbstractCheckpointManager<T> implements CheckpointManager<
 
     lastCheckpoint = TransactionRunners.run(transactionRunner, context -> {
       Map<Integer, Checkpoint<T>> result = new HashMap<>();
-      StructuredTable table = context.getTable(StoreDefinition.LogCheckpointStore.LOG_CHECKPOINT_TABLE);
+      StructuredTable table = context.getTable(
+          StoreDefinition.LogCheckpointStore.LOG_CHECKPOINT_TABLE);
       for (Map.Entry<Integer, ? extends Checkpoint<T>> entry : checkpoints.entrySet()) {
         Checkpoint<T> checkpoint = entry.getValue();
         Collection<Field<?>> fields = getKeyFields(rowKeyPrefix, entry.getKey());
         fields.add(Fields.bytesField(StoreDefinition.LogCheckpointStore.CHECKPOINT_FIELD,
-                                     serializeCheckpoint(checkpoint)));
+            serializeCheckpoint(checkpoint)));
         table.upsert(fields);
-        result.put(entry.getKey(), new Checkpoint<>(checkpoint.getOffset(), checkpoint.getMaxEventTime()));
+        result.put(entry.getKey(),
+            new Checkpoint<>(checkpoint.getOffset(), checkpoint.getMaxEventTime()));
       }
       return result;
 
@@ -83,7 +87,8 @@ public abstract class AbstractCheckpointManager<T> implements CheckpointManager<
   public Map<Integer, Checkpoint<T>> getCheckpoint(Set<Integer> partitions) throws IOException {
     return TransactionRunners.run(transactionRunner, context -> {
       Map<Integer, Checkpoint<T>> checkpoints = new HashMap<>();
-      StructuredTable table = context.getTable(StoreDefinition.LogCheckpointStore.LOG_CHECKPOINT_TABLE);
+      StructuredTable table = context.getTable(
+          StoreDefinition.LogCheckpointStore.LOG_CHECKPOINT_TABLE);
       for (int partition : partitions) {
         Optional<StructuredRow> optionalRow = table.read(getKeyFields(rowKeyPrefix, partition));
         StructuredRow row = optionalRow.orElse(null);
@@ -96,7 +101,8 @@ public abstract class AbstractCheckpointManager<T> implements CheckpointManager<
   @Override
   public Checkpoint<T> getCheckpoint(int partition) throws IOException {
     Checkpoint<T> checkpoint = TransactionRunners.run(transactionRunner, context -> {
-      StructuredTable table = context.getTable(StoreDefinition.LogCheckpointStore.LOG_CHECKPOINT_TABLE);
+      StructuredTable table = context.getTable(
+          StoreDefinition.LogCheckpointStore.LOG_CHECKPOINT_TABLE);
       Optional<StructuredRow> optionalRow = table.read(getKeyFields(rowKeyPrefix, partition));
       StructuredRow row = optionalRow.orElse(null);
       return fromRow(row);
@@ -116,6 +122,7 @@ public abstract class AbstractCheckpointManager<T> implements CheckpointManager<
 
   /**
    * Serialize the checkpoint.
+   *
    * @param checkpoint checkpoint to be serialized
    * @return serialized checkpoint byte array
    * @throws IOException if error while serializing checkpoint
@@ -124,15 +131,18 @@ public abstract class AbstractCheckpointManager<T> implements CheckpointManager<
 
   /**
    * Deserialize the checkpoint bytes.
+   *
    * @param checkpoint checkpoint bytes to be deserialized
    * @return deserialized checkpoint
    * @throws IOException if error while deserializing checkpoint bytes
    */
-  protected abstract Checkpoint<T> deserializeCheckpoint(@Nullable byte[] checkpoint) throws IOException;
+  protected abstract Checkpoint<T> deserializeCheckpoint(@Nullable byte[] checkpoint)
+      throws IOException;
 
   private Collection<Field<?>> getKeyFields(String rowPrefix, int partition) {
     List<Field<?>> keyFields = new ArrayList<>();
-    keyFields.add(Fields.stringField(StoreDefinition.LogCheckpointStore.ROW_PREFIX_FIELD, rowPrefix));
+    keyFields.add(
+        Fields.stringField(StoreDefinition.LogCheckpointStore.ROW_PREFIX_FIELD, rowPrefix));
     keyFields.add(Fields.intField(StoreDefinition.LogCheckpointStore.PARTITION_FIELD, partition));
     return keyFields;
   }

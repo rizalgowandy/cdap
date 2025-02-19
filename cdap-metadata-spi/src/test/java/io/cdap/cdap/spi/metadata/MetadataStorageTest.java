@@ -16,6 +16,15 @@
 
 package io.cdap.cdap.spi.metadata;
 
+import static io.cdap.cdap.api.metadata.MetadataScope.SYSTEM;
+import static io.cdap.cdap.api.metadata.MetadataScope.USER;
+import static io.cdap.cdap.spi.metadata.MetadataConstants.CREATION_TIME_KEY;
+import static io.cdap.cdap.spi.metadata.MetadataConstants.DESCRIPTION_KEY;
+import static io.cdap.cdap.spi.metadata.MetadataConstants.ENTITY_NAME_KEY;
+import static io.cdap.cdap.spi.metadata.MetadataConstants.TTL_KEY;
+import static io.cdap.cdap.spi.metadata.MetadataKind.PROPERTY;
+import static io.cdap.cdap.spi.metadata.MetadataKind.TAG;
+
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -32,11 +41,6 @@ import io.cdap.cdap.spi.metadata.MetadataMutation.Drop;
 import io.cdap.cdap.spi.metadata.MetadataMutation.Remove;
 import io.cdap.cdap.spi.metadata.MetadataMutation.Update;
 import io.cdap.cdap.test.SlowTests;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,15 +60,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
-
-import static io.cdap.cdap.api.metadata.MetadataScope.SYSTEM;
-import static io.cdap.cdap.api.metadata.MetadataScope.USER;
-import static io.cdap.cdap.spi.metadata.MetadataConstants.CREATION_TIME_KEY;
-import static io.cdap.cdap.spi.metadata.MetadataConstants.DESCRIPTION_KEY;
-import static io.cdap.cdap.spi.metadata.MetadataConstants.ENTITY_NAME_KEY;
-import static io.cdap.cdap.spi.metadata.MetadataConstants.TTL_KEY;
-import static io.cdap.cdap.spi.metadata.MetadataKind.PROPERTY;
-import static io.cdap.cdap.spi.metadata.MetadataKind.TAG;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Tests for Metadata SPI implementations.
@@ -626,14 +625,6 @@ public abstract class MetadataStorageTest {
     MetadataEntity programWithDefaultVersion = MetadataEntity.builder(appWithDefaultVersion)
       .append(MetadataEntity.TYPE, "Service").appendAsType(MetadataEntity.PROGRAM, "pingService").build();
     testVersionLessEntities(programWithoutVersion, programWithVersion, programWithDefaultVersion);
-
-    MetadataEntity scheduleWithoutVersion = MetadataEntity.builder(appWithoutVersion)
-      .appendAsType(MetadataEntity.SCHEDULE, "pingSchedule").build();
-    MetadataEntity scheduleWithVersion = MetadataEntity.builder(appWithVersion)
-      .appendAsType(MetadataEntity.SCHEDULE, "pingSchedule").build();
-    MetadataEntity scheduleWithDefaultVersion = MetadataEntity.builder(appWithDefaultVersion)
-      .appendAsType(MetadataEntity.SCHEDULE, "pingSchedule").build();
-    testVersionLessEntities(scheduleWithoutVersion, scheduleWithVersion, scheduleWithDefaultVersion);
 
     // artifacts have version but it is not ignored
     MetadataEntity artifactWithVersion = MetadataEntity.builder().append(MetadataEntity.NAMESPACE, "nn")

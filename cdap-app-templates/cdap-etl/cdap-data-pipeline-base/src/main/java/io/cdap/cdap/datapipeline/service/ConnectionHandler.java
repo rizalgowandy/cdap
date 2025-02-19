@@ -26,6 +26,7 @@ import io.cdap.cdap.api.annotation.TransactionPolicy;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.macro.MacroEvaluator;
 import io.cdap.cdap.api.macro.MacroParserOptions;
+import io.cdap.cdap.api.metrics.Metrics;
 import io.cdap.cdap.api.service.http.HttpServiceRequest;
 import io.cdap.cdap.api.service.http.HttpServiceResponder;
 import io.cdap.cdap.api.service.http.ServicePluginConfigurer;
@@ -46,7 +47,9 @@ import io.cdap.cdap.etl.api.connector.SampleRequest;
 import io.cdap.cdap.etl.api.validation.ValidationException;
 import io.cdap.cdap.etl.common.ArtifactSelectorProvider;
 import io.cdap.cdap.etl.common.BasicArguments;
+import io.cdap.cdap.etl.common.Constants;
 import io.cdap.cdap.etl.common.DefaultMacroEvaluator;
+import io.cdap.cdap.etl.common.OAuthAccessTokenMacroEvaluator;
 import io.cdap.cdap.etl.common.OAuthMacroEvaluator;
 import io.cdap.cdap.etl.common.SecureStoreMacroEvaluator;
 import io.cdap.cdap.etl.proto.connection.Connection;
@@ -100,6 +103,10 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
   private ConnectionConfig connectionConfig;
   private Set<String> disabledTypes;
   private ContextAccessEnforcer contextAccessEnforcer;
+
+  // Injected by CDAP
+  @SuppressWarnings("unused")
+  private Metrics metrics;
 
   public ConnectionHandler(@Nullable ConnectionConfig connectionConfig) {
     this.connectionConfig = connectionConfig;
@@ -159,7 +166,13 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
 
       contextAccessEnforcer.enforce(new ConnectionEntityId(namespace, ConnectionId.getConnectionId(connection)),
                                     StandardPermission.GET);
-      responder.sendJson(store.getConnection(new ConnectionId(namespaceSummary, connection)));
+      Connection conn = store.getConnection(new ConnectionId(namespaceSummary, connection));
+      Metrics child = metrics.child(ImmutableMap.of(Constants.Metrics.Tag.APP_ENTITY_TYPE,
+                                                    Constants.CONNECTION_SERVICE_NAME,
+                                                    Constants.Metrics.Tag.APP_ENTITY_TYPE_NAME,
+                                                    conn.getConnectionType()));
+      child.count(Constants.Metrics.Connection.CONNECTION_GET_COUNT, 1);
+      responder.sendJson(conn);
     });
   }
 
@@ -196,6 +209,11 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
                                                  creationRequest.getDescription(), false, false,
                                                  now, now, creationRequest.getPlugin());
       store.saveConnection(connectionId, connectionInfo, creationRequest.overWrite());
+      Metrics child = metrics.child(ImmutableMap.of(Constants.Metrics.Tag.APP_ENTITY_TYPE,
+                                                    Constants.CONNECTION_SERVICE_NAME,
+                                                    Constants.Metrics.Tag.APP_ENTITY_TYPE_NAME,
+                                                    connectionInfo.getConnectionType()));
+      child.count(Constants.Metrics.Connection.CONNECTION_COUNT, 1);
       responder.sendStatus(HttpURLConnection.HTTP_OK);
     });
   }
@@ -218,7 +236,13 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
       ConnectionId connectionId = new ConnectionId(namespaceSummary, connection);
       contextAccessEnforcer.enforce(new ConnectionEntityId(namespace, connectionId.getConnectionId()),
                                     StandardPermission.DELETE);
+      Connection oldConnection = store.getConnection(connectionId);
       store.deleteConnection(connectionId);
+      Metrics child = metrics.child(ImmutableMap.of(Constants.Metrics.Tag.APP_ENTITY_TYPE,
+                                                    Constants.CONNECTION_SERVICE_NAME,
+                                                    Constants.Metrics.Tag.APP_ENTITY_TYPE_NAME,
+                                                    oldConnection.getConnectionType()));
+      child.count(Constants.Metrics.Connection.CONNECTION_DELETED_COUNT, 1);
       responder.sendStatus(HttpURLConnection.HTTP_OK);
     });
   }
@@ -307,6 +331,11 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
       } else {
         browseLocally(namespaceSummary.getName(), browseRequest, conn, responder);
       }
+      Metrics child = metrics.child(ImmutableMap.of(Constants.Metrics.Tag.APP_ENTITY_TYPE,
+                                                    Constants.CONNECTION_SERVICE_NAME,
+                                                    Constants.Metrics.Tag.APP_ENTITY_TYPE_NAME,
+                                                    conn.getConnectionType()));
+      child.count(Constants.Metrics.Connection.CONNECTION_BROWSE_COUNT, 1);
     });
   }
 
@@ -368,6 +397,13 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
       } else {
         sampleLocally(namespaceSummary.getName(), sampleRequestString, conn, responder);
       }
+      Metrics child = metrics.child(ImmutableMap.of(Constants.Metrics.Tag.APP_ENTITY_TYPE,
+                                                    Constants.CONNECTION_SERVICE_NAME,
+                                                    Constants.Metrics.Tag.APP_ENTITY_TYPE_NAME,
+                                                    conn.getConnectionType()));
+      child.count(Constants.Metrics.Connection.CONNECTION_SAMPLE_COUNT, 1);
+      // sample will also generate the spec, so add the metric for it
+      child.count(Constants.Metrics.Connection.CONNECTION_SPEC_COUNT, 1);
     });
   }
 
@@ -440,6 +476,12 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
       } else {
         specGenerationLocally(namespaceSummary.getName(), specRequest, conn, responder);
       }
+
+      Metrics child = metrics.child(ImmutableMap.of(Constants.Metrics.Tag.APP_ENTITY_TYPE,
+                                                    Constants.CONNECTION_SERVICE_NAME,
+                                                    Constants.Metrics.Tag.APP_ENTITY_TYPE_NAME,
+                                                    conn.getConnectionType()));
+      child.count(Constants.Metrics.Connection.CONNECTION_SPEC_COUNT, 1);
     });
   }
 
@@ -460,7 +502,10 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
         .setConnection(conn.getName())
         .setProperties(specRequest.getProperties()).build();
       ConnectorSpec spec = connector.generateSpec(connectorContext, connectorSpecRequest);
-      responder.sendString(GSON.toJson(ConnectionUtils.getConnectorDetail(pluginSelector.getSelectedArtifact(), spec)));
+      ConnectorSpec newSpec = ConnectionUtils.filterSpecWithPluginNameAndType(spec, specRequest.getPluginName(),
+                                                                              specRequest.getPluginType());
+      responder.sendString(GSON.toJson(ConnectionUtils.getConnectorDetail(pluginSelector.getSelectedArtifact(),
+                                                                          newSpec)));
     }
   }
 
@@ -470,12 +515,12 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
     Map<String, String> arguments = getContext().getPreferencesForNamespace(namespace, true);
     Map<String, MacroEvaluator> evaluators = ImmutableMap.of(
       SecureStoreMacroEvaluator.FUNCTION_NAME, new SecureStoreMacroEvaluator(namespace, getContext()),
-      OAuthMacroEvaluator.FUNCTION_NAME, new OAuthMacroEvaluator(getContext())
+      OAuthMacroEvaluator.FUNCTION_NAME, new OAuthMacroEvaluator(getContext()),
+      OAuthAccessTokenMacroEvaluator.FUNCTION_NAME, new OAuthAccessTokenMacroEvaluator(getContext())
     );
     MacroEvaluator macroEvaluator = new DefaultMacroEvaluator(new BasicArguments(arguments), evaluators,
                                                               Collections.singleton(OAuthMacroEvaluator.FUNCTION_NAME));
     MacroParserOptions options = MacroParserOptions.builder()
-                                 .skipInvalidMacros()
                                  .setEscaping(false)
                                  .setFunctionWhitelist(evaluators.keySet())
                                  .build();
@@ -513,9 +558,8 @@ public class ConnectionHandler extends AbstractDataPipelineHandler {
                                HttpServiceResponder responder)  {
     RemoteConnectionRequest remoteRequest = new RemoteConnectionRequest(namespace, request, connection);
     RunnableTaskRequest runnableTaskRequest =
-      RunnableTaskRequest.getBuilder(remoteExecutionTaskClass.getName()).
-        withParam(GSON.toJson(remoteRequest)).
-        build();
+      RunnableTaskRequest.getBuilder(remoteExecutionTaskClass.getName())
+              .withParam(GSON.toJson(remoteRequest)).withNamespace(namespace).build();
     try {
       byte[] bytes = getContext().runTask(runnableTaskRequest);
       responder.sendString(new String(bytes, StandardCharsets.UTF_8));

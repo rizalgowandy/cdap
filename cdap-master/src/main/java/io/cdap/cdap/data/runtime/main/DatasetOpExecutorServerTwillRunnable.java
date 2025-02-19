@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -30,8 +30,10 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
 import io.cdap.cdap.common.namespace.guice.NamespaceQueryAdminModule;
@@ -45,11 +47,11 @@ import io.cdap.cdap.data2.metadata.writer.DefaultMetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.MessagingMetadataPublisher;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.internal.app.store.DefaultStore;
+import io.cdap.cdap.internal.metadata.MetadataConsumerSubscriberService;
 import io.cdap.cdap.logging.appender.LogAppenderInitializer;
 import io.cdap.cdap.logging.guice.KafkaLogAppenderModule;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.client.DefaultMessagingClientModule;
 import io.cdap.cdap.metadata.MetadataService;
 import io.cdap.cdap.metadata.MetadataServiceModule;
 import io.cdap.cdap.metadata.MetadataSubscriberService;
@@ -64,10 +66,9 @@ import io.cdap.cdap.security.impersonation.OwnerAdmin;
 import io.cdap.cdap.security.impersonation.RemoteUGIProvider;
 import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.security.spi.authorization.PermissionManager;
+import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.api.TwillContext;
-
-import java.util.List;
 
 /**
  * Executes user code on behalf of a particular user inside a YARN container, for security.
@@ -90,51 +91,53 @@ public class DatasetOpExecutorServerTwillRunnable extends AbstractMasterTwillRun
     cConf.set(Constants.Metadata.SERVICE_BIND_ADDRESS, context.getHost().getHostName());
 
     String txClientId = String.format("cdap.service.%s.%d", Constants.Service.DATASET_EXECUTOR,
-                                      context.getInstanceId());
+        context.getInstanceId());
     injector = createInjector(cConf, hConf, txClientId);
 
     injector.getInstance(LogAppenderInitializer.class).initialize();
-    LoggingContextAccessor.setLoggingContext(new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                                                       Constants.Logging.COMPONENT_NAME,
-                                                                       Constants.Service.DATASET_EXECUTOR));
+    LoggingContextAccessor.setLoggingContext(
+        new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
+            Constants.Logging.COMPONENT_NAME,
+            Constants.Service.DATASET_EXECUTOR));
     return injector;
   }
 
   @VisibleForTesting
   static Injector createInjector(CConfiguration cConf, Configuration hConf, String txClientId) {
     return Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new IOModule(),
-      new ZKClientModule(),
-      new ZKDiscoveryModule(),
-      new KafkaClientModule(),
-      new MessagingClientModule(),
-      new MetricsClientRuntimeModule().getDistributedModules(),
-      new DFSLocationModule(),
-      new NamespaceQueryAdminModule(),
-      new DataFabricModules(txClientId).getDistributedModules(),
-      new DataSetsModules().getDistributedModules(),
-      new DataSetServiceModules().getDistributedModules(),
-      new KafkaLogAppenderModule(),
-      new ExploreClientModule(),
-      new MetadataServiceModule(),
-      new AuditModule(),
-      new EntityVerifierModule(),
-      new SecureStoreClientModule(),
-      new AuthorizationEnforcementModule().getDistributedModules(),
-      new AuthenticationContextModules().getMasterModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(Store.class).to(DefaultStore.class);
-          bind(UGIProvider.class).to(RemoteUGIProvider.class).in(Scopes.SINGLETON);
-          bind(PermissionManager.class).to(RemotePermissionManager.class);
-          bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
-          // TODO (CDAP-14677): find a better way to inject metadata publisher
-          bind(MetadataPublisher.class).to(MessagingMetadataPublisher.class);
-          bind(MetadataServiceClient.class).to(DefaultMetadataServiceClient.class);
-        }
-      });
+        new ConfigModule(cConf, hConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new IOModule(),
+        new ZkClientModule(),
+        new ZkDiscoveryModule(),
+        new KafkaClientModule(),
+        new DefaultMessagingClientModule(),
+        new MetricsClientRuntimeModule().getDistributedModules(),
+        new DFSLocationModule(),
+        new NamespaceQueryAdminModule(),
+        new DataFabricModules(txClientId).getDistributedModules(),
+        new DataSetsModules().getDistributedModules(),
+        new DataSetServiceModules().getDistributedModules(),
+        new KafkaLogAppenderModule(),
+        new MetadataServiceModule(),
+        new AuditModule(),
+        new EntityVerifierModule(),
+        new SecureStoreClientModule(),
+        new AuthorizationEnforcementModule().getDistributedModules(),
+        new AuthenticationContextModules().getMasterModule(),
+        new NoOpAuditLogModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(Store.class).to(DefaultStore.class);
+            bind(UGIProvider.class).to(RemoteUGIProvider.class).in(Scopes.SINGLETON);
+            bind(PermissionManager.class).to(RemotePermissionManager.class);
+            bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
+            // TODO (CDAP-14677): find a better way to inject metadata publisher
+            bind(MetadataPublisher.class).to(MessagingMetadataPublisher.class);
+            bind(MetadataServiceClient.class).to(DefaultMetadataServiceClient.class);
+          }
+        });
   }
 
   @Override
@@ -142,5 +145,6 @@ public class DatasetOpExecutorServerTwillRunnable extends AbstractMasterTwillRun
     services.add(injector.getInstance(DatasetOpExecutorService.class));
     services.add(injector.getInstance(MetadataService.class));
     services.add(injector.getInstance(MetadataSubscriberService.class));
+    services.add(injector.getInstance(MetadataConsumerSubscriberService.class));
   }
 }

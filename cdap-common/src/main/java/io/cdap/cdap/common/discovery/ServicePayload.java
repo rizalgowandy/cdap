@@ -17,7 +17,6 @@
 package io.cdap.cdap.common.discovery;
 
 import com.google.common.collect.Maps;
-
 import java.util.Map;
 import java.util.Set;
 
@@ -25,6 +24,7 @@ import java.util.Set;
  * Defines the payload that is placed for every service.
  */
 public class ServicePayload {
+
   private final Map<String, String> values = Maps.newHashMap();
 
   /**

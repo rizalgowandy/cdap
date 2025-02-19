@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.service.http;
 
 import io.cdap.cdap.internal.api.AbstractPluginConfigurable;
-
 import java.util.Map;
 
 /**
@@ -28,7 +27,8 @@ import java.util.Map;
  * @param <V> type of service configurer
  */
 public abstract class AbstractHttpServiceHandler<T extends HttpServiceContext, V extends HttpServiceConfigurer>
-  extends AbstractPluginConfigurable<V> implements HttpServiceHandler<T, V> {
+    extends AbstractPluginConfigurable<V> implements HttpServiceHandler<T, V> {
+
   private V configurer;
   private T context;
 
@@ -40,10 +40,12 @@ public abstract class AbstractHttpServiceHandler<T extends HttpServiceContext, V
   }
 
   /**
-   * An implementation of {@link HttpServiceHandler#configure(HttpServiceConfigurer)}. Stores the configurer
-   * so that it can be used later and then runs the configure method which is overwritten by children classes.
+   * An implementation of {@link HttpServiceHandler#configure(HttpServiceConfigurer)}. Stores the
+   * configurer so that it can be used later and then runs the configure method which is overwritten
+   * by children classes.
    *
-   * @param configurer the {@link HttpServiceConfigurer} which is used to configure this Handler
+   * @param configurer the {@link HttpServiceConfigurer} which is used to configure this
+   *     Handler
    */
   @Override
   public final void configure(V configurer) {
@@ -52,11 +54,10 @@ public abstract class AbstractHttpServiceHandler<T extends HttpServiceContext, V
   }
 
   /**
-   * An implementation of {@link HttpServiceHandler#initialize(HttpServiceContext)}. Stores the context
-   * so that it can be used later.
+   * An implementation of {@link HttpServiceHandler#initialize(HttpServiceContext)}. Stores the
+   * context so that it can be used later.
    *
    * @param context the HTTP service runtime context
-   * @throws Exception
    */
   @Override
   public void initialize(T context) throws Exception {
@@ -87,9 +88,8 @@ public abstract class AbstractHttpServiceHandler<T extends HttpServiceContext, V
   }
 
   /**
-   * @see HttpServiceConfigurer#setProperties(java.util.Map)
-   *
    * @param properties the properties to set
+   * @see HttpServiceConfigurer#setProperties(java.util.Map)
    */
   protected void setProperties(Map<String, String> properties) {
     configurer.setProperties(properties);

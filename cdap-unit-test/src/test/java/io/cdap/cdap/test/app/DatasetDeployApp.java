@@ -39,7 +39,6 @@ import io.cdap.cdap.api.dataset.lib.ObjectMappedTableProperties;
 import io.cdap.cdap.api.dataset.module.DatasetDefinitionRegistry;
 import io.cdap.cdap.api.dataset.module.DatasetModule;
 import io.cdap.cdap.api.service.http.AbstractHttpServiceHandler;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -189,9 +188,9 @@ public class DatasetDeployApp extends AbstractApplication {
 
       Record that = (Record) o;
 
-      return Objects.equal(this.id, that.id) &&
-        Objects.equal(this.firstName, that.firstName) &&
-        Objects.equal(this.lastName, that.lastName);
+      return Objects.equal(this.id, that.id)
+          && Objects.equal(this.firstName, that.firstName)
+          && Objects.equal(this.lastName, that.lastName);
     }
 
     @Override

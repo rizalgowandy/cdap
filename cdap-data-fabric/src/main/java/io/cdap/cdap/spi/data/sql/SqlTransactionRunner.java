@@ -16,26 +16,26 @@
 
 package io.cdap.cdap.spi.data.sql;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.transaction.TransactionException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TxRunnable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 import javax.sql.DataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Sql transaction runner will set the transaction isolation level and start a transaction.
  */
 public class SqlTransactionRunner implements TransactionRunner {
+
   private static final Logger LOG = LoggerFactory.getLogger(SqlTransactionRunner.class);
 
   private final StructuredTableAdmin admin;
@@ -45,8 +45,8 @@ public class SqlTransactionRunner implements TransactionRunner {
   private final int scanFetchSize;
 
   public SqlTransactionRunner(StructuredTableAdmin tableAdmin, DataSource dataSource,
-                              MetricsCollectionService metricsCollectionService,
-                              boolean emitTimeMetrics, int scanFetchSize) {
+      MetricsCollectionService metricsCollectionService,
+      boolean emitTimeMetrics, int scanFetchSize) {
     this.admin = tableAdmin;
     this.dataSource = dataSource;
     this.metricsCollectionService = metricsCollectionService;
@@ -61,21 +61,26 @@ public class SqlTransactionRunner implements TransactionRunner {
     try {
       connection = dataSource.getConnection();
     } catch (SQLException e) {
-      throw new TransactionException("Unable to get connection to the sql database", e);
+      throw new SqlTransactionException("Unable to get connection to the sql database.", e);
     }
 
     try {
-      MetricsContext metricsCollector = metricsCollectionService.getContext(Constants.Metrics.STORAGE_METRICS_TAGS);
+      MetricsContext metricsCollector = metricsCollectionService.getContext(
+          Constants.Metrics.STORAGE_METRICS_TAGS);
       metricsCollector.increment(Constants.Metrics.StructuredTable.TRANSACTION_COUNT, 1L);
       connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
       connection.setAutoCommit(false);
-      runnable.run(new SqlStructuredTableContext(admin, connection, metricsCollector, emitTimeMetrics,
-          this.scanFetchSize));
+      runnable.run(
+          new SqlStructuredTableContext(admin, connection, metricsCollector, emitTimeMetrics,
+              this.scanFetchSize));
       connection.commit();
     } catch (Exception e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof SQLException) {
-        rollback(connection, new SqlTransactionException((SQLException) cause, e));
+      List<Throwable> causes = Throwables.getCausalChain(e);
+      for (Throwable cause : causes) {
+        if (cause instanceof SQLException) {
+          rollback(connection, new SqlTransactionException((SQLException) cause, e));
+          break;
+        }
       }
       rollback(connection, new TransactionException("Failed to execute the sql queries.", e));
     } finally {

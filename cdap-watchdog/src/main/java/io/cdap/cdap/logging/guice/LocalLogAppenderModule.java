@@ -22,7 +22,7 @@ import io.cdap.cdap.logging.appender.LogAppender;
 import io.cdap.cdap.logging.framework.local.LocalLogAppender;
 
 /**
- * A Guice module to provide binding for {@link LogAppender} that writes log entries locally.
+ * A Guice module to provide bindings for {@link LogAppender} implementations.
  */
 public class LocalLogAppenderModule extends AbstractModule {
 

@@ -24,13 +24,12 @@ import io.cdap.cdap.common.io.ByteBuffers;
 import io.cdap.http.ChunkResponder;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 public class JsonListResponderTest {
 
@@ -42,12 +41,12 @@ public class JsonListResponderTest {
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
     Mockito.doAnswer(invocation -> {
-      ByteBuffers.writeToStream(invocation.getArgumentAt(0, ByteBuffer.class), byteArrayOutputStream);
+      ByteBuffers.writeToStream(invocation.getArgument(0, ByteBuffer.class), byteArrayOutputStream);
       return null;
     }).when(chunkResponder).sendChunk(Mockito.any(ByteBuffer.class));
 
     JsonPaginatedListResponder.respond(
-        new Gson(), responder, "applications", (jsonListResponder)-> {
+        new Gson(), responder, "applications", (jsonListResponder) -> {
           jsonListResponder.send("application");
           return "nextToken";
         });
@@ -66,12 +65,12 @@ public class JsonListResponderTest {
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
     Mockito.doAnswer(invocation -> {
-      ByteBuffers.writeToStream(invocation.getArgumentAt(0, ByteBuffer.class), byteArrayOutputStream);
+      ByteBuffers.writeToStream(invocation.getArgument(0, ByteBuffer.class), byteArrayOutputStream);
       return null;
     }).when(chunkResponder).sendChunk(Mockito.any(ByteBuffer.class));
 
     JsonPaginatedListResponder.respond(
-        new Gson(), responder, "applications", (jsonListResponder)-> {
+        new Gson(), responder, "applications", (jsonListResponder) -> {
           jsonListResponder.send("application0");
           jsonListResponder.send("application1");
           return "nextToken";
@@ -92,12 +91,12 @@ public class JsonListResponderTest {
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
     Mockito.doAnswer(invocation -> {
-      ByteBuffers.writeToStream(invocation.getArgumentAt(0, ByteBuffer.class), byteArrayOutputStream);
+      ByteBuffers.writeToStream(invocation.getArgument(0, ByteBuffer.class), byteArrayOutputStream);
       return null;
     }).when(chunkResponder).sendChunk(Mockito.any(ByteBuffer.class));
 
     JsonWholeListResponder.respond(
-        new Gson(), responder, (jsonListResponder)-> {
+        new Gson(), responder, (jsonListResponder) -> {
           jsonListResponder.send("application");
         });
 

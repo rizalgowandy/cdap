@@ -22,14 +22,15 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.lang.FilterClassLoader;
 import io.cdap.cdap.extension.AbstractExtensionLoader;
-
 import java.util.Collections;
 import java.util.Set;
 
 /**
  * Extension loader to load log appenders.
  */
-public class LogAppenderExtensionLoader extends AbstractExtensionLoader<String, Appender<ILoggingEvent>> {
+public class LogAppenderExtensionLoader extends
+    AbstractExtensionLoader<String, Appender<ILoggingEvent>> {
+
   private final CConfiguration cConf;
 
   LogAppenderExtensionLoader(CConfiguration cConf) {

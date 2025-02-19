@@ -20,13 +20,12 @@ import io.cdap.cdap.api.Predicate;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.security.Action;
 import io.cdap.cdap.proto.security.Principal;
-
 import java.util.Collections;
 
 /**
  * Abstract class that implements {@link Authorizer} and provides default no-op implementations of
- * {@link Authorizer#initialize(AuthorizationContext)} and {@link Authorizer#destroy()} so classes extending it do not
- * have to implement these methods unless necessary.
+ * {@link Authorizer#initialize(AuthorizationContext)} and {@link Authorizer#destroy()} so classes
+ * extending it do not have to implement these methods unless necessary.
  */
 @Deprecated
 public abstract class AbstractAuthorizer implements Authorizer {

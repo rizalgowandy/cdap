@@ -24,14 +24,14 @@ import io.cdap.cdap.api.dataset.DatasetSpecification;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.data2.dataset2.lib.table.AbstractTableDefinition;
 import io.cdap.cdap.data2.dataset2.lib.table.MetricsTable;
-
 import java.io.IOException;
 import java.util.Map;
 
 /**
  * LevelDB backed implementation for {@link io.cdap.cdap.data2.dataset2.lib.table.MetricsTable}
  */
-public class LevelDBMetricsTableDefinition extends AbstractTableDefinition<MetricsTable, DatasetAdmin> {
+public class LevelDBMetricsTableDefinition extends
+    AbstractTableDefinition<MetricsTable, DatasetAdmin> {
 
   @Inject
   private LevelDBTableService service;
@@ -43,13 +43,13 @@ public class LevelDBMetricsTableDefinition extends AbstractTableDefinition<Metri
 
   @Override
   public MetricsTable getDataset(DatasetContext datasetContext, DatasetSpecification spec,
-                                 Map<String, String> arguments, ClassLoader classLoader) throws IOException {
+      Map<String, String> arguments, ClassLoader classLoader) throws IOException {
     return new LevelDBMetricsTable(datasetContext.getNamespaceId(), spec.getName(), service, cConf);
   }
 
   @Override
   public DatasetAdmin getAdmin(DatasetContext datasetContext, DatasetSpecification spec,
-                               ClassLoader classLoader) throws IOException {
+      ClassLoader classLoader) throws IOException {
     // the table management is the same as in ordered table
     return new LevelDBTableAdmin(datasetContext, spec, service, cConf);
   }

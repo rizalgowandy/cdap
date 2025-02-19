@@ -37,23 +37,20 @@ import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.app.DefaultApplicationContext;
 import io.cdap.cdap.app.MockAppConfigurer;
 import io.cdap.cdap.app.program.ManifestFields;
-import io.cdap.cdap.app.runtime.spark.SparkResourceFilters;
+import io.cdap.cdap.app.runtime.spark.SparkResourceFilter;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.common.discovery.StickyEndpointStrategy;
-import io.cdap.cdap.common.discovery.URIScheme;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.lang.ProgramResources;
 import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.common.test.PluginJarHelper;
 import io.cdap.cdap.data2.dataset2.DatasetFramework;
-import io.cdap.cdap.explore.jdbc.ExploreConnectionParams;
-import io.cdap.cdap.explore.jdbc.ExploreDriver;
 import io.cdap.cdap.internal.AppFabricClient;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.runtime.artifact.Artifacts;
 import io.cdap.cdap.proto.ApplicationDetail;
+import io.cdap.cdap.proto.ApplicationRecord;
 import io.cdap.cdap.proto.ScheduleDetail;
 import io.cdap.cdap.proto.artifact.AppRequest;
 import io.cdap.cdap.proto.id.ApplicationId;
@@ -64,36 +61,29 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ScheduleId;
 import io.cdap.cdap.test.internal.ApplicationManagerFactory;
 import io.cdap.cdap.test.internal.ArtifactManagerFactory;
-import org.apache.tephra.TransactionAware;
-import org.apache.tephra.TransactionContext;
-import org.apache.tephra.TransactionFailureException;
-import org.apache.tephra.TransactionSystemClient;
-import org.apache.twill.api.ClassAcceptor;
-import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Type;
-import java.net.InetSocketAddress;
 import java.net.URL;
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.Manifest;
 import javax.annotation.Nullable;
+import org.apache.tephra.TransactionAware;
+import org.apache.tephra.TransactionContext;
+import org.apache.tephra.TransactionFailureException;
+import org.apache.tephra.TransactionSystemClient;
+import org.apache.twill.api.ClassAcceptor;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link TestManager} for use in unit tests.
@@ -121,7 +111,7 @@ public class UnitTestManager extends AbstractTestManager {
         // allow developers to exclude spark-core module from their unit tests (it'll work if they don't use spark)
         getClass().getClassLoader().loadClass("io.cdap.cdap.app.runtime.spark.SparkRuntimeUtils");
         // If it is loading by spark framework, don't include it in the app JAR
-        return !SparkResourceFilters.SPARK_PROGRAM_CLASS_LOADER_FILTER.acceptResource(resourceName);
+        return !(new SparkResourceFilter().acceptResource(resourceName));
       } catch (ClassNotFoundException e) {
         if (logWarnOnce.compareAndSet(false, true)) {
           LOG.warn("Spark will not be available for unit tests.");
@@ -145,15 +135,15 @@ public class UnitTestManager extends AbstractTestManager {
 
   @Inject
   public UnitTestManager(AppFabricClient appFabricClient,
-                         DatasetFramework datasetFramework,
-                         TransactionSystemClient txSystemClient,
-                         DiscoveryServiceClient discoveryClient,
-                         ApplicationManagerFactory appManagerFactory,
-                         LocationFactory locationFactory,
-                         MetricsManager metricsManager,
-                         ArtifactRepository artifactRepository,
-                         ArtifactManagerFactory artifactManagerFactory,
-                         CConfiguration cConf) {
+      DatasetFramework datasetFramework,
+      TransactionSystemClient txSystemClient,
+      DiscoveryServiceClient discoveryClient,
+      ApplicationManagerFactory appManagerFactory,
+      LocationFactory locationFactory,
+      MetricsManager metricsManager,
+      ArtifactRepository artifactRepository,
+      ArtifactManagerFactory artifactManagerFactory,
+      CConfiguration cConf) {
     this.appFabricClient = appFabricClient;
     this.datasetFramework = datasetFramework;
     this.txSystemClient = txSystemClient;
@@ -165,19 +155,21 @@ public class UnitTestManager extends AbstractTestManager {
     this.metricsManager = metricsManager;
     this.artifactManagerFactory = artifactManagerFactory;
     this.tmpDir = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR),
-      cConf.get(Constants.AppFabric.TEMP_DIR)).getAbsoluteFile();
+        cConf.get(Constants.AppFabric.TEMP_DIR)).getAbsoluteFile();
     this.deploymentJarCache = CacheBuilder.newBuilder().build();
   }
 
   @Override
-  public ApplicationManager deployApplication(NamespaceId namespace, Class<? extends Application> applicationClz,
-                                              @Nullable Config configObject, File... bundleEmbeddedJars)
-    throws AccessException {
+  public ApplicationManager deployApplication(NamespaceId namespace,
+      Class<? extends Application> applicationClz,
+      @Nullable Config configObject, File... bundleEmbeddedJars)
+      throws AccessException {
     Preconditions.checkNotNull(applicationClz, "Application class cannot be null.");
     Type configType = Artifacts.getConfigType(applicationClz);
 
     try {
-      ArtifactId artifactId = new ArtifactId(namespace.getNamespace(), applicationClz.getSimpleName(), "1.0-SNAPSHOT");
+      ArtifactId artifactId = new ArtifactId(namespace.getNamespace(),
+          applicationClz.getSimpleName(), "1.0-SNAPSHOT");
       addAppArtifact(artifactId, applicationClz, new Manifest(), bundleEmbeddedJars);
 
       if (configObject == null) {
@@ -187,11 +179,13 @@ public class UnitTestManager extends AbstractTestManager {
       Application app = applicationClz.newInstance();
       MockAppConfigurer configurer = new MockAppConfigurer(app);
       app.configure(configurer, new DefaultApplicationContext<>(configObject));
-      ApplicationId applicationId = new ApplicationId(namespace.getNamespace(), configurer.getName());
+      ApplicationId applicationId = new ApplicationId(namespace.getNamespace(),
+          configurer.getName());
 
-      ArtifactSummary artifactSummary = new ArtifactSummary(artifactId.getArtifact(), artifactId.getVersion());
+      ArtifactSummary artifactSummary = new ArtifactSummary(artifactId.getArtifact(),
+          artifactId.getVersion());
       appFabricClient.deployApplication(Id.Application.fromEntityId(applicationId),
-                                        new AppRequest(artifactSummary, configObject));
+          new AppRequest(artifactSummary, configObject));
       return appManagerFactory.create(applicationId);
     } catch (AccessException e) {
       throw e;
@@ -201,15 +195,19 @@ public class UnitTestManager extends AbstractTestManager {
   }
 
   @Override
-  public ApplicationManager deployApplication(ApplicationId appId, AppRequest appRequest) throws Exception {
-    appFabricClient.deployApplication(appId, appRequest);
-    return appManagerFactory.create(appId);
+  public ApplicationManager deployApplication(ApplicationId appId, AppRequest appRequest)
+      throws Exception {
+    ApplicationRecord appRecord = appFabricClient.deployApplication(appId, appRequest);
+    ApplicationId deployedAppId = appId.getNamespaceId()
+        .app(appRecord.getName(), appRecord.getAppVersion());
+    return appManagerFactory.create(deployedAppId);
   }
 
   @Override
   public ApplicationManager getApplicationManager(ApplicationId applicationId) {
     return appManagerFactory.create(applicationId);
   }
+
   @Override
   public ArtifactManager addArtifact(ArtifactId artifactId, File artifactFile) throws Exception {
     artifactRepository.addArtifact(Id.Artifact.fromEntityId(artifactId), artifactFile);
@@ -223,44 +221,48 @@ public class UnitTestManager extends AbstractTestManager {
 
   @Override
   public ArtifactManager addAppArtifact(ArtifactId artifactId, Class<?> appClass,
-                                        String... exportPackages) throws Exception {
+      String... exportPackages) throws Exception {
     Manifest manifest = new Manifest();
     if (exportPackages.length > 0) {
-      manifest.getMainAttributes().put(ManifestFields.EXPORT_PACKAGE, Joiner.on(',').join(exportPackages));
+      manifest.getMainAttributes()
+          .put(ManifestFields.EXPORT_PACKAGE, Joiner.on(',').join(exportPackages));
     }
     return addAppArtifact(artifactId, appClass, manifest);
   }
 
   @Override
   public ArtifactManager addAppArtifact(ArtifactId artifactId, Class<?> appClass,
-                                        Manifest manifest) throws Exception {
+      Manifest manifest) throws Exception {
     return addAppArtifact(artifactId, appClass, manifest, new File[0]);
   }
 
   @Override
   public ArtifactManager addAppArtifact(ArtifactId artifactId, Class<?> appClass,
-                                        Manifest manifest, File... bundleEmbeddedJars) throws Exception {
+      Manifest manifest, File... bundleEmbeddedJars) throws Exception {
 
-    Location appJar = deploymentJarCache.get(new AppArtifactKey(appClass, manifest, bundleEmbeddedJars), () ->
-      AppJarHelper.createDeploymentJar(locationFactory, appClass, manifest, CLASS_ACCEPTOR, bundleEmbeddedJars));
+    Location appJar = deploymentJarCache.get(
+        new AppArtifactKey(appClass, manifest, bundleEmbeddedJars), () ->
+            AppJarHelper.createDeploymentJar(locationFactory, appClass, manifest, CLASS_ACCEPTOR,
+                bundleEmbeddedJars));
     addArtifact(artifactId, appJar);
     return artifactManagerFactory.create(artifactId);
   }
 
   @Override
   public ArtifactManager addPluginArtifact(ArtifactId artifactId, ArtifactId parent,
-                                           Class<?> pluginClass, Class<?>... pluginClasses) throws Exception {
+      Class<?> pluginClass, Class<?>... pluginClasses) throws Exception {
     Set<ArtifactRange> parents = new HashSet<>();
     parents.add(new ArtifactRange(
-      parent.getParent().getNamespace(), parent.getArtifact(), new ArtifactVersion(parent.getVersion()),
-      true, new ArtifactVersion(parent.getVersion()), true));
+        parent.getParent().getNamespace(), parent.getArtifact(),
+        new ArtifactVersion(parent.getVersion()),
+        true, new ArtifactVersion(parent.getVersion()), true));
     addPluginArtifact(artifactId, parents, pluginClass, pluginClasses);
     return artifactManagerFactory.create(artifactId);
   }
 
   @Override
   public ArtifactManager addPluginArtifact(ArtifactId artifactId, Set<ArtifactRange> parents,
-                                           Class<?> pluginClass, Class<?>... pluginClasses) throws Exception {
+      Class<?> pluginClass, Class<?>... pluginClasses) throws Exception {
     File pluginJar = createPluginJar(artifactId, pluginClass, pluginClasses);
     artifactRepository.addArtifact(Id.Artifact.fromEntityId(artifactId), pluginJar, parents, null);
     Preconditions.checkState(pluginJar.delete());
@@ -269,23 +271,24 @@ public class UnitTestManager extends AbstractTestManager {
 
   @Override
   public ArtifactManager addPluginArtifact(ArtifactId artifactId, ArtifactId parent,
-                                           @Nullable Set<PluginClass> additionalPlugins, Class<?> pluginClass,
-                                           Class<?>... pluginClasses) throws Exception {
+      @Nullable Set<PluginClass> additionalPlugins, Class<?> pluginClass,
+      Class<?>... pluginClasses) throws Exception {
     Set<ArtifactRange> parents = new HashSet<>();
     parents.add(new ArtifactRange(
-      parent.getParent().getNamespace(), parent.getArtifact(), new ArtifactVersion(parent.getVersion()),
-      true, new ArtifactVersion(parent.getVersion()), true));
+        parent.getParent().getNamespace(), parent.getArtifact(),
+        new ArtifactVersion(parent.getVersion()),
+        true, new ArtifactVersion(parent.getVersion()), true));
     addPluginArtifact(artifactId, parents, additionalPlugins, pluginClass, pluginClasses);
     return artifactManagerFactory.create(artifactId);
   }
 
   @Override
   public ArtifactManager addPluginArtifact(ArtifactId artifactId, Set<ArtifactRange> parents,
-                                           @Nullable Set<PluginClass> additionalPlugins, Class<?> pluginClass,
-                                           Class<?>... pluginClasses) throws Exception {
+      @Nullable Set<PluginClass> additionalPlugins, Class<?> pluginClass,
+      Class<?>... pluginClasses) throws Exception {
     File pluginJar = createPluginJar(artifactId, pluginClass, pluginClasses);
     artifactRepository.addArtifact(Id.Artifact.fromEntityId(artifactId), pluginJar, parents,
-                                   additionalPlugins, Collections.<String, String>emptyMap());
+        additionalPlugins, Collections.emptyMap());
     Preconditions.checkState(pluginJar.delete());
     return artifactManagerFactory.create(artifactId);
   }
@@ -303,13 +306,13 @@ public class UnitTestManager extends AbstractTestManager {
 
   @Override
   public void deployDatasetModule(DatasetModuleId datasetModuleId,
-                                  Class<? extends DatasetModule> datasetModule) throws Exception {
+      Class<? extends DatasetModule> datasetModule) throws Exception {
     datasetFramework.addModule(datasetModuleId, datasetModule.newInstance());
   }
 
   @Override
   public <T extends DatasetAdmin> T addDatasetInstance(String datasetType, DatasetId datasetId,
-                                                       DatasetProperties props) throws Exception {
+      DatasetProperties props) throws Exception {
     datasetFramework.addInstance(datasetType, datasetId, props);
     return datasetFramework.getAdmin(datasetId, null);
   }
@@ -321,8 +324,8 @@ public class UnitTestManager extends AbstractTestManager {
 
   @Override
   public <T> DataSetManager<T> getDataset(DatasetId datasetInstanceId) throws Exception {
-    @SuppressWarnings("unchecked")
-    final T dataSet = datasetFramework.getDataset(datasetInstanceId, new HashMap<String, String>(), null);
+    @SuppressWarnings("unchecked") final T dataSet = datasetFramework.getDataset(datasetInstanceId,
+        new HashMap<String, String>(), null);
     try {
       final TransactionContext txContext;
       // not every dataset is TransactionAware. FileSets for example, are not transactional.
@@ -346,6 +349,7 @@ public class UnitTestManager extends AbstractTestManager {
    */
   // TODO (CDAP-3792): remove this hack when TestBase has better support for transactions
   public class UnitTestDatasetManager<T> implements DataSetManager<T> {
+
     private final T dataset;
     private final TransactionContext txContext;
 
@@ -384,41 +388,13 @@ public class UnitTestManager extends AbstractTestManager {
   }
 
   @Override
-  public Connection getQueryClient(NamespaceId namespace) throws Exception {
-    // this makes sure the Explore JDBC driver is loaded
-    Class.forName(ExploreDriver.class.getName());
-
-    Discoverable discoverable = new StickyEndpointStrategy(() ->
-      discoveryClient.discover(Constants.Service.EXPLORE_HTTP_USER_SERVICE)).pick();
-
-    if (null == discoverable) {
-      throw new IOException("Explore service could not be discovered.");
-    }
-
-    InetSocketAddress address = discoverable.getSocketAddress();
-    String host = address.getHostName();
-    int port = address.getPort();
-
-    Map<String, String> params = new HashMap<>();
-    params.put(ExploreConnectionParams.Info.NAMESPACE.getName(), namespace.getNamespace());
-    params.put(ExploreConnectionParams.Info.SSL_ENABLED.getName(),
-               Boolean.toString(URIScheme.HTTPS.isMatch(discoverable)));
-    params.put(ExploreConnectionParams.Info.VERIFY_SSL_CERT.getName(), Boolean.toString(false));
-
-    String connectString = String.format("%s%s:%d?%s", Constants.Explore.Jdbc.URL_PREFIX, host, port,
-                                         Joiner.on('&').withKeyValueSeparator("=").join(params));
-
-    return DriverManager.getConnection(connectString);
-  }
-
-  @Override
   public void deleteAllApplications(NamespaceId namespaceId) throws Exception {
     appFabricClient.deleteAllApplications(namespaceId);
   }
 
   @Override
   public ApplicationDetail getApplicationDetail(ApplicationId applicationId) throws Exception {
-    return appFabricClient.getVersionedInfo(applicationId);
+    return appFabricClient.getInfo(applicationId);
   }
 
   @Override
@@ -427,7 +403,8 @@ public class UnitTestManager extends AbstractTestManager {
   }
 
   @Override
-  public void updateSchedule(ScheduleId scheduleId, ScheduleDetail scheduleDetail) throws Exception {
+  public void updateSchedule(ScheduleId scheduleId, ScheduleDetail scheduleDetail)
+      throws Exception {
     appFabricClient.updateSchedule(scheduleId, scheduleDetail);
   }
 
@@ -444,24 +421,28 @@ public class UnitTestManager extends AbstractTestManager {
       exportPackages.add(clz.getPackage().getName());
     }
 
-    manifest.getMainAttributes().put(ManifestFields.EXPORT_PACKAGE, Joiner.on(',').join(exportPackages));
+    manifest.getMainAttributes()
+        .put(ManifestFields.EXPORT_PACKAGE, Joiner.on(',').join(exportPackages));
     return manifest;
   }
 
   private File createPluginJar(ArtifactId artifactId, Class<?> pluginClass,
-                               Class<?>... pluginClasses) throws Exception {
+      Class<?>... pluginClasses) throws Exception {
     Manifest manifest = createManifest(pluginClass, pluginClasses);
-    Location appJar = deploymentJarCache.get(new PluginArtifactKey(pluginClass, pluginClasses), () ->
-      PluginJarHelper.createPluginJar(locationFactory, manifest, pluginClass, pluginClasses));
+    Location appJar = deploymentJarCache.get(new PluginArtifactKey(pluginClass, pluginClasses),
+        () ->
+            PluginJarHelper.createPluginJar(locationFactory, manifest, pluginClass, pluginClasses));
     File destination =
-      new File(tmpDir, String.format("%s-%s.jar", artifactId.getArtifact(), artifactId.getVersion()));
+        new File(tmpDir,
+            String.format("%s-%s.jar", artifactId.getArtifact(), artifactId.getVersion()));
     Locations.linkOrCopyOverwrite(appJar, destination);
     return destination;
   }
 
   private void addArtifact(ArtifactId artifactId, Location jar) throws Exception {
     File destination =
-      new File(tmpDir, String.format("%s-%s.jar", artifactId.getArtifact(), artifactId.getVersion()));
+        new File(tmpDir,
+            String.format("%s-%s.jar", artifactId.getArtifact(), artifactId.getVersion()));
     Locations.linkOrCopyOverwrite(jar, destination);
 
     artifactRepository.addArtifact(Id.Artifact.fromEntityId(artifactId), destination);
@@ -472,12 +453,14 @@ public class UnitTestManager extends AbstractTestManager {
    * Marker interface for {@link #deploymentJarCache} keys
    */
   private interface ArtifactKey {
+
   }
 
   /**
    * {@link #deploymentJarCache} key for artifacts produced by {@link #addAppArtifact}
    */
   private static class AppArtifactKey implements ArtifactKey {
+
     private final Class<?> appClass;
     private final Manifest manifest;
     private final List<File> bundleEmbeddedJars;
@@ -497,9 +480,9 @@ public class UnitTestManager extends AbstractTestManager {
         return false;
       }
       AppArtifactKey that = (AppArtifactKey) o;
-      return Objects.equals(appClass, that.appClass) &&
-        Objects.equals(manifest, that.manifest) &&
-        Objects.equals(bundleEmbeddedJars, that.bundleEmbeddedJars);
+      return Objects.equals(appClass, that.appClass)
+          && Objects.equals(manifest, that.manifest)
+          && Objects.equals(bundleEmbeddedJars, that.bundleEmbeddedJars);
     }
 
     @Override
@@ -512,6 +495,7 @@ public class UnitTestManager extends AbstractTestManager {
    * {@link #deploymentJarCache} key for artifacts produced by {@link #createPluginJar}
    */
   private static class PluginArtifactKey implements ArtifactKey {
+
     private final Class<?> pluginClass;
     private final List<Class<?>> pluginClasses;
 
@@ -529,8 +513,8 @@ public class UnitTestManager extends AbstractTestManager {
         return false;
       }
       PluginArtifactKey that = (PluginArtifactKey) o;
-      return Objects.equals(pluginClass, that.pluginClass) &&
-        Objects.equals(pluginClasses, that.pluginClasses);
+      return Objects.equals(pluginClass, that.pluginClass)
+          && Objects.equals(pluginClasses, that.pluginClasses);
     }
 
     @Override

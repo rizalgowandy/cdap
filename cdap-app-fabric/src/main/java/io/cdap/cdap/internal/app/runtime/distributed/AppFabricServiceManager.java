@@ -25,11 +25,6 @@ import io.cdap.cdap.common.twill.MasterServiceManager;
 import io.cdap.cdap.common.zookeeper.election.LeaderElectionInfoService;
 import io.cdap.cdap.proto.Containers;
 import io.cdap.cdap.proto.SystemServiceLiveInfo;
-import org.apache.twill.api.logging.LogEntry;
-import org.slf4j.ILoggerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,6 +34,10 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.apache.twill.api.logging.LogEntry;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * App Fabric Service Management in Distributed Mode.
@@ -53,7 +52,8 @@ public class AppFabricServiceManager implements MasterServiceManager {
   private final Map<String, LogEntry.Level> oldLogLevels;
 
   @Inject
-  AppFabricServiceManager(@Named(Constants.Service.MASTER_SERVICES_BIND_ADDRESS) InetAddress hostname) {
+  AppFabricServiceManager(
+      @Named(Constants.Service.MASTER_SERVICES_BIND_ADDRESS) InetAddress hostname) {
     this.hostname = hostname;
     // this is to remember old log levels, will be used during reset
     this.oldLogLevels = Collections.synchronizedMap(new HashMap<>());
@@ -78,18 +78,19 @@ public class AppFabricServiceManager implements MasterServiceManager {
 
     try {
       SortedMap<Integer, LeaderElectionInfoService.Participant> participants =
-        electionInfoService.getParticipants(ELECTION_PARTICIPANTS_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+          electionInfoService.getParticipants(ELECTION_PARTICIPANTS_TIMEOUT_MS,
+              TimeUnit.MILLISECONDS);
 
       for (LeaderElectionInfoService.Participant participant : participants.values()) {
         builder.addContainer(new Containers.ContainerInfo(Containers.ContainerType.SYSTEM_SERVICE,
-                                                          Constants.Service.APP_FABRIC_HTTP, null, null,
-                                                          participant.getHostname(), null, null, null));
+            Constants.Service.APP_FABRIC_HTTP, null, null,
+            participant.getHostname(), null, null, null));
       }
     } catch (Exception e) {
       // If failed to get the leader election information, just return a static one with the current process
       builder.addContainer(new Containers.ContainerInfo(Containers.ContainerType.SYSTEM_SERVICE,
-                                                        Constants.Service.APP_FABRIC_HTTP, null, null,
-                                                        hostname.getHostName(), null, null, null));
+          Constants.Service.APP_FABRIC_HTTP, null, null,
+          hostname.getHostName(), null, null, null));
     }
 
     return builder.build();
@@ -101,9 +102,8 @@ public class AppFabricServiceManager implements MasterServiceManager {
   }
 
   /**
-   * Update log levels for app fabric service.
-   * Note that changing the log levels of app fabric service will also change log levels for app.fabric server and
-   * dataset service
+   * Update log levels for app fabric service. Note that changing the log levels of app fabric
+   * service will also change log levels for app.fabric server and dataset service
    *
    * @param logLevels The {@link Map} contains the requested logger name and log level.
    */
@@ -123,12 +123,12 @@ public class AppFabricServiceManager implements MasterServiceManager {
   }
 
   /**
-   * Reset the log levels of app fabric service.
-   * All loggers will be reset to the level when the service started.
-   * Note that resetting the log levels of app fabric service will also reset log levels for app.fabric server and
-   * dataset service
+   * Reset the log levels of app fabric service. All loggers will be reset to the level when the
+   * service started. Note that resetting the log levels of app fabric service will also reset log
+   * levels for app.fabric server and dataset service
    *
-   * @param loggerNames The set of logger names to be reset, if empty, all loggers will be reset.
+   * @param loggerNames The set of logger names to be reset, if empty, all loggers will be
+   *     reset.
    */
   @Override
   public void resetServiceLogLevels(Set<String> loggerNames) {
@@ -153,14 +153,15 @@ public class AppFabricServiceManager implements MasterServiceManager {
    *
    * @param loggerName name of the logger
    * @param level the log level to set to.
-   * @return the current log level of the given logger. If there is no log level configured for the given logger,
-   *         {@code null} will be returned
+   * @return the current log level of the given logger. If there is no log level configured for the
+   *     given logger, {@code null} will be returned
    */
   @Nullable
-  private LogEntry.Level setLogLevel(LoggerContext context, String loggerName, @Nullable LogEntry.Level level) {
+  private LogEntry.Level setLogLevel(LoggerContext context, String loggerName,
+      @Nullable LogEntry.Level level) {
     ch.qos.logback.classic.Logger logger = context.getLogger(loggerName);
     LogEntry.Level oldLogLevel = logger.getLevel() == null ? null :
-      LogEntry.Level.valueOf(logger.getLevel().toString());
+        LogEntry.Level.valueOf(logger.getLevel().toString());
     LOG.debug("Log level of {} changed from {} to {}", loggerName, oldLogLevel, level);
     logger.setLevel(level == null ? null : Level.toLevel(level.name()));
     return oldLogLevel;
@@ -170,8 +171,8 @@ public class AppFabricServiceManager implements MasterServiceManager {
   private LoggerContext getLoggerContext() {
     ILoggerFactory loggerFactory = LoggerFactory.getILoggerFactory();
     if (!(loggerFactory instanceof LoggerContext)) {
-      LOG.warn("LoggerFactory is not a logback LoggerContext. No log appender is added. " +
-                 "Logback might not be in the classpath");
+      LOG.warn("LoggerFactory is not a logback LoggerContext. No log appender is added. "
+          + "Logback might not be in the classpath");
       return null;
     }
     return (LoggerContext) loggerFactory;

@@ -49,6 +49,14 @@ import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
@@ -60,15 +68,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Unit test for {@link LogsServiceMain}.
@@ -96,7 +95,7 @@ public class LogsServiceMainTest extends MasterServiceMainTestBase {
     // Query the appended logs, we can not query logs for a given run because run record does not exist
     String url = "/v3/namespaces/default/apps/app1/workflows/myworkflow/logs?format=json";
     Tasks.waitFor(true, () -> {
-      HttpResponse response = doGet(url, client, Constants.Service.LOG_QUERY);
+      HttpResponse response = doGet(url, client, Constants.Service.LOGSAVER);
       if (response.getResponseCode() != 200) {
         LOG.warn("testLogsService get logs response non 200 response code: {} {} {}",
                  response.getResponseCode(), response.getResponseMessage(), response.getResponseBodyAsString());
@@ -117,7 +116,7 @@ public class LogsServiceMainTest extends MasterServiceMainTestBase {
     Discoverable discoverable = new RandomEndpointStrategy(
       () -> discoveryServiceClient.discover(serviceName)).pick(10, TimeUnit.SECONDS);
     Assert.assertNotNull(discoverable);
-    URL url = URIScheme.createURI(discoverable, path).toURL();
+    URL url = URIScheme.createURI(discoverable, "%s", path).toURL();
     return HttpRequests.execute(HttpRequest.get(url).build(), new DefaultHttpRequestConfig(false));
   }
 
@@ -202,7 +201,7 @@ public class LogsServiceMainTest extends MasterServiceMainTestBase {
 
     private TestAppender(RemoteClientFactory remoteClientFactory) {
       this.remoteClient = remoteClientFactory.createRemoteClient(
-        Constants.Service.LOG_BUFFER_SERVICE,
+        Constants.Service.LOGSAVER,
         new DefaultHttpRequestConfig(false), "/v1/logs");
       this.loggingEventSerializer = new LoggingEventSerializer();
       this.datumWriter = new GenericDatumWriter<>(Schema.createArray(Schema.create(Schema.Type.BYTES)));

@@ -21,9 +21,6 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.logging.LogSamplers;
 import io.cdap.cdap.common.logging.Loggers;
 import io.cdap.cdap.common.utils.Networks;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -34,6 +31,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link ProxySelector} to return proxy setting for {@link URI}.
@@ -41,7 +40,8 @@ import javax.inject.Inject;
 public class RemoteExecutionProxySelector extends ProxySelector {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoteExecutionProxySelector.class);
-  private static final Logger OUTAGE_LOG = Loggers.sampling(LOG, LogSamplers.limitRate(TimeUnit.SECONDS.toMillis(30)));
+  private static final Logger OUTAGE_LOG = Loggers.sampling(LOG,
+      LogSamplers.limitRate(TimeUnit.SECONDS.toMillis(30)));
 
   private final CConfiguration cConf;
   private volatile Proxy serviceProxy;
@@ -79,7 +79,8 @@ public class RemoteExecutionProxySelector extends ProxySelector {
   }
 
   private Proxy readServiceProxy(CConfiguration cConf) {
-    InetSocketAddress addr = Networks.getAddress(cConf, Constants.RuntimeMonitor.SERVICE_PROXY_ADDRESS);
+    InetSocketAddress addr = Networks.getAddress(cConf,
+        Constants.RuntimeMonitor.SERVICE_PROXY_ADDRESS);
     Proxy proxy = addr == null ? Proxy.NO_PROXY : new Proxy(Proxy.Type.SOCKS, addr);
 
     LOG.debug("Service proxy is {}", proxy);

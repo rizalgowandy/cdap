@@ -25,12 +25,11 @@ import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
 import io.cdap.cdap.proto.ScheduleDetail;
 import io.cdap.cdap.proto.artifact.AppRequest;
 import io.cdap.cdap.proto.id.ApplicationId;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
-
-import java.util.List;
 
 public class AppScheduleUpdateTest extends AppFabricTestBase {
   @ClassRule
@@ -70,8 +69,7 @@ public class AppScheduleUpdateTest extends AppFabricTestBase {
     Assert.assertEquals(200, deploy(defaultAppId, request).getResponseCode());
 
     List<ScheduleDetail> actualSchSpecs = listSchedules(TEST_NAMESPACE_META2.getNamespaceId().getNamespace(),
-                                                        defaultAppId.getApplication(),
-                                                        defaultAppId.getVersion());
+                                                        defaultAppId.getApplication());
 
     // none of the schedules will be added - by default we have set update schedules to be false as system property.
     Assert.assertEquals(0, actualSchSpecs.size());
@@ -83,8 +81,7 @@ public class AppScheduleUpdateTest extends AppFabricTestBase {
     Assert.assertEquals(200, deploy(defaultAppId, request).getResponseCode());
 
     actualSchSpecs = listSchedules(TEST_NAMESPACE_META2.getNamespaceId().getNamespace(),
-                                                               defaultAppId.getApplication(),
-                                                               defaultAppId.getVersion());
+                                   defaultAppId.getApplication());
 
     // both the schedules will be added as now,
     // we have provided update schedules property to be true manually in appRequest
@@ -97,8 +94,7 @@ public class AppScheduleUpdateTest extends AppFabricTestBase {
     Assert.assertEquals(200, deploy(defaultAppId, request).getResponseCode());
 
     actualSchSpecs = listSchedules(TEST_NAMESPACE_META2.getNamespaceId().getNamespace(),
-                                   defaultAppId.getApplication(),
-                                   defaultAppId.getVersion());
+                                   defaultAppId.getApplication());
 
     // no changes will be made, as default behavior is dont update schedules, so both the schedules should be there
     Assert.assertEquals(2, actualSchSpecs.size());
@@ -110,8 +106,7 @@ public class AppScheduleUpdateTest extends AppFabricTestBase {
     Assert.assertEquals(200, deploy(defaultAppId, request).getResponseCode());
 
     actualSchSpecs = listSchedules(TEST_NAMESPACE_META2.getNamespaceId().getNamespace(),
-                                   defaultAppId.getApplication(),
-                                   defaultAppId.getVersion());
+                                   defaultAppId.getApplication());
 
     // workflow is deleted, so the schedules will be deleted now
     Assert.assertEquals(0, actualSchSpecs.size());

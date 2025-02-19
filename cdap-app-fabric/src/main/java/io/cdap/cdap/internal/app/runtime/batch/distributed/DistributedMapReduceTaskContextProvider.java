@@ -34,19 +34,19 @@ import io.cdap.cdap.internal.app.runtime.batch.MapReduceContextConfig;
 import io.cdap.cdap.internal.app.runtime.batch.MapReduceTaskContextProvider;
 import io.cdap.cdap.internal.app.runtime.monitor.RuntimeMonitors;
 import io.cdap.cdap.logging.appender.LogAppenderInitializer;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.twill.kafka.client.KafkaClientService;
-import org.apache.twill.zookeeper.ZKClientService;
-
 import java.net.Authenticator;
 import java.net.ProxySelector;
 import java.util.Deque;
 import java.util.LinkedList;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.twill.kafka.client.KafkaClientService;
+import org.apache.twill.zookeeper.ZKClientService;
 
 /**
  * A {@link MapReduceTaskContextProvider} used in distributed mode. It creates a separate injector
- * that is used for the whole task process. It starts the necessary CDAP system services (ZK, Kafka, Metrics, Logging)
- * for the process. This class should only be used by {@link MapReduceClassLoader}.
+ * that is used for the whole task process. It starts the necessary CDAP system services (ZK, Kafka,
+ * Metrics, Logging) for the process. This class should only be used by {@link
+ * MapReduceClassLoader}.
  */
 public final class DistributedMapReduceTaskContextProvider extends MapReduceTaskContextProvider {
 
@@ -57,7 +57,7 @@ public final class DistributedMapReduceTaskContextProvider extends MapReduceTask
   private ProxySelector oldProxySelector;
 
   public DistributedMapReduceTaskContextProvider(CConfiguration cConf, Configuration hConf,
-                                                 MapReduceClassLoader mapReduceClassLoader) {
+      MapReduceClassLoader mapReduceClassLoader) {
     super(createInjector(cConf, hConf), mapReduceClassLoader);
 
     MapReduceContextConfig mapReduceContextConfig = new MapReduceContextConfig(hConf);
@@ -137,8 +137,9 @@ public final class DistributedMapReduceTaskContextProvider extends MapReduceTask
     Arguments systemArgs = programOptions.getArguments();
     String runId = systemArgs.getOption(ProgramOptionConstants.RUN_ID);
     return Guice.createInjector(
-      new DistributedProgramContainerModule(cConf, hConf, mapReduceContextConfig.getProgramId().run(runId),
-                                            programOptions)
+        new DistributedProgramContainerModule(cConf, hConf,
+            mapReduceContextConfig.getProgramId().run(runId),
+            programOptions)
     );
   }
 }

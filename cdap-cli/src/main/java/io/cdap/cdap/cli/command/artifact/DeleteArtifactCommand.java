@@ -26,7 +26,6 @@ import io.cdap.cdap.cli.util.AbstractAuthCommand;
 import io.cdap.cdap.client.ArtifactClient;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
@@ -56,7 +55,8 @@ public class DeleteArtifactCommand extends AbstractAuthCommand {
 
   @Override
   public String getPattern() {
-    return String.format("delete artifact <%s> <%s>", ArgumentName.ARTIFACT_NAME, ArgumentName.ARTIFACT_VERSION);
+    return String.format("delete artifact <%s> <%s>", ArgumentName.ARTIFACT_NAME,
+        ArgumentName.ARTIFACT_VERSION);
   }
 
   @Override

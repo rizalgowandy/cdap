@@ -17,6 +17,9 @@
 package io.cdap.cdap.test;
 
 import com.google.inject.Inject;
+import java.io.InputStream;
+import java.util.Collection;
+import java.util.Set;
 import org.apache.tephra.InvalidTruncateTimeException;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionCouldNotTakeSnapshotException;
@@ -25,12 +28,9 @@ import org.apache.tephra.TransactionNotInProgressException;
 import org.apache.tephra.TransactionSystemClient;
 import org.apache.tephra.inmemory.InMemoryTxSystemClient;
 
-import java.io.InputStream;
-import java.util.Collection;
-import java.util.Set;
-
 /**
- * A TransactionSystemClient that creates transaction objects with additional fields for validation.
+ * A TransactionSystemClient that creates transaction objects with additional fields for
+ * validation.
  */
 public class RevealingTxSystemClient implements TransactionSystemClient {
 
@@ -57,13 +57,15 @@ public class RevealingTxSystemClient implements TransactionSystemClient {
   }
 
   @Override
-  public boolean canCommit(Transaction tx, Collection<byte[]> changeIds) throws TransactionNotInProgressException {
+  public boolean canCommit(Transaction tx, Collection<byte[]> changeIds)
+      throws TransactionNotInProgressException {
     //noinspection deprecation
     return txClient.canCommit(tx, changeIds);
   }
 
   @Override
-  public void canCommitOrThrow(Transaction tx, Collection<byte[]> changeIds) throws TransactionFailureException {
+  public void canCommitOrThrow(Transaction tx, Collection<byte[]> changeIds)
+      throws TransactionFailureException {
     txClient.canCommitOrThrow(tx, changeIds);
   }
 
@@ -129,9 +131,10 @@ public class RevealingTxSystemClient implements TransactionSystemClient {
   }
 
   /**
-   * This transaction class allows us to return additional details about the transaction to the client.
-   * For now, it is only the transaction timeout, but we can add more information later.
-   * This can then be used by test cases to validate that the transaction was started with the right properties.
+   * This transaction class allows us to return additional details about the transaction to the
+   * client. For now, it is only the transaction timeout, but we can add more information later.
+   * This can then be used by test cases to validate that the transaction was started with the right
+   * properties.
    */
   public static class RevealingTransaction extends Transaction {
 

@@ -33,6 +33,11 @@ import io.cdap.cdap.internal.app.runtime.batch.dataset.output.ProvidedOutput;
 import io.cdap.cdap.messaging.client.StoreRequestBuilder;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -52,17 +57,12 @@ import org.apache.tephra.TransactionSystemClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import javax.annotation.Nullable;
-
 /**
  * An {@link OutputCommitter} used to start/finish the long transaction used by the MapReduce job.
  * Also responsible for executing {@link DatasetOutputCommitter} methods for any such outputs.
  */
 public class MainOutputCommitter extends MultipleOutputsCommitter {
+
   private static final Logger LOG = LoggerFactory.getLogger(MainOutputCommitter.class);
 
   private final TaskAttemptContext taskAttemptContext;
@@ -74,8 +74,9 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
   private List<ProvidedOutput> outputs;
   private boolean completedCallingOnFailure;
 
-  public MainOutputCommitter(OutputCommitter rootOutputCommitter, Map<String, OutputCommitter> committers,
-                             TaskAttemptContext taskAttemptContext) {
+  public MainOutputCommitter(OutputCommitter rootOutputCommitter,
+      Map<String, OutputCommitter> committers,
+      TaskAttemptContext taskAttemptContext) {
     super(rootOutputCommitter, committers);
     this.taskAttemptContext = taskAttemptContext;
   }
@@ -88,21 +89,25 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
     Injector injector = taskContextProvider.getInjector();
 
     cConf = injector.getInstance(CConfiguration.class);
-    MapReduceContextConfig contextConfig = new MapReduceContextConfig(jobContext.getConfiguration());
+    MapReduceContextConfig contextConfig = new MapReduceContextConfig(
+        jobContext.getConfiguration());
 
     ProgramId programId = contextConfig.getProgramId();
     LOG.info("Setting up for MapReduce job: namespaceId={}, applicationId={}, program={}, runid={}",
-             programId.getNamespace(), programId.getApplication(), programId.getProgram(),
-             ProgramRunners.getRunId(contextConfig.getProgramOptions()));
+        programId.getNamespace(), programId.getApplication(), programId.getProgram(),
+        ProgramRunners.getRunId(contextConfig.getProgramOptions()));
 
     RetryStrategy retryStrategy =
-      SystemArguments.getRetryStrategy(contextConfig.getProgramOptions().getUserArguments().asMap(),
-                                       contextConfig.getProgramId().getType(), cConf);
-    this.txClient = new RetryingLongTransactionSystemClient(injector.getInstance(TransactionSystemClient.class),
-                                                            retryStrategy);
+        SystemArguments.getRetryStrategy(
+            contextConfig.getProgramOptions().getUserArguments().asMap(),
+            contextConfig.getProgramId().getType(), cConf);
+    this.txClient = new RetryingLongTransactionSystemClient(
+        injector.getInstance(TransactionSystemClient.class),
+        retryStrategy);
 
     // We start long-running tx to be used by mapreduce job tasks when running on premise
-    if (ProgramRunners.getClusterMode(contextConfig.getProgramOptions()) == ClusterMode.ON_PREMISE) {
+    if (ProgramRunners.getClusterMode(contextConfig.getProgramOptions())
+        == ClusterMode.ON_PREMISE) {
       this.transaction = txClient.startLong();
 
       // Write the tx somewhere, so that we can re-use it in mapreduce tasks
@@ -122,11 +127,12 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
 
   // returns a Path to a file in the staging directory of the MapReduce
   static Path getTxFile(Configuration configuration, @Nullable JobID jobID) throws IOException {
-    Path stagingDir = MRApps.getStagingAreaDir(configuration, UserGroupInformation.getCurrentUser().getShortUserName());
+    Path stagingDir = MRApps.getStagingAreaDir(configuration,
+        UserGroupInformation.getCurrentUser().getShortUserName());
     int appAttemptId = configuration.getInt(MRJobConfig.APPLICATION_ATTEMPT_ID, 0);
     // following the pattern of other files in the staging dir
     String jobId = jobID != null ? jobID.toString() : configuration.get(MRJobConfig.ID);
-    return new Path(stagingDir, jobId + "/"  + jobId + "_" + appAttemptId + "_tx-file");
+    return new Path(stagingDir, jobId + "/" + jobId + "_" + appAttemptId + "_tx-file");
   }
 
   @Override
@@ -146,10 +152,10 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
       // "Commit" the data event topic by publishing an empty message.
       // Need to do it with the raw MessagingService.
       taskContext.getMessagingService().publish(
-        StoreRequestBuilder
-          .of(NamespaceId.SYSTEM.topic(cConf.get(Constants.Dataset.DATA_EVENT_TOPIC)))
-          .setTransaction(transaction.getWritePointer())
-          .build());
+          StoreRequestBuilder
+              .of(NamespaceId.SYSTEM.topic(cConf.get(Constants.Dataset.DATA_EVENT_TOPIC)))
+              .setTransaction(transaction.getWritePointer())
+              .build());
 
       // flush dataset operations (such as from any DatasetOutputCommitters)
       taskContext.flushOperations();
@@ -182,7 +188,8 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
           txClient.invalidate(transaction.getWritePointer());
           transaction = null;
         } else {
-          LOG.warn("Did not invalidate transaction; job setup did not complete or invalidate already happened.");
+          LOG.warn(
+              "Did not invalidate transaction; job setup did not complete or invalidate already happened.");
         }
       }
     }
@@ -203,12 +210,13 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
   }
 
   // returns alias-->DatasetOutputCommitter mapping, given the ProvidedOutputs
-  private Map<String, DatasetOutputCommitter> getDatasetOutputCommitters(List<ProvidedOutput> providedOutputs) {
+  private Map<String, DatasetOutputCommitter> getDatasetOutputCommitters(
+      List<ProvidedOutput> providedOutputs) {
     Map<String, DatasetOutputCommitter> datasetOutputCommitterOutputs = new HashMap<>();
     for (ProvidedOutput providedOutput : providedOutputs) {
       if (providedOutput.getOutputFormatProvider() instanceof DatasetOutputCommitter) {
         datasetOutputCommitterOutputs.put(providedOutput.getOutput().getAlias(),
-                                         (DatasetOutputCommitter) providedOutput.getOutputFormatProvider());
+            (DatasetOutputCommitter) providedOutput.getOutputFormatProvider());
       }
     }
     return datasetOutputCommitterOutputs;
@@ -218,8 +226,10 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
    * Either calls onSuccess or onFailure on all of the DatasetOutputCommitters.
    */
   private void finishDatasets(final JobContext jobContext, final boolean success) throws Exception {
-    ClassLoader oldClassLoader = ClassLoaders.setContextClassLoader(jobContext.getConfiguration().getClassLoader());
-    Map<String, DatasetOutputCommitter> datasetOutputCommitters = getDatasetOutputCommitters(outputs);
+    ClassLoader oldClassLoader = ClassLoaders.setContextClassLoader(
+        jobContext.getConfiguration().getClassLoader());
+    Map<String, DatasetOutputCommitter> datasetOutputCommitters = getDatasetOutputCommitters(
+        outputs);
     try {
       if (success) {
         commitOutputs(datasetOutputCommitters);
@@ -233,8 +243,9 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
   }
 
   /**
-   * Calls onSuccess on the DatasetOutputCommitters. If any throws an exception, the exception is propagated
-   * immediately. #abortJob will then be called, which is responsible for calling onFinish on each of them.
+   * Calls onSuccess on the DatasetOutputCommitters. If any throws an exception, the exception is
+   * propagated immediately. #abortJob will then be called, which is responsible for calling
+   * onFinish on each of them.
    */
   private void commitOutputs(Map<String, DatasetOutputCommitter> datasetOutputCommiters) {
     for (Map.Entry<String, DatasetOutputCommitter> datasetOutputCommitter : datasetOutputCommiters.entrySet()) {
@@ -242,17 +253,18 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
         datasetOutputCommitter.getValue().onSuccess();
       } catch (Exception e) {
         LOG.error(String.format("Error from onSuccess method of output dataset %s.",
-                                datasetOutputCommitter.getKey()), e);
+            datasetOutputCommitter.getKey()), e);
         throw e;
       }
     }
   }
 
   /**
-   * Calls onFailure for all of the DatasetOutputCommitters. If any operation throws an exception, it is suppressed
-   * until onFailure is called on all of the DatasetOutputCommitters.
+   * Calls onFailure for all of the DatasetOutputCommitters. If any operation throws an exception,
+   * it is suppressed until onFailure is called on all of the DatasetOutputCommitters.
    */
-  private void failOutputs(Map<String, DatasetOutputCommitter> datasetOutputCommiters) throws Exception {
+  private void failOutputs(Map<String, DatasetOutputCommitter> datasetOutputCommiters)
+      throws Exception {
     if (completedCallingOnFailure) {
       // guard against multiple calls to OutputCommitter#abortJob
       LOG.info("Not calling onFailure on outputs, as it has they have already been executed.");
@@ -264,7 +276,7 @@ public class MainOutputCommitter extends MultipleOutputsCommitter {
         datasetOutputCommitter.getValue().onFailure();
       } catch (Exception suppressedException) {
         LOG.error(String.format("Error from onFailure method of output dataset %s.",
-                                datasetOutputCommitter.getKey()), suppressedException);
+            datasetOutputCommitter.getKey()), suppressedException);
         if (e != null) {
           e.addSuppressed(suppressedException);
         } else {

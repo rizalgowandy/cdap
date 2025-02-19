@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.batch.mapreduce;
 
 import io.cdap.cdap.api.dataset.lib.KeyValue;
 import io.cdap.cdap.api.mapreduce.MapReduceTaskContext;
-
 import java.util.Map;
 
 /**
@@ -28,10 +27,12 @@ import java.util.Map;
  * @param <VAL_OUT> the output value type
  */
 public class MultiOutputWriter<KEY_OUT, VAL_OUT> extends OutputWriter<KEY_OUT, VAL_OUT> {
+
   // sink name -> outputs for that sink
   private final Map<String, SinkOutput> sinkOutputs;
 
-  public MultiOutputWriter(MapReduceTaskContext<KEY_OUT, VAL_OUT> context, Map<String, SinkOutput> sinkOutputs) {
+  public MultiOutputWriter(MapReduceTaskContext<KEY_OUT, VAL_OUT> context,
+      Map<String, SinkOutput> sinkOutputs) {
     super(context);
     this.sinkOutputs = sinkOutputs;
   }

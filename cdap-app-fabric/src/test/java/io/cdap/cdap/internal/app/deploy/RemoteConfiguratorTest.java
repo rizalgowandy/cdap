@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -39,7 +39,9 @@ import io.cdap.cdap.common.discovery.URIScheme;
 import io.cdap.cdap.common.http.CommonNettyHttpServiceBuilder;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.common.internal.remote.DefaultInternalAuthenticator;
+import io.cdap.cdap.common.internal.remote.NoOpRemoteAuthenticator;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
+import io.cdap.cdap.common.internal.remote.TaskWorkerHttpHandlerInternal;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.common.namespace.InMemoryNamespaceAdmin;
 import io.cdap.cdap.common.namespace.NamespaceAdmin;
@@ -55,13 +57,9 @@ import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepositoryReader;
 import io.cdap.cdap.internal.app.runtime.artifact.DefaultArtifactRepository;
 import io.cdap.cdap.internal.app.worker.ConfiguratorTask;
-import io.cdap.cdap.internal.app.worker.TaskWorkerHttpHandlerInternal;
 import io.cdap.cdap.internal.app.worker.sidecar.ArtifactLocalizer;
 import io.cdap.cdap.internal.app.worker.sidecar.ArtifactLocalizerHttpHandlerInternal;
-import io.cdap.cdap.master.environment.MasterEnvironments;
-import io.cdap.cdap.master.spi.environment.MasterEnvironment;
-import io.cdap.cdap.master.spi.environment.MasterEnvironmentRunnable;
-import io.cdap.cdap.master.spi.environment.MasterEnvironmentRunnableContext;
+import io.cdap.cdap.internal.app.worker.sidecar.GcpMetadataHttpHandlerInternal;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
@@ -70,9 +68,14 @@ import io.cdap.http.ChannelPipelineModifier;
 import io.cdap.http.NettyHttpService;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpContentDecompressor;
-import org.apache.twill.api.TwillRunnerService;
-import org.apache.twill.discovery.DiscoveryService;
-import org.apache.twill.discovery.DiscoveryServiceClient;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.twill.discovery.InMemoryDiscoveryService;
 import org.apache.twill.filesystem.LocalLocationFactory;
 import org.apache.twill.filesystem.Location;
@@ -84,16 +87,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import javax.annotation.Nullable;
 
 
 /**
@@ -118,25 +111,26 @@ public class RemoteConfiguratorTest {
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TEMP_FOLDER.newFolder().getAbsolutePath());
     cConf.setInt(Constants.TaskWorker.CONTAINER_KILL_AFTER_REQUEST_COUNT, 0);
 
-    InMemoryDiscoveryService discoveryService = new InMemoryDiscoveryService();
-    MasterEnvironments.setMasterEnvironment(new TestMasterEnvironment(discoveryService));
-
     NamespaceAdmin namespaceAdmin = new InMemoryNamespaceAdmin();
     namespaceAdmin.create(NamespaceMeta.SYSTEM);
     namespaceAdmin.create(NamespaceMeta.DEFAULT);
 
+    InMemoryDiscoveryService discoveryService = new InMemoryDiscoveryService();
     remoteClientFactory = new RemoteClientFactory(discoveryService,
                                                   new DefaultInternalAuthenticator(new AuthenticationTestContext()));
-    httpService = new CommonNettyHttpServiceBuilder(cConf, "test")
+    httpService = new CommonNettyHttpServiceBuilder(cConf, "test", new NoOpMetricsCollectionService(),
+                                                    auditLogContexts -> {})
       .setHttpHandlers(
-        new TaskWorkerHttpHandlerInternal(cConf, className -> { }, new NoOpMetricsCollectionService()),
-        new ArtifactHttpHandlerInternal(new TestArtifactRepository(cConf), namespaceAdmin),
-        new ArtifactLocalizerHttpHandlerInternal(new ArtifactLocalizer(cConf, remoteClientFactory,
-                                                                       ((namespaceId, retryStrategy) -> {
-                                                                         return new NoOpArtifactManager();
-                                                                       })))
+          new TaskWorkerHttpHandlerInternal(cConf, discoveryService, discoveryService, className -> { },
+                                          new NoOpMetricsCollectionService()),
+          new ArtifactHttpHandlerInternal(new TestArtifactRepository(cConf), namespaceAdmin),
+          new ArtifactLocalizerHttpHandlerInternal(
+              new ArtifactLocalizer(cConf, remoteClientFactory,
+                  ((namespaceId, retryStrategy) -> new NoOpArtifactManager()))
+          ),
+          new GcpMetadataHttpHandlerInternal(cConf, remoteClientFactory,
+              new NoOpRemoteAuthenticator())
       )
-      .setPort(cConf.getInt(Constants.ArtifactLocalizer.PORT))
       .setChannelPipelineModifier(new ChannelPipelineModifier() {
         @Override
         public void modify(ChannelPipeline pipeline) {
@@ -146,6 +140,8 @@ public class RemoteConfiguratorTest {
       .build();
     httpService.start();
 
+    cConf.setInt(Constants.ArtifactLocalizer.PORT, httpService.getBindAddress().getPort());
+
     discoveryService.register(URIScheme.createDiscoverable(Constants.Service.TASK_WORKER, httpService));
     discoveryService.register(URIScheme.createDiscoverable(Constants.Service.APP_FABRIC_HTTP, httpService));
     metricsCollectionService = new NoOpMetricsCollectionService();
@@ -154,7 +150,6 @@ public class RemoteConfiguratorTest {
   @AfterClass
   public static void finish() throws Exception {
     httpService.stop();
-    MasterEnvironments.setMasterEnvironment(null);
   }
 
   @After
@@ -172,9 +167,12 @@ public class RemoteConfiguratorTest {
                                                                         artifactId.toApiArtifactId(), appJar),
                                                  new ArtifactMeta(ArtifactClasses.builder().build())));
 
-    AppDeploymentInfo info = new AppDeploymentInfo(artifactId, appJar, NamespaceId.DEFAULT,
-                                                   new ApplicationClass(AllProgramsApp.class.getName(), "", null),
-                                                   null, null, null);
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(artifactId)
+      .setArtifactLocation(appJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(new ApplicationClass(AllProgramsApp.class.getName(), "", null))
+      .build();
 
     Configurator configurator = new RemoteConfigurator(cConf, metricsCollectionService, info, remoteClientFactory);
 
@@ -205,10 +203,13 @@ public class RemoteConfiguratorTest {
     ArtifactId artifactId = NamespaceId.DEFAULT.artifact(AllProgramsApp.class.getSimpleName(), "1.0.0");
 
     // Don't update the artifacts map so that the fetching of artifact would fail.
-
-    AppDeploymentInfo info = new AppDeploymentInfo(artifactId, appJar, NamespaceId.DEFAULT,
-                                                   new ApplicationClass(AllProgramsApp.class.getName(), "", null),
-                                                   null, null, null);
+    
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(artifactId)
+      .setArtifactLocation(appJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(new ApplicationClass(AllProgramsApp.class.getName(), "", null))
+      .build();
 
     Configurator configurator = new RemoteConfigurator(cConf, metricsCollectionService, info, remoteClientFactory);
 
@@ -225,53 +226,20 @@ public class RemoteConfiguratorTest {
     artifacts.put(artifactId, new ArtifactDetail(new ArtifactDescriptor(artifactId.getNamespace(),
                                                                         artifactId.toApiArtifactId(), appJar),
                                                  new ArtifactMeta(ArtifactClasses.builder().build())));
-
-    AppDeploymentInfo info = new AppDeploymentInfo(artifactId, appJar, NamespaceId.DEFAULT,
-                                                   new ApplicationClass(ConfigTestApp.class.getName(), "", null),
-                                                   "BadApp", null, GSON.toJson("invalid"));
+    
+    AppDeploymentInfo info = AppDeploymentInfo.builder()
+      .setArtifactId(artifactId)
+      .setArtifactLocation(appJar)
+      .setNamespaceId(NamespaceId.DEFAULT)
+      .setApplicationClass(new ApplicationClass(ConfigTestApp.class.getName(), "", null))
+      .setAppName("BadApp")
+      .setConfigString(GSON.toJson("invalid"))
+      .build();
 
     Configurator configurator = new RemoteConfigurator(cConf, metricsCollectionService, info, remoteClientFactory);
 
     // Expect the future.get would throw an exception
     configurator.config().get(10, TimeUnit.SECONDS);
-  }
-
-  /**
-   * A {@link MasterEnvironment} for testing.
-   */
-  private static final class TestMasterEnvironment implements MasterEnvironment {
-
-    private final InMemoryDiscoveryService discoveryService;
-
-    private TestMasterEnvironment(InMemoryDiscoveryService discoveryService) {
-      this.discoveryService = discoveryService;
-    }
-
-    @Override
-    public MasterEnvironmentRunnable createRunnable(MasterEnvironmentRunnableContext context,
-                                                    Class<? extends MasterEnvironmentRunnable> runnableClass) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String getName() {
-      return "test";
-    }
-
-    @Override
-    public Supplier<DiscoveryService> getDiscoveryServiceSupplier() {
-      return () -> discoveryService;
-    }
-
-    @Override
-    public Supplier<DiscoveryServiceClient> getDiscoveryServiceClientSupplier() {
-      return () -> discoveryService;
-    }
-
-    @Override
-    public Supplier<TwillRunnerService> getTwillRunnerSupplier() {
-      throw new UnsupportedOperationException();
-    }
   }
 
   /**
@@ -281,7 +249,7 @@ public class RemoteConfiguratorTest {
   private static final class TestArtifactRepository extends DefaultArtifactRepository {
 
     TestArtifactRepository(CConfiguration cConf) {
-      super(cConf, null, null, null, null, null);
+      super(cConf, null, null, null, null);
     }
 
     @Override

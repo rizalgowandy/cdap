@@ -43,17 +43,16 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.dataset2.DefaultDatasetDefinitionRegistryFactory;
 import io.cdap.cdap.data2.dataset2.StaticDatasetFramework;
 import io.cdap.cdap.data2.metrics.DatasetMetricsReporter;
-import io.cdap.cdap.data2.metrics.HBaseDatasetMetricsReporter;
 import io.cdap.cdap.data2.metrics.LevelDBDatasetMetricsReporter;
 import io.cdap.cdap.gateway.handlers.CommonHandlers;
 import io.cdap.http.HttpHandler;
-
 import java.util.Map;
 
 /**
  * Bindings for DataSet Service.
  */
 public class DataSetServiceModules extends RuntimeModule {
+
   public static final String NOAUTH_DATASET_TYPE_SERVICE = "noAuthDatasetTypeService";
 
   @Override
@@ -67,19 +66,19 @@ public class DataSetServiceModules extends RuntimeModule {
           @Override
           protected void configure() {
             bind(DatasetDefinitionRegistryFactory.class)
-              .to(DefaultDatasetDefinitionRegistryFactory.class).in(Scopes.SINGLETON);
+                .to(DefaultDatasetDefinitionRegistryFactory.class).in(Scopes.SINGLETON);
 
             bind(DatasetFramework.class)
-              .annotatedWith(Names.named("datasetMDS"))
-              .toProvider(DatasetMdsProvider.class)
-              .in(Singleton.class);
+                .annotatedWith(Names.named("datasetMDS"))
+                .toProvider(DatasetMdsProvider.class)
+                .in(Singleton.class);
             expose(DatasetFramework.class).annotatedWith(Names.named("datasetMDS"));
             bind(DatasetService.class);
             expose(DatasetService.class);
 
             Named datasetUserName = Names.named(Constants.Service.DATASET_EXECUTOR);
             Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder(binder(),
-                                                                              HttpHandler.class, datasetUserName);
+                HttpHandler.class, datasetUserName);
             CommonHandlers.add(handlerBinder);
             handlerBinder.addBinding().to(DatasetAdminOpHTTPHandler.class);
 
@@ -92,8 +91,8 @@ public class DataSetServiceModules extends RuntimeModule {
             expose(DatasetOpExecutor.class);
 
             bind(DatasetTypeService.class)
-              .annotatedWith(Names.named(NOAUTH_DATASET_TYPE_SERVICE))
-              .to(DefaultDatasetTypeService.class);
+                .annotatedWith(Names.named(NOAUTH_DATASET_TYPE_SERVICE))
+                .to(DefaultDatasetTypeService.class);
 
             bind(DatasetTypeService.class).to(AuthorizationDatasetTypeService.class);
             expose(DatasetTypeService.class);
@@ -114,23 +113,23 @@ public class DataSetServiceModules extends RuntimeModule {
           @Override
           protected void configure() {
             bind(DatasetDefinitionRegistryFactory.class)
-              .to(DefaultDatasetDefinitionRegistryFactory.class).in(Scopes.SINGLETON);
+                .to(DefaultDatasetDefinitionRegistryFactory.class).in(Scopes.SINGLETON);
 
             bind(DatasetFramework.class)
-              .annotatedWith(Names.named("datasetMDS"))
-              .toProvider(DatasetMdsProvider.class)
-              .in(Singleton.class);
+                .annotatedWith(Names.named("datasetMDS"))
+                .toProvider(DatasetMdsProvider.class)
+                .in(Singleton.class);
             expose(DatasetFramework.class).annotatedWith(Names.named("datasetMDS"));
 
             Multibinder.newSetBinder(binder(), DatasetMetricsReporter.class)
-              .addBinding().to(LevelDBDatasetMetricsReporter.class);
+                .addBinding().to(LevelDBDatasetMetricsReporter.class);
 
             bind(DatasetService.class);
             expose(DatasetService.class);
 
             Named datasetUserName = Names.named(Constants.Service.DATASET_EXECUTOR);
             Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder(binder(),
-                                                                              HttpHandler.class, datasetUserName);
+                HttpHandler.class, datasetUserName);
             CommonHandlers.add(handlerBinder);
             handlerBinder.addBinding().to(DatasetAdminOpHTTPHandler.class);
 
@@ -141,8 +140,8 @@ public class DataSetServiceModules extends RuntimeModule {
             expose(DatasetOpExecutor.class);
 
             bind(DatasetTypeService.class)
-              .annotatedWith(Names.named(NOAUTH_DATASET_TYPE_SERVICE))
-              .to(DefaultDatasetTypeService.class);
+                .annotatedWith(Names.named(NOAUTH_DATASET_TYPE_SERVICE))
+                .to(DefaultDatasetTypeService.class);
 
             bind(DatasetTypeService.class).to(AuthorizationDatasetTypeService.class);
             expose(DatasetTypeService.class);
@@ -163,16 +162,16 @@ public class DataSetServiceModules extends RuntimeModule {
           @Override
           protected void configure() {
             bind(DatasetDefinitionRegistryFactory.class)
-              .to(DefaultDatasetDefinitionRegistryFactory.class).in(Scopes.SINGLETON);
+                .to(DefaultDatasetDefinitionRegistryFactory.class).in(Scopes.SINGLETON);
 
             bind(DatasetFramework.class)
-              .annotatedWith(Names.named("datasetMDS"))
-              .toProvider(DatasetMdsProvider.class)
-              .in(Singleton.class);
+                .annotatedWith(Names.named("datasetMDS"))
+                .toProvider(DatasetMdsProvider.class)
+                .in(Singleton.class);
             expose(DatasetFramework.class).annotatedWith(Names.named("datasetMDS"));
 
             Multibinder.newSetBinder(binder(), DatasetMetricsReporter.class)
-              .addBinding().to(HBaseDatasetMetricsReporter.class);
+                .addBinding().to(LevelDBDatasetMetricsReporter.class);
 
             // NOTE: this cannot be a singleton, because MasterServiceMain needs to obtain a new instance
             //       every time it becomes leader and starts a dataset service.
@@ -181,7 +180,7 @@ public class DataSetServiceModules extends RuntimeModule {
 
             Named datasetUserName = Names.named(Constants.Service.DATASET_EXECUTOR);
             Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder(binder(),
-                                                                              HttpHandler.class, datasetUserName);
+                HttpHandler.class, datasetUserName);
             CommonHandlers.add(handlerBinder);
             handlerBinder.addBinding().to(DatasetAdminOpHTTPHandler.class);
 
@@ -192,8 +191,8 @@ public class DataSetServiceModules extends RuntimeModule {
             expose(DatasetOpExecutor.class);
 
             bind(DatasetTypeService.class)
-              .annotatedWith(Names.named(NOAUTH_DATASET_TYPE_SERVICE))
-              .to(DefaultDatasetTypeService.class);
+                .annotatedWith(Names.named(NOAUTH_DATASET_TYPE_SERVICE))
+                .to(DefaultDatasetTypeService.class);
 
             bind(DatasetTypeService.class).to(AuthorizationDatasetTypeService.class);
             expose(DatasetTypeService.class);
@@ -204,12 +203,13 @@ public class DataSetServiceModules extends RuntimeModule {
   }
 
   private static final class DatasetMdsProvider implements Provider<DatasetFramework> {
+
     private final DatasetDefinitionRegistryFactory registryFactory;
     private final Map<String, DatasetModule> defaultModules;
 
     @Inject
     DatasetMdsProvider(DatasetDefinitionRegistryFactory registryFactory,
-                       @Constants.Dataset.Manager.DefaultDatasetModules Map<String, DatasetModule> defaultModules) {
+        @Constants.Dataset.Manager.DefaultDatasetModules Map<String, DatasetModule> defaultModules) {
       this.registryFactory = registryFactory;
       this.defaultModules = defaultModules;
     }
@@ -217,8 +217,8 @@ public class DataSetServiceModules extends RuntimeModule {
     @Override
     public DatasetFramework get() {
       Map<String, DatasetModule> modulesMap = ImmutableMap.<String, DatasetModule>builder()
-        .putAll(defaultModules)
-        .build();
+          .putAll(defaultModules)
+          .build();
       // NOTE: it is fine to use in-memory dataset manager for direct access to dataset MDS even in distributed mode
       //       as long as the data is durably persisted
       return new StaticDatasetFramework(registryFactory, modulesMap);

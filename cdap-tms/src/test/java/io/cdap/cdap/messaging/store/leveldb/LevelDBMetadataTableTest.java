@@ -20,21 +20,21 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.store.MetadataTable;
 import io.cdap.cdap.messaging.store.MetadataTableTest;
 import io.cdap.cdap.messaging.store.TableFactory;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Tests for {@link LevelDBMetadataTable}.
@@ -62,11 +62,16 @@ public class LevelDBMetadataTableTest extends MetadataTableTest {
   public void testScanTopics() throws Exception {
     try (MetadataTable metadataTable = createMetadataTable()) {
       LevelDBMetadataTable table = (LevelDBMetadataTable) metadataTable;
-      TopicMetadata t1 = new TopicMetadata(
-        NamespaceId.CDAP.topic("t1"), ImmutableMap.of(TopicMetadata.TTL_KEY, "10", TopicMetadata.GENERATION_KEY, "1"));
-      TopicMetadata t2 = new TopicMetadata(
-        NamespaceId.SYSTEM.topic("t2"), ImmutableMap.of(TopicMetadata.TTL_KEY, "20",
-                                                        TopicMetadata.GENERATION_KEY, "1"));
+      TopicMetadata t1 =
+          new DefaultTopicMetadata(
+              NamespaceId.CDAP.topic("t1"),
+              ImmutableMap.of(
+                  DefaultTopicMetadata.TTL_KEY, "10", DefaultTopicMetadata.GENERATION_KEY, "1"));
+      TopicMetadata t2 =
+          new DefaultTopicMetadata(
+              NamespaceId.SYSTEM.topic("t2"),
+              ImmutableMap.of(
+                  DefaultTopicMetadata.TTL_KEY, "20", DefaultTopicMetadata.GENERATION_KEY, "1"));
       metadataTable.createTopic(t1);
       metadataTable.createTopic(t2);
       List<TopicId> allTopics = table.listTopics();

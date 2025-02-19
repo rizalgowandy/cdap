@@ -24,6 +24,7 @@ import io.cdap.cdap.api.dataset.lib.PartitionDetail;
  */
 @Beta
 public interface PartitionAcceptor {
+
   /**
    * Return value, determining what to do with a Partition.
    */
@@ -46,11 +47,12 @@ public interface PartitionAcceptor {
 
 
   /**
-   * An implementation of PartitionAcceptor which limits the number of accepted partitions to a given value.
+   * An implementation of PartitionAcceptor which limits the number of accepted partitions to a
+   * given value.
    */
   final class Limit implements PartitionAcceptor {
 
-    private int count = 0;
+    private int count;
     private int limit;
 
     public Limit(int limit) {

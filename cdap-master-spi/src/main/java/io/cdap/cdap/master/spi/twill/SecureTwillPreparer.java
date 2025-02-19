@@ -20,10 +20,11 @@ import org.apache.twill.api.TwillPreparer;
 import org.apache.twill.api.TwillRunnable;
 
 /**
- * Extension interface for {@link TwillPreparer} to implement if it supports execution of a {@link TwillRunnable}
- * under secure contexts.
+ * Extension interface for {@link TwillPreparer} to implement if it supports execution of a {@link
+ * TwillRunnable} under secure contexts.
  */
 public interface SecureTwillPreparer extends TwillPreparer {
+
   /**
    * Runs the given runnable with the specified secret disks.
    *
@@ -35,11 +36,21 @@ public interface SecureTwillPreparer extends TwillPreparer {
 
   /**
    * Runs the given runnable with provided {@link SecurityContext}
+   *
    * @param runnableName name of the {@link TwillRunnable}
    * @param securityContext the security context to be used
    * @return this {@link TwillPreparer}
    */
   SecureTwillPreparer withSecurityContext(String runnableName,
-                                          SecurityContext securityContext);
+      SecurityContext securityContext);
 
+  /**
+   * Runs the given runnable with namespace workload identity,
+   * this feature removes the GOOGLE_APPLICATION_CREDENTIALS environment variable
+   * to enable namespaced service accounts.
+   *
+   * @param runnableName name of the {@link TwillRunnable}
+   * @return this {@link TwillPreparer}
+   */
+  SecureTwillPreparer withNamespacedWorkloadIdentity(String runnableName);
 }

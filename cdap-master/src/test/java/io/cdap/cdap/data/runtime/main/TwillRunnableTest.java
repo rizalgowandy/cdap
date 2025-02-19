@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2019 Cask Data, Inc.
+ * Copyright © 2016-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -21,9 +21,7 @@ import io.cdap.cdap.app.store.Store;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.namespace.NamespaceQueryAdmin;
 import io.cdap.cdap.common.test.MockTwillContext;
-import io.cdap.cdap.data.tools.HBaseTableExporter;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,24 +29,15 @@ import org.junit.Test;
  * Tests for master services.
  */
 public class TwillRunnableTest {
-  @Test
-  public void testExploreServiceTwillRunnableInjector() {
-    ExploreServiceTwillRunnable.createInjector(CConfiguration.create(), new Configuration(), "");
-  }
 
   @Test
   public void testDatasetOpExecutorTwillRunnableInjector() {
     Injector injector = DatasetOpExecutorServerTwillRunnable.createInjector(CConfiguration.create(),
-                                                                            HBaseConfiguration.create(), "");
+        new Configuration(), "");
     Store store = injector.getInstance(Store.class);
     Assert.assertNotNull(store);
     NamespaceQueryAdmin namespaceQueryAdmin = injector.getInstance(NamespaceQueryAdmin.class);
     Assert.assertNotNull(namespaceQueryAdmin);
-  }
-
-  @Test
-  public void testHBaseTableExporterInjector() {
-    HBaseTableExporter.createInjector(CConfiguration.create(), new Configuration());
   }
 
   @Test
@@ -58,17 +47,20 @@ public class TwillRunnableTest {
 
   @Test
   public void testMetricsTwillRunnableInjector() {
-    MetricsTwillRunnable.createGuiceInjector(CConfiguration.create(), HBaseConfiguration.create(), "");
+    MetricsTwillRunnable
+        .createGuiceInjector(CConfiguration.create(), new Configuration(), "");
   }
 
   @Test
   public void testMetricsProcessorTwillRunnableInjector() {
-    MetricsProcessorTwillRunnable.createGuiceInjector(CConfiguration.create(), new Configuration(), "",
-                                                      new MockTwillContext());
+    MetricsProcessorTwillRunnable
+        .createGuiceInjector(CConfiguration.create(), new Configuration(), "",
+            new MockTwillContext());
   }
 
   @Test
   public void testLogSaverTwillRunnableInjector() {
-    LogSaverTwillRunnable.createGuiceInjector(CConfiguration.create(), new Configuration(), new MockTwillContext());
+    LogSaverTwillRunnable
+        .createGuiceInjector(CConfiguration.create(), new Configuration(), new MockTwillContext());
   }
 }

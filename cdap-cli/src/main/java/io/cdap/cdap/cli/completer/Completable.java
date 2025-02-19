@@ -16,13 +16,13 @@
 
 package io.cdap.cdap.cli.completer;
 
-import jline.console.completer.Completer;
-
 import java.util.List;
+import jline.console.completer.Completer;
 
 /**
  * Used to indicate that a command has associated completers.
  */
 public interface Completable {
+
   List<? extends Completer> getCompleters(String prefix);
 }

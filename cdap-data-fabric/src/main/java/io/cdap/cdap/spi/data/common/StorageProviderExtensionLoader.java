@@ -23,7 +23,6 @@ import io.cdap.cdap.common.lang.ClassPathResources;
 import io.cdap.cdap.common.lang.FilterClassLoader;
 import io.cdap.cdap.extension.AbstractExtensionLoader;
 import io.cdap.cdap.spi.data.StorageProvider;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
@@ -31,7 +30,8 @@ import java.util.Set;
 /**
  * A extension loader for {@link StorageProvider}.
  */
-final class StorageProviderExtensionLoader extends AbstractExtensionLoader<String, StorageProvider> {
+final class StorageProviderExtensionLoader extends
+    AbstractExtensionLoader<String, StorageProvider> {
 
   private static final Set<String> ALLOWED_RESOURCES = createAllowedResources();
   private static final Set<String> ALLOWED_PACKAGES = createPackageSets(ALLOWED_RESOURCES);
@@ -39,11 +39,12 @@ final class StorageProviderExtensionLoader extends AbstractExtensionLoader<Strin
   private static Set<String> createAllowedResources() {
     // Only allow Storage SPI classes.
     try {
-      return ClassPathResources.getResourcesWithDependencies(StorageProviderExtensionLoader.class.getClassLoader(),
-                                                             StorageProvider.class);
+      return ClassPathResources.getResourcesWithDependencies(
+          StorageProviderExtensionLoader.class.getClassLoader(),
+          StorageProvider.class);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to trace dependencies for storage provider extension. " +
-                                   "Usage of storage provider might fail.", e);
+      throw new RuntimeException("Failed to trace dependencies for storage provider extension. "
+          + "Usage of storage provider might fail.", e);
     }
   }
 

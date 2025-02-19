@@ -18,13 +18,12 @@ package io.cdap.cdap.data.tools;
 
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.namespace.NamespacePathLocator;
+import java.io.IOException;
+import javax.annotation.Nullable;
 import org.apache.twill.filesystem.Location;
 import org.apache.twill.filesystem.LocationFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import javax.annotation.Nullable;
 
 /**
  * Abstract class for Upgrade
@@ -35,7 +34,8 @@ public abstract class AbstractUpgrader {
   protected final LocationFactory locationFactory;
   protected final NamespacePathLocator namespacePathLocator;
 
-  public AbstractUpgrader(LocationFactory locationFactory, NamespacePathLocator namespacePathLocator) {
+  public AbstractUpgrader(LocationFactory locationFactory,
+      NamespacePathLocator namespacePathLocator) {
     this.locationFactory = locationFactory;
     this.namespacePathLocator = namespacePathLocator;
   }
@@ -52,8 +52,8 @@ public abstract class AbstractUpgrader {
    *
    * @param oldLocation the old {@link Location}
    * @param newLocation the new {@link Location}
-   * @return new location if and only if the file or directory is successfully moved; null otherwise.
-   * @throws IOException
+   * @return new location if and only if the file or directory is successfully moved; null
+   *     otherwise.
    */
   @Nullable
   protected Location renameLocation(Location oldLocation, Location newLocation) throws IOException {
@@ -69,8 +69,10 @@ public abstract class AbstractUpgrader {
         throw ioe;
       }
     } else {
-      LOG.debug("Failed to perform rename. Either the new location {} already exists or old location {} " +
-                  "does not exist.", newLocation, oldLocation);
+      LOG.debug(
+          "Failed to perform rename. Either the new location {} already exists or old location {} "
+
+              + "does not exist.", newLocation, oldLocation);
       return null;
     }
   }

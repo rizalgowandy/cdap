@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -34,6 +34,9 @@ import io.cdap.cdap.logging.context.WorkerLoggingContext;
 import io.cdap.cdap.logging.read.KafkaLogReader;
 import io.cdap.cdap.logging.serialize.LoggingEventSerializer;
 import io.cdap.cdap.test.SlowTests;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Map;
 import org.apache.twill.kafka.client.FetchedMessage;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -43,10 +46,6 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Map;
 
 /**
  * Test for logging to Kafka via {@link KafkaLogAppender}.
@@ -64,14 +63,16 @@ public class TestKafkaLogging extends KafkaTestBase {
 
     Logger logger = LoggerFactory.getLogger("TestKafkaLogging");
     LoggingTester loggingTester = new LoggingTester();
-    loggingTester.generateLogs(logger, new WorkerLoggingContext("TKL_NS_1", "APP_1", "FLOW_1", "RUN1", "INSTANCE1"));
+    loggingTester.generateLogs(logger,
+        new WorkerLoggingContext("TKL_NS_1", "APP_1", "FLOW_1", "RUN1", "INSTANCE1"));
     appender.stop();
   }
 
   @Test
   public void testGetNext() throws Exception {
     // Check with null runId and null instanceId
-    LoggingContext loggingContext = new WorkerLoggingContext("TKL_NS_1", "APP_1", "FLOW_1", "RUN1", "INSTANCE1");
+    LoggingContext loggingContext = new WorkerLoggingContext("TKL_NS_1", "APP_1", "FLOW_1", "RUN1",
+        "INSTANCE1");
     KafkaLogReader logReader = KAFKA_TESTER.getInjector().getInstance(KafkaLogReader.class);
     LoggingTester tester = new LoggingTester();
     tester.testGetNext(logReader, loggingContext);
@@ -79,7 +80,8 @@ public class TestKafkaLogging extends KafkaTestBase {
 
   @Test
   public void testGetPrev() throws Exception {
-    LoggingContext loggingContext = new WorkerLoggingContext("TKL_NS_1", "APP_1", "FLOW_1", "RUN1", "INSTANCE1");
+    LoggingContext loggingContext = new WorkerLoggingContext("TKL_NS_1", "APP_1", "FLOW_1", "RUN1",
+        "INSTANCE1");
     KafkaLogReader logReader = KAFKA_TESTER.getInjector().getInstance(KafkaLogReader.class);
     LoggingTester tester = new LoggingTester();
     tester.testGetPrev(logReader, loggingContext);
@@ -89,38 +91,41 @@ public class TestKafkaLogging extends KafkaTestBase {
 
   @Test
   public void testPartitionKey() throws Exception {
-    CConfiguration cConf = KAFKA_TESTER.getCConf();
+    CConfiguration cConf = KAFKA_TESTER.getCconf();
     // set kafka partition key to application
     cConf.set(Constants.Logging.LOG_PUBLISH_PARTITION_KEY, "application");
 
     Logger logger = LoggerFactory.getLogger("TestKafkaLogging");
-    LoggingContext loggingContext = new WorkerLoggingContext("TKL_NS_2", "APP_2", "FLOW_2", "RUN2", "INSTANCE2");
+    LoggingContext loggingContext = new WorkerLoggingContext("TKL_NS_2", "APP_2", "FLOW_2", "RUN2",
+        "INSTANCE2");
     LoggingContextAccessor.setLoggingContext(loggingContext);
     for (int i = 0; i < 40; ++i) {
-      logger.warn("TKL_NS_2 Test log message {} {} {}", i, "arg1", "arg2", new Exception("test exception"));
+      logger.warn("TKL_NS_2 Test log message {} {} {}", i, "arg1", "arg2",
+          new Exception("test exception"));
     }
 
     loggingContext = new WorkerLoggingContext("TKL_NS_2", "APP_2", "FLOW_3", "RUN3", "INSTANCE3");
     LoggingContextAccessor.setLoggingContext(loggingContext);
     for (int i = 0; i < 40; ++i) {
-      logger.warn("TKL_NS_2 Test log message {} {} {}", i, "arg1", "arg2", new Exception("test exception"));
+      logger.warn("TKL_NS_2 Test log message {} {} {}", i, "arg1", "arg2",
+          new Exception("test exception"));
     }
 
     final Multimap<Integer, String> actual = ArrayListMultimap.create();
 
-    KAFKA_TESTER.getPublishedMessages(KAFKA_TESTER.getCConf().get(Constants.Logging.KAFKA_TOPIC),
-                                      ImmutableSet.of(0, 1), 40, new Function<FetchedMessage, String>() {
-        @Override
-        public String apply(final FetchedMessage input) {
-          try {
-            Map.Entry<Integer, String> entry = convertFetchedMessage(input);
-            actual.put(entry.getKey(), entry.getValue());
-          } catch (IOException e) {
-            // should never happen
+    KAFKA_TESTER.getPublishedMessages(KAFKA_TESTER.getCconf().get(Constants.Logging.KAFKA_TOPIC),
+        ImmutableSet.of(0, 1), 40, new Function<FetchedMessage, String>() {
+          @Override
+          public String apply(final FetchedMessage input) {
+            try {
+              Map.Entry<Integer, String> entry = convertFetchedMessage(input);
+              actual.put(entry.getKey(), entry.getValue());
+            } catch (IOException e) {
+              // should never happen
+            }
+            return "";
           }
-          return "";
-        }
-      });
+        });
 
     boolean isPresent = false;
 
@@ -137,10 +142,12 @@ public class TestKafkaLogging extends KafkaTestBase {
     cConf.set(Constants.Logging.LOG_PUBLISH_PARTITION_KEY, "program");
   }
 
-  private Map.Entry<Integer, String> convertFetchedMessage(FetchedMessage message) throws IOException {
+  private Map.Entry<Integer, String> convertFetchedMessage(FetchedMessage message)
+      throws IOException {
     LoggingEventSerializer serializer = new LoggingEventSerializer();
     ILoggingEvent iLoggingEvent = serializer.fromBytes(message.getPayload());
-    LoggingContext loggingContext = LoggingContextHelper.getLoggingContext(iLoggingEvent.getMDCPropertyMap());
+    LoggingContext loggingContext = LoggingContextHelper
+        .getLoggingContext(iLoggingEvent.getMDCPropertyMap());
     String key = loggingContext.getLogPartition();
     return Maps.immutableEntry(message.getTopicPartition().getPartition(), key);
   }

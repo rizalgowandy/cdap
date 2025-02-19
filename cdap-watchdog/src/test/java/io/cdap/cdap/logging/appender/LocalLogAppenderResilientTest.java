@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -24,7 +24,7 @@ import com.google.common.collect.Iterables;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
@@ -33,7 +33,8 @@ import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
 import io.cdap.cdap.common.guice.NamespaceAdminTestModule;
 import io.cdap.cdap.common.guice.NonCustomLocationUnitTestModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.LoggingContextAccessor;
 import io.cdap.cdap.common.utils.Networks;
@@ -45,7 +46,6 @@ import io.cdap.cdap.data2.datafabric.dataset.service.DatasetService;
 import io.cdap.cdap.data2.datafabric.dataset.service.executor.DatasetOpExecutorService;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.logging.LoggingConfiguration;
 import io.cdap.cdap.logging.context.WorkerLoggingContext;
 import io.cdap.cdap.logging.filter.Filter;
@@ -63,6 +63,11 @@ import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.security.impersonation.UnsupportedUGIProvider;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.store.StoreDefinition;
+import java.io.File;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.tephra.TransactionManager;
 import org.apache.twill.common.Threads;
@@ -76,12 +81,6 @@ import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 /**
  *
  */
@@ -92,7 +91,6 @@ public class LocalLogAppenderResilientTest {
 
   @Test
   public void testResilientLogging() throws Exception {
-    Configuration hConf = new Configuration();
     CConfiguration cConf = CConfiguration.create();
 
     File datasetDir = new File(tmpFolder.newFolder(), "datasetUser");
@@ -107,42 +105,46 @@ public class LocalLogAppenderResilientTest {
 
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, tmpFolder.newFolder().getAbsolutePath());
 
+    Configuration hConf = new Configuration();
+
     Injector injector = Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new IOModule(),
-      new ZKClientModule(),
-      new KafkaClientModule(),
-      new InMemoryDiscoveryModule(),
-      new NonCustomLocationUnitTestModule(),
-      new DataFabricModules().getInMemoryModules(),
-      new DataSetsModules().getStandaloneModules(),
-      new DataSetServiceModules().getInMemoryModules(),
-      new TransactionMetricsModule(),
-      new ExploreClientModule(),
-      new LocalLogAppenderModule(),
-      new NamespaceAdminTestModule(),
-      new AuthorizationTestModule(),
-      new AuthorizationEnforcementModule().getInMemoryModules(),
-      new AuthenticationContextModules().getMasterModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(UGIProvider.class).to(UnsupportedUGIProvider.class);
-          bind(OwnerAdmin.class).to(NoOpOwnerAdmin.class);
-          bind(MetadataServiceClient.class).to(NoOpMetadataServiceClient.class);
-        }
-      });
+        new ConfigModule(cConf, hConf),
+        RemoteAuthenticatorModules.getNoOpModule(),
+        new IOModule(),
+        new ZkClientModule(),
+        new KafkaClientModule(),
+        new InMemoryDiscoveryModule(),
+        new NonCustomLocationUnitTestModule(),
+        new DataFabricModules().getInMemoryModules(),
+        new DataSetsModules().getStandaloneModules(),
+        new DataSetServiceModules().getInMemoryModules(),
+        new TransactionMetricsModule(),
+        new LocalLogAppenderModule(),
+        new NamespaceAdminTestModule(),
+        new AuthorizationTestModule(),
+        new AuthorizationEnforcementModule().getInMemoryModules(),
+        new AuthenticationContextModules().getMasterModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(UGIProvider.class).to(UnsupportedUGIProvider.class);
+            bind(OwnerAdmin.class).to(NoOpOwnerAdmin.class);
+            bind(MetadataServiceClient.class).to(NoOpMetadataServiceClient.class);
+          }
+        });
 
     TransactionManager txManager = injector.getInstance(TransactionManager.class);
     txManager.startAndWait();
     StoreDefinition.createAllTables(injector.getInstance(StructuredTableAdmin.class));
 
-    DatasetOpExecutorService opExecutorService = injector.getInstance(DatasetOpExecutorService.class);
+    DatasetOpExecutorService opExecutorService = injector
+        .getInstance(DatasetOpExecutorService.class);
     opExecutorService.startAndWait();
 
     // Start the logging before starting the service.
-    LoggingContextAccessor.setLoggingContext(new WorkerLoggingContext("TRL_ACCT_1", "APP_1", "WORKER_1",
-                                                                      "RUN", "INSTANCE"));
+    LoggingContextAccessor
+        .setLoggingContext(new WorkerLoggingContext("TRL_ACCT_1", "APP_1", "WORKER_1",
+            "RUN", "INSTANCE"));
     String logBaseDir = "trl-log/log_files_" + new Random(System.currentTimeMillis()).nextLong();
 
     cConf.set(LoggingConfiguration.LOG_BASE_DIR, logBaseDir);
@@ -189,14 +191,15 @@ public class LocalLogAppenderResilientTest {
 
     final CountDownLatch startLatch = new CountDownLatch(1);
     DiscoveryServiceClient discoveryClient = injector.getInstance(DiscoveryServiceClient.class);
-    discoveryClient.discover(Constants.Service.DATASET_MANAGER).watchChanges(new ServiceDiscovered.ChangeListener() {
-      @Override
-      public void onChange(ServiceDiscovered serviceDiscovered) {
-        if (!Iterables.isEmpty(serviceDiscovered)) {
-          startLatch.countDown();
-        }
-      }
-    }, Threads.SAME_THREAD_EXECUTOR);
+    discoveryClient.discover(Constants.Service.DATASET_MANAGER)
+        .watchChanges(new ServiceDiscovered.ChangeListener() {
+          @Override
+          public void onChange(ServiceDiscovered serviceDiscovered) {
+            if (!Iterables.isEmpty(serviceDiscovered)) {
+              startLatch.countDown();
+            }
+          }
+        }, Threads.SAME_THREAD_EXECUTOR);
 
     startLatch.await(5, TimeUnit.SECONDS);
 
@@ -210,11 +213,12 @@ public class LocalLogAppenderResilientTest {
     appender.stop();
 
     // Verify - we should have at least 5 events.
-    LoggingContext loggingContext = new WorkerLoggingContext("TRL_ACCT_1", "APP_1", "WORKER_1", "RUN", "INSTANCE");
+    LoggingContext loggingContext = new WorkerLoggingContext("TRL_ACCT_1", "APP_1", "WORKER_1",
+        "RUN", "INSTANCE");
     FileLogReader logTail = injector.getInstance(FileLogReader.class);
     LoggingTester.LogCallback logCallback1 = new LoggingTester.LogCallback();
     logTail.getLogPrev(loggingContext, ReadRange.LATEST, 10, Filter.EMPTY_FILTER,
-                       logCallback1);
+        logCallback1);
     List<LogEvent> allEvents = logCallback1.getEvents();
     Assert.assertTrue(allEvents.toString(), allEvents.size() >= 5);
 

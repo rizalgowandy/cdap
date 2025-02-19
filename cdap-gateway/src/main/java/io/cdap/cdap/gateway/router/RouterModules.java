@@ -25,7 +25,6 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.runtime.RuntimeModule;
 import io.cdap.cdap.common.utils.Networks;
-
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
@@ -33,6 +32,7 @@ import java.net.InetSocketAddress;
  * Router guice modules.
  */
 public class RouterModules extends RuntimeModule {
+
   @Override
   public Module getInMemoryModules() {
     return getCommonModules();
@@ -60,7 +60,7 @@ public class RouterModules extends RuntimeModule {
       @SuppressWarnings("unused")
       public InetAddress providesHostname(CConfiguration cConf) {
         return Networks.resolve(cConf.get(Constants.Router.ADDRESS),
-                                new InetSocketAddress("localhost", 0).getAddress());
+            new InetSocketAddress("localhost", 0).getAddress());
       }
     };
   }

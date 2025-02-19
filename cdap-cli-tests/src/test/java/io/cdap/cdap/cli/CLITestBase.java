@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Files;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.gson.Gson;
 import io.cdap.cdap.ConfigTestApp;
 import io.cdap.cdap.StandaloneTester;
@@ -40,7 +39,6 @@ import io.cdap.cdap.cli.util.table.Table;
 import io.cdap.cdap.client.DatasetTypeClient;
 import io.cdap.cdap.client.NamespaceClient;
 import io.cdap.cdap.client.ProgramClient;
-import io.cdap.cdap.client.QueryClient;
 import io.cdap.cdap.client.app.FakeApp;
 import io.cdap.cdap.client.app.FakeDataset;
 import io.cdap.cdap.client.app.FakePlugin;
@@ -56,12 +54,10 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.common.utils.Tasks;
-import io.cdap.cdap.explore.client.ExploreExecutionResult;
 import io.cdap.cdap.proto.DatasetTypeMeta;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramStatus;
-import io.cdap.cdap.proto.QueryStatus;
 import io.cdap.cdap.proto.RunRecord;
 import io.cdap.cdap.proto.WorkflowTokenDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
@@ -72,16 +68,6 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ServiceId;
 import io.cdap.common.cli.CLI;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -97,6 +83,16 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base class for CLI Tests.
@@ -126,6 +122,7 @@ public abstract class CLITestBase {
   private static final ApplicationId FAKE_APP_ID_V_1 = NamespaceId.DEFAULT.app(FakeApp.NAME, V1_SNAPSHOT);
   private static final ArtifactId FAKE_PLUGIN_ID = NamespaceId.DEFAULT.artifact(FakePlugin.NAME, V1);
   private static final ProgramId FAKE_WORKFLOW_ID = FAKE_APP_ID.workflow(FakeWorkflow.NAME);
+  private static final ProgramId FAKE_WORKFLOW_ID_V_1 = FAKE_APP_ID_V_1.workflow(FakeWorkflow.NAME);
   private static final ProgramId FAKE_SPARK_ID = FAKE_APP_ID.spark(FakeSpark.NAME);
   private static final ServiceId PREFIXED_ECHO_HANDLER_ID = FAKE_APP_ID.service(PrefixedEchoHandler.NAME);
   private static final DatasetId FAKE_DS_ID = NamespaceId.DEFAULT.dataset(FakeApp.DS_NAME);
@@ -216,8 +213,6 @@ public abstract class CLITestBase {
 
   abstract CLIConfig getCliConfig();
 
-  abstract QueryClient getQueryClient();
-
   private void testCommandOutputContains(String command,
                                          final String expectedOutput) throws Exception {
     testCommandOutputContains(getCLI(), command, expectedOutput);
@@ -244,8 +239,7 @@ public abstract class CLITestBase {
 
   @Test
   public void testList() throws Exception {
-    testCommandOutputContains("list app versions " + FakeApp.NAME, V1_SNAPSHOT);
-    testCommandOutputContains("list app versions " + FakeApp.NAME, ApplicationId.DEFAULT_VERSION);
+    // Introducing in LCM : App versions are not explicit
     testCommandOutputContains("list dataset instances", FakeApp.DS_NAME);
   }
 
@@ -272,6 +266,7 @@ public abstract class CLITestBase {
   @Test
   public void testProgram() throws Exception {
     ProgramClient programClient = getProgramClient();
+    // programId with default version will reference the latest version
     final ProgramId serviceId = FAKE_APP_ID.service(FakeApp.SERVICES.get(0));
 
     String qualifiedServiceId = FakeApp.NAME + "." + serviceId.getProgram();
@@ -288,6 +283,7 @@ public abstract class CLITestBase {
         return output != null && output.size() != 0;
       }
     }, 5, TimeUnit.SECONDS);
+    // this does not take a version
     testCommandOutputContains("get service runs " + qualifiedServiceId, "KILLED");
     testCommandOutputContains("get service live " + qualifiedServiceId, serviceId.getProgram());
   }
@@ -397,21 +393,23 @@ public abstract class CLITestBase {
     CLIConfig cliConfig = getCliConfig();
     DatasetTypeClient datasetTypeClient = new DatasetTypeClient(cliConfig.getClientConfig());
     DatasetTypeMeta datasetType = datasetTypeClient.list(NamespaceId.DEFAULT).get(0);
-    testCommandOutputContains("create dataset instance " + datasetType.getName() + " " + datasetName + " \"a=1\"",
-                              "Successfully created dataset");
+    testCommandOutputContains(
+        "create dataset instance " + datasetType.getName() + " " + datasetName + " \"a=1\"",
+        "Successfully created dataset");
     testCommandOutputContains("list dataset instances", FakeDataset.class.getSimpleName());
     testCommandOutputContains("get dataset instance properties " + datasetName, "a,1");
 
     // test dataset creation with owner
-    String commandOutput = getCommandOutput("create dataset instance " + datasetType.getName() + " " +
-                                              ownedDatasetName + " \"a=1\"" + " " + "someDescription " +
-                                              ArgumentName.PRINCIPAL +
-                                              " alice/somehost.net@somekdc.net");
+    String commandOutput = getCommandOutput("create dataset instance " + datasetType.getName() + " "
+        + ownedDatasetName + " \"a=1\"" + " " + "someDescription "
+        + ArgumentName.PRINCIPAL
+        + " alice/somehost.net@somekdc.net");
     Assert.assertTrue(commandOutput.contains("Successfully created dataset"));
     Assert.assertTrue(commandOutput.contains("alice/somehost.net@somekdc.net"));
 
     // test describing the table returns the given owner information
-    testCommandOutputContains("describe dataset instance " + ownedDatasetName, "alice/somehost.net@somekdc.net");
+    testCommandOutputContains("describe dataset instance " + ownedDatasetName,
+        "alice/somehost.net@somekdc.net");
 
     NamespaceClient namespaceClient = new NamespaceClient(cliConfig.getClientConfig());
     NamespaceId barspace = new NamespaceId("bar");
@@ -427,29 +425,30 @@ public abstract class CLITestBase {
 
     testCommandOutputContains("use namespace default", "Now using namespace 'default'");
     try {
-      testCommandOutputContains("truncate dataset instance " + datasetName, "Successfully truncated");
+      testCommandOutputContains("truncate dataset instance " + datasetName,
+          "Successfully truncated");
     } finally {
       testCommandOutputContains("delete dataset instance " + datasetName, "Successfully deleted");
     }
 
     String datasetName2 = PREFIX + "asoijm39485";
     String description = "test-description-for-" + datasetName2;
-    testCommandOutputContains("create dataset instance " + datasetType.getName() + " " + datasetName2 +
-                                " \"a=1\"" + " " + description,
-                              "Successfully created dataset");
+    testCommandOutputContains(
+        "create dataset instance " + datasetType.getName() + " " + datasetName2
+            + " \"a=1\"" + " " + description,
+        "Successfully created dataset");
     testCommandOutputContains("list dataset instances", description);
     testCommandOutputContains("delete dataset instance " + datasetName2, "Successfully deleted");
-    testCommandOutputContains("delete dataset instance " + ownedDatasetName, "Successfully deleted");
+    testCommandOutputContains("delete dataset instance " + ownedDatasetName,
+        "Successfully deleted");
   }
 
   @Test
   public void testService() throws Exception {
     ProgramClient programClient = getProgramClient();
     ServiceId service = FAKE_APP_ID.service(PrefixedEchoHandler.NAME);
-    ServiceId serviceV1 = FAKE_APP_ID_V_1.service(PrefixedEchoHandler.NAME);
     String serviceName = String.format("%s.%s", FakeApp.NAME, PrefixedEchoHandler.NAME);
     String serviceArgument = String.format("%s version %s", serviceName, ApplicationId.DEFAULT_VERSION);
-    String serviceV1Argument = String.format("%s version %s", serviceName, V1_SNAPSHOT);
     try {
       // Test service commands with no optional version argument
       testCommandOutputContains("start service " + serviceName, "Successfully started service");
@@ -463,20 +462,13 @@ public abstract class CLITestBase {
       assertProgramStatus(programClient, service, ProgramStatus.STOPPED.name());
       // Test service commands with version argument when two versions of the service are running
       testCommandOutputContains("start service " + serviceArgument, "Successfully started service");
-      testCommandOutputContains("start service " + serviceV1Argument, "Successfully started service");
       assertProgramStatus(programClient, service, ProgramStatus.RUNNING.name());
-      assertProgramStatus(programClient, serviceV1, ProgramStatus.RUNNING.name());
       testCommandOutputContains("get endpoints service " + serviceArgument, "POST");
-      testCommandOutputContains("get endpoints service " + serviceV1Argument, "POST");
       testCommandOutputContains("get endpoints service " + serviceArgument, "/echo");
-      testCommandOutputContains("get endpoints service " + serviceV1Argument, "/echo");
       testCommandOutputContains("check service availability " + serviceArgument, "Service is available");
-      testCommandOutputContains("check service availability " + serviceV1Argument, "Service is available");
-      testCommandOutputContains("call service " + serviceArgument
+      testCommandOutputContains("call service " + serviceName
                                   + " POST /echo body \"testBody\"", ":testBody");
-      testCommandOutputContains("call service " + serviceV1Argument
-                                  + " POST /echo body \"testBody\"", ":testBody");
-      testCommandOutputContains("get service logs " + serviceName, "Starting HTTP server for Service " + service);
+      testCommandOutputContains("get service logs " + serviceName, "Starting HTTP server for Service");
     } finally {
       // Stop all running services
       programClient.stopAll(NamespaceId.DEFAULT);
@@ -488,13 +480,6 @@ public abstract class CLITestBase {
     String qualifiedServiceId = String.format("%s.%s", FakeApp.NAME, PrefixedEchoHandler.NAME);
     ServiceId service = NamespaceId.DEFAULT.app(FakeApp.NAME).service(PrefixedEchoHandler.NAME);
     testServiceRuntimeArgs(qualifiedServiceId, service);
-  }
-
-  @Test
-  public void testVersionedRuntimeArgs() throws Exception {
-    String versionedServiceId = String.format("%s.%s version %s", FakeApp.NAME, PrefixedEchoHandler.NAME, V1_SNAPSHOT);
-    ServiceId service = FAKE_APP_ID_V_1.service(PrefixedEchoHandler.NAME);
-    testServiceRuntimeArgs(versionedServiceId, service);
   }
 
   public void testServiceRuntimeArgs(String qualifiedServiceId, ServiceId service) throws Exception {
@@ -528,6 +513,7 @@ public abstract class CLITestBase {
     ProgramClient programClient = getProgramClient();
     String sparkId = FakeApp.SPARK.get(0);
     String qualifiedSparkId = FakeApp.NAME + "." + sparkId;
+    // programId with default version will reference the latest version
     ProgramId spark = NamespaceId.DEFAULT.app(FakeApp.NAME).spark(sparkId);
 
     testCommandOutputContains("list spark", sparkId);
@@ -541,7 +527,7 @@ public abstract class CLITestBase {
 
   @Test
   public void testPreferences() throws Exception {
-    testPreferencesOutput("get instance preferences", ImmutableMap.<String, String>of());
+    testPreferencesOutput("get instance preferences", ImmutableMap.of());
     Map<String, String> propMap = Maps.newHashMap();
     propMap.put("key", "newinstance");
     propMap.put("k1", "v1");
@@ -609,7 +595,6 @@ public abstract class CLITestBase {
     final String rootDirectory = rootdir.getAbsolutePath();
     final String defaultFields = PREFIX + "defaultFields";
     final String doesNotExist = "doesNotExist";
-    createHiveDB(hiveDatabase);
     // initially only default namespace should be present
     NamespaceMeta defaultNs = NamespaceMeta.DEFAULT;
     List<NamespaceMeta> expectedNamespaces = Lists.newArrayList(defaultNs);
@@ -617,24 +602,26 @@ public abstract class CLITestBase {
 
     // describe non-existing namespace
     testCommandOutputContains(String.format("describe namespace %s", doesNotExist),
-                              String.format("Error: 'namespace:%s' was not found", doesNotExist));
+        String.format("Error: 'namespace:%s' was not found", doesNotExist));
     // delete non-existing namespace
     // TODO: uncomment when fixed - this makes build hang since it requires confirmation from user
 //    testCommandOutputContains(String.format("delete namespace %s", doesNotExist),
 //                              String.format("Error: namespace '%s' was not found", doesNotExist));
 
     // create a namespace
-    String command = String.format("create namespace %s description %s principal %s group-name %s keytab-URI %s " +
-                                     "hbase-namespace %s hive-database %s root-directory %s %s %s %s %s",
-                                   name, description, principal, group, keytab, hbaseNamespace,
-                                   hiveDatabase, rootDirectory, ArgumentName.NAMESPACE_SCHEDULER_QUEUENAME,
-                                   schedulerQueueName, ArgumentName.NAMESPACE_EXPLORE_AS_PRINCIPAL, false);
+    String command = String.format(
+        "create namespace %s description %s principal %s group-name %s keytab-URI %s "
+            + "hbase-namespace %s hive-database %s root-directory %s %s %s",
+        name, description, principal, group, keytab, hbaseNamespace,
+        hiveDatabase, rootDirectory, ArgumentName.NAMESPACE_SCHEDULER_QUEUENAME,
+        schedulerQueueName);
     testCommandOutputContains(command, String.format("Namespace '%s' created successfully.", name));
 
     NamespaceMeta expected = new NamespaceMeta.Builder()
-      .setName(name).setDescription(description).setPrincipal(principal).setGroupName(group).setKeytabURI(keytab)
-      .setHBaseNamespace(hbaseNamespace).setSchedulerQueueName(schedulerQueueName)
-      .setHiveDatabase(hiveDatabase).setRootDirectory(rootDirectory).setExploreAsPrincipal(false).build();
+        .setName(name).setDescription(description).setPrincipal(principal).setGroupName(group)
+        .setKeytabUri(keytab)
+        .setHBaseNamespace(hbaseNamespace).setSchedulerQueueName(schedulerQueueName)
+        .setHiveDatabase(hiveDatabase).setRootDirectory(rootDirectory).build();
     expectedNamespaces = Lists.newArrayList(defaultNs, expected);
     // list namespaces and verify
     testNamespacesOutput("list namespaces", expectedNamespaces);
@@ -665,10 +652,11 @@ public abstract class CLITestBase {
     // TODO: uncomment when fixed - this makes build hang since it requires confirmation from user
 //    command = String.format("delete namespace %s", name);
 //    testCommandOutputContains(command, String.format("Namespace '%s' deleted successfully.", name));
-    dropHiveDb(hiveDatabase);
   }
 
   @Test
+  @Ignore
+  // TODO CDAP-19776 unignore this test when feature flag is added
   public void testWorkflows() throws Exception {
     ProgramClient programClient = getProgramClient();
     String workflow = String.format("%s.%s", FakeApp.NAME, FakeWorkflow.NAME);
@@ -678,13 +666,9 @@ public abstract class CLITestBase {
     testCommandOutputContains("start workflow " + workflow + " '" + runtimeArgsKV + "'",
                               "Successfully started workflow");
 
-    Tasks.waitFor(1, new Callable<Integer>() {
-      @Override
-      public Integer call() throws Exception {
-        return programClient.getProgramRuns(FAKE_WORKFLOW_ID, ProgramRunStatus.COMPLETED.name(), 0, Long.MAX_VALUE,
-                                            Integer.MAX_VALUE).size();
-      }
-    }, 180, TimeUnit.SECONDS);
+    Tasks.waitFor(1, () ->
+      programClient.getProgramRuns(FAKE_WORKFLOW_ID, ProgramRunStatus.COMPLETED.name(), 0, Long.MAX_VALUE,
+                                   Integer.MAX_VALUE).size(), 180, TimeUnit.SECONDS);
 
     testCommandOutputContains("cli render as csv", "Now rendering as CSV");
     String commandOutput = getCommandOutput("get workflow runs " + workflow);
@@ -721,21 +705,29 @@ public abstract class CLITestBase {
     testCommandOutputContains("get workflow logs " + workflow, FakeWorkflow.FAKE_LOG);
 
     // Test schedule
+    // Need to specify version
     testCommandOutputContains(
-      String.format("add time schedule %s for workflow %s at \"0 4 * * *\"", FakeWorkflow.SCHEDULE, workflow),
+      String.format("add time schedule %s for workflow %s version %s at \"0 4 * * *\"",
+                    FakeWorkflow.SCHEDULE, workflow, V1_SNAPSHOT),
       String.format("Successfully added schedule '%s' in app '%s'", FakeWorkflow.SCHEDULE, FakeApp.NAME));
+
+    // Get schedules without specifying version will get the latest version
     testCommandOutputContains(String.format("get workflow schedules %s", workflow), "0 4 * * *");
 
     testCommandOutputContains(
-      String.format("update time schedule %s for workflow %s description \"testdesc\" at \"* * * * *\" " +
-                      "concurrency 4 properties \"key=value\"", FakeWorkflow.SCHEDULE, workflow),
-      String.format("Successfully updated schedule '%s' in app '%s'", FakeWorkflow.SCHEDULE, FakeApp.NAME));
+        String.format(
+            "update time schedule %s for workflow %s version %s description \"testdesc\" at \"* * * * *\" "
+                + "concurrency 4 properties \"key=value\"", FakeWorkflow.SCHEDULE, workflow,
+            V1_SNAPSHOT),
+        String.format("Successfully updated schedule '%s' in app '%s'", FakeWorkflow.SCHEDULE,
+            FakeApp.NAME));
     testCommandOutputContains(String.format("get workflow schedules %s", workflow), "* * * * *");
     testCommandOutputContains(String.format("get workflow schedules %s", workflow), "testdesc");
     testCommandOutputContains(String.format("get workflow schedules %s", workflow), "{\"key\":\"value\"}");
 
+    // Specify version when deleting, otherwise deleting the latest version
     testCommandOutputContains(
-      String.format("delete schedule %s.%s", FakeApp.NAME, FakeWorkflow.SCHEDULE),
+      String.format("delete schedule %s.%s version %s", FakeApp.NAME, FakeWorkflow.SCHEDULE, V1_SNAPSHOT),
       String.format("Successfully deleted schedule '%s' in app '%s'", FakeWorkflow.SCHEDULE, FakeApp.NAME));
     testCommandOutputNotContains(String.format("get workflow schedules %s", workflow), "* * * * *");
     testCommandOutputNotContains(String.format("get workflow schedules %s", workflow), "testdesc");
@@ -770,8 +762,6 @@ public abstract class CLITestBase {
                               FakeWorkflow.FakeAction.ANOTHER_FAKE_NAME);
     testCommandOutputContains(String.format("get metadata-tags %s scope system", FAKE_DS_ID),
                               "batch");
-    testCommandOutputContains(String.format("get metadata-tags %s scope system", FAKE_DS_ID),
-                              "explore");
     testCommandOutputContains(String.format("add metadata-properties %s appKey=appValue", FAKE_APP_ID),
                               "Successfully added metadata properties");
     testCommandOutputContains(String.format("get metadata-properties %s", FAKE_APP_ID), "appKey,appValue");
@@ -931,27 +921,6 @@ public abstract class CLITestBase {
         return null;
       }
     });
-  }
-
-  private void createHiveDB(String hiveDb) throws Exception {
-    QueryClient queryClient = getQueryClient();
-    ListenableFuture<ExploreExecutionResult> future =
-      queryClient.execute(NamespaceId.DEFAULT, "create database " + hiveDb);
-    assertExploreQuerySuccess(future);
-    future = queryClient.execute(NamespaceId.DEFAULT, "describe database " + hiveDb);
-    assertExploreQuerySuccess(future);
-  }
-
-  private void dropHiveDb(String hiveDb) throws Exception {
-    QueryClient queryClient = getQueryClient();
-    assertExploreQuerySuccess(queryClient.execute(NamespaceId.DEFAULT, "drop database " + hiveDb));
-  }
-
-  private void assertExploreQuerySuccess(
-    ListenableFuture<ExploreExecutionResult> dbCreationFuture) throws Exception {
-    ExploreExecutionResult exploreExecutionResult = dbCreationFuture.get(10, TimeUnit.SECONDS);
-    QueryStatus status = exploreExecutionResult.getStatus();
-    Assert.assertEquals(QueryStatus.OpStatus.FINISHED, status.getStatus());
   }
 
   private static File createPluginConfig() throws IOException {

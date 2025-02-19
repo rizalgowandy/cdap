@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto;
 
 import com.google.gson.annotations.JsonAdapter;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,7 +35,7 @@ public class NamespaceConfig {
   public static final String ROOT_DIRECTORY = "root.directory";
   public static final String HBASE_NAMESPACE = "hbase.namespace";
   public static final String HIVE_DATABASE = "hive.database";
-  public static final String EXPLORE_AS_PRINCIPAL = "explore.as.principal";
+
   public static final String PRINCIPAL = "principal";
   public static final String GROUP_NAME = "groupName";
   public static final String KEYTAB_URI = "keytabURI";
@@ -46,23 +45,17 @@ public class NamespaceConfig {
   // scheduler queue name is kept non nullable unlike others like root directory, hbase namespace etc for backward
   // compatibility
   public NamespaceConfig(String schedulerQueueName, @Nullable String rootDirectory,
-                         @Nullable String hbaseNamespace, @Nullable String hiveDatabase,
-                         @Nullable String principal, @Nullable String groupName, @Nullable String keytabURI) {
-    this(schedulerQueueName, rootDirectory, hbaseNamespace, hiveDatabase, principal, groupName, keytabURI, true);
+      @Nullable String hbaseNamespace, @Nullable String hiveDatabase,
+      @Nullable String principal, @Nullable String groupName, @Nullable String keytabURI) {
+    this(schedulerQueueName, rootDirectory, hbaseNamespace, hiveDatabase, principal, groupName,
+        keytabURI,
+        new HashMap<>());
   }
 
   public NamespaceConfig(String schedulerQueueName, @Nullable String rootDirectory,
-                         @Nullable String hbaseNamespace, @Nullable String hiveDatabase,
-                         @Nullable String principal, @Nullable String groupName, @Nullable String keytabURI,
-                         boolean exploreAsPrincipal) {
-    this(schedulerQueueName, rootDirectory, hbaseNamespace, hiveDatabase, principal, groupName, keytabURI,
-            exploreAsPrincipal, new HashMap<>());
-  }
-
-  public NamespaceConfig(String schedulerQueueName, @Nullable String rootDirectory,
-                         @Nullable String hbaseNamespace, @Nullable String hiveDatabase,
-                         @Nullable String principal, @Nullable String groupName, @Nullable String keytabURI,
-                         boolean exploreAsPrincipal, Map<String, String> existingConfigs) {
+      @Nullable String hbaseNamespace, @Nullable String hiveDatabase,
+      @Nullable String principal, @Nullable String groupName, @Nullable String keytabURI,
+      Map<String, String> existingConfigs) {
     Map<String, String> configs = new HashMap<>(existingConfigs);
     configs.put(SCHEDULER_QUEUE_NAME, schedulerQueueName);
 
@@ -89,8 +82,6 @@ public class NamespaceConfig {
     if (keytabURI != null) {
       configs.put(KEYTAB_URI, keytabURI);
     }
-
-    configs.put(EXPLORE_AS_PRINCIPAL, Boolean.toString(exploreAsPrincipal));
 
     this.configs = Collections.unmodifiableMap(configs);
   }
@@ -139,7 +130,7 @@ public class NamespaceConfig {
    * @return the keytab URI without the fragment containing version.
    */
   @Nullable
-  public String getKeytabURIWithoutVersion() {
+  public String getKeytabUriWithoutVersion() {
     // try to get the keytab URI version if the keytab URI is not null
     String keytabURI = getKeytabURI();
     if (keytabURI != null) {
@@ -153,7 +144,7 @@ public class NamespaceConfig {
   /**
    * @return the version of the keytab URI or 0 if no version is present in the keytab URI.
    */
-  public int getKeytabURIVersion() {
+  public int getKeytabUriVersion() {
     // try to get the keytab URI version if the keytab URI is not null
     String keytabURI = getKeytabURI();
     if (keytabURI != null) {
@@ -163,11 +154,6 @@ public class NamespaceConfig {
       return versionIdx < 0 ? 0 : Integer.parseInt(keytabURI.substring(versionIdx + 1));
     }
     return 0;
-  }
-
-  public Boolean isExploreAsPrincipal() {
-    String value = configs.get(EXPLORE_AS_PRINCIPAL);
-    return value == null || Boolean.parseBoolean(value);
   }
 
   public Set<String> getDifference(@Nullable NamespaceConfig other) {
@@ -230,9 +216,9 @@ public class NamespaceConfig {
 
   @Override
   public String toString() {
-    return "NamespaceConfig{" +
-      "configs=" + configs +
-      '}';
+    return "NamespaceConfig{"
+        + "configs=" + configs
+        + '}';
   }
 
   /**

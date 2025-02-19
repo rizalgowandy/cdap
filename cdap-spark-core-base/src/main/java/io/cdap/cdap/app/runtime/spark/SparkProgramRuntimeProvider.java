@@ -23,11 +23,13 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Binder;
 import com.google.inject.Binding;
 import com.google.inject.BindingAnnotation;
+import com.google.inject.ConfigurationException;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.ProvisionException;
 import com.google.inject.spi.InstanceBinding;
+import io.cdap.cdap.api.artifact.CloseableClassLoader;
 import io.cdap.cdap.app.runtime.ProgramRunner;
 import io.cdap.cdap.app.runtime.ProgramRuntimeProvider;
 import io.cdap.cdap.app.runtime.spark.classloader.SparkRunnerClassLoader;
@@ -39,14 +41,10 @@ import io.cdap.cdap.common.lang.FilterClassLoader;
 import io.cdap.cdap.internal.app.spark.SparkCompatReader;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.runtime.spi.SparkCompat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
 import java.net.URL;
 import java.nio.file.Paths;
@@ -55,6 +53,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link ProgramRuntimeProvider} that provides runtime system support for {@link ProgramType#SPARK} program.
@@ -83,6 +83,34 @@ public abstract class SparkProgramRuntimeProvider implements ProgramRuntimeProvi
   protected SparkProgramRuntimeProvider(SparkCompat providerSparkCompat) {
     this.providerSparkCompat = providerSparkCompat;
     this.filterScalaClasses = Boolean.parseBoolean(System.getenv(SparkPackageUtils.SPARK_YARN_MODE));
+  }
+
+  @Override
+  public ClassLoader createProgramClassLoader(CConfiguration cConf, ProgramType type) {
+    Preconditions.checkArgument(type == ProgramType.SPARK, "Unsupported program type %s. Only %s is supported",
+                                type, ProgramType.SPARK);
+    boolean rewriteCheckpointTempFileName =
+      cConf.getBoolean(SparkRuntimeUtils.SPARK_STREAMING_CHECKPOINT_REWRITE_ENABLED);
+    boolean rewriteYarnClient = cConf.getBoolean(Constants.AppFabric.SPARK_YARN_CLIENT_REWRITE);
+
+    try {
+      SparkRunnerClassLoader sparkRunnerClassLoader = createClassLoader(
+          filterScalaClasses, rewriteYarnClient, rewriteCheckpointTempFileName);
+
+      // SparkResourceFilter must be instantiated using the above classloader as it has the
+      // org.apache.spark.streaming.StreamingContext class, otherwise it will cause NoClassDefFoundError at runtime
+      // because the parent classloader does not have Spark resources loaded.
+      FilterClassLoader.Filter sparkClassLoaderFilter = (FilterClassLoader.Filter) sparkRunnerClassLoader
+        .loadClass(io.cdap.cdap.app.runtime.spark.SparkResourceFilter.class.getName()).newInstance();
+       ClassLoader filterClassLoader = new FilterClassLoader(sparkRunnerClassLoader, sparkClassLoaderFilter);
+      // Creating a CloseableClassLoader ensures that the caller can close the SparkRunnerClassLoader
+      // that is held by the FilterClassLoader.
+      return new CloseableClassLoader(filterClassLoader, sparkRunnerClassLoader);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
+      throw new RuntimeException("Failed to create SparkResourceFilter class", e);
+    }
   }
 
   @Override
@@ -254,12 +282,18 @@ public abstract class SparkProgramRuntimeProvider implements ProgramRuntimeProvi
         paramTypeKey = Key.get(paramType);
       }
 
-      // If the classloader of the parameter is the same as the Spark ClassLoader, we need to create the
-      // instance manually instead of getting through the Guice Injector to avoid ClassLoader leakage
-      if (paramTypeKey.getTypeLiteral().getRawType().getClassLoader() == sparkClassLoader) {
-        args[i] = createInstance(injector, paramTypeKey, sparkClassLoader);
-      } else {
-        args[i] = injector.getInstance(paramTypeKey);
+      try {
+        // If the classloader of the parameter is the same as the Spark ClassLoader, we need to create the
+        // instance manually instead of getting through the Guice Injector to avoid ClassLoader leakage
+        if (paramTypeKey.getTypeLiteral().getRawType().getClassLoader() == sparkClassLoader) {
+          args[i] = createInstance(injector, paramTypeKey, sparkClassLoader);
+        } else {
+          args[i] = injector.getInstance(paramTypeKey);
+        }
+      } catch (ConfigurationException e) {
+        // Wrap the Guice ConfigurationException with information on what class is getting bound to allow for debugging.
+        throw new RuntimeException(String.format("Failed to bind paramTypeKey '%s' for paramType '%s' in key '%s'",
+                                                 paramTypeKey, paramType, key), e);
       }
     }
 
@@ -401,6 +435,11 @@ public abstract class SparkProgramRuntimeProvider implements ProgramRuntimeProvi
       }
       // resource = jar:file:/path/to/cdap/lib/org.scala-lang.scala-library-2.10.4.jar!/library.properties
       // baseClasspath = /path/to/cdap/lib/org.scala-lang.scala-library-2.10.4.jar
+
+      // ignoring jrt scheme for java11 support
+      if (resource.getProtocol().equals("jrt")) {
+        return null;
+      }
       String baseClasspath = ClassLoaders.getClassPathURL(name, resource).getPath();
       String jarName = baseClasspath.substring(baseClasspath.lastIndexOf('/') + 1, baseClasspath.length());
       return jarName.startsWith("org.scala-lang") ? null : resource;

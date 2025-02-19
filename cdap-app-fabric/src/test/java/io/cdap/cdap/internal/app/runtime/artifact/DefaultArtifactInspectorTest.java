@@ -27,7 +27,6 @@ import io.cdap.cdap.api.plugin.PluginClass;
 import io.cdap.cdap.api.plugin.PluginPropertyField;
 import io.cdap.cdap.api.plugin.Requirements;
 import io.cdap.cdap.app.program.ManifestFields;
-import io.cdap.cdap.app.runtime.DummyProgramRunnerFactory;
 import io.cdap.cdap.common.InvalidArtifactException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
@@ -40,15 +39,6 @@ import io.cdap.cdap.internal.app.runtime.artifact.app.inspection.InspectionApp;
 import io.cdap.cdap.internal.app.runtime.artifact.plugin.nested.NestedConfigPlugin;
 import io.cdap.cdap.internal.io.ReflectionSchemaGenerator;
 import io.cdap.cdap.security.impersonation.DefaultImpersonator;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +47,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.Manifest;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  *
@@ -73,7 +71,7 @@ public class DefaultArtifactInspectorTest {
     CConfiguration cConf = CConfiguration.create();
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TMP_FOLDER.newFolder().getAbsolutePath());
 
-    classLoaderFactory = new ArtifactClassLoaderFactory(cConf, new DummyProgramRunnerFactory());
+    classLoaderFactory = new ArtifactClassLoaderFactory(cConf);
     artifactInspector = new DefaultArtifactInspector(cConf, classLoaderFactory,
                                                      new DefaultImpersonator(cConf, null));
   }

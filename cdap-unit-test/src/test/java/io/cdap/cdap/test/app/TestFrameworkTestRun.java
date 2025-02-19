@@ -86,18 +86,6 @@ import io.cdap.cdap.test.artifacts.plugins.ToStringPlugin;
 import io.cdap.cdap.test.base.TestFrameworkTestBase;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.filesystem.Location;
-import org.hamcrest.CoreMatchers;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -124,6 +112,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -136,8 +135,7 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     new TypeToken<Map<MetadataScope, Metadata>>() { }.getType();
 
   @ClassRule
-  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.Explore.EXPLORE_ENABLED, false,
-                                                                       Constants.CLUSTER_NAME, "testCluster");
+  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.CLUSTER_NAME, "testCluster");
   @ClassRule
   public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
 
@@ -443,9 +441,9 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     Assert.assertEquals("abcd", Bytes.toString(table.read(appName + ".abcd")));
     Assert.assertEquals("xyz", Bytes.toString(table.read(appName + ".xyz")));
   }
-
-  @Category(SlowTests.class)
+  
   @Test
+  @Category(SlowTests.class)
   public void testMapperDatasetAccess() throws Exception {
     addDatasetInstance("keyValueTable", "table1");
     addDatasetInstance("keyValueTable", "table2");
@@ -473,8 +471,8 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
                            mrManager.getHistory().get(0).getPid(), "table1", false);
   }
 
+  @Test(timeout = 60000L)
   @Category(SlowTests.class)
-  @Test
   public void testMapReduceTaskMetricsDisable() throws Exception {
     addDatasetInstance("keyValueTable", "table1");
     addDatasetInstance("keyValueTable", "table2");
@@ -574,7 +572,7 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
         ImmutableMap.of(Constants.Metrics.Tag.NAMESPACE, DefaultId.NAMESPACE.getNamespace(),
                         Constants.Metrics.Tag.APP, appClass.getSimpleName(),
                         Constants.Metrics.Tag.MAPREDUCE, DatasetWithMRApp.MAPREDUCE_PROGRAM),
-        ImmutableList.<String>of()
+        ImmutableList.of()
       )
     );
 
@@ -634,8 +632,8 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     Assert.assertTrue(workflowKilled.exists());
   }
 
-  @Category(SlowTests.class)
   @Test
+  @Category(SlowTests.class)
   public void testCustomActionDatasetAccess() throws Exception {
     addDatasetInstance("keyValueTable", DatasetWithCustomActionApp.CUSTOM_TABLE);
     addDatasetInstance("fileSet", DatasetWithCustomActionApp.CUSTOM_FILESET);
@@ -957,9 +955,9 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     WorkflowTokenNodeDetail workflowTokenAtNode =
       wfmanager.getTokenAtNode(pid, AppWithSchedule.DummyAction.class.getSimpleName(),
                                WorkflowToken.Scope.USER, "finished");
-    Assert.assertEquals(true, Boolean.parseBoolean(workflowTokenAtNode.getTokenDataAtNode().get("finished")));
+    Assert.assertTrue(Boolean.parseBoolean(workflowTokenAtNode.getTokenDataAtNode().get("finished")));
     workflowToken = wfmanager.getToken(pid, null, null);
-    Assert.assertEquals(false, Boolean.parseBoolean(workflowToken.getTokenData().get("running").get(0).getValue()));
+    Assert.assertFalse(Boolean.parseBoolean(workflowToken.getTokenData().get("running").get(0).getValue()));
   }
 
   @Test
@@ -1001,9 +999,9 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
       }
     }, 5, TimeUnit.SECONDS, 30, TimeUnit.MILLISECONDS);
   }
-
-  @Category(SlowTests.class)
+  
   @Test
+  @Category(SlowTests.class)
   public void testGetServiceURL() throws Exception {
     ApplicationManager applicationManager = deployApplication(AppUsingGetServiceURL.class);
     ServiceManager centralServiceManager =
@@ -1034,9 +1032,9 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     serviceManager.waitForStopped(10, TimeUnit.SECONDS);
     centralServiceManager.waitForStopped(10, TimeUnit.SECONDS);
   }
-
-  @Category(SlowTests.class)
+  
   @Test
+  @Category(SlowTests.class)
   public void testGetServiceURLDiffNamespace() throws Exception {
     ApplicationManager defaultApplicationManager = deployApplication(AppUsingGetServiceURL.class);
     ServiceManager defaultForwardingServiceManager = defaultApplicationManager
@@ -1126,8 +1124,8 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     }, 15, TimeUnit.SECONDS);
   }
 
-  @Category(SlowTests.class)
   @Test
+  @Category(SlowTests.class)
   public void testWorkerInstances() throws Exception {
     ApplicationManager applicationManager = deployApplication(testSpace, AppUsingGetServiceURL.class);
     WorkerManager workerManager = applicationManager.getWorkerManager(AppUsingGetServiceURL.PINGING_WORKER).start();
@@ -1215,8 +1213,8 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     deployApplication(AppWithInvalidHandler.class);
   }
 
-  @Category(SlowTests.class)
   @Test
+  @Category(SlowTests.class)
   public void testAppWithWorker() throws Exception {
     ApplicationManager applicationManager = deployApplication(testSpace, AppWithWorker.class);
     LOG.info("Deployed.");
@@ -1226,10 +1224,11 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     Tasks.waitFor(true, new Callable<Boolean>() {
       @Override
       public Boolean call() throws Exception {
-        DataSetManager<KeyValueTable> dataSetManager = getDataset(testSpace.dataset(AppWithWorker.DATASET));
+        DataSetManager<KeyValueTable> dataSetManager = getDataset(
+            testSpace.dataset(AppWithWorker.DATASET));
         KeyValueTable table = dataSetManager.get();
-        return AppWithWorker.INITIALIZE.equals(Bytes.toString(table.read(AppWithWorker.INITIALIZE))) &&
-          AppWithWorker.RUN.equals(Bytes.toString(table.read(AppWithWorker.RUN)));
+        return AppWithWorker.INITIALIZE.equals(Bytes.toString(table.read(AppWithWorker.INITIALIZE)))
+            && AppWithWorker.RUN.equals(Bytes.toString(table.read(AppWithWorker.RUN)));
       }
     }, 10, TimeUnit.SECONDS, 100, TimeUnit.MILLISECONDS);
 
@@ -1519,8 +1518,8 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     workerManager.waitForStopped(30, TimeUnit.SECONDS);
   }
 
-  @Category(SlowTests.class)
   @Test
+  @Category(SlowTests.class)
   public void testAppWithServices() throws Exception {
     ApplicationManager applicationManager = deployApplication(AppWithServices.class);
     LOG.info("Deployed.");
@@ -1995,8 +1994,7 @@ public class TestFrameworkTestRun extends TestFrameworkTestBase {
     Assert.assertTrue(scopeMetadata.get(MetadataScope.SYSTEM).getProperties().containsKey("entity-name"));
     Assert.assertEquals(AppWithMetadataPrograms.METADATA_SERVICE_DATASET,
                         scopeMetadata.get(MetadataScope.SYSTEM).getProperties().get("entity-name"));
-    Assert.assertTrue(scopeMetadata.get(MetadataScope.SYSTEM).getTags()
-                        .containsAll(Arrays.asList("explore", "batch")));
+    Assert.assertTrue(scopeMetadata.get(MetadataScope.SYSTEM).getTags().contains("batch"));
 
     // verify user metadata
     Assert.assertFalse(scopeMetadata.get(MetadataScope.USER).getProperties().isEmpty());

@@ -23,17 +23,14 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.metrics.MetricsCollector;
 import io.cdap.cdap.common.utils.TimeProvider;
-import io.cdap.cdap.messaging.StoreRequest;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
+import io.cdap.cdap.messaging.spi.StoreRequest;
+import io.cdap.cdap.messaging.DefaultStoreRequest;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.data.MessageId;
-import io.cdap.cdap.messaging.data.RawMessage;
+import io.cdap.cdap.messaging.spi.RawMessage;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
-import org.junit.Assert;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,6 +44,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Unit-test for {@link ConcurrentMessageWriter}.
@@ -60,8 +61,8 @@ public class ConcurrentMessageWriterTest {
     TopicId topicId1 = new NamespaceId("ns1").topic("t1");
     TopicId topicId2 = new NamespaceId("ns2").topic("t2");
 
-    TopicMetadata metadata1 = new TopicMetadata(topicId1, new HashMap<String, String>(), 1);
-    TopicMetadata metadata2 = new TopicMetadata(topicId2, new HashMap<String, String>(), 1);
+    TopicMetadata metadata1 = new DefaultTopicMetadata(topicId1, new HashMap<String, String>(), 1);
+    TopicMetadata metadata2 = new DefaultTopicMetadata(topicId2, new HashMap<String, String>(), 1);
 
     TestStoreRequestWriter testWriter = new TestStoreRequestWriter(new TimeProvider.IncrementalTimeProvider());
     ConcurrentMessageWriter writer = new ConcurrentMessageWriter(testWriter);
@@ -107,7 +108,7 @@ public class ConcurrentMessageWriterTest {
     }
 
     TopicId topicId = new NamespaceId("ns1").topic("t1");
-    TopicMetadata metadata = new TopicMetadata(topicId, new HashMap<String, String>(), 1);
+    TopicMetadata metadata = new DefaultTopicMetadata(topicId, new HashMap<String, String>(), 1);
 
     // Write the payloads
     TestStoreRequestWriter testWriter = new TestStoreRequestWriter(new TimeProvider.IncrementalTimeProvider());
@@ -132,7 +133,7 @@ public class ConcurrentMessageWriterTest {
   @Test
   public void testMultiMaxSequence() throws IOException, InterruptedException {
     TopicId topicId = new NamespaceId("ns1").topic("t1");
-    final TopicMetadata metadata = new TopicMetadata(topicId, new HashMap<String, String>(), 1);
+    final TopicMetadata metadata = new DefaultTopicMetadata(topicId, new HashMap<String, String>(), 1);
 
     // This test the case when multiple StoreRequests combined exceeding the 65536 payload.
     // See testMaxSequence() for more details when it matters
@@ -213,7 +214,7 @@ public class ConcurrentMessageWriterTest {
     long writeLatencyMillis = 50L;
 
     final TopicId topicId = NamespaceId.DEFAULT.topic("t");
-    final TopicMetadata metadata = new TopicMetadata(topicId, new HashMap<String, String>(), 1);
+    final TopicMetadata metadata = new DefaultTopicMetadata(topicId, new HashMap<String, String>(), 1);
     TestStoreRequestWriter testWriter = new TestStoreRequestWriter(new TimeProvider.IncrementalTimeProvider(),
                                                                    writeLatencyMillis);
     final ConcurrentMessageWriter writer = new ConcurrentMessageWriter(testWriter);
@@ -300,10 +301,15 @@ public class ConcurrentMessageWriterTest {
       while (entries.hasNext()) {
         TestEntry entry = entries.next();
         byte[] rawId = new byte[MessageId.RAW_ID_SIZE];
-        MessageId.putRawId(entry.getWriteTimestamp(), entry.getSequenceId(), 0L, (short) 0, rawId, 0);
+        MessageId.putRawId(
+            entry.getWriteTimestamp(), entry.getSequenceId(), 0L, (short) 0, rawId, 0);
         byte[] payload = entry.getPayload();
-        messages.put(entry.getTopicId(),
-                     new RawMessage(rawId, payload == null ? null : Arrays.copyOf(payload, payload.length)));
+        messages.put(
+            entry.getTopicId(),
+            new RawMessage.Builder()
+                .setId(rawId)
+                .setPayload(payload == null ? null : Arrays.copyOf(payload, payload.length))
+                .build());
       }
 
       if (writeDelayMillis > 0) {
@@ -371,7 +377,7 @@ public class ConcurrentMessageWriterTest {
   /**
    * A {@link StoreRequest} that takes a list of Strings as payload.
    */
-  private static final class TestStoreRequest extends StoreRequest {
+  private static final class TestStoreRequest extends DefaultStoreRequest {
 
     private final List<String> payloads;
 

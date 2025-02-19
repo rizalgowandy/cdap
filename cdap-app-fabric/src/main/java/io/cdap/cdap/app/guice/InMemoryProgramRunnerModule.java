@@ -30,6 +30,7 @@ import io.cdap.cdap.app.runtime.ProgramRuntimeProvider;
 import io.cdap.cdap.app.runtime.ProgramRuntimeService;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactManagerFactory;
 import io.cdap.cdap.internal.app.runtime.artifact.LocalArtifactManager;
 import io.cdap.cdap.internal.app.runtime.batch.MapReduceProgramRunner;
@@ -40,13 +41,12 @@ import io.cdap.cdap.internal.app.runtime.worker.InMemoryWorkerRunner;
 import io.cdap.cdap.internal.app.runtime.worker.WorkerProgramRunner;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowProgramRunner;
 import io.cdap.cdap.proto.ProgramType;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import org.apache.twill.api.ServiceAnnouncer;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.DiscoveryService;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 
 /**
  * Guice more for binding {@link ProgramRunner} that runs program in the same process.
@@ -65,13 +65,16 @@ final class InMemoryProgramRunnerModule extends PrivateModule {
     // Bind the ArtifactManager implementation and expose it.
     // It could used by ProgramRunner loaded through runtime extension.
     install(new FactoryModuleBuilder()
-              .implement(ArtifactManager.class, LocalArtifactManager.class)
-              .build(ArtifactManagerFactory.class));
+        .implement(ArtifactManager.class, LocalArtifactManager.class)
+        .build(ArtifactManagerFactory.class));
     expose(ArtifactManagerFactory.class);
+
+    install(new AppStateModule());
+    expose(AppStateStoreProvider.class);
 
     // Bind ProgramRunner
     MapBinder<ProgramType, ProgramRunner> runnerFactoryBinder =
-      MapBinder.newMapBinder(binder(), ProgramType.class, ProgramRunner.class);
+        MapBinder.newMapBinder(binder(), ProgramType.class, ProgramRunner.class);
     // Programs with multiple instances have an InMemoryProgramRunner that starts threads to manage all of their
     // instances.
     runnerFactoryBinder.addBinding(ProgramType.MAPREDUCE).to(MapReduceProgramRunner.class);
@@ -103,7 +106,7 @@ final class InMemoryProgramRunnerModule extends PrivateModule {
 
     @Inject
     private DiscoveryServiceAnnouncer(DiscoveryService discoveryService,
-                                      @Named(Constants.Service.MASTER_SERVICES_BIND_ADDRESS) InetAddress hostname) {
+        @Named(Constants.Service.MASTER_SERVICES_BIND_ADDRESS) InetAddress hostname) {
       this.discoveryService = discoveryService;
       this.hostname = hostname;
     }
@@ -111,13 +114,15 @@ final class InMemoryProgramRunnerModule extends PrivateModule {
     @Override
     public Cancellable announce(final String serviceName, final int port) {
       return discoveryService.register(
-        ResolvingDiscoverable.of(new Discoverable(serviceName, new InetSocketAddress(hostname, port))));
+          ResolvingDiscoverable.of(
+              new Discoverable(serviceName, new InetSocketAddress(hostname, port))));
     }
 
     @Override
     public Cancellable announce(String serviceName, int port, byte[] payload) {
       return discoveryService.register(
-        ResolvingDiscoverable.of(new Discoverable(serviceName, new InetSocketAddress(hostname, port), payload)));
+          ResolvingDiscoverable.of(
+              new Discoverable(serviceName, new InetSocketAddress(hostname, port), payload)));
     }
   }
 }

@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.mock.common;
 
 import com.google.common.collect.Maps;
 import io.cdap.cdap.api.metrics.Metrics;
-
 import java.util.Collections;
 import java.util.Map;
 
@@ -26,6 +25,7 @@ import java.util.Map;
  * Mock metrics for unit tests.
  */
 public class MockMetrics implements Metrics {
+
   private final Map<String, Long> gauges = Maps.newHashMap();
   private final Map<String, Long> counts = Maps.newHashMap();
 

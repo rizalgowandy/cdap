@@ -27,21 +27,26 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.internal.io.DatumReaderFactory;
 import io.cdap.cdap.internal.io.SchemaGenerator;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.metrics.process.loader.MetricsWriterProvider;
 import io.cdap.cdap.metrics.store.MetricDatasetFactory;
-
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manage MessagingMetricsProcessorServices with different MetricsWriters
  */
 public class MessagingMetricsProcessorManagerService extends AbstractIdleService {
 
+  private static final Logger LOG = LoggerFactory.getLogger(
+      MessagingMetricsProcessorManagerService.class);
+  private static final String METRICSWRITERS = "metricswriters";
   private final List<MessagingMetricsProcessorService> metricsProcessorServices;
   private final List<MetricsWriter> metricsWriters;
   private final CConfiguration cConf;
@@ -58,32 +63,34 @@ public class MessagingMetricsProcessorManagerService extends AbstractIdleService
 
   @Inject
   MessagingMetricsProcessorManagerService(CConfiguration cConf,
-                                          MetricDatasetFactory metricDatasetFactory,
-                                          MessagingService messagingService,
-                                          SchemaGenerator schemaGenerator,
-                                          DatumReaderFactory readerFactory,
-                                          MetricStore metricStore,
-                                          MetricsWriterProvider metricsWriterProvider,
-                                          @Assisted Set<Integer> topicNumbers,
-                                          @Assisted MetricsContext metricsContext,
-                                          @Assisted Integer instanceId) {
+      MetricDatasetFactory metricDatasetFactory,
+      MessagingService messagingService,
+      SchemaGenerator schemaGenerator,
+      DatumReaderFactory readerFactory,
+      MetricStore metricStore,
+      MetricsWriterProvider metricsWriterProvider,
+      @Assisted Set<Integer> topicNumbers,
+      @Assisted MetricsContext metricsContext,
+      @Assisted Integer instanceId) {
     this(cConf, metricDatasetFactory, messagingService,
-         schemaGenerator, readerFactory, metricStore, metricsWriterProvider, topicNumbers, metricsContext,
-         TimeUnit.SECONDS.toMillis(cConf.getInt(Constants.Metrics.METRICS_MINIMUM_RESOLUTION_SECONDS)), instanceId);
+        schemaGenerator, readerFactory, metricStore, metricsWriterProvider, topicNumbers,
+        metricsContext,
+        TimeUnit.SECONDS.toMillis(
+            cConf.getInt(Constants.Metrics.METRICS_MINIMUM_RESOLUTION_SECONDS)), instanceId);
   }
 
   @VisibleForTesting
   MessagingMetricsProcessorManagerService(CConfiguration cConf,
-                                          MetricDatasetFactory metricDatasetFactory,
-                                          MessagingService messagingService,
-                                          SchemaGenerator schemaGenerator,
-                                          DatumReaderFactory readerFactory,
-                                          MetricStore metricStore,
-                                          MetricsWriterProvider metricsWriterProvider,
-                                          Set<Integer> topicNumbers,
-                                          MetricsContext metricsContext,
-                                          long metricsProcessIntervalMillis,
-                                          int instanceId) {
+      MetricDatasetFactory metricDatasetFactory,
+      MessagingService messagingService,
+      SchemaGenerator schemaGenerator,
+      DatumReaderFactory readerFactory,
+      MetricStore metricStore,
+      MetricsWriterProvider metricsWriterProvider,
+      Set<Integer> topicNumbers,
+      MetricsContext metricsContext,
+      long metricsProcessIntervalMillis,
+      int instanceId) {
     this.metricsWriters = new ArrayList<>();
     this.metricsProcessorServices = new ArrayList<>();
     this.cConf = cConf;
@@ -103,34 +110,36 @@ public class MessagingMetricsProcessorManagerService extends AbstractIdleService
   protected void startUp() throws Exception {
     MetricStoreMetricsWriter metricsWriter = new MetricStoreMetricsWriter(metricStore);
     DefaultMetricsWriterContext context = new DefaultMetricsWriterContext(metricsContext,
-                                                                          cConf, metricsWriter.getID());
+        cConf, metricsWriter.getID());
     metricsWriter.initialize(context);
     this.metricsWriters.add(metricsWriter);
 
-    for (Map.Entry<String, MetricsWriter> metricsWriterEntry : metricsWriterProvider.loadMetricsWriters().entrySet()) {
+    for (Map.Entry<String, MetricsWriter> metricsWriterEntry : metricsWriterProvider.loadMetricsWriters()
+        .entrySet()) {
       MetricsWriter writer = metricsWriterEntry.getValue();
       this.metricsWriters.add(writer);
-      DefaultMetricsWriterContext metricsWriterContext = new DefaultMetricsWriterContext(metricsContext,
-                                                                                         cConf, writer.getID());
-      writer.initialize(metricsWriterContext);
+      DefaultMetricsWriterContext metricsWriterContext = new DefaultMetricsWriterContext(
+          metricsContext,
+          cConf, writer.getID());
+      initializeMetricWriter(writer, metricsWriterContext);
     }
 
     String processorKey = String.format("metrics.processor.%s", instanceId);
     for (MetricsWriter metricsExtension : this.metricsWriters) {
       MetricsMetaKeyProvider topicIdMetricsKeyProvider = getKeyProvider(metricsExtension, cConf);
       metricsProcessorServices.add(new MessagingMetricsProcessorService(
-        cConf,
-        metricDatasetFactory,
-        messagingService,
-        schemaGenerator,
-        readerFactory,
-        metricsExtension,
-        topicNumbers,
-        metricsContext,
-        metricsProcessIntervalMillis,
-        instanceId,
-        new DefaultMetadataHandler(processorKey, topicIdMetricsKeyProvider),
-        topicIdMetricsKeyProvider));
+          cConf,
+          metricDatasetFactory,
+          messagingService,
+          schemaGenerator,
+          readerFactory,
+          metricsExtension,
+          topicNumbers,
+          metricsContext,
+          metricsProcessIntervalMillis,
+          instanceId,
+          new DefaultMetadataHandler(processorKey, topicIdMetricsKeyProvider),
+          topicIdMetricsKeyProvider));
 
     }
 
@@ -139,13 +148,42 @@ public class MessagingMetricsProcessorManagerService extends AbstractIdleService
     }
   }
 
+  @VisibleForTesting
+  void initializeMetricWriter(MetricsWriter writer,
+      DefaultMetricsWriterContext metricsWriterContext) throws Exception {
+    File baseDir = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR), METRICSWRITERS);
+    File initStateFile = new File(baseDir, writer.getID());
+    try {
+      writer.initialize(metricsWriterContext);
+      if (!initStateFile.exists()) {
+        baseDir.mkdirs();
+        boolean result = initStateFile.createNewFile();
+        LOG.info(
+            "Initialization for metric writer {} succeeded. Result of creating initStateFile {} is {}.",
+            writer.getID(), initStateFile.getName(), result);
+      }
+    } catch (Exception e) {
+      //enforce at least one correct initialization
+      if (!initStateFile.exists()) {
+        throw new Exception(
+            "Initialization for metric writer " + writer.getID()
+                + " failed. Please fix the errors to proceed.", e);
+      } else {
+        LOG.error("Initialization for metric writer {} failed. Recheck the configuration.",
+            writer.getID(), e);
+      }
+    }
+  }
+
   private MetricsMetaKeyProvider getKeyProvider(MetricsWriter writer, CConfiguration cConf) {
     boolean useSubscriberInKey = getUseSubscriberInKey(writer, cConf);
-    return useSubscriberInKey ? new TopicSubscriberMetricsKeyProvider(writer.getID()) : new TopicIdMetricsKeyProvider();
+    return useSubscriberInKey ? new TopicSubscriberMetricsKeyProvider(writer.getID())
+        : new TopicIdMetricsKeyProvider();
   }
 
   private boolean getUseSubscriberInKey(MetricsWriter writer, CConfiguration cConf) {
-    String confKey = String.format(Constants.Metrics.WRITER_USE_SUBSCRIBER_METADATA_KEY, writer.getID());
+    String confKey = String.format(Constants.Metrics.WRITER_USE_SUBSCRIBER_METADATA_KEY,
+        writer.getID());
     return cConf.getBoolean(confKey, false);
   }
 

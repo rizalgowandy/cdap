@@ -39,36 +39,39 @@ import io.cdap.cdap.data2.audit.AuditModule;
 import io.cdap.cdap.data2.metadata.writer.MessagingMetadataPublisher;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.store.DefaultStore;
+import io.cdap.cdap.internal.metadata.MetadataConsumerSubscriberService;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
 import io.cdap.cdap.metadata.MetadataService;
 import io.cdap.cdap.metadata.MetadataServiceModule;
 import io.cdap.cdap.metadata.MetadataSubscriberService;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.impersonation.CurrentUGIProvider;
 import io.cdap.cdap.security.impersonation.DefaultOwnerAdmin;
 import io.cdap.cdap.security.impersonation.OwnerAdmin;
-import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.impersonation.UGIProvider;
 import io.cdap.cdap.security.spi.authorization.NoOpAccessController;
 import io.cdap.cdap.security.spi.authorization.PermissionManager;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
-import org.apache.twill.zookeeper.ZKClientService;
-
 import java.util.Arrays;
 import java.util.List;
 import javax.annotation.Nullable;
+import org.apache.twill.zookeeper.ZKClientService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * The main class to run metadata service. Also, the dataset op executor is running this process as well.
+ * The main class to run metadata service. Also, the dataset op executor is running this process as
+ * well.
  */
 public class MetadataServiceMain extends AbstractServiceMain<EnvironmentOptions> {
+  private static final Logger LOG = LoggerFactory.getLogger(MetadataServiceMain.class);
+  private CConfiguration cConf;
 
   /**
-   * Main entry point
+   * Main entry point.
    */
   public static void main(String[] args) throws Exception {
     main(MetadataServiceMain.class, args);
@@ -76,51 +79,58 @@ public class MetadataServiceMain extends AbstractServiceMain<EnvironmentOptions>
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options, CConfiguration cConf) {
+      EnvironmentOptions options, CConfiguration cConf) {
+    this.cConf = cConf;
     return Arrays.asList(
-      new MessagingClientModule(),
-      new NamespaceQueryAdminModule(),
-      getDataFabricModule(),
-      // Always use local table implementations, which use LevelDB.
-      // In K8s, there won't be HBase and the cdap-site should be set to use SQL store for StructuredTable.
-      new SystemDatasetRuntimeModule().getStandaloneModules(),
-      new DataSetsModules().getStandaloneModules(),
-      new MetadataServiceModule(),
-      new AuditModule(),
-      new EntityVerifierModule(),
-      new AuthorizationEnforcementModule().getDistributedModules(),
-      new DFSLocationModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(Store.class).to(DefaultStore.class);
+        new MessagingServiceModule(cConf),
+        new NamespaceQueryAdminModule(),
+        getDataFabricModule(),
+        // Always use local table implementations, which use LevelDB.
+        // In K8s, there won't be HBase and the cdap-site should be set to use SQL store for StructuredTable.
+        new SystemDatasetRuntimeModule().getStandaloneModules(),
+        new DataSetsModules().getStandaloneModules(),
+        new MetadataServiceModule(),
+        new AuditModule(),
+        new EntityVerifierModule(),
+        new AuthorizationEnforcementModule().getDistributedModules(),
+        new DFSLocationModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(Store.class).to(DefaultStore.class);
 
-          // Current impersonation is not supported
-          bind(UGIProvider.class).to(CurrentUGIProvider.class).in(Scopes.SINGLETON);
-          bind(PermissionManager.class).to(NoOpAccessController.class);
+            // Current impersonation is not supported
+            bind(UGIProvider.class).to(CurrentUGIProvider.class).in(Scopes.SINGLETON);
+            bind(PermissionManager.class).to(NoOpAccessController.class);
 
-          bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
-          // TODO (CDAP-14677): find a better way to inject metadata publisher
-          bind(MetadataPublisher.class).to(MessagingMetadataPublisher.class);
+            bind(OwnerAdmin.class).to(DefaultOwnerAdmin.class);
+            // TODO (CDAP-14677): find a better way to inject metadata publisher
+            bind(MetadataPublisher.class).to(MessagingMetadataPublisher.class);
+          }
         }
-      }
     );
   }
 
   @Override
   protected void addServices(Injector injector, List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources,
-                             MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
-                             EnvironmentOptions options) {
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
+      EnvironmentOptions options) {
     services.add(injector.getInstance(MetadataService.class));
     services.add(injector.getInstance(MetadataSubscriberService.class));
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+
+    if (cConf != null && cConf.getStringCollection(
+        Constants.MetadataConsumer.METADATA_CONSUMER_EXTENSIONS_ENABLED_LIST).isEmpty()) {
+      LOG.info("Skipping enabling MetadataConsumerSubscriberService, "
+          + "no metadata consumer extensions are enabled.");
+    } else {
+      services.add(injector.getInstance(MetadataConsumerSubscriberService.class));
+    }
+
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
-    }
-    CConfiguration cConf = injector.getInstance(CConfiguration.class);
-    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
-      services.add(injector.getInstance(TokenManager.class));
     }
 
     // Add a service just for closing MetadataStorage to release resource.
@@ -145,7 +155,7 @@ public class MetadataServiceMain extends AbstractServiceMain<EnvironmentOptions>
   @Override
   protected LoggingContext getLoggingContext(EnvironmentOptions options) {
     return new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                     Constants.Logging.COMPONENT_NAME,
-                                     Constants.Service.METADATA_SERVICE);
+        Constants.Logging.COMPONENT_NAME,
+        Constants.Service.METADATA_SERVICE);
   }
 }

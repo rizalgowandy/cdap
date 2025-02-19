@@ -21,7 +21,6 @@ import io.cdap.cdap.api.plugin.PluginClass;
 import io.cdap.cdap.api.plugin.PluginPropertyField;
 import io.cdap.cdap.etl.api.streaming.Windower;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +29,7 @@ import java.util.Map;
  * Window plugin.
  */
 public class Window extends Windower {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   private final Conf conf;
 
@@ -51,6 +51,7 @@ public class Window extends Windower {
    * Config for window plugin.
    */
   public static class Conf {
+
     long width;
 
     long slideInterval;
@@ -58,17 +59,18 @@ public class Window extends Windower {
 
   public static ETLPlugin getPlugin(long width, long slideInterval) throws IOException {
     return new ETLPlugin("Window", Windower.PLUGIN_TYPE,
-                         ImmutableMap.of("width", String.valueOf(width),
-                                         "slideInterval", String.valueOf(slideInterval)),
-                         null);
+        ImmutableMap.of("width", String.valueOf(width),
+            "slideInterval", String.valueOf(slideInterval)),
+        null);
   }
 
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("width", new PluginPropertyField("width", "", "long", true, false));
-    properties.put("slideInterval", new PluginPropertyField("slideInterval", "", "long", true, false));
+    properties.put("slideInterval",
+        new PluginPropertyField("slideInterval", "", "long", true, false));
     return PluginClass.builder().setName("Window").setType(Windower.PLUGIN_TYPE)
-             .setDescription("").setClassName(Window.class.getName()).setProperties(properties)
-             .setConfigFieldName("conf").build();
+        .setDescription("").setClassName(Window.class.getName()).setProperties(properties)
+        .setConfigFieldName("conf").build();
   }
 }

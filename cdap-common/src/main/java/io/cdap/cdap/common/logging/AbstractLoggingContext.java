@@ -18,19 +18,18 @@ package io.cdap.cdap.common.logging;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Maps;
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-
 /**
- * Provides handy base abstract implementation of the logging context that can be used by subclasses to simplify their
- * implementations.
+ * Provides handy base abstract implementation of the logging context that can be used by subclasses
+ * to simplify their implementations.
  */
 public abstract class AbstractLoggingContext implements LoggingContext {
 
@@ -62,7 +61,8 @@ public abstract class AbstractLoggingContext implements LoggingContext {
         yarnContainerId = ConverterUtils.toContainerId(containerId);
       }
 
-      setSystemTag(TAG_YARN_APP_ID, yarnContainerId.getApplicationAttemptId().getApplicationId().toString());
+      setSystemTag(TAG_YARN_APP_ID,
+          yarnContainerId.getApplicationAttemptId().getApplicationId().toString());
       setSystemTag(TAG_YARN_CONTAINER_ID, yarnContainerId.toString());
     } catch (Exception e) {
       // Ignore any exception
@@ -72,6 +72,7 @@ public abstract class AbstractLoggingContext implements LoggingContext {
 
   /**
    * Sets system tag.
+   *
    * @param name tag name
    * @param value tag value
    */
@@ -81,6 +82,7 @@ public abstract class AbstractLoggingContext implements LoggingContext {
 
   /**
    * Gets system tag value by tag name.
+   *
    * @param name tag name
    * @return system tag value
    */
@@ -112,11 +114,12 @@ public abstract class AbstractLoggingContext implements LoggingContext {
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
-      .add("systemTags", systemTags)
-      .toString();
+        .add("systemTags", systemTags)
+        .toString();
   }
 
   private static final class SystemTagImpl implements SystemTag {
+
     private final String name;
     private final String value;
 
@@ -138,9 +141,9 @@ public abstract class AbstractLoggingContext implements LoggingContext {
     @Override
     public String toString() {
       return Objects.toStringHelper(this)
-        .add("name", name)
-        .add("value", value)
-        .toString();
+          .add("name", name)
+          .add("value", value)
+          .toString();
     }
   }
 }

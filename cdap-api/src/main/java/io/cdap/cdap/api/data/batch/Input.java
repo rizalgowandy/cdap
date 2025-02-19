@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.data.batch;
 
 import io.cdap.cdap.api.common.RuntimeArguments;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +34,7 @@ public abstract class Input {
   private String alias;
   private String namespace;
 
-  private Input(String name) {
+  protected Input(String name) {
     this.name = name;
   }
 
@@ -66,8 +65,8 @@ public abstract class Input {
   }
 
   /**
-   * @return an alias of the input, to be used as the input name instead of the actual name of the input (i.e. dataset
-   * name). Defaults to the actual name, in the case that no alias was set.
+   * @return an alias of the input, to be used as the input name instead of the actual name of the
+   *     input (i.e. dataset name). Defaults to the actual name, in the case that no alias was set.
    */
   public String getAlias() {
     return alias == null ? name : alias;
@@ -95,7 +94,8 @@ public abstract class Input {
 
   /**
    * Returns an Input defined by a dataset.
-   *  @param datasetName the name of the input dataset
+   *
+   * @param datasetName the name of the input dataset
    * @param arguments the arguments to use when instantiating the dataset
    */
   public static Input ofDataset(String datasetName, Map<String, String> arguments) {
@@ -104,9 +104,10 @@ public abstract class Input {
 
   /**
    * Returns an Input defined by a dataset.
-   *  @param datasetName the name of the input dataset
-   * @param splits the data selection splits. If null, will use the splits defined by the dataset. If the dataset
-   *               type is not {@link BatchReadable}, splits will be ignored
+   *
+   * @param datasetName the name of the input dataset
+   * @param splits the data selection splits. If null, will use the splits defined by the
+   *     dataset. If the dataset type is not {@link BatchReadable}, splits will be ignored
    */
   public static Input ofDataset(String datasetName, @Nullable Iterable<? extends Split> splits) {
     return ofDataset(datasetName, RuntimeArguments.NO_ARGUMENTS, splits);
@@ -114,13 +115,14 @@ public abstract class Input {
 
   /**
    * Returns an Input defined by a dataset.
-   *  @param datasetName the name of the input dataset
+   *
+   * @param datasetName the name of the input dataset
    * @param arguments the arguments to use when instantiating the dataset
-   * @param splits the data selection splits. If null, will use the splits defined by the dataset. If the dataset
-   *               type is not {@link BatchReadable}, splits will be ignored
+   * @param splits the data selection splits. If null, will use the splits defined by the
+   *     dataset. If the dataset type is not {@link BatchReadable}, splits will be ignored
    */
   public static Input ofDataset(String datasetName, Map<String, String> arguments,
-                                @Nullable Iterable<? extends Split> splits) {
+      @Nullable Iterable<? extends Split> splits) {
     return new DatasetInput(datasetName, arguments, splits);
   }
 
@@ -134,20 +136,24 @@ public abstract class Input {
   }
 
   /**
-   * An implementation of {@link Input}, which defines a {@link io.cdap.cdap.api.dataset.Dataset} as an input.
+   * An implementation of {@link Input}, which defines a {@link io.cdap.cdap.api.dataset.Dataset} as
+   * an input.
    */
   public static class DatasetInput extends Input {
+
     private final Map<String, String> arguments;
     private final List<Split> splits;
 
-    private DatasetInput(String name, Map<String, String> arguments, @Nullable Iterable<? extends Split> splits) {
+    private DatasetInput(String name, Map<String, String> arguments,
+        @Nullable Iterable<? extends Split> splits) {
       super(name);
       this.arguments = Collections.unmodifiableMap(new HashMap<>(arguments));
       this.splits = copySplits(splits);
     }
 
-    private DatasetInput(String name, Map<String, String> arguments, @Nullable Iterable<? extends Split> splits,
-                         String namespace) {
+    private DatasetInput(String name, Map<String, String> arguments,
+        @Nullable Iterable<? extends Split> splits,
+        String namespace) {
       this(name, arguments, splits);
       super.fromNamespace(namespace);
     }
@@ -185,7 +191,7 @@ public abstract class Input {
 
     private final InputFormatProvider inputFormatProvider;
 
-    private InputFormatProviderInput(String name, InputFormatProvider inputFormatProvider) {
+    InputFormatProviderInput(String name, InputFormatProvider inputFormatProvider) {
       super(name);
       this.inputFormatProvider = inputFormatProvider;
     }
@@ -196,7 +202,8 @@ public abstract class Input {
 
     @Override
     public Input fromNamespace(String namespace) {
-      throw new UnsupportedOperationException("InputFormatProviderInput does not support setting namespace.");
+      throw new UnsupportedOperationException(
+          "InputFormatProviderInput does not support setting namespace.");
     }
   }
 }

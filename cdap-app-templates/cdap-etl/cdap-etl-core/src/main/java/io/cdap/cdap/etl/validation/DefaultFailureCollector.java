@@ -20,7 +20,6 @@ import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.api.FailureCollector;
 import io.cdap.cdap.etl.api.validation.ValidationException;
 import io.cdap.cdap.etl.api.validation.ValidationFailure;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,6 +31,7 @@ import javax.annotation.Nullable;
  * Default failure collector.
  */
 public class DefaultFailureCollector implements FailureCollector {
+
   private static final String STAGE = "stage";
   private final String stageName;
   private final Map<String, Schema> inputSchemas;
@@ -51,7 +51,8 @@ public class DefaultFailureCollector implements FailureCollector {
 
   @Override
   public ValidationFailure addFailure(String message, @Nullable String correctiveAction) {
-    ValidationFailure failure = new ValidationFailure(message, correctiveAction, stageName, inputSchemas);
+    ValidationFailure failure = new ValidationFailure(message, correctiveAction, stageName,
+        inputSchemas);
     failures.add(failure);
     return failure;
   }

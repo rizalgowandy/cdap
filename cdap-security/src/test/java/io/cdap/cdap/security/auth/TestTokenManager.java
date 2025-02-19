@@ -16,19 +16,18 @@
 
 package io.cdap.cdap.security.auth;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
 import com.google.common.collect.Lists;
 import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.common.io.Codec;
 import io.cdap.cdap.common.utils.ImmutablePair;
+import java.util.List;
+import java.util.Random;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.Random;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 /**
  * Tests related to {@link TokenManager} implementations.
@@ -62,9 +61,11 @@ public abstract class TestTokenManager {
     AccessToken expiredToken = tokenManager.signIdentifier(expiredIdent);
     try {
       tokenManager.validateSecret(expiredToken);
-      fail("Token should have been expired but passed validation: " +
-             Bytes.toStringBinary(tokenCodec.encode(expiredToken)));
-    } catch (InvalidTokenException expected) { }
+      fail("Token should have been expired but passed validation: "
+          + Bytes.toStringBinary(tokenCodec.encode(expiredToken)));
+    } catch (InvalidTokenException expected) {
+      // expected
+    }
 
     // test token with invalid signature
     Random random = new Random();
@@ -73,18 +74,22 @@ public abstract class TestTokenManager {
     AccessToken invalidToken = new AccessToken(token1.getIdentifier(), token1.getKeyId(), invalidDigest);
     try {
       tokenManager.validateSecret(invalidToken);
-      fail("Token should have been rejected for invalid digest but passed: " +
-             Bytes.toStringBinary(tokenCodec.encode(invalidToken)));
-    } catch (InvalidTokenException expected) { }
+      fail("Token should have been rejected for invalid digest but passed: "
+          + Bytes.toStringBinary(tokenCodec.encode(invalidToken)));
+    } catch (InvalidTokenException expected) {
+      // expected
+    }
 
     // test token with bad key ID
     AccessToken invalidKeyToken = new AccessToken(token1.getIdentifier(), token1.getKeyId() + 1,
                                                   token1.getDigestBytes());
     try {
       tokenManager.validateSecret(invalidKeyToken);
-      fail("Token should have been rejected for invalid key ID but passed: " +
-             Bytes.toStringBinary(tokenCodec.encode(invalidToken)));
-    } catch (InvalidTokenException expected) { }
+      fail("Token should have been rejected for invalid key ID but passed: "
+          + Bytes.toStringBinary(tokenCodec.encode(invalidToken)));
+    } catch (InvalidTokenException expected) {
+      // expected
+    }
 
     tokenManager.stopAndWait();
   }

@@ -18,8 +18,8 @@ package io.cdap.cdap.proto;
 
 import com.google.gson.annotations.SerializedName;
 import io.cdap.cdap.api.artifact.ArtifactSummary;
-import io.cdap.cdap.proto.id.ApplicationId;
-
+import io.cdap.cdap.proto.artifact.ChangeDetail;
+import io.cdap.cdap.proto.sourcecontrol.SourceControlMeta;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
  * Represents item in the list from /apps
  */
 public class ApplicationRecord {
+
   private final String type;
   private final String name;
   private final String version;
@@ -34,24 +35,62 @@ public class ApplicationRecord {
   private final ArtifactSummary artifact;
   @SerializedName("principal")
   private final String ownerPrincipal;
+  @Nullable
+  private final ChangeDetail change;
+  @Nullable
+  private final SourceControlMeta sourceControlMeta;
 
   public ApplicationRecord(ApplicationDetail detail) {
     this(detail.getArtifact(), detail.getName(),
-         detail.getAppVersion(), detail.getDescription(), detail.getOwnerPrincipal());
+        detail.getAppVersion(), detail.getDescription(),
+        detail.getOwnerPrincipal(), detail.getChange(),
+        detail.getSourceControlMeta());
   }
 
-  public ApplicationRecord(ArtifactSummary artifact, ApplicationId appId, String description) {
-    this(artifact, appId.getApplication(), appId.getVersion(), description, null);
-  }
-
-  public ApplicationRecord(ArtifactSummary artifact, String name, String version, String description,
-                           @Nullable String ownerPrincipal) {
+  /**
+   * Constructor for backwards compatibility, please do not remove.
+   */
+  public ApplicationRecord(ArtifactSummary artifact, String name, String version,
+      String description,
+      @Nullable String ownerPrincipal) {
     this.type = "App";
     this.artifact = artifact;
     this.name = name;
     this.description = description;
     this.version = version;
     this.ownerPrincipal = ownerPrincipal;
+    this.change = null;
+    this.sourceControlMeta = null;
+  }
+
+  /**
+   * Constructor for backwards compatibility, please do not remove.
+   */
+  public ApplicationRecord(ArtifactSummary artifact, String name, String version,
+      String description,
+      @Nullable String ownerPrincipal, @Nullable ChangeDetail change) {
+    this.type = "App";
+    this.artifact = artifact;
+    this.name = name;
+    this.description = description;
+    this.version = version;
+    this.ownerPrincipal = ownerPrincipal;
+    this.change = change;
+    this.sourceControlMeta = null;
+  }
+
+  public ApplicationRecord(ArtifactSummary artifact, String name, String version,
+      String description,
+      @Nullable String ownerPrincipal, @Nullable ChangeDetail change,
+      @Nullable SourceControlMeta sourceControlMeta) {
+    this.type = "App";
+    this.artifact = artifact;
+    this.name = name;
+    this.description = description;
+    this.version = version;
+    this.ownerPrincipal = ownerPrincipal;
+    this.change = change;
+    this.sourceControlMeta = sourceControlMeta;
   }
 
   public ArtifactSummary getArtifact() {
@@ -79,6 +118,16 @@ public class ApplicationRecord {
     return ownerPrincipal;
   }
 
+  @Nullable
+  public ChangeDetail getChange() {
+    return change;
+  }
+
+  @Nullable
+  public SourceControlMeta getSourceControlMeta() {
+    return sourceControlMeta;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -90,28 +139,33 @@ public class ApplicationRecord {
 
     ApplicationRecord that = (ApplicationRecord) o;
 
-    return Objects.equals(type, that.type) &&
-      Objects.equals(name, that.name) &&
-      Objects.equals(version, that.version) &&
-      Objects.equals(description, that.description) &&
-      Objects.equals(artifact, that.artifact) &&
-      Objects.equals(ownerPrincipal, that.ownerPrincipal);
+    return Objects.equals(type, that.type)
+        && Objects.equals(name, that.name)
+        && Objects.equals(version, that.version)
+        && Objects.equals(description, that.description)
+        && Objects.equals(artifact, that.artifact)
+        && Objects.equals(ownerPrincipal, that.ownerPrincipal)
+        && Objects.equals(change, that.change)
+        && Objects.equals(sourceControlMeta, that.sourceControlMeta);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, name, version, description, artifact, ownerPrincipal);
+    return Objects.hash(type, name, version, description, artifact, ownerPrincipal, change,
+        sourceControlMeta);
   }
 
   @Override
   public String toString() {
-    return "ApplicationRecord{" +
-      "type='" + type + '\'' +
-      ", name='" + name + '\'' +
-      ", version='" + version + '\'' +
-      ", description='" + description + '\'' +
-      ", artifact=" + artifact +
-      ", ownerPrincipal=" + ownerPrincipal +
-      '}';
+    return "ApplicationRecord{"
+        + "type='" + type + '\''
+        + ", name='" + name + '\''
+        + ", version='" + version + '\''
+        + ", description='" + description + '\''
+        + ", artifact=" + artifact
+        + ", ownerPrincipal='" + ownerPrincipal + '\''
+        + ", change=" + change
+        + ", sourceControlMeta=" + sourceControlMeta
+        + '}';
   }
 }

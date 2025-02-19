@@ -34,7 +34,6 @@ import io.cdap.cdap.api.service.http.HttpServiceResponder;
 import io.cdap.cdap.api.service.http.ServicePluginConfigurer;
 import io.cdap.cdap.internal.app.runtime.plugin.TestMacroEvaluator;
 import io.cdap.cdap.internal.guava.reflect.TypeToken;
-
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -78,7 +77,7 @@ public class DynamicPluginServiceApp extends AbstractApplication {
   public static class DynamicPluginHandler extends AbstractHttpServiceHandler {
     private static final Gson GSON = new Gson();
     private static final Type MAP_TYPE = new TypeToken<Map<String, String>>() { }.getType();
-    private boolean onFinishSuccessful = false;
+    private boolean onFinishSuccessful;
 
     @POST
     @Path("plugins/{name}/apply")
@@ -137,7 +136,7 @@ public class DynamicPluginServiceApp extends AbstractApplication {
       PluginConfigurer pluginConfigurer = getContext().createServicePluginConfigurer(getNamespace(request));
 
       HttpContentProducer producer = new HttpContentProducer() {
-        private boolean done = false;
+        private boolean done;
 
         @Override
         public ByteBuffer nextChunk(Transactional transactional) {

@@ -24,6 +24,7 @@ import io.cdap.cdap.api.dataset.lib.FileSetProperties;
  * An application that accepts request to generate reports from program runs.
  */
 public class ReportGenerationApp extends AbstractApplication {
+
   public static final String NAME = "ReportGenerationApp";
   public static final String RUN_META_FILESET = "RunMetaFileset";
   public static final String REPORT_FILESET = "ReportFileset";
@@ -33,8 +34,7 @@ public class ReportGenerationApp extends AbstractApplication {
     setName(NAME);
     addSpark(new ReportGenerationSpark());
     createDataset(REPORT_FILESET, FileSet.class, FileSetProperties.builder()
-      .setEnableExploreOnCreate(false)
-      .setDescription("fileSet")
-      .build());
+        .setDescription("fileSet")
+        .build());
   }
 }

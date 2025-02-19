@@ -21,7 +21,6 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.utils.ProjectInfo;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerSystemContext;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,13 +38,18 @@ public class DefaultSystemProvisionerContext implements ProvisionerSystemContext
   private final AtomicReference<Map<String, String>> properties;
   private final String cdapVersion;
   private final Map<String, Lock> locks;
+  private final long confReloadInterval;
+  private long lastConfReloadTime;
 
   DefaultSystemProvisionerContext(CConfiguration cConf, String provisionerName) {
-    this.prefix = String.format("%s%s.", Constants.Provisioner.SYSTEM_PROPERTY_PREFIX, provisionerName);
+    this.prefix = String.format("%s%s.", Constants.Provisioner.SYSTEM_PROPERTY_PREFIX,
+        provisionerName);
     this.cConf = CConfiguration.copy(cConf);
     this.properties = new AtomicReference<>(Collections.emptyMap());
     this.cdapVersion = ProjectInfo.getVersion().toString();
     this.locks = new ConcurrentHashMap<>();
+    this.confReloadInterval = cConf.getLong(Constants.Provisioner.RELOAD_INTERVAL);
+    this.lastConfReloadTime = 0;
 
     reloadProperties();
   }
@@ -57,8 +61,12 @@ public class DefaultSystemProvisionerContext implements ProvisionerSystemContext
 
   @Override
   public synchronized void reloadProperties() {
-    cConf.reloadConfiguration();
-    properties.set(Collections.unmodifiableMap(cConf.getPropsWithPrefix(prefix)));
+    if (confReloadInterval <= 0
+        || System.currentTimeMillis() - confReloadInterval > lastConfReloadTime) {
+      cConf.reloadConfiguration();
+      properties.set(Collections.unmodifiableMap(cConf.getPropsWithPrefix(prefix)));
+      lastConfReloadTime = System.currentTimeMillis();
+    }
   }
 
   @Override

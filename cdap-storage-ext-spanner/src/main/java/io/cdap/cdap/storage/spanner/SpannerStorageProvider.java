@@ -25,7 +25,6 @@ import io.cdap.cdap.spi.data.StorageProvider;
 import io.cdap.cdap.spi.data.StorageProviderContext;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
-
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.Map;
@@ -55,7 +54,7 @@ public class SpannerStorageProvider implements StorageProvider {
 
   private Spanner spanner;
   private SpannerStructuredTableAdmin admin;
-  private SpannerTransactionRunner txRunner;
+  private RetryingSpannerTransactionRunner txRunner;
 
   @Override
   public void initialize(StorageProviderContext context) throws Exception {
@@ -86,11 +85,12 @@ public class SpannerStorageProvider implements StorageProvider {
     }
 
     SpannerOptions options = builder.build();
-    DatabaseId databaseId = DatabaseId.of(InstanceId.of(options.getProjectId(), instance), database);
+    DatabaseId databaseId = DatabaseId.of(InstanceId.of(options.getProjectId(), instance),
+        database);
 
     this.spanner = options.getService();
     this.admin = new SpannerStructuredTableAdmin(spanner, databaseId);
-    this.txRunner = new SpannerTransactionRunner(admin);
+    this.txRunner = new RetryingSpannerTransactionRunner(conf, admin);
   }
 
   @Override

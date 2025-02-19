@@ -23,20 +23,20 @@ import io.cdap.cdap.api.data.batch.InputFormatProvider;
 import io.cdap.cdap.api.data.batch.Split;
 import io.cdap.cdap.api.dataset.Dataset;
 import io.cdap.cdap.common.conf.ConfigurationUtil;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import javax.annotation.Nullable;
-
 /**
  * A {@link InputFormatProvider} that provides {@link InputFormat} for read through Dataset.
  */
 public class DatasetInputFormatProvider implements InputFormatProvider {
+
   private static final Logger LOG = LoggerFactory.getLogger(DatasetInputFormatProvider.class);
 
   private final String datasetNamespace;
@@ -47,8 +47,8 @@ public class DatasetInputFormatProvider implements InputFormatProvider {
   private final Class<? extends AbstractBatchReadableInputFormat> batchReadableInputFormat;
 
   public DatasetInputFormatProvider(@Nullable String datasetNamespace, String datasetName,
-                                    Map<String, String> datasetArgs, Dataset dataset, @Nullable List<Split> splits,
-                                    Class<? extends AbstractBatchReadableInputFormat> batchReadableInputFormat) {
+      Map<String, String> datasetArgs, Dataset dataset, @Nullable List<Split> splits,
+      Class<? extends AbstractBatchReadableInputFormat> batchReadableInputFormat) {
 
     this.datasetNamespace = datasetNamespace;
     this.datasetName = datasetName;
@@ -61,15 +61,16 @@ public class DatasetInputFormatProvider implements InputFormatProvider {
   @Override
   public String getInputFormatClassName() {
     return dataset instanceof InputFormatProvider
-      ? ((InputFormatProvider) dataset).getInputFormatClassName()
-      : batchReadableInputFormat.getName();
+        ? ((InputFormatProvider) dataset).getInputFormatClassName()
+        : batchReadableInputFormat.getName();
   }
 
   @Override
   public Map<String, String> getInputFormatConfiguration() {
     if (dataset instanceof InputFormatProvider) {
       if (splits != null) {
-        LOG.warn("Ignoring user-specified splits for {} because it is of type InputFormatProvider", datasetName);
+        LOG.warn("Ignoring user-specified splits for {} because it is of type InputFormatProvider",
+            datasetName);
       }
       return ((InputFormatProvider) dataset).getInputFormatConfiguration();
     }
@@ -85,7 +86,8 @@ public class DatasetInputFormatProvider implements InputFormatProvider {
     hConf.clear();
 
     try {
-      AbstractBatchReadableInputFormat.setDatasetSplits(hConf, datasetNamespace, datasetName, datasetArgs, splits);
+      AbstractBatchReadableInputFormat.setDatasetSplits(hConf, datasetNamespace, datasetName,
+          datasetArgs, splits);
       return ConfigurationUtil.toMap(hConf);
     } catch (IOException e) {
       throw new IllegalArgumentException(e);

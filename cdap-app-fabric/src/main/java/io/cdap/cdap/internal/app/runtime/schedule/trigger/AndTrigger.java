@@ -19,9 +19,7 @@ package io.cdap.cdap.internal.app.runtime.schedule.trigger;
 import io.cdap.cdap.api.schedule.Trigger;
 import io.cdap.cdap.api.schedule.TriggerInfo;
 import io.cdap.cdap.internal.app.runtime.schedule.ProgramSchedule;
-import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.id.ProgramId;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -42,9 +40,9 @@ public class AndTrigger extends AbstractSatisfiableCompositeTrigger {
 
 
   @Override
-  public boolean isSatisfied(ProgramSchedule schedule, List<Notification> notifications) {
+  public boolean isSatisfied(ProgramSchedule schedule, NotificationContext notificationContext) {
     for (Trigger trigger : getTriggers()) {
-      if (!((SatisfiableTrigger) trigger).isSatisfied(schedule, notifications)) {
+      if (!((SatisfiableTrigger) trigger).isSatisfied(schedule, notificationContext)) {
         return false;
       }
     }
@@ -61,14 +59,15 @@ public class AndTrigger extends AbstractSatisfiableCompositeTrigger {
   public SatisfiableTrigger getTriggerWithDeletedProgram(ProgramId programId) {
     List<SatisfiableTrigger> updatedTriggers = new ArrayList<>();
     for (SatisfiableTrigger trigger : getTriggers()) {
-      if (trigger instanceof ProgramStatusTrigger &&
-        programId.equals(((ProgramStatusTrigger) trigger).getProgramId())) {
+      if (trigger instanceof ProgramStatusTrigger
+          && programId.isSameProgramExceptVersion(
+          ((ProgramStatusTrigger) trigger).getProgramId())) {
         // this program status trigger will never be satisfied, so the current AND trigger will never be satisfied
         return null;
       }
       if (trigger instanceof AbstractSatisfiableCompositeTrigger) {
         SatisfiableTrigger updatedTrigger =
-          ((AbstractSatisfiableCompositeTrigger) trigger).getTriggerWithDeletedProgram(programId);
+            ((AbstractSatisfiableCompositeTrigger) trigger).getTriggerWithDeletedProgram(programId);
         if (updatedTrigger == null) {
           // the updated composite trigger will never be satisfied, so the AND trigger will never be satisfied
           return null;

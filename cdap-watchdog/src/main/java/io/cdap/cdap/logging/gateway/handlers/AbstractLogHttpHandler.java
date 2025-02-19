@@ -31,12 +31,11 @@ import io.cdap.cdap.logging.read.ReadRange;
 import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract Class that contains commonly used methods for log Http Requests.
@@ -48,12 +47,14 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
   private final String logPattern;
 
   protected AbstractLogHttpHandler(CConfiguration cConfig) {
-    this.logPattern = cConfig.get(LoggingConfiguration.LOG_PATTERN, LoggingConfiguration.DEFAULT_LOG_PATTERN);
+    this.logPattern = cConfig.get(LoggingConfiguration.LOG_PATTERN,
+        LoggingConfiguration.DEFAULT_LOG_PATTERN);
   }
 
-  protected void doGetLogs(LogReader logReader, HttpResponder responder, LoggingContext loggingContext,
-                           long fromTimeSecsParam, long toTimeSecsParam, boolean escape, String filterStr,
-                           @Nullable RunRecordDetail runRecord, String format, List<String> fieldsToSuppress) {
+  protected void doGetLogs(LogReader logReader, HttpResponder responder,
+      LoggingContext loggingContext,
+      long fromTimeSecsParam, long toTimeSecsParam, boolean escape, String filterStr,
+      @Nullable RunRecordDetail runRecord, String format, List<String> fieldsToSuppress) {
 
     try {
       TimeRange timeRange = parseTime(fromTimeSecsParam, toTimeSecsParam, responder);
@@ -64,14 +65,17 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
       Filter filter = FilterParser.parse(filterStr);
 
       ReadRange readRange = new ReadRange(timeRange.getFromMillis(), timeRange.getToMillis(),
-                                          LogOffset.INVALID_KAFKA_OFFSET);
+          LogOffset.INVALID_KAFKA_OFFSET);
       readRange = adjustReadRange(readRange, runRecord, fromTimeSecsParam != -1);
       try {
         // the iterator is closed by the BodyProducer passed to the HttpResponder
-        CloseableIterator<LogEvent> logIter = logReader.getLog(loggingContext, readRange.getFromMillis(),
-                                                               readRange.getToMillis(), filter);
-        AbstractChunkedLogProducer logsProducer = getFullLogsProducer(format, logIter, fieldsToSuppress, escape);
-        responder.sendContent(HttpResponseStatus.OK, logsProducer, logsProducer.getResponseHeaders());
+        CloseableIterator<LogEvent> logIter = logReader.getLog(loggingContext,
+            readRange.getFromMillis(),
+            readRange.getToMillis(), filter);
+        AbstractChunkedLogProducer logsProducer = getFullLogsProducer(format, logIter,
+            fieldsToSuppress, escape);
+        responder.sendContent(HttpResponseStatus.OK, logsProducer,
+            logsProducer.getResponseHeaders());
       } catch (Exception ex) {
         LOG.debug("Exception while reading logs for logging context {}", loggingContext, ex);
         responder.sendStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
@@ -84,8 +88,8 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
   }
 
   protected void doPrev(LogReader logReader, HttpResponder responder, LoggingContext loggingContext,
-                        int maxEvents, String fromOffsetStr, boolean escape, String filterStr,
-                        @Nullable RunRecordDetail runRecord, String format, List<String> fieldsToSuppress) {
+      int maxEvents, String fromOffsetStr, boolean escape, String filterStr,
+      @Nullable RunRecordDetail runRecord, String format, List<String> fieldsToSuppress) {
     try {
       Filter filter = FilterParser.parse(filterStr);
 
@@ -107,9 +111,10 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
     }
   }
 
-  protected void doNext(LogReader logReader, HttpResponder responder, LoggingContext loggingContext, int maxEvents,
-                        String fromOffsetStr, boolean escape, String filterStr, @Nullable RunRecordDetail runRecord,
-                        String format, List<String> fieldsToSuppress) {
+  protected void doNext(LogReader logReader, HttpResponder responder, LoggingContext loggingContext,
+      int maxEvents,
+      String fromOffsetStr, boolean escape, String filterStr, @Nullable RunRecordDetail runRecord,
+      String format, List<String> fieldsToSuppress) {
     try {
       Filter filter = FilterParser.parse(filterStr);
       Callback logCallback = getNextOrPrevLogsCallback(format, responder, fieldsToSuppress, escape);
@@ -131,7 +136,7 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
   }
 
   private Callback getNextOrPrevLogsCallback(String format, HttpResponder responder,
-                                             List<String> suppress, boolean escape) {
+      List<String> suppress, boolean escape) {
     LogFormatType formatType = getFormatType(format);
     switch (formatType) {
       case JSON:
@@ -142,6 +147,7 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
   }
 
   private static final class TimeRange {
+
     private final long fromMillis;
     private final long toMillis;
 
@@ -159,15 +165,18 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
     }
   }
 
-  private static TimeRange parseTime(long fromTimeSecsParam, long toTimeSecsParam, HttpResponder responder) {
+  private static TimeRange parseTime(long fromTimeSecsParam, long toTimeSecsParam,
+      HttpResponder responder) {
     long currentTimeMillis = System.currentTimeMillis();
-    long fromMillis = fromTimeSecsParam < 0 ?
-      currentTimeMillis - TimeUnit.HOURS.toMillis(1) : TimeUnit.SECONDS.toMillis(fromTimeSecsParam);
-    long toMillis = toTimeSecsParam < 0 ? currentTimeMillis : TimeUnit.SECONDS.toMillis(toTimeSecsParam);
+    long fromMillis = fromTimeSecsParam < 0
+        ? currentTimeMillis - TimeUnit.HOURS.toMillis(1)
+        : TimeUnit.SECONDS.toMillis(fromTimeSecsParam);
+    long toMillis =
+        toTimeSecsParam < 0 ? currentTimeMillis : TimeUnit.SECONDS.toMillis(toTimeSecsParam);
 
     if (toMillis <= fromMillis) {
-      responder.sendString(HttpResponseStatus.BAD_REQUEST, "Invalid time range. " +
-        "'stop' should be greater than 'start'.");
+      responder.sendString(HttpResponseStatus.BAD_REQUEST, "Invalid time range. "
+          + "'stop' should be greater than 'start'.");
       return null;
     }
 
@@ -179,8 +188,9 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
     JSON
   }
 
-  private AbstractChunkedLogProducer getFullLogsProducer(String format, CloseableIterator<LogEvent> logEventIter,
-                                                         List<String> suppress, boolean escape) {
+  private AbstractChunkedLogProducer getFullLogsProducer(String format,
+      CloseableIterator<LogEvent> logEventIter,
+      List<String> suppress, boolean escape) {
     LogFormatType formatType = getFormatType(format);
     switch (formatType) {
       case JSON:
@@ -191,10 +201,11 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
   }
 
   /**
-   * If readRange is outside runRecord's range, then the readRange is adjusted to fall within runRecords range.
+   * If readRange is outside runRecord's range, then the readRange is adjusted to fall within
+   * runRecords range.
    */
-  private ReadRange adjustReadRange(ReadRange readRange, @Nullable RunRecordDetail runRecord,
-                                    boolean fromTimeSpecified) {
+  protected ReadRange adjustReadRange(ReadRange readRange, @Nullable RunRecordDetail runRecord,
+      boolean fromTimeSpecified) {
     if (runRecord == null) {
       return readRange;
     }
@@ -208,7 +219,6 @@ public abstract class AbstractLogHttpHandler extends AbstractHttpHandler {
       // If from time is not specified explicitly, use the run records start time as from time
       fromTimeMillis = runStartMillis;
     }
-
 
     if (fromTimeMillis < runStartMillis) {
       // If from time is specified but is smaller than run records start time, reset it to

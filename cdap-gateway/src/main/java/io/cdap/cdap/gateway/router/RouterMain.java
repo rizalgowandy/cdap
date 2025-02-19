@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2021 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -23,31 +23,38 @@ import com.google.inject.Injector;
 import io.cdap.cdap.common.ServiceBindException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.encryption.guice.UserCredentialAeadEncryptionModule;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.runtime.DaemonMain;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
+import java.util.concurrent.TimeUnit;
 import org.apache.twill.internal.Services;
 import org.apache.twill.zookeeper.ZKClientService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.TimeUnit;
-
 /**
  * Main class to run Router from command line.
  */
 public class RouterMain extends DaemonMain {
+
   private static final Logger LOG = LoggerFactory.getLogger(RouterMain.class);
 
   private CConfiguration cConf;
   private ZKClientService zkClientService;
   private NettyRouter router;
 
+  /**
+   * Entry point for the router.
+   *
+   * @param args Arguments to the router.
+   */
   public static void main(String[] args) {
     try {
       new RouterMain().doMain(args);
@@ -70,10 +77,13 @@ public class RouterMain extends DaemonMain {
 
       if (cConf.getBoolean(Constants.Security.ENABLED)) {
         int foundPaths = RouterAuditLookUp.getInstance().getNumberOfPaths();
-        if (cConf.getBoolean(Constants.Router.ROUTER_AUDIT_PATH_CHECK_ENABLED) &&
-          foundPaths != ExpectedNumberOfAuditPolicyPaths.EXPECTED_PATH_NUMBER) {
-          LOG.error("Failed to start the router due to the incorrect number of paths with AuditPolicy. " +
-                      "Expected: {}, found: {}", ExpectedNumberOfAuditPolicyPaths.EXPECTED_PATH_NUMBER, foundPaths);
+        if (cConf.getBoolean(Constants.Router.ROUTER_AUDIT_PATH_CHECK_ENABLED)
+            && foundPaths != ExpectedNumberOfAuditPolicyPaths.EXPECTED_PATH_NUMBER) {
+          LOG.error(
+              "Failed to start the router due to the incorrect number of paths with AuditPolicy. "
+                  + "Expected: {}, found: {}",
+              ExpectedNumberOfAuditPolicyPaths.EXPECTED_PATH_NUMBER,
+              foundPaths);
           System.exit(1);
         }
         // Enable Kerberos login
@@ -99,13 +109,13 @@ public class RouterMain extends DaemonMain {
   public void start() throws Exception {
     LOG.info("Starting Router...");
     io.cdap.cdap.common.service.Services.startAndWait(zkClientService,
-                                                      cConf.getLong(Constants.Zookeeper.CLIENT_STARTUP_TIMEOUT_MILLIS),
-                                                      TimeUnit.MILLISECONDS,
-                                                      String.format("Connection timed out while trying to start " +
-                                                                    "ZooKeeper client. Please verify that the " +
-                                                                    "ZooKeeper quorum settings are correct in " +
-                                                                    "cdap-site.xml. Currently configured as: %s",
-                                                                    zkClientService.getConnectString()));
+        cConf.getLong(Constants.Zookeeper.CLIENT_STARTUP_TIMEOUT_MILLIS),
+        TimeUnit.MILLISECONDS,
+        String.format("Connection timed out while trying to start "
+                + "ZooKeeper client. Please verify that the "
+                + "ZooKeeper quorum settings are correct in "
+                + "cdap-site.xml. Currently configured as: %s",
+            zkClientService.getConnectString()));
     router.startAndWait();
     LOG.info("Router started.");
   }
@@ -124,13 +134,15 @@ public class RouterMain extends DaemonMain {
 
   static Injector createGuiceInjector(CConfiguration cConf) {
     return Guice.createInjector(
-      new ConfigModule(cConf),
-      new ZKClientModule(),
-      new ZKDiscoveryModule(),
-      new RouterModules().getDistributedModules(),
-      CoreSecurityRuntimeModule.getDistributedModule(cConf),
-      new ExternalAuthenticationModule(),
-      new IOModule()
+        new ConfigModule(cConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new ZkClientModule(),
+        new ZkDiscoveryModule(),
+        new RouterModules().getDistributedModules(),
+        CoreSecurityRuntimeModule.getDistributedModule(cConf),
+        new ExternalAuthenticationModule(),
+        new IOModule(),
+        new UserCredentialAeadEncryptionModule()
     );
   }
 }

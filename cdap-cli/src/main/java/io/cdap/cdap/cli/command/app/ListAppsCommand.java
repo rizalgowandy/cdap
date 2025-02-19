@@ -28,7 +28,6 @@ import io.cdap.cdap.cli.util.table.Table;
 import io.cdap.cdap.client.ApplicationClient;
 import io.cdap.cdap.proto.ApplicationRecord;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.HashSet;
 import java.util.List;
@@ -59,7 +58,7 @@ public class ListAppsCommand extends AbstractAuthCommand {
     }
     Table table = Table.builder()
       .setHeader("id", "appVersion", "description", "artifactName", "artifactVersion", "artifactScope", "principal")
-      .setRows(appClient.list(cliConfig.getCurrentNamespace(), artifactNames, artifactVersion),
+      .setRows(appClient.list(cliConfig.getCurrentNamespace(), artifactNames, artifactVersion, null),
         new RowMaker<ApplicationRecord>() {
           @Override
           public List<?> makeRow(ApplicationRecord object) {
@@ -73,12 +72,13 @@ public class ListAppsCommand extends AbstractAuthCommand {
 
   @Override
   public String getPattern() {
-    return String.format("list apps [<%s>] [<%s>]", ArgumentName.ARTIFACT_NAME, ArgumentName.ARTIFACT_VERSION);
+    return String.format("list apps [<%s>] [<%s>]", ArgumentName.ARTIFACT_NAME,
+        ArgumentName.ARTIFACT_VERSION);
   }
 
   @Override
   public String getDescription() {
     return String.format("Lists all %s, optionally filtered by artifact name and version",
-      ElementType.APP.getNamePlural());
+        ElementType.APP.getNamePlural());
   }
 }

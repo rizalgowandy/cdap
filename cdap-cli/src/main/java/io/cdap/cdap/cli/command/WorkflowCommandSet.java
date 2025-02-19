@@ -22,7 +22,6 @@ import io.cdap.cdap.client.ProgramClient;
 import io.cdap.cdap.client.WorkflowClient;
 import io.cdap.common.cli.Command;
 import io.cdap.common.cli.CommandSet;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,12 +31,14 @@ import java.util.List;
 public class WorkflowCommandSet extends CommandSet<Command> {
 
   @Inject
-  public WorkflowCommandSet(ProgramClient programClient, WorkflowClient workflowClient, CLIConfig cliConfig) {
+  public WorkflowCommandSet(ProgramClient programClient, WorkflowClient workflowClient,
+      CLIConfig cliConfig) {
     super(generateCommands(programClient, workflowClient, cliConfig));
   }
 
-  private static Iterable<Command> generateCommands(ProgramClient programClient, WorkflowClient workflowClient,
-                                                    CLIConfig cliConfig) {
+  private static Iterable<Command> generateCommands(ProgramClient programClient,
+      WorkflowClient workflowClient,
+      CLIConfig cliConfig) {
     List<Command> commands = new ArrayList<>();
     commands.add(new GetWorkflowTokenCommand(workflowClient, cliConfig));
     commands.add(new GetWorkflowLocalDatasetsCommand(workflowClient, cliConfig));

@@ -26,7 +26,6 @@ import io.cdap.cdap.etl.api.StageConfigurer;
 import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.api.TransformContext;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +37,7 @@ import java.util.Objects;
 @Plugin(type = Transform.PLUGIN_TYPE)
 @Name(ExceptionTransform.NAME)
 public class ExceptionTransform extends Transform<StructuredRecord, StructuredRecord> {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   public static final String NAME = "Exception";
   private static final String EXPECTED_FIELD = "expectedField";
@@ -58,7 +58,8 @@ public class ExceptionTransform extends Transform<StructuredRecord, StructuredRe
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     String expectedField = properties.get(EXPECTED_FIELD);
     String expectedValue = properties.get(EXPECTED_VALUE);
     if (expectedField == null || !Objects.equals(input.get(expectedField), expectedValue)) {
@@ -76,11 +77,11 @@ public class ExceptionTransform extends Transform<StructuredRecord, StructuredRe
 
   private static PluginClass getPluginClass() {
     return PluginClass.builder()
-      .setName(NAME)
-      .setType(Transform.PLUGIN_TYPE)
-      .setDescription("")
-      .setClassName(ExceptionTransform.class.getName())
-      .setProperties(Collections.emptyMap())
-      .build();
+        .setName(NAME)
+        .setType(Transform.PLUGIN_TYPE)
+        .setDescription("")
+        .setClassName(ExceptionTransform.class.getName())
+        .setProperties(Collections.emptyMap())
+        .build();
   }
 }

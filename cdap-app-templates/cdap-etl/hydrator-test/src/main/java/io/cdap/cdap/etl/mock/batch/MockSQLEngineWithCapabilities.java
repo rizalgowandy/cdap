@@ -22,7 +22,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
 import com.google.gson.Gson;
-import io.cdap.cdap.api.RuntimeContext;
+import io.cdap.cdap.api.SQLEngineContext;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.data.format.StructuredRecord;
@@ -44,11 +44,12 @@ import io.cdap.cdap.etl.api.engine.sql.request.SQLJoinDefinition;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLJoinRequest;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLPullRequest;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLPushRequest;
+import io.cdap.cdap.etl.api.engine.sql.request.SQLReadRequest;
+import io.cdap.cdap.etl.api.engine.sql.request.SQLReadResult;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLWriteRequest;
 import io.cdap.cdap.etl.api.engine.sql.request.SQLWriteResult;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
 import io.cdap.cdap.format.StructuredRecordStringConverter;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
@@ -66,13 +67,14 @@ import javax.annotation.Nullable;
 @Plugin(type = BatchSQLEngine.PLUGIN_TYPE)
 @Name(MockSQLEngineWithCapabilities.NAME)
 public class MockSQLEngineWithCapabilities extends BatchSQLEngine<Object, Object, Object, Object>
-  implements SQLEngine<Object, Object, Object, Object>, Serializable {
+    implements SQLEngine<Object, Object, Object, Object>, Serializable {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   public static final String NAME = "MockSQLEngineWithCapabilities";
   private static final Gson GSON = new Gson();
   private final MockSQLEngineWithCapabilities.Config config;
-  boolean calledPrepareRun = false;
-  boolean calledOnRunFinish = false;
+  boolean calledPrepareRun;
+  boolean calledOnRunFinish;
 
   public MockSQLEngineWithCapabilities(MockSQLEngineWithCapabilities.Config config) {
     this.config = config;
@@ -82,33 +84,37 @@ public class MockSQLEngineWithCapabilities extends BatchSQLEngine<Object, Object
    * Config for the source.
    */
   public static class Config extends PluginConfig {
+
     private String name;
     private String outputDirName;
     private String outputSchema;
-    private String expected;
+    private String expectedJoin;
+    private String expectedUsers;
+    private String expectedPurchases;
   }
 
   @Override
-  public void prepareRun(RuntimeContext context) throws Exception {
+  public void prepareRun(SQLEngineContext context) throws Exception {
     calledPrepareRun = true;
   }
 
   @Override
-  public void onRunFinish(boolean succeeded, RuntimeContext context) {
+  public void onRunFinish(boolean succeeded, SQLEngineContext context) {
     calledOnRunFinish = true;
   }
 
   @Override
-  public SQLPushDataset<StructuredRecord, Object, Object> getPushProvider(SQLPushRequest pushRequest)
-    throws SQLEngineException {
+  public SQLPushDataset<StructuredRecord, Object, Object> getPushProvider(
+      SQLPushRequest pushRequest)
+      throws SQLEngineException {
     throw new UnsupportedOperationException("Should never get called.");
   }
 
 
-
   @Override
-  public SQLPullDataset<StructuredRecord, Object, Object> getPullProvider(SQLPullRequest pullRequest)
-    throws SQLEngineException {
+  public SQLPullDataset<StructuredRecord, Object, Object> getPullProvider(
+      SQLPullRequest pullRequest)
+      throws SQLEngineException {
     throw new UnsupportedOperationException("Should never get called.");
   }
 
@@ -121,7 +127,23 @@ public class MockSQLEngineWithCapabilities extends BatchSQLEngine<Object, Object
   @Nullable
   @Override
   public SQLDatasetProducer getProducer(SQLPullRequest pullRequest, PullCapability capability) {
-    return new MockPullProducer(pullRequest, config.expected);
+    String expectedOutput;
+
+    switch (pullRequest.getDatasetName()) {
+      case "users":
+        expectedOutput = config.expectedUsers;
+        break;
+      case "purchases":
+        expectedOutput = config.expectedPurchases;
+        break;
+      case "join":
+        expectedOutput = config.expectedJoin;
+        break;
+      default:
+        throw new RuntimeException("Invalid producer stage");
+    }
+
+    return new MockPullProducer(pullRequest, expectedOutput);
   }
 
   @Override
@@ -172,6 +194,39 @@ public class MockSQLEngineWithCapabilities extends BatchSQLEngine<Object, Object
   }
 
   @Override
+  public SQLReadResult read(SQLReadRequest readRequest) throws SQLEngineException {
+    return SQLReadResult.success(readRequest.getDatasetName(), new SQLDataset() {
+      @Override
+      public String getDatasetName() {
+        return readRequest.getDatasetName();
+      }
+
+      @Override
+      public Schema getSchema() {
+        // Return users schema
+        if ("users".equals(readRequest.getDatasetName())) {
+          return Schema.recordOf(
+              "user",
+              Schema.Field.of("region", Schema.of(Schema.Type.STRING)),
+              Schema.Field.of("user_id", Schema.of(Schema.Type.INT)),
+              Schema.Field.of("name", Schema.of(Schema.Type.STRING)));
+        } else {
+          return Schema.recordOf(
+              "purchase",
+              Schema.Field.of("region", Schema.of(Schema.Type.STRING)),
+              Schema.Field.of("purchase_id", Schema.of(Schema.Type.INT)),
+              Schema.Field.of("user_id", Schema.of(Schema.Type.INT)));
+        }
+      }
+
+      @Override
+      public long getNumRows() {
+        return "users".equals(readRequest.getDatasetName()) ? 1234 : 4321;
+      }
+    });
+  }
+
+  @Override
   public SQLWriteResult write(SQLWriteRequest writeRequest) throws SQLEngineException {
     return SQLWriteResult.success(writeRequest.getDatasetName(), 12345);
   }
@@ -187,35 +242,48 @@ public class MockSQLEngineWithCapabilities extends BatchSQLEngine<Object, Object
   }
 
   public static ETLPlugin getPlugin(String name,
-                                    String outputDirName,
-                                    Schema outputSchema,
-                                    Set<StructuredRecord> expected) {
+      String outputDirName,
+      Schema outputSchema,
+      Set<StructuredRecord> expectedJoin,
+      Set<StructuredRecord> expectedUsers,
+      Set<StructuredRecord> expectedPurchases) {
     Map<String, String> properties = new HashMap<>();
     properties.put("name", name);
     properties.put("outputDirName", outputDirName);
     properties.put("outputSchema", GSON.toJson(outputSchema));
-    properties.put("expected", GSON.toJson(expected));
+    properties.put("expectedJoin", GSON.toJson(expectedJoin));
+    properties.put("expectedUsers", GSON.toJson(expectedUsers));
+    properties.put("expectedPurchases", GSON.toJson(expectedPurchases));
     return new ETLPlugin(NAME, BatchSQLEngine.PLUGIN_TYPE, properties, null);
   }
 
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("name", new PluginPropertyField("name", "", "string", true, false));
-    properties.put("outputDirName", new PluginPropertyField("outputDirName", "", "string", true, false));
-    properties.put("outputSchema", new PluginPropertyField("outputSchema", "", "string", true, false));
-    properties.put("expected", new PluginPropertyField("expected", "", "string", true, false));
-    return new PluginClass(BatchSQLEngine.PLUGIN_TYPE, NAME, "", MockSQLEngineWithCapabilities.class.getName(),
-                           "config", properties);
+    properties.put("outputDirName",
+        new PluginPropertyField("outputDirName", "", "string", true, false));
+    properties.put("outputSchema",
+        new PluginPropertyField("outputSchema", "", "string", true, false));
+    properties.put("expectedJoin",
+        new PluginPropertyField("expectedJoin", "", "string", true, false));
+    properties.put("expectedUsers",
+        new PluginPropertyField("expectedUsers", "", "string", true, false));
+    properties.put("expectedPurchases",
+        new PluginPropertyField("expectedPurchases", "", "string", true, false));
+    return new PluginClass(BatchSQLEngine.PLUGIN_TYPE, NAME, "",
+        MockSQLEngineWithCapabilities.class.getName(),
+        "config", properties);
   }
 
   /**
-   * Used to write the input records for the pipeline run. Should be called after the pipeline has been created.
+   * Used to write the input records for the pipeline run. Should be called after the pipeline has
+   * been created.
    *
    * @param fileName file to write the records into
    * @param records records that should be the input for the pipeline
    */
   public static void writeInput(String fileName,
-                                Iterable<StructuredRecord> records) throws Exception {
+      Iterable<StructuredRecord> records) throws Exception {
     Function<StructuredRecord, String> mapper = input -> {
       try {
         return StructuredRecordStringConverter.toJsonString(input);
@@ -231,27 +299,27 @@ public class MockSQLEngineWithCapabilities extends BatchSQLEngine<Object, Object
 
   /**
    * Counts all lines in a directory used for Hadoop as output
+   *
    * @param directory File specitying the directory
-   * @return
-   * @throws IOException
    */
   public static int countLinesInDirectory(File directory) throws IOException {
     int lines = 0;
 
     return (int) java.nio.file.Files.walk(directory.toPath())
-      .filter(java.nio.file.Files::isRegularFile)
-      .filter(path -> !path.toString().endsWith(".crc") && !path.toString().endsWith("_SUCCESS")) // Filters some
-      // hadoop files.
-      .map(path -> {
-        try {
-          return Files.readLines(path.toFile(), Charsets.UTF_8);
-        } catch (IOException e) {
-          throw new RuntimeException("Unable to read file in directory", e);
-        }
-      })
-      .flatMap(Collection::stream)
-      .filter(l -> !l.isEmpty()) // Only consider not empty output files and lines.
-      .count();
+        .filter(java.nio.file.Files::isRegularFile)
+        .filter(path -> !path.toString().endsWith(".crc") && !path.toString()
+            .endsWith("_SUCCESS")) // Filters some
+        // hadoop files.
+        .map(path -> {
+          try {
+            return Files.readLines(path.toFile(), Charsets.UTF_8);
+          } catch (IOException e) {
+            throw new RuntimeException("Unable to read file in directory", e);
+          }
+        })
+        .flatMap(Collection::stream)
+        .filter(l -> !l.isEmpty()) // Only consider not empty output files and lines.
+        .count();
   }
 
   protected enum MockPullCapability implements PullCapability {

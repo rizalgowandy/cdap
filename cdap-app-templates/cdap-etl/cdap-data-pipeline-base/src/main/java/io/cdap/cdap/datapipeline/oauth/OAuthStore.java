@@ -44,6 +44,8 @@ public class OAuthStore {
   private static final String OAUTH_PROVIDER_COL = "oauthprovider";
   private static final String LOGIN_URL_COL = "loginurl";
   private static final String TOKEN_REFRESH_URL_COL = "tokenrefreshurl";
+  private static final String CREDENTIAL_ENCODING_STRATEGY_COL = "credentialencodingstrategy";
+  private static final String USER_AGENT_COL = "useragent";
   private static final String CLIENT_CREDS_KEY_PREFIX = "oauthclientcreds";
   private static final String REFRESH_TOKEN_KEY_PREFIX = "oauthrefreshtoken";
   private static final Gson GSON = new Gson();
@@ -56,7 +58,9 @@ public class OAuthStore {
       .withId(TABLE_ID)
       .withFields(Fields.stringType(OAUTH_PROVIDER_COL),
                   Fields.stringType(LOGIN_URL_COL),
-                  Fields.stringType(TOKEN_REFRESH_URL_COL))
+                  Fields.stringType(TOKEN_REFRESH_URL_COL),
+                  Fields.stringType(CREDENTIAL_ENCODING_STRATEGY_COL),
+                  Fields.stringType(USER_AGENT_COL))
       .withPrimaryKeys(OAUTH_PROVIDER_COL)
       .build();
 
@@ -75,7 +79,7 @@ public class OAuthStore {
    * @param oauthProvider {@link OAuthProvider} to write
    * @throws OAuthStoreException if the write fails
    */
-  public void writeProvider(OAuthProvider oauthProvider) throws OAuthStoreException {
+  public void writeProvider(OAuthProvider oauthProvider, boolean reuseClientCredentials) throws OAuthStoreException {
     try {
       TransactionRunners.run(transactionRunner, context -> {
         StructuredTable table = context.getTable(TABLE_ID);
@@ -89,10 +93,26 @@ public class OAuthStore {
     }
 
     String namespace = NamespaceId.SYSTEM.getNamespace();
+    String name = getClientCredsKey(oauthProvider.getName());
+
+    // Check for existence of client credential when reusing them.
+    try {
+      if (reuseClientCredentials) {
+        if (secureStore.getMetadata(namespace, name) == null) {
+          throw new OAuthStoreException("Client credential should be present in the secure store", null);
+        }
+        return;
+      }
+    } catch (IOException e) {
+      throw new OAuthStoreException("Failed to check existence of client credential in secure storage", e);
+    } catch (Exception e) {
+      throw new OAuthStoreException("Namespace \"" + namespace + "\" or name \"" + name + "\" does not exist", e);
+    }
+
     try {
       secureStoreManager.put(
           namespace,
-          getClientCredsKey(oauthProvider.getName()),
+          name,
           GSON.toJson(oauthProvider.getClientCredentials()),
           "OAuth client creds",
           Collections.emptyMap());
@@ -113,7 +133,7 @@ public class OAuthStore {
     OAuthClientCredentials clientCreds;
     try {
       String clientCredsJson = new String(
-          secureStore.get(NamespaceId.SYSTEM.getNamespace(), getClientCredsKey(name)).get(),
+          secureStore.getData(NamespaceId.SYSTEM.getNamespace(), getClientCredsKey(name)),
           StandardCharsets.UTF_8);
       clientCreds = GSON.fromJson(clientCredsJson, OAuthClientCredentials.class);
     } catch (IOException e) {
@@ -171,7 +191,7 @@ public class OAuthStore {
       throws OAuthStoreException {
     try {
       String tokenJson = new String(
-          secureStore.get(NamespaceId.SYSTEM.getNamespace(), getRefreshTokenKey(oauthProvider, credentialId)).get(),
+          secureStore.getData(NamespaceId.SYSTEM.getNamespace(), getRefreshTokenKey(oauthProvider, credentialId)),
           StandardCharsets.UTF_8);
       return Optional.of(GSON.fromJson(tokenJson, OAuthRefreshToken.class));
     } catch (IOException e) {
@@ -201,12 +221,16 @@ public class OAuthStore {
     String name = row.getString(OAUTH_PROVIDER_COL);
     String loginURL = row.getString(LOGIN_URL_COL);
     String tokenRefreshURL = row.getString(TOKEN_REFRESH_URL_COL);
+    String credentialEncodingStrategy = row.getString(CREDENTIAL_ENCODING_STRATEGY_COL);
+    String userAgent = row.getString(USER_AGENT_COL);
 
     return OAuthProvider.newBuilder()
         .withName(name)
         .withLoginURL(loginURL)
         .withTokenRefreshURL(tokenRefreshURL)
         .withClientCredentials(clientCreds)
+        .withCredentialEncodingStrategy(OAuthProvider.CredentialEncodingStrategy.valueOf(credentialEncodingStrategy))
+        .withUserAgent(userAgent)
         .build();
   }
 
@@ -215,6 +239,10 @@ public class OAuthStore {
     fields.add(Fields.stringField(OAUTH_PROVIDER_COL, oauthProvider.getName()));
     fields.add(Fields.stringField(LOGIN_URL_COL, oauthProvider.getLoginURL()));
     fields.add(Fields.stringField(TOKEN_REFRESH_URL_COL, oauthProvider.getTokenRefreshURL()));
+    fields.add(Fields.stringField(
+            CREDENTIAL_ENCODING_STRATEGY_COL,
+            oauthProvider.getCredentialEncodingStrategy().toString()));
+    fields.add(Fields.stringField(USER_AGENT_COL, oauthProvider.getUserAgent()));
     return fields;
   }
 }

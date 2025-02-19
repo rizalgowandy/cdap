@@ -26,18 +26,19 @@ import io.cdap.cdap.api.plugin.PluginConfig;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.action.Action;
 import io.cdap.cdap.etl.api.action.ActionContext;
-import org.apache.twill.filesystem.Location;
-
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
 
 /**
- * Action that moves files from one fileset into another, optionally filtering files that match a regex.
+ * Action that moves files from one fileset into another, optionally filtering files that match a
+ * regex.
  */
 @Plugin(type = Action.PLUGIN_TYPE)
 @Name(FilesetMoveAction.NAME)
 @Description("Action that moves files from one fileset into another, optionally filtering files that match a regex.")
 public class FilesetMoveAction extends Action {
+
   public static final String NAME = "FilesetMove";
   private final Conf config;
 
@@ -45,6 +46,7 @@ public class FilesetMoveAction extends Action {
    * Config properties for the plugin.
    */
   public static class Conf extends PluginConfig {
+
     public static final String SOURCE_FILESET = "sourceFileset";
     public static final String DEST_FILESET = "destinationFileset";
     public static final String FILTER_REGEX = "filterRegex";
@@ -59,8 +61,10 @@ public class FilesetMoveAction extends Action {
 
     @Nullable
     @Name(FILTER_REGEX)
-    @Description("Filter any files whose name matches this regex. Defaults to '^\\.', which will filter any files " +
-      "that begin with a period.")
+    @Description(
+        "Filter any files whose name matches this regex. Defaults to '^\\.', which will filter any files "
+
+            + "that begin with a period.")
     private String filterRegex;
 
     // set defaults for properties in a no-argument constructor.

@@ -22,6 +22,7 @@ import com.google.common.base.Splitter;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.lang.ClassLoaders;
 import io.cdap.cdap.common.utils.DirUtils;
+import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.internal.app.runtime.LocalizationUtils;
 import io.cdap.cdap.internal.app.runtime.distributed.LocalizeResource;
 import io.cdap.cdap.runtime.spi.SparkCompat;
@@ -62,7 +63,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.Deflater;
@@ -100,8 +103,6 @@ public final class SparkPackageUtils {
   private static final String SPARK_YARN_JAR = "spark.yarn.jar";
   // Spark2 conf key for spark archive (zip of jars) location
   private static final String SPARK_YARN_ARCHIVE = "spark.yarn.archive";
-  // The Hive conf directories as determined by the startup script
-  private static final String EXPLORE_CONF_DIRS = "explore.conf.dirs";
 
   // Environment variable name for locating spark home directory
   private static final String SPARK_HOME = Constants.SPARK_HOME;
@@ -169,8 +170,8 @@ public final class SparkPackageUtils {
     String sparkHome = System.getenv(SPARK_HOME);
 
     if (sparkHome == null && archivesPath == null) {
-      LOG.warn("Failed to determine location of PySpark libraries. Running PySpark program might fail. " +
-                 "Please set environment variable {} to make PySpark available.", SPARK_HOME);
+      LOG.warn("Failed to determine location of PySpark libraries. Running PySpark program might fail. "
+                 + "Please set environment variable {} to make PySpark available.", SPARK_HOME);
     } else {
       if (archivesPath != null) {
         // If the archives path is explicitly set, use it
@@ -225,7 +226,7 @@ public final class SparkPackageUtils {
     localizeResources.put(SPARK_DEFAULTS_CONF, new LocalizeResource(sparkDefaultConfFile));
     env.putAll(getSparkClientEnv());
 
-    // Shallow copy all files under directory defined by $HADOOP_CONF_DIR and the explore conf directory
+    // Shallow copy all files under directory defined by $HADOOP_CONF_DIR
     // If $HADOOP_CONF_DIR is not defined, use the location of "yarn-site.xml" to determine the directory
     // This is part of workaround for CDAP-5019 (SPARK-13441) and CDAP-12330
     List<File> configDirs = new ArrayList<>();
@@ -241,11 +242,7 @@ public final class SparkPackageUtils {
       }
     }
 
-    // Include the explore config dirs as well
     Splitter splitter = Splitter.on(File.pathSeparatorChar).omitEmptyStrings();
-    for (String dir: splitter.split(System.getProperty(EXPLORE_CONF_DIRS, ""))) {
-      configDirs.add(new File(dir));
-    }
 
     if (!configDirs.isEmpty()) {
       File targetFile = File.createTempFile(LOCALIZED_CONF_DIR, ".zip", tempDir);
@@ -286,7 +283,6 @@ public final class SparkPackageUtils {
         Configuration conf = new Configuration(false);
         conf.clear();
         conf.addResource(file.toURI().toURL());
-        conf.set(Constants.Explore.HIVE_METASTORE_TOKEN_SIG, Constants.Explore.HIVE_METASTORE_TOKEN_SERVICE_NAME);
         conf.writeXml(zipOutput);
       } else {
         Files.copy(file.toPath(), zipOutput);
@@ -318,7 +314,7 @@ public final class SparkPackageUtils {
   /**
    * Returns the Spark environment setup via the start up script.
    */
-  private static synchronized Map<String, String> getSparkEnv() {
+  public static synchronized Map<String, String> getSparkEnv() {
     if (sparkEnv != null) {
       return sparkEnv;
     }
@@ -462,30 +458,71 @@ public final class SparkPackageUtils {
     String archiveName = "spark.archive-" + sparkVersion + "-" + VersionInfo.getVersion() + ".zip";
     Location frameworkDir = locationFactory.create("/framework/spark");
     Location frameworkLocation = frameworkDir.append(archiveName);
-
-    if (!frameworkLocation.exists()) {
-      File archive = new File(tempDir, archiveName);
-      try {
-        try (ZipOutputStream zipOutput = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(archive)))) {
-          zipOutput.setLevel(Deflater.NO_COMPRESSION);
-          for (File file : getLocalSparkLibrary(sparkCompat)) {
-            zipOutput.putNextEntry(new ZipEntry(file.getName()));
-            Files.copy(file.toPath(), zipOutput);
-            zipOutput.closeEntry();
-          }
+    File archive = new File(tempDir, archiveName);
+    try {
+      try (
+        ZipOutputStream zipOutput = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(archive)))) {
+        zipOutput.setLevel(Deflater.NO_COMPRESSION);
+        for (File file : getLocalSparkLibrary(sparkCompat)) {
+          zipOutput.putNextEntry(new ZipEntry(file.getName()));
+          Files.copy(file.toPath(), zipOutput);
+          zipOutput.closeEntry();
         }
+      } 
+      Location writeLockLocation = frameworkDir.append("write_in_progress");
+      frameworkDir.mkdirs("755");
 
-        // Upload spark archive to the framework location
-        frameworkDir.mkdirs("755");
-
-        try (OutputStream os = frameworkLocation.getOutputStream("644")) {
-          Files.copy(archive.toPath(), os);
+      while (!frameworkLocation.exists()) {
+        if (!uploadToLocation(frameworkLocation, archive, writeLockLocation)) {
+          waitForLocation(frameworkLocation, writeLockLocation);
         }
-      } finally {
-        archive.delete();
       }
+    } finally {
+      Files.deleteIfExists(archive.toPath());
     }
+
     return new SparkFramework(new LocalizeResource(resolveURI(frameworkLocation), true), SPARK_YARN_ARCHIVE);
+  }
+
+  private static boolean uploadToLocation(Location frameworkLocation, File archive, Location writeLockLocation)
+    throws IOException {
+    try {
+      if (!writeLockLocation.createNew()) {
+        return false;
+      }
+    } catch (IOException e) {
+      LOG.debug("Failed to upload spark framework artifact while creating lock file and will be retried.", e);
+      return false;
+    }
+
+    Location tempArchiveHdfs = frameworkLocation.getTempFile("temp_jar");
+    try {
+      //Copy file to temp loc ( Upload )
+      try (OutputStream os = tempArchiveHdfs.getOutputStream()) {
+        Files.copy(archive.toPath(), os);
+      }
+      //Move to actual location
+      tempArchiveHdfs.renameTo(frameworkLocation);
+      writeLockLocation.delete();
+    } finally {
+      tempArchiveHdfs.delete();
+    }
+    return true;
+  }
+
+  private static void waitForLocation(Location frameworkLocation, Location writeLockLocation)
+    throws IOException {
+    //In case of race condition 2nd process will wait for the 1st process to write
+    //Wait for the frameworkLocation to be deleted
+    try {
+      Tasks.waitFor(true, frameworkLocation::exists, 5, TimeUnit.MINUTES);
+    } catch (TimeoutException e) {
+      //The spark jar copying was not completed by other process within the given timeout
+      //Clean the artifacts from other task and retry writing
+      writeLockLocation.delete();
+    } catch (ExecutionException | InterruptedException e) {
+      throw new IOException(e);
+    }
   }
 
   /**

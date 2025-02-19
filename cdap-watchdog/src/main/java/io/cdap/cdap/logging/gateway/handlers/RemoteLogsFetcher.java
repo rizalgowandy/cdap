@@ -28,20 +28,20 @@ import io.cdap.cdap.security.spi.authentication.UnauthenticatedException;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.common.http.HttpContentConsumer;
 import io.cdap.common.http.HttpRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Fetch Program logs via internal REST API calls
  */
 public class RemoteLogsFetcher implements LogsFetcher {
+
   private static final Logger LOG = LoggerFactory.getLogger(RemoteLogsFetcher.class);
 
   private final RemoteClient remoteClient;
@@ -49,8 +49,9 @@ public class RemoteLogsFetcher implements LogsFetcher {
   @Inject
   public RemoteLogsFetcher(RemoteClientFactory remoteClientFactory) {
     this.remoteClient =
-      remoteClientFactory.createRemoteClient(Constants.Service.LOG_QUERY, new DefaultHttpRequestConfig(false),
-                                             Gateway.API_VERSION_3);
+        remoteClientFactory.createRemoteClient(Constants.Service.LOGSAVER,
+            new DefaultHttpRequestConfig(false),
+            Gateway.API_VERSION_3);
   }
 
   /**
@@ -61,17 +62,17 @@ public class RemoteLogsFetcher implements LogsFetcher {
    * @param start start time of the time range of desired logs
    * @param stop end time of the time range of desired logs
    * @param file file for us to write the log into
-   * @throws IOException              if a network error occurred
-   * @throws UnauthenticatedException if the request is not authorized successfully in the gateway
-   *                                  server
+   * @throws IOException if a network error occurred
+   * @throws UnauthenticatedException if the request is not authorized successfully in the
+   *     gateway server
    */
   @Override
   public void writeProgramRunLogs(ProgramId program, String runId, long start, long stop, File file)
-    throws IOException, UnauthenticatedException, UnauthorizedException {
+      throws IOException, UnauthenticatedException, UnauthorizedException {
 
     String path = String.format("namespaces/%s/apps/%s/%s/%s/runs/%s/logs?start=%d&stop=%d",
-                                program.getNamespaceId().getNamespace(), program.getApplication(),
-                                program.getType().getCategoryName(), program.getProgram(), runId, start, stop);
+        program.getNamespaceId().getNamespace(), program.getApplication(),
+        program.getType().getCategoryName(), program.getProgram(), runId, start, stop);
     execute(path, file);
   }
 
@@ -83,14 +84,16 @@ public class RemoteLogsFetcher implements LogsFetcher {
    * @param start start time of the time range of desired logs
    * @param stop end time of the time range of desired logs
    * @param file file for us to write the log into
-   * @throws IOException              if a network error occurred
-   * @throws UnauthenticatedException if the request is not authorized successfully in the gateway
-   *                                  server
+   * @throws IOException if a network error occurred
+   * @throws UnauthenticatedException if the request is not authorized successfully in the
+   *     gateway server
    */
   @Override
-  public void writeSystemServiceLog(String componentId, String serviceId, long start, long stop, File file)
-    throws IOException, UnauthenticatedException, UnauthorizedException {
-    String path = String.format("system/%s/%s/logs?start=%d&stop=%d", componentId, serviceId, start, stop);
+  public void writeSystemServiceLog(String componentId, String serviceId, long start, long stop,
+      File file)
+      throws IOException, UnauthenticatedException, UnauthorizedException {
+    String path = String.format("system/%s/%s/logs?start=%d&stop=%d", componentId, serviceId, start,
+        stop);
     execute(path, file);
   }
 

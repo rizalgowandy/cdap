@@ -18,7 +18,6 @@ package io.cdap.cdap.data2.metadata.indexer;
 
 import io.cdap.cdap.data2.metadata.dataset.MetadataEntry;
 import io.cdap.cdap.data2.metadata.dataset.SortInfo;
-
 import java.util.Collections;
 import java.util.Set;
 
@@ -26,6 +25,7 @@ import java.util.Set;
  * {@link Indexer} that returns the {@link MetadataEntry} value as the only index.
  */
 public class ValueOnlyIndexer implements Indexer {
+
   @Override
   public Set<String> getIndexes(MetadataEntry entry) {
     return Collections.singleton(entry.getValue());

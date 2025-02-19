@@ -31,6 +31,10 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.store.NamespaceStore;
 import io.cdap.cdap.store.StoreDefinition;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import org.apache.tephra.TransactionManager;
 import org.apache.twill.filesystem.Location;
 import org.junit.AfterClass;
@@ -39,10 +43,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * Tests for {@link StorageProviderNamespaceAdmin}
@@ -62,7 +62,6 @@ public class StorageProviderNamespaceAdminTest {
   public static void setup() throws Exception {
     CConfiguration cConf = CConfiguration.create();
     cConf.set(Constants.CFG_LOCAL_DATA_DIR, TEMP_FOLDER.newFolder().getAbsolutePath());
-    cConf.setBoolean(Constants.Explore.EXPLORE_ENABLED, true);
     Injector injector = Guice.createInjector(Modules.override(new AppFabricTestModule(cConf)).with(
       new AbstractModule() {
         @Override
@@ -122,8 +121,9 @@ public class StorageProviderNamespaceAdminTest {
     namespaceStore.create(customSpaceMeta);
     try {
       storageProviderNamespaceAdmin.create(customSpaceMeta);
-      Assert.fail("Expected exception to be thrown while creating namespace with custom location since the custom " +
-                    "location does not exist at this point.");
+      Assert.fail(
+          "Expected exception to be thrown while creating namespace with custom location since the custom "
+              + "location does not exist at this point.");
     } catch (IOException e) {
       // expected
     }
@@ -136,8 +136,9 @@ public class StorageProviderNamespaceAdminTest {
     Assert.assertTrue(dir1.mkdir());
     try {
       storageProviderNamespaceAdmin.create(customSpaceMeta);
-      Assert.fail("Expected exception to be thrown while creating namespace with custom location since the custom " +
-                    "location is not empty.");
+      Assert.fail(
+          "Expected exception to be thrown while creating namespace with custom location since the custom "
+              + "location is not empty.");
     } catch (IOException e) {
       // expected
     }
@@ -149,9 +150,10 @@ public class StorageProviderNamespaceAdminTest {
     Assert.assertTrue(randomFile.createNewFile());
     try {
       storageProviderNamespaceAdmin.create(new NamespaceMeta.Builder(customSpaceMeta)
-                                             .setRootDirectory(randomFile.toString()).build());
-      Assert.fail("Expected exception to be thrown while creating namespace with custom location since the custom " +
-                    "location is not a directory");
+          .setRootDirectory(randomFile.toString()).build());
+      Assert.fail(
+          "Expected exception to be thrown while creating namespace with custom location since the custom "
+              + "location is not a directory");
     } catch (IOException e) {
       // expected
     }
@@ -171,11 +173,63 @@ public class StorageProviderNamespaceAdminTest {
     storageProviderNamespaceAdmin.delete(customSpace);
     namespaceStore.delete(customSpace);
     // the data inside the custom location should have been deleted
-    Assert.assertFalse("Data inside the custom location still exists.", (dir1.exists() || dir2.exists() ||
-      file1.exists()));
+    Assert.assertFalse("Data inside the custom location still exists.",
+        (dir1.exists() || dir2.exists()
+            || file1.exists()));
     // but custom namespace location should still exists
     Assert.assertTrue(custom.exists());
     Assert.assertTrue(custom.delete());
+  }
+
+  @Test
+  public void testLocalNamespaceWithExistingDirectory() throws Exception {
+    // Ensure a namespace creation with an existing folder completes successfully
+    NamespaceId existingFolderNamespace = new NamespaceId("exists");
+    File existingNamespaceFolder = TEMP_FOLDER.newFolder(existingFolderNamespace.getNamespace());
+    existingNamespaceFolder.mkdirs();
+    NamespaceMeta existingFolderNamespaceMeta = new NamespaceMeta.Builder()
+      .setName(existingFolderNamespace.getNamespace()).build();
+
+    namespaceStore.create(existingFolderNamespaceMeta);
+    storageProviderNamespaceAdmin.create(existingFolderNamespaceMeta);
+    storageProviderNamespaceAdmin.delete(existingFolderNamespace);
+    namespaceStore.delete(existingFolderNamespace);
+  }
+
+  @Test
+  public void testLocalStorageProviderNamespaceAdminWithExistingDataDirectory() throws Exception {
+    // Ensure a namespace creation with an existing folder and data subdirectory completes successfully
+    NamespaceId existingFolderNamespace = new NamespaceId("existsdata");
+    File existingNamespaceFolder = TEMP_FOLDER.newFolder(existingFolderNamespace.getNamespace());
+    existingNamespaceFolder.mkdirs();
+    File existingNamespaceDataFolder = Paths.get(existingNamespaceFolder.getPath(), "data").toFile();
+    existingNamespaceDataFolder.mkdirs();
+
+    NamespaceMeta existingFolderNamespaceMeta = new NamespaceMeta.Builder()
+      .setName(existingFolderNamespace.getNamespace()).build();
+
+    namespaceStore.create(existingFolderNamespaceMeta);
+    storageProviderNamespaceAdmin.create(existingFolderNamespaceMeta);
+    storageProviderNamespaceAdmin.delete(existingFolderNamespace);
+    namespaceStore.delete(existingFolderNamespace);
+  }
+
+  @Test
+  public void testLocalStorageProviderNamespaceAdminWithExistingTempDirectory() throws Exception {
+    // Ensure a namespace creation with an existing folder and temp subdirectory completes successfully
+    NamespaceId existingFolderNamespace = new NamespaceId("existstemp");
+    File existingNamespaceFolder = TEMP_FOLDER.newFolder(existingFolderNamespace.getNamespace());
+    existingNamespaceFolder.mkdirs();
+    File existingNamespaceTempFolder = Paths.get(existingNamespaceFolder.getPath(), "temp").toFile();
+    existingNamespaceTempFolder.mkdirs();
+
+    NamespaceMeta existingFolderNamespaceMeta = new NamespaceMeta.Builder()
+      .setName(existingFolderNamespace.getNamespace()).build();
+
+    namespaceStore.create(existingFolderNamespaceMeta);
+    storageProviderNamespaceAdmin.create(existingFolderNamespaceMeta);
+    storageProviderNamespaceAdmin.delete(existingFolderNamespace);
+    namespaceStore.delete(existingFolderNamespace);
   }
 
   @AfterClass

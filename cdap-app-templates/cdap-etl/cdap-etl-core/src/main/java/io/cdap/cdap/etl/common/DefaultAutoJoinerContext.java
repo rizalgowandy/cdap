@@ -20,8 +20,6 @@ import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.api.FailureCollector;
 import io.cdap.cdap.etl.api.join.AutoJoinerContext;
 import io.cdap.cdap.etl.api.join.JoinStage;
-import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,10 +29,12 @@ import java.util.stream.Collectors;
  * Default implementation of AutoJoinerContext.
  */
 public class DefaultAutoJoinerContext implements AutoJoinerContext {
+
   private final Map<String, JoinStage> inputStages;
   private final FailureCollector failureCollector;
 
-  public DefaultAutoJoinerContext(Map<String, JoinStage> inputStages, FailureCollector failureCollector) {
+  public DefaultAutoJoinerContext(Map<String, JoinStage> inputStages,
+      FailureCollector failureCollector) {
     this.inputStages = Collections.unmodifiableMap(new HashMap<>(inputStages));
     this.failureCollector = failureCollector;
   }
@@ -49,10 +49,11 @@ public class DefaultAutoJoinerContext implements AutoJoinerContext {
     return failureCollector;
   }
 
-  public static DefaultAutoJoinerContext from(Map<String, Schema> inputSchemas, FailureCollector failureCollector) {
+  public static DefaultAutoJoinerContext from(Map<String, Schema> inputSchemas,
+      FailureCollector failureCollector) {
     return new DefaultAutoJoinerContext(inputSchemas.entrySet().stream()
-                                          .map(e -> JoinStage.builder(e.getKey(), e.getValue()).build())
-                                          .collect(Collectors.toMap(JoinStage::getStageName, s -> s)),
-                                        failureCollector);
+        .map(e -> JoinStage.builder(e.getKey(), e.getValue()).build())
+        .collect(Collectors.toMap(JoinStage::getStageName, s -> s)),
+        failureCollector);
   }
 }

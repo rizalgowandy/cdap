@@ -21,7 +21,6 @@ import com.google.common.collect.Sets;
 import com.google.common.reflect.TypeToken;
 import io.cdap.cdap.api.service.http.ServiceHttpEndpoint;
 import io.cdap.cdap.internal.lang.MethodVisitor;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -41,6 +40,7 @@ import javax.ws.rs.Path;
  * Extract the endpoints exposed by http service handler.
  */
 public final class ServiceEndpointExtractor extends MethodVisitor {
+
   private final List<ServiceHttpEndpoint> endpoints;
 
   public ServiceEndpointExtractor(List<ServiceHttpEndpoint> endpoints) {
@@ -48,7 +48,8 @@ public final class ServiceEndpointExtractor extends MethodVisitor {
   }
 
   @Override
-  public void visit(Object instance, Type inspectType, Type declareType, Method method) throws Exception {
+  public void visit(Object instance, Type inspectType, Type declareType, Method method)
+      throws Exception {
 
     if (!Modifier.isPublic(method.getModifiers())) {
       return;
@@ -62,8 +63,9 @@ public final class ServiceEndpointExtractor extends MethodVisitor {
     }
 
     // Find one or more request type annotations present on the method.
-    Set<Class<? extends Annotation>> acceptedMethodTypes = ImmutableSet.of(GET.class, POST.class, DELETE.class,
-                                                                           PUT.class, OPTIONS.class, HEAD.class);
+    Set<Class<? extends Annotation>> acceptedMethodTypes = ImmutableSet.of(GET.class, POST.class,
+        DELETE.class,
+        PUT.class, OPTIONS.class, HEAD.class);
 
     Set<Class<? extends Annotation>> methodAnnotations = Sets.newHashSet();
     for (Annotation annotation : method.getAnnotations()) {
@@ -74,11 +76,12 @@ public final class ServiceEndpointExtractor extends MethodVisitor {
     }
 
     for (Class<? extends Annotation> methodTypeClz : methodAnnotations) {
-      String methodType  = methodTypeClz.getAnnotation(HttpMethod.class).value();
+      String methodType = methodTypeClz.getAnnotation(HttpMethod.class).value();
       String endpoint = "/";
 
       endpoint = classPathAnnotation == null ? endpoint : endpoint + classPathAnnotation.value();
-      endpoint = methodPathAnnotation == null ? endpoint : endpoint + "/" + methodPathAnnotation.value();
+      endpoint =
+          methodPathAnnotation == null ? endpoint : endpoint + "/" + methodPathAnnotation.value();
 
       // Replace consecutive instances of / with a single instance.
       endpoint = endpoint.replaceAll("/+", "/");

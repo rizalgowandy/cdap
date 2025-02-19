@@ -19,28 +19,31 @@ package io.cdap.cdap.operations;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.extension.AbstractExtensionLoader;
-
 import java.util.Collections;
 import java.util.ServiceLoader;
 import java.util.Set;
 import javax.management.MXBean;
 
 /**
- * Class that registers {@link MXBean MXBeans} for reporting operational stats. To be loaded by this class, the
- * class that implements an {@link MXBean} should also additionally implement {@link OperationalStats}. This class loads
- * implementations of {@link OperationalStats} using the Java {@link ServiceLoader} architecture.
+ * Class that registers {@link MXBean MXBeans} for reporting operational stats. To be loaded by this
+ * class, the class that implements an {@link MXBean} should also additionally implement {@link
+ * OperationalStats}. This class loads implementations of {@link OperationalStats} using the Java
+ * {@link ServiceLoader} architecture.
  */
-final class OperationalStatsLoader extends AbstractExtensionLoader<OperationalExtensionId, OperationalStats> {
+final class OperationalStatsLoader extends
+    AbstractExtensionLoader<OperationalExtensionId, OperationalStats> {
 
   OperationalStatsLoader(CConfiguration cConf) {
     super(cConf.get(Constants.OperationalStats.EXTENSIONS_DIR, ""));
   }
 
   @Override
-  public Set<OperationalExtensionId> getSupportedTypesForProvider(OperationalStats operationalStats) {
-    OperationalExtensionId operationalExtensionId = OperationalStatsUtils.getOperationalExtensionId(operationalStats);
-    return operationalExtensionId == null ?
-      Collections.<OperationalExtensionId>emptySet() :
-      Collections.singleton(operationalExtensionId);
+  public Set<OperationalExtensionId> getSupportedTypesForProvider(
+      OperationalStats operationalStats) {
+    OperationalExtensionId operationalExtensionId = OperationalStatsUtils.getOperationalExtensionId(
+        operationalStats);
+    return operationalExtensionId == null
+        ? Collections.<OperationalExtensionId>emptySet() :
+        Collections.singleton(operationalExtensionId);
   }
 }

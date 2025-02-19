@@ -20,9 +20,8 @@ import io.cdap.cdap.api.logging.AppenderContext;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.metrics.MetricsContext;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
-import org.apache.twill.filesystem.LocationFactory;
-
 import java.util.Collections;
+import org.apache.twill.filesystem.LocationFactory;
 
 /**
  * The base implementation of {@link AppenderContext} that provides integration with CDAP system.
@@ -34,8 +33,8 @@ public abstract class AbstractAppenderContext extends AppenderContext {
   private final MetricsContext metricsContext;
 
   protected AbstractAppenderContext(TransactionRunner transactionRunner,
-                                    LocationFactory locationFactory,
-                                    MetricsCollectionService metricsCollectionService) {
+      LocationFactory locationFactory,
+      MetricsCollectionService metricsCollectionService) {
     this.locationFactory = locationFactory;
     this.transactionRunner = transactionRunner;
     this.metricsContext = metricsCollectionService.getContext(Collections.emptyMap());

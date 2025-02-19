@@ -47,6 +47,7 @@ import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.FieldLineageWriter;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.internal.app.runtime.AbstractProgramRunnerWithPlugin;
+import io.cdap.cdap.internal.app.runtime.AppStateStoreProvider;
 import io.cdap.cdap.internal.app.runtime.BasicProgramContext;
 import io.cdap.cdap.internal.app.runtime.DataSetFieldSetter;
 import io.cdap.cdap.internal.app.runtime.MetricsFieldSetter;
@@ -56,9 +57,15 @@ import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
 import io.cdap.cdap.internal.app.runtime.workflow.NameMappedDatasetFramework;
 import io.cdap.cdap.internal.app.runtime.workflow.WorkflowProgramInfo;
 import io.cdap.cdap.internal.lang.Reflections;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramId;
+import java.io.Closeable;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -69,17 +76,13 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import javax.annotation.Nullable;
-
 /**
  * Runs {@link MapReduce} programs.
  */
 public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
+
   private static final Logger LOG = LoggerFactory.getLogger(MapReduceProgramRunner.class);
+  public static final String MAPREDUCE_CUSTOM_CONFIG_PREFIX = "system.mapreduce.";
 
   private final Injector injector;
   private final CConfiguration cConf;
@@ -97,18 +100,23 @@ public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
   private final MetadataPublisher metadataPublisher;
   private final NamespaceQueryAdmin namespaceQueryAdmin;
   private final RemoteClientFactory remoteClientFactory;
+  private final AppStateStoreProvider appStateStoreProvider;
 
+  /**
+   * Constructor for a program runner that launches a Map reduce program.
+   */
   @Inject
   public MapReduceProgramRunner(Injector injector, CConfiguration cConf, Configuration hConf,
-                                NamespacePathLocator locationFactory,
-                                DatasetFramework datasetFramework,
-                                TransactionSystemClient txSystemClient,
-                                MetricsCollectionService metricsCollectionService,
-                                DiscoveryServiceClient discoveryServiceClient,
-                                SecureStore secureStore, SecureStoreManager secureStoreManager,
-                                MessagingService messagingService, MetadataReader metadataReader,
-                                MetadataPublisher metadataPublisher, FieldLineageWriter fieldLineageWriter,
-                                NamespaceQueryAdmin namespaceQueryAdmin, RemoteClientFactory remoteClientFactory) {
+      NamespacePathLocator locationFactory,
+      DatasetFramework datasetFramework,
+      TransactionSystemClient txSystemClient,
+      MetricsCollectionService metricsCollectionService,
+      DiscoveryServiceClient discoveryServiceClient,
+      SecureStore secureStore, SecureStoreManager secureStoreManager,
+      MessagingService messagingService, MetadataReader metadataReader,
+      MetadataPublisher metadataPublisher, FieldLineageWriter fieldLineageWriter,
+      NamespaceQueryAdmin namespaceQueryAdmin, RemoteClientFactory remoteClientFactory,
+      AppStateStoreProvider appStateStoreProvider) {
     super(cConf);
     this.injector = injector;
     this.cConf = cConf;
@@ -126,6 +134,7 @@ public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
     this.fieldLineageWriter = fieldLineageWriter;
     this.namespaceQueryAdmin = namespaceQueryAdmin;
     this.remoteClientFactory = remoteClientFactory;
+    this.appStateStoreProvider = appStateStoreProvider;
   }
 
   @Override
@@ -136,7 +145,8 @@ public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
 
     ProgramType processorType = program.getType();
     Preconditions.checkNotNull(processorType, "Missing processor type.");
-    Preconditions.checkArgument(processorType == ProgramType.MAPREDUCE, "Only MAPREDUCE process type is supported.");
+    Preconditions.checkArgument(processorType == ProgramType.MAPREDUCE,
+        "Only MAPREDUCE process type is supported.");
 
     MapReduceSpecification spec = appSpec.getMapReduce().get(program.getName());
     Preconditions.checkNotNull(spec, "Missing MapReduceSpecification for %s", program.getName());
@@ -145,19 +155,22 @@ public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
     RunId runId = ProgramRunners.getRunId(options);
 
     WorkflowProgramInfo workflowInfo = WorkflowProgramInfo.create(arguments);
-    DatasetFramework programDatasetFramework = workflowInfo == null ?
-      datasetFramework :
-      NameMappedDatasetFramework.createFromWorkflowProgramInfo(datasetFramework, workflowInfo, appSpec);
+    DatasetFramework programDatasetFramework = workflowInfo == null
+        ? datasetFramework :
+        NameMappedDatasetFramework.createFromWorkflowProgramInfo(datasetFramework, workflowInfo,
+            appSpec);
 
     // Setup dataset framework context, if required
     if (programDatasetFramework instanceof ProgramContextAware) {
       ProgramId programId = program.getId();
-      ((ProgramContextAware) programDatasetFramework).setContext(new BasicProgramContext(programId.run(runId)));
+      ((ProgramContextAware) programDatasetFramework).setContext(
+          new BasicProgramContext(programId.run(runId)));
     }
 
     MapReduce mapReduce;
     try {
-      mapReduce = new InstantiatorFactory(false).get(TypeToken.of(program.<MapReduce>getMainClass())).create();
+      mapReduce = new InstantiatorFactory(false).get(
+          TypeToken.of(program.<MapReduce>getMainClass())).create();
     } catch (Exception e) {
       LOG.error("Failed to instantiate MapReduce class for {}", spec.getClassName(), e);
       throw Throwables.propagate(e);
@@ -166,41 +179,50 @@ public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
     // List of all Closeable resources that needs to be cleanup
     List<Closeable> closeables = new ArrayList<>();
     try {
-      PluginInstantiator pluginInstantiator = createPluginInstantiator(options, program.getClassLoader());
+      PluginInstantiator pluginInstantiator = createPluginInstantiator(options,
+          program.getClassLoader());
       if (pluginInstantiator != null) {
         closeables.add(pluginInstantiator);
       }
 
       final BasicMapReduceContext context =
-        new BasicMapReduceContext(program, options, cConf, spec, workflowInfo, discoveryServiceClient,
-                                  metricsCollectionService, txSystemClient, programDatasetFramework,
-                                  getPluginArchive(options), pluginInstantiator, secureStore, secureStoreManager,
-                                  messagingService, metadataReader, metadataPublisher, namespaceQueryAdmin,
-                                  fieldLineageWriter, remoteClientFactory);
+          new BasicMapReduceContext(program, options, cConf, spec, workflowInfo,
+              discoveryServiceClient,
+              metricsCollectionService, txSystemClient, programDatasetFramework,
+              getPluginArchive(options), pluginInstantiator, secureStore, secureStoreManager,
+              messagingService, metadataReader, metadataPublisher, namespaceQueryAdmin,
+              fieldLineageWriter, remoteClientFactory, appStateStoreProvider);
       closeables.add(context);
 
       Reflections.visit(mapReduce, mapReduce.getClass(),
-                        new PropertyFieldSetter(context.getSpecification().getProperties()),
-                        new MetricsFieldSetter(context.getMetrics()),
-                        new DataSetFieldSetter(context));
+          new PropertyFieldSetter(context.getSpecification().getProperties()),
+          new MetricsFieldSetter(context.getMetrics()),
+          new DataSetFieldSetter(context));
 
       // note: this sets logging context on the thread level
       LoggingContextAccessor.setLoggingContext(context.getLoggingContext());
 
       // Set the job queue to hConf if it is provided
       Configuration hConf = new Configuration(this.hConf);
-      String schedulerQueue = options.getArguments().getOption(Constants.AppFabric.APP_SCHEDULER_QUEUE);
+      String schedulerQueue = options.getArguments()
+          .getOption(Constants.AppFabric.APP_SCHEDULER_QUEUE);
       if (schedulerQueue != null && !schedulerQueue.isEmpty()) {
         hConf.set(JobContext.QUEUE_NAME, schedulerQueue);
       }
 
-      ClusterMode clusterMode = ProgramRunners.getClusterMode(options);
-      Service mapReduceRuntimeService = new MapReduceRuntimeService(injector, cConf, hConf, mapReduce, spec,
-                                                                    context, program.getJarLocation(), locationFactory,
-                                                                    clusterMode, fieldLineageWriter);
-      mapReduceRuntimeService.addListener(createRuntimeServiceListener(closeables), Threads.SAME_THREAD_EXECUTOR);
+      hConf = setCustomMapReduceConfig(hConf, options.getArguments());
+      hConf = setCustomMapReduceConfig(hConf, options.getUserArguments());
 
-      ProgramController controller = new MapReduceProgramController(mapReduceRuntimeService, context);
+      ClusterMode clusterMode = ProgramRunners.getClusterMode(options);
+      Service mapReduceRuntimeService = new MapReduceRuntimeService(injector, cConf, hConf,
+          mapReduce, spec,
+          context, program.getJarLocation(), locationFactory,
+          clusterMode, fieldLineageWriter);
+      mapReduceRuntimeService.addListener(createRuntimeServiceListener(closeables),
+          Threads.SAME_THREAD_EXECUTOR);
+
+      ProgramController controller = new MapReduceProgramController(mapReduceRuntimeService,
+          context);
 
       LOG.debug("Starting MapReduce Job: {}", context);
       // if security is not enabled, start the job as the user we're using to access hdfs with.
@@ -226,5 +248,26 @@ public class MapReduceProgramRunner extends AbstractProgramRunnerWithPlugin {
       return null;
     }
     return new File(options.getArguments().getOption(ProgramOptionConstants.PLUGIN_ARCHIVE));
+  }
+
+  /**
+   * A method to apply any custom map reduce configuration passed in by user. This will override the default config by
+   * hadoop or map reduce.
+   * If a runtime argument is passed by the user prefixed by {@MAPREDUCE_CUSTOM_CONFIG_PREFIX} , then we add it to
+   * hConf. Which later will be taken as hadoop / map reduce configuration.
+   */
+  private Configuration setCustomMapReduceConfig(Configuration hConf, Arguments options) {
+    Map<String, String> systemArgs = options.asMap();
+    for (String name : systemArgs.keySet()) {
+      if (!name.startsWith(MAPREDUCE_CUSTOM_CONFIG_PREFIX)) {
+        continue;
+      }
+      String value = systemArgs.get(name);
+      String key = name.substring(MAPREDUCE_CUSTOM_CONFIG_PREFIX.length());
+      if (key != null && value != null) {
+        hConf.set(key, value);
+      }
+    }
+    return hConf;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017-2019 Cask Data, Inc.
+ * Copyright © 2017-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -43,15 +43,15 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.data.runtime.DataFabricModules;
 import io.cdap.cdap.data.runtime.DataSetsModules;
 import io.cdap.cdap.data.runtime.SystemDatasetRuntimeModule;
 import io.cdap.cdap.data2.dataset2.DatasetFramework;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.NoOpMetadataServiceClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.internal.app.runtime.schedule.constraint.ConstraintCodec;
 import io.cdap.cdap.internal.app.runtime.schedule.queue.Job;
 import io.cdap.cdap.internal.app.runtime.schedule.queue.JobQueue;
@@ -62,7 +62,7 @@ import io.cdap.cdap.internal.app.store.DefaultStore;
 import io.cdap.cdap.internal.schedule.constraint.Constraint;
 import io.cdap.cdap.logging.guice.KafkaLogAppenderModule;
 import io.cdap.cdap.messaging.data.MessageId;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.client.DefaultMessagingClientModule;
 import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.metrics.guice.MetricsStoreModule;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
@@ -72,36 +72,35 @@ import io.cdap.cdap.security.guice.SecureStoreServerModule;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
+import java.io.IOException;
+import java.util.List;
+import javax.annotation.Nullable;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.zookeeper.ZKClientService;
-
-import java.io.IOException;
-import java.util.List;
-import javax.annotation.Nullable;
 
 /**
  * Debugging tool for {@link JobQueue}.
  *
- * Because the JobQueue is scanned over multiple transactions, it will be an inconsistent view.
- * The same Job will not be counted multiple times, but some Jobs may be missed if they were deleted or added during
- * the scan. The count of the Job State may also be inconsistent.
+ * <p>Because the JobQueue is scanned over multiple transactions, it will be an inconsistent view.
+ * The same Job will not be counted multiple times, but some Jobs may be missed if they were deleted
+ * or added during the scan. The count of the Job State may also be inconsistent.
  *
- * The publish timestamp of the last message processed from the topics will also be inconsistent from the Jobs in the
- * JobQueue.
+ * <p>The publish timestamp of the last message processed from the topics will also be inconsistent
+ * from the Jobs in the JobQueue.
  */
 public class JobQueueDebugger extends AbstractIdleService {
 
   private static final Gson GSON = new GsonBuilder()
-    .registerTypeAdapter(Trigger.class, new TriggerCodec())
-    .registerTypeAdapter(SatisfiableTrigger.class, new TriggerCodec())
-    .registerTypeAdapter(Constraint.class, new ConstraintCodec())
-    .create();
+      .registerTypeAdapter(Trigger.class, new TriggerCodec())
+      .registerTypeAdapter(SatisfiableTrigger.class, new TriggerCodec())
+      .registerTypeAdapter(Constraint.class, new ConstraintCodec())
+      .create();
 
   private final ZKClientService zkClientService;
   private final TransactionRunner transactionRunner;
@@ -109,9 +108,16 @@ public class JobQueueDebugger extends AbstractIdleService {
 
   private JobQueueScanner jobQueueScanner;
 
+  /**
+   * Debugger for the job queue.
+   *
+   * @param cConf             The CConf to use.
+   * @param zkClientService   The ZK client service.
+   * @param transactionRunner The transaction runner.
+   */
   @Inject
   public JobQueueDebugger(CConfiguration cConf, ZKClientService zkClientService,
-                          TransactionRunner transactionRunner) {
+      TransactionRunner transactionRunner) {
     this.cConf = cConf;
     this.zkClientService = zkClientService;
     this.transactionRunner = transactionRunner;
@@ -150,6 +156,7 @@ public class JobQueueDebugger extends AbstractIdleService {
    * Scans over the JobQueueTable and collects statistics about the Jobs.
    */
   private static final class JobQueueScanner {
+
     private final CConfiguration cConf;
     private final TransactionRunner transactionRunner;
     private final int numPartitions;
@@ -167,12 +174,14 @@ public class JobQueueDebugger extends AbstractIdleService {
         System.out.println("Getting notification subscriber messageIds.");
         JobQueueTable jobQueue = JobQueueTable.getJobQueue(context, cConf);
         List<String> topics = ImmutableList.of(cConf.get(Constants.Scheduler.TIME_EVENT_TOPIC),
-                                               cConf.get(Constants.Dataset.DATA_EVENT_TOPIC));
+            cConf.get(Constants.Dataset.DATA_EVENT_TOPIC));
         for (String topic : topics) {
           String messageIdString = jobQueue.retrieveSubscriberState(topic);
           String publishTimestampString = messageIdString == null ? "n/a" :
-            Long.toString(new MessageId(Bytes.fromHexString(messageIdString)).getPublishTimestamp());
-          System.out.println(String.format("Topic: %s, Publish Timestamp: %s", topic, publishTimestampString));
+              Long.toString(
+                  new MessageId(Bytes.fromHexString(messageIdString)).getPublishTimestamp());
+          System.out.println(
+              String.format("Topic: %s, Publish Timestamp: %s", topic, publishTimestampString));
         }
       });
     }
@@ -209,7 +218,8 @@ public class JobQueueDebugger extends AbstractIdleService {
     }
 
     // returns true if there are more Jobs in the partitions
-    private boolean scanJobQueue(JobQueue jobQueue, int partition, JobStatistics jobStatistics) throws IOException {
+    private boolean scanJobQueue(JobQueue jobQueue, int partition, JobStatistics jobStatistics)
+        throws IOException {
       try (CloseableIterator<Job> jobs = jobQueue.getJobs(partition, lastJobConsumed)) {
         Stopwatch stopwatch = new Stopwatch().start();
         while (stopwatch.elapsedMillis() < 1000) {
@@ -237,9 +247,9 @@ public class JobQueueDebugger extends AbstractIdleService {
     @Nullable
     private Job newestJob;
 
-    private int pendingTrigger = 0;
-    private int pendingConstraint = 0;
-    private int pendingLaunch = 0;
+    private int pendingTrigger;
+    private int pendingConstraint;
+    private int pendingLaunch;
 
     JobStatistics() {
       this(false);
@@ -264,6 +274,10 @@ public class JobQueueDebugger extends AbstractIdleService {
         case PENDING_LAUNCH:
           pendingLaunch++;
           break;
+        default:
+          throw new IllegalStateException(String.format("Job '%s' in unexpected state %s",
+              job.getJobKey(),
+              job.getState().toString()));
       }
 
       updateOldestNewest(job);
@@ -291,13 +305,13 @@ public class JobQueueDebugger extends AbstractIdleService {
     }
 
     private String getReport() {
-      return String.format("Number of Jobs by state:\n" +
-                             "  Pending Trigger: %s\n" +
-                             "  Pending Constraint: %s\n" +
-                             "  Pending Launch: %s\n" +
-                             "  Total: %s\n",
-                           pendingTrigger, pendingConstraint, pendingLaunch,
-                           getTotal());
+      return String.format("Number of Jobs by state:\n"
+              + "  Pending Trigger: %s\n"
+              + "  Pending Constraint: %s\n"
+              + "  Pending Launch: %s\n"
+              + "  Total: %s\n",
+          pendingTrigger, pendingConstraint, pendingLaunch,
+          getTotal());
     }
 
     // updates this JobQueueStatistics with the results of the JobQueueStatistics passed in
@@ -315,49 +329,52 @@ public class JobQueueDebugger extends AbstractIdleService {
 
     CConfiguration cConf = CConfiguration.create();
     if (cConf.getBoolean(Constants.Security.Authorization.ENABLED)) {
-      System.out.println(String.format("Disabling authorization for %s.", JobQueueDebugger.class.getSimpleName()));
+      System.out.println(
+          String.format("Disabling authorization for %s.", JobQueueDebugger.class.getSimpleName()));
       cConf.setBoolean(Constants.Security.Authorization.ENABLED, false);
     }
     // Note: login has to happen before any objects that need Kerberos credentials are instantiated.
     SecurityUtil.loginForMasterService(cConf);
 
     return Guice.createInjector(
-      new ConfigModule(cConf, HBaseConfiguration.create()),
-      new IOModule(),
-      new ZKClientModule(),
-      new ZKDiscoveryModule(),
-      new DFSLocationModule(),
-      new TwillModule(),
-      new ExploreClientModule(),
-      new DataFabricModules().getDistributedModules(),
-      new DataSetsModules().getDistributedModules(),
-      new AppFabricServiceRuntimeModule(cConf).getDistributedModules(),
-      new ProgramRunnerRuntimeModule().getDistributedModules(),
-      new SystemDatasetRuntimeModule().getDistributedModules(),
-      new KafkaLogAppenderModule(),
-      new MetricsClientRuntimeModule().getDistributedModules(),
-      new MetricsStoreModule(),
-      new KafkaClientModule(),
-      CoreSecurityRuntimeModule.getDistributedModule(cConf),
-      new AuthenticationContextModules().getMasterModule(),
-      new AuthorizationModule(),
-      new AuthorizationEnforcementModule().getMasterModule(),
-      new SecureStoreServerModule(),
-      new MessagingClientModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(Store.class).annotatedWith(Names.named("defaultStore")).to(DefaultStore.class).in(Singleton.class);
+        new ConfigModule(cConf, new Configuration()),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new IOModule(),
+        new ZkClientModule(),
+        new ZkDiscoveryModule(),
+        new DFSLocationModule(),
+        new TwillModule(),
+        new DataFabricModules().getDistributedModules(),
+        new DataSetsModules().getDistributedModules(),
+        new AppFabricServiceRuntimeModule(cConf, AppFabricServiceRuntimeModule.ALL_SERVICE_TYPES)
+            .getDistributedModules(),
+        new ProgramRunnerRuntimeModule().getDistributedModules(),
+        new SystemDatasetRuntimeModule().getDistributedModules(),
+        new KafkaLogAppenderModule(),
+        new MetricsClientRuntimeModule().getDistributedModules(),
+        new MetricsStoreModule(),
+        new KafkaClientModule(),
+        CoreSecurityRuntimeModule.getDistributedModule(cConf),
+        new AuthenticationContextModules().getMasterModule(),
+        new AuthorizationModule(),
+        new AuthorizationEnforcementModule().getMasterModule(),
+        new SecureStoreServerModule(),
+        new DefaultMessagingClientModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(Store.class).annotatedWith(Names.named("defaultStore")).to(DefaultStore.class)
+                .in(Singleton.class);
 
-          // This is needed because the LocalApplicationManager
-          // expects a dsframework injection named datasetMDS
-          bind(DatasetFramework.class)
-            .annotatedWith(Names.named("datasetMDS"))
-            .to(DatasetFramework.class).in(Singleton.class);
-          // TODO (CDAP-14677): find a better way to inject metadata publisher
-          bind(MetadataServiceClient.class).to(NoOpMetadataServiceClient.class);
-        }
-      });
+            // This is needed because the LocalApplicationManager
+            // expects a dsframework injection named datasetMDS
+            bind(DatasetFramework.class)
+                .annotatedWith(Names.named("datasetMDS"))
+                .to(DatasetFramework.class).in(Singleton.class);
+            // TODO (CDAP-14677): find a better way to inject metadata publisher
+            bind(MetadataServiceClient.class).to(NoOpMetadataServiceClient.class);
+          }
+        });
   }
 
   @VisibleForTesting
@@ -365,11 +382,19 @@ public class JobQueueDebugger extends AbstractIdleService {
     return createInjector().getInstance(JobQueueDebugger.class);
   }
 
+  /**
+   * Entry point for the job queue debugger.
+   *
+   * @param args The arguments to the debugger.
+   * @throws Exception If something fails.
+   */
   public static void main(String[] args) throws Exception {
     Options options = new Options()
-      .addOption(new Option("h", "help", false, "Print this usage message."))
-      .addOption(new Option("p", "partition", true, "JobQueue partition to debug. Defaults to all partitions."))
-      .addOption(new Option("t", "trace", false, "Trace mode. Prints all of the jobs being debugged."));
+        .addOption(new Option("h", "help", false, "Print this usage message."))
+        .addOption(new Option("p", "partition", true,
+            "JobQueue partition to debug. Defaults to all partitions."))
+        .addOption(
+            new Option("t", "trace", false, "Trace mode. Prints all of the jobs being debugged."));
 
     CommandLineParser parser = new BasicParser();
     CommandLine commandLine = parser.parse(options, args);
@@ -379,9 +404,9 @@ public class JobQueueDebugger extends AbstractIdleService {
     if (commandLine.hasOption("h") || commandArgs.length != 0) {
       HelpFormatter helpFormatter = new HelpFormatter();
       helpFormatter.printHelp(
-        JobQueueDebugger.class.getName(),
-        "Scans the JobQueueTable and prints statistics about the Jobs in it.",
-        options, "");
+          JobQueueDebugger.class.getName(),
+          "Scans the JobQueueTable and prints statistics about the Jobs in it.",
+          options, "");
       System.exit(0);
     }
 

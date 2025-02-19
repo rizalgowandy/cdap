@@ -24,7 +24,6 @@ import io.cdap.cdap.api.data.batch.SplitReader;
 import io.cdap.cdap.api.dataset.lib.AbstractDataset;
 import io.cdap.cdap.api.dataset.lib.KeyValue;
 import io.cdap.cdap.api.dataset.lib.KeyValueTable;
-
 import java.lang.reflect.Type;
 import java.util.List;
 
@@ -32,7 +31,7 @@ import java.util.List;
  *
  */
 public class StandaloneDataset extends AbstractDataset
-  implements BatchReadable<byte[], byte[]>, RecordScannable<KeyValue<byte[], byte[]>> {
+    implements BatchReadable<byte[], byte[]>, RecordScannable<KeyValue<byte[], byte[]>> {
 
   public static final String TYPE_NAME = "standaloneType";
 

@@ -21,14 +21,14 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.proto.security.Credential;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
-
 import java.util.function.BiConsumer;
 
 /**
- * A class which sets internal authenticated headers for the remote client using an {@link AuthenticationContext} as
- * the source.
+ * A class which sets internal authenticated headers for the remote client using an {@link
+ * AuthenticationContext} as the source.
  */
 public class DefaultInternalAuthenticator implements InternalAuthenticator {
+
   private final AuthenticationContext authenticationContext;
 
   @Inject
@@ -47,8 +47,8 @@ public class DefaultInternalAuthenticator implements InternalAuthenticator {
     }
     if (internalCredentials != null) {
       headerSetter.accept(Constants.Security.Headers.RUNTIME_TOKEN,
-                          String.format("%s %s", internalCredentials.getType().getQualifiedName(),
-                                        internalCredentials.getValue()));
+          String.format("%s %s", internalCredentials.getType().getQualifiedName(),
+              internalCredentials.getValue()));
     }
     if (userID != null) {
       headerSetter.accept(Constants.Security.Headers.USER_ID, userID);

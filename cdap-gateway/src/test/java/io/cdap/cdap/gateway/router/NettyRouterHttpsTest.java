@@ -19,9 +19,13 @@ package io.cdap.cdap.gateway.router;
 import com.google.common.net.InetAddresses;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.ning.http.client.AsyncHttpClient;
+import com.ning.http.client.AsyncHttpClientConfig;
+import com.ning.http.client.providers.netty.NettyAsyncHttpProvider;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.encryption.NoOpAeadCipher;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.security.KeyStores;
 import io.cdap.cdap.common.security.KeyStoresTest;
@@ -31,18 +35,6 @@ import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
 import io.cdap.common.http.HttpRequests;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import org.apache.http.conn.ClientConnectionManager;
-import org.apache.http.conn.scheme.Scheme;
-import org.apache.http.conn.scheme.SchemeRegistry;
-import org.apache.http.conn.ssl.AllowAllHostnameVerifier;
-import org.apache.http.conn.ssl.SSLSocketFactory;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.BasicClientConnectionManager;
-import org.apache.twill.discovery.DiscoveryService;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
@@ -56,6 +48,17 @@ import java.util.Collection;
 import javax.net.SocketFactory;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.scheme.SchemeRegistry;
+import org.apache.http.conn.ssl.AllowAllHostnameVerifier;
+import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.BasicClientConnectionManager;
+import org.apache.twill.discovery.DiscoveryService;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * Tests Netty Router running on HTTPS.
@@ -68,9 +71,9 @@ public class NettyRouterHttpsTest extends NettyRouterTestBase {
 
   @Parameterized.Parameters(name = "{index}: NettyRouterHttpsTest(useKeyStore = {0})")
   public static Collection<Object[]> parameters() {
-    return Arrays.asList(new Object[][] {
-      {true},
-      {false}
+    return Arrays.asList(new Object[][]{
+        {true},
+        {false}
     });
   }
 
@@ -99,7 +102,7 @@ public class NettyRouterHttpsTest extends NettyRouterTestBase {
       sConf.set(Constants.Security.Router.SSL_KEYSTORE_PATH, keyStoreFile.getAbsolutePath());
     } else {
       File pemFile = KeyStoresTest.writePEMFile(TEMP_FOLDER.newFile(), keyStore,
-                                                keyStore.aliases().nextElement(), keyStorePass);
+          keyStore.aliases().nextElement(), keyStorePass);
       cConf.set(Constants.Security.Router.SSL_CERT_PATH, pemFile.getAbsolutePath());
       sConf.set(Constants.Security.Router.SSL_CERT_PASSWORD, keyStorePass);
     }
@@ -116,18 +119,19 @@ public class NettyRouterHttpsTest extends NettyRouterTestBase {
   }
 
   @Override
-  protected HttpURLConnection openURL(URL url) throws Exception {
+  protected HttpURLConnection openUrl(URL url) throws Exception {
     HttpsURLConnection urlConn = (HttpsURLConnection) url.openConnection();
     HttpRequests.disableCertCheck(urlConn);
     return urlConn;
   }
 
   @Override
-  protected DefaultHttpClient getHTTPClient() throws Exception {
+  protected DefaultHttpClient getHttpClient() throws Exception {
     SSLContext sslContext = SSLContext.getInstance("TLS");
 
     // set up a TrustManager that trusts everything
-    sslContext.init(null, InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), new SecureRandom());
+    sslContext
+        .init(null, InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), new SecureRandom());
 
     SSLSocketFactory sf = new SSLSocketFactory(sslContext, new AllowAllHostnameVerifier());
     Scheme httpsScheme = new Scheme("https", 10101, sf);
@@ -137,6 +141,22 @@ public class NettyRouterHttpsTest extends NettyRouterTestBase {
     // apache HttpClient version >4.2 should use BasicClientConnectionManager
     ClientConnectionManager cm = new BasicClientConnectionManager(schemeRegistry);
     return new DefaultHttpClient(cm);
+  }
+
+  @Override
+  protected AsyncHttpClient getAsyncHttpClient() throws Exception {
+    AsyncHttpClientConfig.Builder configBuilder = new AsyncHttpClientConfig.Builder();
+
+    // set up a TrustManager that trusts everything
+    SSLContext sslContext = SSLContext.getInstance("SSL");
+    sslContext.init(null, InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), new SecureRandom());
+    configBuilder.setHostnameVerifier((hostname, session) -> true).setSSLContext(sslContext);
+
+    final AsyncHttpClient asyncHttpClient = new AsyncHttpClient(
+      new NettyAsyncHttpProvider(configBuilder.build()),
+      configBuilder.build());
+
+    return asyncHttpClient;
   }
 
   @Override
@@ -156,7 +176,7 @@ public class NettyRouterHttpsTest extends NettyRouterTestBase {
     private NettyRouter router;
 
     private HttpsRouterService(CConfiguration cConf, SConfiguration sConf,
-                               String hostname, DiscoveryService discoveryService) {
+        String hostname, DiscoveryService discoveryService) {
       this.cConf = CConfiguration.copy(cConf);
       this.sConf = SConfiguration.copy(sConf);
       this.hostname = hostname;
@@ -166,18 +186,21 @@ public class NettyRouterHttpsTest extends NettyRouterTestBase {
     @Override
     protected void startUp() {
       Injector injector = Guice.createInjector(new CoreSecurityRuntimeModule().getInMemoryModules(),
-                                               new ExternalAuthenticationModule(),
-                                               new InMemoryDiscoveryModule(),
-                                               new AppFabricTestModule(cConf));
-      DiscoveryServiceClient discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
-      UserIdentityExtractor userIdentityExtractor = injector.getInstance(UserIdentityExtractor.class);
+          new ExternalAuthenticationModule(),
+          new InMemoryDiscoveryModule(),
+          new AppFabricTestModule(cConf));
+      DiscoveryServiceClient discoveryServiceClient = injector
+          .getInstance(DiscoveryServiceClient.class);
+      UserIdentityExtractor userIdentityExtractor = injector
+          .getInstance(UserIdentityExtractor.class);
       cConf.set(Constants.Router.ADDRESS, hostname);
 
       router =
-        new NettyRouter(cConf, sConf, InetAddresses.forString(hostname),
-                        new RouterServiceLookup(cConf, (DiscoveryServiceClient) discoveryService,
-                                                new RouterPathLookup()),
-                        new SuccessTokenValidator(), userIdentityExtractor, discoveryServiceClient);
+          new NettyRouter(cConf, sConf, InetAddresses.forString(hostname),
+              new RouterServiceLookup(cConf, (DiscoveryServiceClient) discoveryService,
+                  new RouterPathLookup()),
+              new SuccessTokenValidator(), userIdentityExtractor, discoveryServiceClient,
+              new NoOpAeadCipher());
       router.startAndWait();
     }
 

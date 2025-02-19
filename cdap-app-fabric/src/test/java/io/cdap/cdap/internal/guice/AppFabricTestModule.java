@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -27,14 +27,15 @@ import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.common.guice.NonCustomLocationUnitTestModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.twill.NoopTwillRunnerService;
 import io.cdap.cdap.config.guice.ConfigStoreModule;
 import io.cdap.cdap.data.runtime.DataFabricModules;
 import io.cdap.cdap.data.runtime.DataSetServiceModules;
 import io.cdap.cdap.data.runtime.DataSetsModules;
 import io.cdap.cdap.data.runtime.TransactionExecutorModule;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
 import io.cdap.cdap.internal.provision.MockProvisionerModule;
 import io.cdap.cdap.logging.guice.LocalLogAppenderModule;
 import io.cdap.cdap.logging.guice.LogQueryRuntimeModule;
@@ -47,11 +48,10 @@ import io.cdap.cdap.metrics.guice.MetricsHandlerModule;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.guice.SecureStoreServerModule;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.twill.api.TwillRunner;
-
 import java.io.File;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.twill.api.TwillRunner;
 
 /**
  *
@@ -88,10 +88,12 @@ public final class AppFabricTestModule extends AbstractModule {
     install(new TransactionExecutorModule());
     install(new DataSetServiceModules().getInMemoryModules());
     install(new ConfigModule(cConf, hConf, sConf));
+    install(RemoteAuthenticatorModules.getNoOpModule());
     install(new IOModule());
     install(new InMemoryDiscoveryModule());
-    install(new AppFabricServiceRuntimeModule(cConf).getInMemoryModules());
-    install(new MonitorHandlerModule(false));
+    install(new AppFabricServiceRuntimeModule(cConf, AppFabricServiceRuntimeModule.ALL_SERVICE_TYPES)
+        .getInMemoryModules());
+    install(new MonitorHandlerModule(false, cConf));
     install(new ProgramRunnerRuntimeModule().getInMemoryModules());
     install(new NonCustomLocationUnitTestModule());
     install(new LocalLogAppenderModule());
@@ -99,7 +101,6 @@ public final class AppFabricTestModule extends AbstractModule {
     install(new LogQueryRuntimeModule().getInMemoryModules());
     install(new MetricsHandlerModule());
     install(new MetricsClientRuntimeModule().getInMemoryModules());
-    install(new ExploreClientModule());
     install(new ConfigStoreModule());
     install(new MetadataServiceModule());
     install(new AuthenticationContextModules().getMasterModule());
@@ -109,6 +110,7 @@ public final class AppFabricTestModule extends AbstractModule {
     install(new MetadataReaderWriterModules().getInMemoryModules());
     install(new MessagingServerRuntimeModule().getInMemoryModules());
     install(new MockProvisionerModule());
+    install(new NoOpAuditLogModule());
     // Needed by MonitorHandlerModuler
     bind(TwillRunner.class).to(NoopTwillRunnerService.class);
   }

@@ -17,16 +17,15 @@
 package io.cdap.cdap.app.deploy;
 
 import com.google.common.util.concurrent.ListenableFuture;
-
 import java.util.concurrent.Callable;
 
 /**
- * This interface is used for defining the execution of configure either for distributed mode
- * or within a thread in a single node.
+ * This interface is used for defining the execution of configure either for distributed mode or
+ * within a thread in a single node.
  * <p/>
  * <p>
- * This interface extends from {@link Callable} with the intent that the callee is responsible for making
- * sure that this runs in a thread that is allowed to timeout the execution of configure.
+ * This interface extends from {@link Callable} with the intent that the callee is responsible for
+ * making sure that this runs in a thread that is allowed to timeout the execution of configure.
  * </p>
  */
 public interface Configurator {

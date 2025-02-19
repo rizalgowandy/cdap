@@ -18,7 +18,6 @@
 package io.cdap.cdap.etl.proto.connection;
 
 import io.cdap.cdap.etl.proto.CodedException;
-
 import java.net.HttpURLConnection;
 
 /**
@@ -28,7 +27,7 @@ public class ConnectionNotFoundException extends CodedException {
 
   public ConnectionNotFoundException(ConnectionId connection) {
     super(HttpURLConnection.HTTP_NOT_FOUND,
-          String.format("Connection '%s' in namespace '%s' not found.", connection.getConnection(),
-                        connection.getNamespace().getName()));
+        String.format("Connection '%s' in namespace '%s' not found.", connection.getConnection(),
+            connection.getNamespace().getName()));
   }
 }

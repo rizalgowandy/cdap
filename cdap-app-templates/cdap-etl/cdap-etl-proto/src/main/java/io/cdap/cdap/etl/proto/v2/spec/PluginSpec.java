@@ -22,7 +22,6 @@ import io.cdap.cdap.api.artifact.ArtifactId;
 import io.cdap.cdap.api.artifact.ArtifactScope;
 import io.cdap.cdap.api.artifact.ArtifactVersion;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -33,12 +32,13 @@ import java.util.Objects;
 /**
  * Specification for a plugin.
  *
- * This is like an {@link ETLPlugin}, but has additional attributes calculated at configure time of the application.
- * The spec contains the artifact selected for the plugin.
+ * This is like an {@link ETLPlugin}, but has additional attributes calculated at configure time of
+ * the application. The spec contains the artifact selected for the plugin.
  *
  * Implements Externalizable since ArtifactId is a CDAP class and is not Serializable.
  */
 public class PluginSpec implements Externalizable {
+
   private String type;
   private String name;
   private Map<String, String> properties;
@@ -82,10 +82,10 @@ public class PluginSpec implements Externalizable {
 
     PluginSpec that = (PluginSpec) o;
 
-    return Objects.equals(type, that.type) &&
-      Objects.equals(name, that.name) &&
-      Objects.equals(properties, that.properties) &&
-      Objects.equals(artifact, that.artifact);
+    return Objects.equals(type, that.type)
+        && Objects.equals(name, that.name)
+        && Objects.equals(properties, that.properties)
+        && Objects.equals(artifact, that.artifact);
   }
 
   @Override
@@ -95,12 +95,12 @@ public class PluginSpec implements Externalizable {
 
   @Override
   public String toString() {
-    return "PluginSpec{" +
-      "type='" + type + '\'' +
-      ", name='" + name + '\'' +
-      ", properties=" + properties +
-      ", artifact=" + artifact +
-      '}';
+    return "PluginSpec{"
+        + "type='" + type + '\''
+        + ", name='" + name + '\''
+        + ", properties=" + properties
+        + ", artifact=" + artifact
+        + '}';
   }
 
   @Override

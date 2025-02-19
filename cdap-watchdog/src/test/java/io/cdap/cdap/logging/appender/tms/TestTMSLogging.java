@@ -28,6 +28,7 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.metrics.NoOpMetricsCollectionService;
 import io.cdap.cdap.logging.appender.LogAppenderInitializer;
@@ -37,15 +38,23 @@ import io.cdap.cdap.logging.context.LoggingContextHelper;
 import io.cdap.cdap.logging.context.MapReduceLoggingContext;
 import io.cdap.cdap.logging.filter.Filter;
 import io.cdap.cdap.logging.serialize.LoggingEventSerializer;
-import io.cdap.cdap.messaging.MessageFetcher;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.TopicMetadata;
-import io.cdap.cdap.messaging.data.RawMessage;
+import io.cdap.cdap.messaging.DefaultMessageFetchRequest;
+import io.cdap.cdap.messaging.DefaultTopicMetadata;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.RawMessage;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
 import io.cdap.cdap.test.SlowTests;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.tephra.TxConstants;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -56,14 +65,6 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Test for logging to TMS via {@link TMSLogAppender}.
@@ -92,7 +93,9 @@ public class TestTMSLogging {
     Injector injector = Guice.createInjector(
       new ConfigModule(cConf),
       new InMemoryDiscoveryModule(),
+      new AuthorizationEnforcementModule().getNoOpModules(),
       new MessagingServerRuntimeModule().getInMemoryModules(),
+      new NoOpAuditLogModule(),
       new AbstractModule() {
         @Override
         protected void configure() {
@@ -111,7 +114,7 @@ public class TestTMSLogging {
       topicIds.put(i, NamespaceId.SYSTEM.topic(topicPrefic + i));
     }
     for (TopicId topicId : topicIds.values()) {
-      client.createTopic(new TopicMetadata(topicId));
+      client.createTopic(new DefaultTopicMetadata(topicId));
     }
   }
 
@@ -131,7 +134,8 @@ public class TestTMSLogging {
     Logger logger = LoggerFactory.getLogger("TestTMSLogging");
     LoggingTester loggingTester = new LoggingTester();
 
-    LoggingContext loggingContext = new MapReduceLoggingContext("TKL_NS_1", "APP_1", "MR_1", "RUN1");
+    LoggingContext loggingContext =
+        new MapReduceLoggingContext("TKL_NS_1", "APP_1", "MR_1", "RUN1");
     loggingTester.generateLogs(logger, loggingContext);
 
     logAppenderInitializer.close();
@@ -144,11 +148,13 @@ public class TestTMSLogging {
 
     for (Map.Entry<Integer, TopicId> topicId : topicIds.entrySet()) {
       List<ILoggingEvent> fetchedLogs = new ArrayList<>();
-      MessageFetcher messageFetcher = client.prepareFetch(topicId.getValue());
-      try (CloseableIterator<RawMessage> messages = messageFetcher.fetch()) {
+      try (CloseableIterator<RawMessage> messages =
+          client.fetch(
+              new DefaultMessageFetchRequest.Builder().setTopicId(topicId.getValue()).build())) {
         while (messages.hasNext()) {
           RawMessage message = messages.next();
-          ILoggingEvent iLoggingEvent = loggingEventSerializer.fromBytes(ByteBuffer.wrap(message.getPayload()));
+          ILoggingEvent iLoggingEvent =
+              loggingEventSerializer.fromBytes(ByteBuffer.wrap(message.getPayload()));
           fetchedLogs.add(iLoggingEvent);
         }
       }
@@ -176,7 +182,8 @@ public class TestTMSLogging {
 
     for (int i = 0; i < filteredLogs.size(); i++) {
       ILoggingEvent loggingEvent = filteredLogs.get(i);
-      Assert.assertEquals(String.format("Test log message %s arg1 arg2", i), loggingEvent.getFormattedMessage());
+      Assert.assertEquals(
+          String.format("Test log message %s arg1 arg2", i), loggingEvent.getFormattedMessage());
     }
   }
 }

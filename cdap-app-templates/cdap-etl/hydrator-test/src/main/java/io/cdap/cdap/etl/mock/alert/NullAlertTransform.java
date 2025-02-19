@@ -27,17 +27,17 @@ import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.StageConfigurer;
 import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Checks if a particular field is null, emitting that record as an alert if so. Otherwise passes records on
- * exactly as they came in.
+ * Checks if a particular field is null, emitting that record as an alert if so. Otherwise passes
+ * records on exactly as they came in.
  */
 @Plugin(type = Transform.PLUGIN_TYPE)
 @Name(NullAlertTransform.NAME)
 public class NullAlertTransform extends Transform<StructuredRecord, StructuredRecord> {
+
   public static final String NAME = "NullAlert";
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   private final Conf conf;
@@ -53,7 +53,8 @@ public class NullAlertTransform extends Transform<StructuredRecord, StructuredRe
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     if (input.get(conf.field) == null) {
       emitter.emitAlert(new HashMap<String, String>());
     } else {
@@ -65,6 +66,7 @@ public class NullAlertTransform extends Transform<StructuredRecord, StructuredRe
    * Config for plugin
    */
   public static class Conf extends PluginConfig {
+
     private String field;
   }
 
@@ -78,7 +80,8 @@ public class NullAlertTransform extends Transform<StructuredRecord, StructuredRe
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("field", new PluginPropertyField("field", "", "string", true, false));
     return PluginClass.builder().setName(NAME).setType(Transform.PLUGIN_TYPE)
-             .setDescription("").setClassName(NullAlertTransform.class.getName()).setProperties(properties)
-             .setConfigFieldName("conf").build();
+        .setDescription("").setClassName(NullAlertTransform.class.getName())
+        .setProperties(properties)
+        .setConfigFieldName("conf").build();
   }
 }

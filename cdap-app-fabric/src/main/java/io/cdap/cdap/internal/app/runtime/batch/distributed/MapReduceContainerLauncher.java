@@ -18,17 +18,17 @@ package io.cdap.cdap.internal.app.runtime.batch.distributed;
 
 import io.cdap.cdap.common.app.MainClassLoader;
 import io.cdap.cdap.common.lang.ClassLoaders;
+import io.cdap.cdap.common.lang.ClassPathResources;
 import io.cdap.cdap.common.logging.common.UncaughtExceptionHandler;
 import io.cdap.cdap.internal.app.runtime.batch.MapReduceClassLoader;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
-
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * The class launches MR container (AM or Task). The {@link #launch(String, String[])}} method is
@@ -39,16 +39,18 @@ public class MapReduceContainerLauncher {
   private static final Logger LOG = LoggerFactory.getLogger(MapReduceContainerLauncher.class);
 
   /**
-   * Launches the given main class. The main class will be loaded through the {@link MapReduceClassLoader}.
+   * Launches the given main class. The main class will be loaded through the {@link
+   * MapReduceClassLoader}.
    *
    * @param mainClassName the main class to launch
-   * @param args          arguments for the main class
+   * @param args arguments for the main class
    */
   @SuppressWarnings("unused")
   public static void launch(String mainClassName, String[] args) throws Exception {
     Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler());
     ClassLoader systemClassLoader = ClassLoader.getSystemClassLoader();
-    List<URL> urls = ClassLoaders.getClassLoaderURLs(systemClassLoader, new ArrayList<>());
+    Set<URL> urls = new LinkedHashSet<>();
+    urls.addAll(ClassPathResources.getClasspathUrls());
 
     // Remove the URL that contains the given main classname to avoid infinite recursion.
     // This is needed because we generate a class with the same main classname in order to intercept the main()
@@ -58,19 +60,21 @@ public class MapReduceContainerLauncher {
       throw new IllegalStateException("Failed to find resource for main class " + mainClassName);
     }
 
-    if (!urls.remove(ClassLoaders.getClassPathURL(mainClassName, resource))) {
-      throw new IllegalStateException("Failed to remove main class resource " + resource);
+    URL urlByClass = getURLByClass(systemClassLoader, mainClassName);
+    if (!urls.remove(urlByClass)) {
+      throw new Exception("Failed to remove url " + urlByClass + " for class " + mainClassName);
     }
 
     // Create a MainClassLoader for dataset rewrite
     URL[] classLoaderUrls = urls.toArray(new URL[urls.size()]);
-    ClassLoader mainClassLoader = new MainClassLoader(classLoaderUrls, systemClassLoader.getParent());
+    ClassLoader mainClassLoader = new MainClassLoader(classLoaderUrls,
+        systemClassLoader.getParent());
 
     // Install the JUL to SLF4J Bridge
     try {
       mainClassLoader.loadClass(SLF4JBridgeHandler.class.getName())
-        .getDeclaredMethod("install")
-        .invoke(null);
+          .getDeclaredMethod("install")
+          .invoke(null);
     } catch (Exception e) {
       // Log the error and continue
       LOG.warn("Failed to invoke SLF4JBridgeHandler.install() required for jul-to-slf4j bridge", e);
@@ -80,8 +84,9 @@ public class MapReduceContainerLauncher {
 
     // Creates the MapReduceClassLoader. It has to be loaded from the MainClassLoader.
     try {
-      final ClassLoader classLoader = (ClassLoader) mainClassLoader.loadClass(MapReduceClassLoader.class.getName())
-        .newInstance();
+      final ClassLoader classLoader = (ClassLoader) mainClassLoader.loadClass(
+              MapReduceClassLoader.class.getName())
+          .newInstance();
       Runtime.getRuntime().addShutdownHook(new Thread() {
         @Override
         public void run() {
@@ -103,8 +108,8 @@ public class MapReduceContainerLauncher {
       classLoader.getClass().getDeclaredMethod("getTaskContextProvider").invoke(classLoader);
       // Invoke StandardOutErrorRedirector.redirectToLogger()
       classLoader.loadClass("io.cdap.cdap.common.logging.StandardOutErrorRedirector")
-        .getDeclaredMethod("redirectToLogger", String.class)
-        .invoke(null, mainClassName);
+          .getDeclaredMethod("redirectToLogger", String.class)
+          .invoke(null, mainClassName);
 
       Class<?> mainClass = classLoader.loadClass(mainClassName);
       Method mainMethod = mainClass.getMethod("main", String[].class);
@@ -115,9 +120,18 @@ public class MapReduceContainerLauncher {
       LOG.info("Main method returned {}", mainClassName);
     } catch (Throwable t) {
       // print to System.err since the logger may not have been redirected yet
-      System.err.println(String.format("Exception raised when calling %s.main(String[]) method", mainClassName));
+      System.err.println(
+          String.format("Exception raised when calling %s.main(String[]) method", mainClassName));
       t.printStackTrace();
       throw t;
     }
+  }
+  
+  private static URL getURLByClass(ClassLoader classLoader, String className) {
+    URL resource = classLoader.getResource(className.replace('.', '/') + ".class");
+    if (resource == null) {
+      throw new IllegalStateException("Failed to find .class file resource for class " + className);
+    }
+    return ClassLoaders.getClassPathURL(className, resource);
   }
 }

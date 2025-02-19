@@ -24,7 +24,6 @@ import io.cdap.cdap.internal.app.runtime.SimpleProgramOptions;
 import io.cdap.cdap.proto.Notification;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ProgramRunId;
-
 import java.lang.reflect.Type;
 import java.util.Collections;
 import java.util.Map;
@@ -33,6 +32,7 @@ import java.util.Map;
  * Represents options for a program execution.
  */
 public interface ProgramOptions {
+
   /**
    * Returns the unique identifier for a program.
    */
@@ -54,27 +54,28 @@ public interface ProgramOptions {
   boolean isDebug();
 
   /**
-   * Decodes {@link ProgramOptions} from a {@link Notification} object, based on the
-   * {@link Notification.Type#PROGRAM_STATUS} type.
+   * Decodes {@link ProgramOptions} from a {@link Notification} object, based on the {@link
+   * Notification.Type#PROGRAM_STATUS} type.
    */
   static ProgramOptions fromNotification(Notification notification, Gson gson) {
     Map<String, String> properties = notification.getProperties();
     ProgramId programId = gson.fromJson(properties.get(ProgramOptionConstants.PROGRAM_RUN_ID),
-                                        ProgramRunId.class).getParent();
+        ProgramRunId.class).getParent();
 
     String userArgumentsString = properties.get(ProgramOptionConstants.USER_OVERRIDES);
     String systemArgumentsString = properties.get(ProgramOptionConstants.SYSTEM_OVERRIDES);
     String debugString = properties.get(ProgramOptionConstants.DEBUG_ENABLED);
 
-    Type stringStringMap = new TypeToken<Map<String, String>>() { }.getType();
+    Type stringStringMap = new TypeToken<Map<String, String>>() {
+    }.getType();
 
     boolean debug = Boolean.parseBoolean(debugString);
-    Map<String, String> userArguments = userArgumentsString == null ?
-      Collections.emptyMap() : gson.fromJson(userArgumentsString, stringStringMap);
-    Map<String, String> systemArguments = systemArgumentsString == null ?
-      Collections.emptyMap() : gson.fromJson(systemArgumentsString, stringStringMap);
+    Map<String, String> userArguments = userArgumentsString == null
+        ? Collections.emptyMap() : gson.fromJson(userArgumentsString, stringStringMap);
+    Map<String, String> systemArguments = systemArgumentsString == null
+        ? Collections.emptyMap() : gson.fromJson(systemArgumentsString, stringStringMap);
 
     return new SimpleProgramOptions(programId, new BasicArguments(systemArguments),
-                                    new BasicArguments(userArguments), debug);
+        new BasicArguments(userArguments), debug);
   }
 }

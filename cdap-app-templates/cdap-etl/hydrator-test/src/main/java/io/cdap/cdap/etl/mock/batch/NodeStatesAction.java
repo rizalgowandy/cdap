@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.mock.batch;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.dataset.table.Put;
@@ -28,10 +27,8 @@ import io.cdap.cdap.api.plugin.PluginPropertyField;
 import io.cdap.cdap.api.workflow.WorkflowNodeState;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.batch.BatchActionContext;
-import io.cdap.cdap.etl.api.batch.BatchSource;
 import io.cdap.cdap.etl.api.batch.PostAction;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,7 +67,8 @@ public class NodeStatesAction extends PostAction {
   }
 
   public static ETLPlugin getPlugin(String tableName) {
-    return new ETLPlugin("TokenWriter", PostAction.PLUGIN_TYPE, ImmutableMap.of("tableName", tableName), null);
+    return new ETLPlugin("TokenWriter", PostAction.PLUGIN_TYPE,
+        ImmutableMap.of("tableName", tableName), null);
   }
 
   private static PluginClass getPluginClass() {
@@ -78,19 +76,20 @@ public class NodeStatesAction extends PostAction {
     properties.put("tableName", new PluginPropertyField("tableName", "", "string", true, false));
 
     return PluginClass.builder()
-      .setName(NodeStatesAction.NAME)
-      .setType(PostAction.PLUGIN_TYPE)
-      .setDescription("")
-      .setClassName(NodeStatesAction.class.getName())
-      .setProperties(properties)
-      .setConfigFieldName("conf")
-      .build();
+        .setName(NodeStatesAction.NAME)
+        .setType(PostAction.PLUGIN_TYPE)
+        .setDescription("")
+        .setClassName(NodeStatesAction.class.getName())
+        .setProperties(properties)
+        .setConfigFieldName("conf")
+        .build();
   }
 
   /**
    * Conf for the token writer.
    */
   public static class Conf extends PluginConfig {
+
     private String tableName;
   }
 }

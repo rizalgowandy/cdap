@@ -17,27 +17,6 @@
 package io.cdap.cdap.common.security;
 
 import com.google.common.hash.Hashing;
-import org.apache.twill.filesystem.Location;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.X509v3CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
-import org.bouncycastle.crypto.util.PrivateKeyFactory;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMEncryptedKeyPair;
-import org.bouncycastle.openssl.PEMKeyPair;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.openssl.bc.BcPEMDecryptorProvider;
-import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,10 +40,30 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.apache.twill.filesystem.Location;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
+import org.bouncycastle.crypto.util.PrivateKeyFactory;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMEncryptedKeyPair;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.bc.BcPEMDecryptorProvider;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder;
+import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
+import org.bouncycastle.operator.OperatorCreationException;
+import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
 
 /**
- * Utility class with methods for generating a X.509 self signed certificate
- * and creating a Java key store with a self signed certificate.
+ * Utility class with methods for generating a X.509 self signed certificate and creating a Java key
+ * store with a self signed certificate.
  */
 public final class KeyStores {
 
@@ -94,7 +93,8 @@ public final class KeyStores {
   private static final int KEY_SIZE = 2048;
 
   /* private constructor */
-  private KeyStores() {}
+  private KeyStores() {
+  }
 
   /**
    * Create a Java key store with a stored self-signed certificate.
@@ -106,20 +106,23 @@ public final class KeyStores {
   public static KeyStore generatedCertKeyStore(int validityDays, String password) {
     try {
       KeyPairGenerator keyGen = KeyPairGenerator.getInstance(KEY_PAIR_ALGORITHM);
-      SecureRandom random = SecureRandom.getInstance(SECURE_RANDOM_ALGORITHM, SECURE_RANDOM_PROVIDER);
+      SecureRandom random = SecureRandom.getInstance(SECURE_RANDOM_ALGORITHM,
+          SECURE_RANDOM_PROVIDER);
       keyGen.initialize(KEY_SIZE, random);
       // generate a key pair
       KeyPair pair = keyGen.generateKeyPair();
 
-      Certificate cert = getCertificate(DISTINGUISHED_NAME, pair, validityDays, SIGNATURE_ALGORITHM);
+      Certificate cert = getCertificate(DISTINGUISHED_NAME, pair, validityDays,
+          SIGNATURE_ALGORITHM);
 
       KeyStore keyStore = KeyStore.getInstance(SSL_KEYSTORE_TYPE);
       keyStore.load(null, password.toCharArray());
       keyStore.setKeyEntry(CERT_ALIAS, pair.getPrivate(), password.toCharArray(),
-                           new java.security.cert.Certificate[]{cert});
+          new java.security.cert.Certificate[]{cert});
       return keyStore;
     } catch (Exception e) {
-      throw new RuntimeException("Failed to generate a new keystore with self signed certificate.", e);
+      throw new RuntimeException("Failed to generate a new keystore with self signed certificate.",
+          e);
     }
   }
 
@@ -137,10 +140,12 @@ public final class KeyStores {
 
     BouncyCastleProvider provider = new BouncyCastleProvider();
     JcaPEMKeyConverter keyConverter = new JcaPEMKeyConverter().setProvider(provider);
-    JcaX509CertificateConverter certConverter = new JcaX509CertificateConverter().setProvider(provider);
+    JcaX509CertificateConverter certConverter = new JcaX509CertificateConverter().setProvider(
+        provider);
     char[] passPhase = password.toCharArray();
 
-    try (PEMParser parser = new PEMParser(Files.newBufferedReader(certificatePath, StandardCharsets.ISO_8859_1))) {
+    try (PEMParser parser = new PEMParser(
+        Files.newBufferedReader(certificatePath, StandardCharsets.ISO_8859_1))) {
       Object obj = parser.readObject();
       while (obj != null) {
         // Decrypt the key block if it is encrypted
@@ -165,7 +170,8 @@ public final class KeyStores {
 
       KeyStore keyStore = KeyStore.getInstance(SSL_KEYSTORE_TYPE);
       keyStore.load(null, passPhase);
-      keyStore.setKeyEntry(CERT_ALIAS, privateKey, passPhase, certificates.toArray(new Certificate[0]));
+      keyStore.setKeyEntry(CERT_ALIAS, privateKey, passPhase,
+          certificates.toArray(new Certificate[0]));
       return keyStore;
     } catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException e) {
       throw new RuntimeException("Failed to create keystore from PEM file " + certificatePath, e);
@@ -173,7 +179,8 @@ public final class KeyStores {
   }
 
   /**
-   * Creates a new trust store that contains all the public certificates from the given {@link KeyStore}.
+   * Creates a new trust store that contains all the public certificates from the given {@link
+   * KeyStore}.
    *
    * @param keyStore the {@link KeyStore} for extracting public certificates
    * @return a new instance of {@link KeyStore} that only contains public certificates
@@ -196,7 +203,8 @@ public final class KeyStores {
   }
 
   /**
-   * Loads a {@link KeyStore} from the given {@link Location} with keystore type {@link KeyStores#SSL_KEYSTORE_TYPE}.
+   * Loads a {@link KeyStore} from the given {@link Location} with keystore type {@link
+   * KeyStores#SSL_KEYSTORE_TYPE}.
    *
    * @param location the {@link Location} to read the serialized {@link KeyStore}
    * @return a new instance of {@link KeyStore}.
@@ -204,7 +212,7 @@ public final class KeyStores {
    * @throws GeneralSecurityException if failed to construct the {@link KeyStore}.
    */
   public static KeyStore load(Location location,
-                              Supplier<String> keystorePassSupplier) throws IOException, GeneralSecurityException {
+      Supplier<String> keystorePassSupplier) throws IOException, GeneralSecurityException {
     KeyStore ks = KeyStore.getInstance(KeyStores.SSL_KEYSTORE_TYPE);
     try (InputStream is = location.getInputStream()) {
       ks.load(is, keystorePassSupplier.get().toCharArray());
@@ -234,14 +242,15 @@ public final class KeyStores {
   /**
    * Generate an X.509 certificate
    *
-   * @param dn Distinguished name for the owner of the certificate, it will also be the signer of the certificate.
+   * @param dn Distinguished name for the owner of the certificate, it will also be the signer
+   *     of the certificate.
    * @param pair Key pair used for signing the certificate.
    * @param days Validity of the certificate.
    * @param algorithm Name of the signature algorithm used.
    * @return A X.509 certificate
    */
   private static Certificate getCertificate(String dn, KeyPair pair, int days, String algorithm)
-    throws IOException, OperatorCreationException, CertificateException {
+      throws IOException, OperatorCreationException, CertificateException {
 
     BouncyCastleProvider provider = new BouncyCastleProvider();
 
@@ -255,14 +264,16 @@ public final class KeyStores {
     X500Name owner = new X500Name(dn);
     // Create an info objects with the provided information, which will be used to create the certificate
 
-    SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(pair.getPublic().getEncoded());
-    AsymmetricKeyParameter privateKeyParam = PrivateKeyFactory.createKey(pair.getPrivate().getEncoded());
+    SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(
+        pair.getPublic().getEncoded());
+    AsymmetricKeyParameter privateKeyParam = PrivateKeyFactory.createKey(
+        pair.getPrivate().getEncoded());
     AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find(algorithm);
     AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
     ContentSigner signer = new BcRSAContentSignerBuilder(sigAlgId, digAlgId).build(privateKeyParam);
 
     X509CertificateHolder certHolder = new X509v3CertificateBuilder(owner, sn, from, to,
-                                                                    owner, publicKeyInfo).build(signer);
+        owner, publicKeyInfo).build(signer);
     return new JcaX509CertificateConverter().setProvider(provider).getCertificate(certHolder);
   }
 }

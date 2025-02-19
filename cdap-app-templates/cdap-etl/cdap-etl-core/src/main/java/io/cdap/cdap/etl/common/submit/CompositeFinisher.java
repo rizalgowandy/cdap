@@ -17,15 +17,15 @@
 package io.cdap.cdap.etl.common.submit;
 
 import io.cdap.cdap.etl.api.batch.BatchConfigurable;
-
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A finisher of one or more {@link BatchConfigurable BatchConfigurables}.
- * If any of them throws an exception, the exception will be logged before moving on to finish the other objects.
+ * A finisher of one or more {@link BatchConfigurable BatchConfigurables}. If any of them throws an
+ * exception, the exception will be logged before moving on to finish the other objects.
  */
 public class CompositeFinisher implements Finisher {
+
   private final List<Finisher> finishers;
 
   public CompositeFinisher(List<Finisher> finishers) {

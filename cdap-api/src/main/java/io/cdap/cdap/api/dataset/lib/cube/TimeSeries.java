@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.dataset.lib.cube;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -29,11 +28,13 @@ import java.util.Objects;
  */
 @Beta
 public final class TimeSeries {
+
   private final String measureName;
   private final Map<String, String> dimensionValues;
   private final List<TimeValue> timeValues;
 
-  public TimeSeries(String measureName, Map<String, String> dimensionValues, List<TimeValue> timeValues) {
+  public TimeSeries(String measureName, Map<String, String> dimensionValues,
+      List<TimeValue> timeValues) {
     this.measureName = measureName;
     this.dimensionValues = Collections.unmodifiableMap(new HashMap<>(dimensionValues));
     this.timeValues = Collections.unmodifiableList(timeValues);
@@ -62,9 +63,9 @@ public final class TimeSeries {
 
     TimeSeries that = (TimeSeries) o;
 
-    return Objects.equals(measureName, that.measureName) &&
-      Objects.equals(dimensionValues, that.dimensionValues) &&
-      Objects.equals(timeValues, that.timeValues);
+    return Objects.equals(measureName, that.measureName)
+        && Objects.equals(dimensionValues, that.dimensionValues)
+        && Objects.equals(timeValues, that.timeValues);
   }
 
   @Override

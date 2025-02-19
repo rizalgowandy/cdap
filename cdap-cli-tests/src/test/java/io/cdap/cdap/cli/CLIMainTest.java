@@ -17,7 +17,6 @@
 package io.cdap.cdap.cli;
 
 import io.cdap.cdap.client.ProgramClient;
-import io.cdap.cdap.client.QueryClient;
 import io.cdap.cdap.client.app.FakeApp;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.test.XSlowTests;
@@ -33,7 +32,6 @@ import org.junit.experimental.categories.Category;
 public class CLIMainTest extends CLITestBase {
 
   private static ProgramClient programClient;
-  private static QueryClient queryClient;
   private static CLIConfig cliConfig;
   private static CLIMain cliMain;
   private static CLI cli;
@@ -45,7 +43,6 @@ public class CLIMainTest extends CLITestBase {
                                                     true, true, false);
     cliMain = new CLIMain(launchOptions, cliConfig);
     programClient = new ProgramClient(cliConfig.getClientConfig());
-    queryClient = new QueryClient(cliConfig.getClientConfig());
 
     cli = cliMain.getCLI();
 
@@ -55,9 +52,8 @@ public class CLIMainTest extends CLITestBase {
   @AfterClass
   public static void tearDownClass() throws Exception {
     programClient.stopAll(NamespaceId.DEFAULT);
+    // Introduced in LCM: Deletion of app - removes all it's versions
     testCommandOutputContains(cli, "delete app " + FakeApp.NAME, "Successfully deleted app");
-    testCommandOutputContains(cli, String.format("delete app %s version %s", FakeApp.NAME, V1_SNAPSHOT),
-                              "Successfully deleted app");
   }
 
   @Override
@@ -78,10 +74,5 @@ public class CLIMainTest extends CLITestBase {
   @Override
   CLIConfig getCliConfig() {
     return cliConfig;
-  }
-
-  @Override
-  QueryClient getQueryClient() {
-    return queryClient;
   }
 }

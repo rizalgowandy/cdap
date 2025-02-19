@@ -24,6 +24,7 @@ import com.google.inject.Injector;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
+import io.cdap.cdap.common.encryption.NoOpAeadCipher;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.utils.Networks;
 import io.cdap.cdap.internal.guice.AppFabricTestModule;
@@ -34,13 +35,6 @@ import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.apache.twill.discovery.DiscoveryService;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -50,11 +44,20 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import org.apache.twill.discovery.DiscoveryService;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
 
 /**
  * TODO: Eventually this can be removed, since we do not have any proxy rules anymore for datasets.
  */
+@Ignore
 public class RoutingToDataSetsTest {
+
   private static NettyRouter nettyRouter;
   private static MockHttpService mockService;
   private static int port;
@@ -63,12 +66,13 @@ public class RoutingToDataSetsTest {
   public static void before() throws Exception {
     CConfiguration cConf = CConfiguration.create();
     Injector injector = Guice.createInjector(new CoreSecurityRuntimeModule().getInMemoryModules(),
-                                             new ExternalAuthenticationModule(),
-                                             new InMemoryDiscoveryModule(),
-                                             new AppFabricTestModule(cConf));
+        new ExternalAuthenticationModule(),
+        new InMemoryDiscoveryModule(),
+        new AppFabricTestModule(cConf));
 
     // Starting router
-    DiscoveryServiceClient discoveryServiceClient = injector.getInstance(DiscoveryServiceClient.class);
+    DiscoveryServiceClient discoveryServiceClient = injector
+        .getInstance(DiscoveryServiceClient.class);
     UserIdentityExtractor userIdentityExtractor = injector.getInstance(UserIdentityExtractor.class);
 
     SConfiguration sConf = SConfiguration.create();
@@ -77,14 +81,15 @@ public class RoutingToDataSetsTest {
 
     cConf.setInt(Constants.Router.ROUTER_PORT, port);
     nettyRouter = new NettyRouter(cConf, sConf, InetAddresses.forString("127.0.0.1"),
-                                  new RouterServiceLookup(cConf, discoveryServiceClient, new RouterPathLookup()),
-                                  new SuccessTokenValidator(), userIdentityExtractor, discoveryServiceClient);
+        new RouterServiceLookup(cConf, discoveryServiceClient, new RouterPathLookup()),
+        new SuccessTokenValidator(), userIdentityExtractor, discoveryServiceClient,
+        new NoOpAeadCipher());
     nettyRouter.startAndWait();
 
     // Starting mock DataSet service
     DiscoveryService discoveryService = injector.getInstance(DiscoveryService.class);
     mockService = new MockHttpService(discoveryService, Constants.Service.DATASET_MANAGER,
-                                      new MockDatasetTypeHandler(), new MockDatasetInstanceHandler());
+        new MockDatasetTypeHandler(), new MockDatasetInstanceHandler());
     mockService.startAndWait();
   }
 
@@ -100,26 +105,31 @@ public class RoutingToDataSetsTest {
   @Test
   public void testTypeHandlerRequests() throws Exception {
     Assert.assertEquals("listModules", doRequest("/namespaces/myspace/data/modules", "GET"));
-    Assert.assertEquals("post:myModule", doRequest("/namespaces/myspace/data/modules/myModule", "POST"));
-    Assert.assertEquals("delete:myModule", doRequest("/namespaces/myspace/data/modules/myModule", "DELETE"));
-    Assert.assertEquals("get:myModule", doRequest("/namespaces/myspace/data/modules/myModule", "GET"));
+    Assert.assertEquals("post:myModule",
+        doRequest("/namespaces/myspace/data/modules/myModule", "POST"));
+    Assert.assertEquals("delete:myModule",
+        doRequest("/namespaces/myspace/data/modules/myModule", "DELETE"));
+    Assert.assertEquals("get:myModule",
+        doRequest("/namespaces/myspace/data/modules/myModule", "GET"));
     Assert.assertEquals("listTypes", doRequest("/namespaces/myspace/data/types", "GET"));
-    Assert.assertEquals("getType:myType", doRequest("/namespaces/myspace/data/types/myType", "GET"));
+    Assert
+        .assertEquals("getType:myType", doRequest("/namespaces/myspace/data/types/myType", "GET"));
   }
 
   @Test
   public void testInstanceHandlerRequests() throws Exception {
     Assert.assertEquals("list", doRequest("/namespaces/myspace/data/datasets", "GET"));
     Assert.assertEquals("post:myInstance",
-                        doRequest("/namespaces/myspace/data/datasets/myInstance", "POST"));
+        doRequest("/namespaces/myspace/data/datasets/myInstance", "POST"));
     Assert.assertEquals("delete:myInstance",
-                        doRequest("/namespaces/myspace/data/datasets/myInstance", "DELETE"));
+        doRequest("/namespaces/myspace/data/datasets/myInstance", "DELETE"));
     Assert.assertEquals("get:myInstance",
-                        doRequest("/namespaces/myspace/data/datasets/myInstance", "GET"));
+        doRequest("/namespaces/myspace/data/datasets/myInstance", "GET"));
   }
 
   @Path(Constants.Gateway.API_VERSION_3 + "/namespaces/{namespace-id}")
   public static final class MockDatasetTypeHandler extends AbstractHttpHandler {
+
     @GET
     @Path("/data/modules")
     public void listModules(HttpRequest request, final HttpResponder responder) {
@@ -129,19 +139,21 @@ public class RoutingToDataSetsTest {
     @POST
     @Path("/data/modules/{name}")
     public void addModule(HttpRequest request, final HttpResponder responder,
-                          @PathParam("name") String name) throws IOException {
+        @PathParam("name") String name) throws IOException {
       responder.sendString(HttpResponseStatus.OK, "post:" + name);
     }
 
     @DELETE
     @Path("/data/modules/{name}")
-    public void deleteModule(HttpRequest request, final HttpResponder responder, @PathParam("name") String name) {
+    public void deleteModule(HttpRequest request, final HttpResponder responder,
+        @PathParam("name") String name) {
       responder.sendString(HttpResponseStatus.OK, "delete:" + name);
     }
 
     @GET
     @Path("/data/modules/{name}")
-    public void getModuleInfo(HttpRequest request, final HttpResponder responder, @PathParam("name") String name) {
+    public void getModuleInfo(HttpRequest request, final HttpResponder responder,
+        @PathParam("name") String name) {
       responder.sendString(HttpResponseStatus.OK, "get:" + name);
     }
 
@@ -154,13 +166,14 @@ public class RoutingToDataSetsTest {
     @GET
     @Path("/data/types/{name}")
     public void getTypeInfo(HttpRequest request, final HttpResponder responder,
-                            @PathParam("name") String name) {
+        @PathParam("name") String name) {
       responder.sendString(HttpResponseStatus.OK, "getType:" + name);
     }
   }
 
   @Path(Constants.Gateway.API_VERSION_3 + "/namespaces/{namespace-id}")
   public static final class MockDatasetInstanceHandler extends AbstractHttpHandler {
+
     @GET
     @Path("/data/datasets/")
     public void list(HttpRequest request, final HttpResponder responder) {
@@ -170,27 +183,28 @@ public class RoutingToDataSetsTest {
     @GET
     @Path("/data/datasets/{instance-name}")
     public void getInfo(HttpRequest request, final HttpResponder responder,
-                        @PathParam("instance-name") String name) {
+        @PathParam("instance-name") String name) {
       responder.sendString(HttpResponseStatus.OK, "get:" + name);
     }
 
     @POST
     @Path("/data/datasets/{instance-name}")
     public void add(HttpRequest request, final HttpResponder responder,
-                    @PathParam("instance-name") String name) {
+        @PathParam("instance-name") String name) {
       responder.sendString(HttpResponseStatus.OK, "post:" + name);
     }
 
     @DELETE
     @Path("/data/datasets/{instance-name}")
     public void drop(HttpRequest request, final HttpResponder responder,
-                     @PathParam("instance-name") String instanceName) {
+        @PathParam("instance-name") String instanceName) {
       responder.sendString(HttpResponseStatus.OK, "delete:" + instanceName);
     }
   }
 
   private String doRequest(String resource, String requestMethod) throws Exception {
-    resource = String.format("http://localhost:%d%s" + resource, port, Constants.Gateway.API_VERSION_3);
+    resource = String
+        .format("http://localhost:%d%s" + resource, port, Constants.Gateway.API_VERSION_3);
     URL url = new URL(resource);
     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
     conn.setRequestMethod(requestMethod);

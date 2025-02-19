@@ -15,14 +15,23 @@
  */
 package io.cdap.cdap.common.http;
 
+import io.cdap.cdap.api.auditlogging.AuditLogWriter;
+import io.cdap.cdap.api.feature.FeatureFlagsProvider;
+import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.common.HttpExceptionHandler;
+import io.cdap.cdap.common.auditlogging.AuditLogSetterHook;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.feature.DefaultFeatureFlagsProvider;
+import io.cdap.cdap.common.metrics.MetricsReporterHook;
 import io.cdap.http.ChannelPipelineModifier;
+import io.cdap.cdap.features.Feature;
 import io.cdap.http.NettyHttpService;
 import io.netty.channel.ChannelPipeline;
 import io.netty.util.concurrent.EventExecutor;
 
+import java.util.Arrays;
+import java.util.Collections;
 import javax.annotation.Nullable;
 
 /**
@@ -35,10 +44,13 @@ public class CommonNettyHttpServiceBuilder extends NettyHttpService.Builder {
   private ChannelPipelineModifier pipelineModifier;
   private ChannelPipelineModifier additionalModifier;
 
-  public CommonNettyHttpServiceBuilder(CConfiguration cConf, String serviceName) {
+  public CommonNettyHttpServiceBuilder(CConfiguration cConf, String serviceName,
+      MetricsCollectionService metricsCollectionService, AuditLogWriter auditLogWriter) {
     super(serviceName);
-
     if (cConf.getBoolean(Constants.Security.ENABLED)) {
+      FeatureFlagsProvider featureFlagsProvider = new DefaultFeatureFlagsProvider(cConf);
+      boolean auditLoggingEnabled = Feature.DATAPLANE_AUDIT_LOGGING.isEnabled(featureFlagsProvider) ;
+
       pipelineModifier = new ChannelPipelineModifier() {
         @Override
         public void modify(ChannelPipeline pipeline) {
@@ -49,18 +61,22 @@ public class CommonNettyHttpServiceBuilder extends NettyHttpService.Builder {
           EventExecutor executor = pipeline.context("dispatcher").executor();
           pipeline.addBefore(executor, "dispatcher", AUTHENTICATOR_NAME,
                              new AuthenticationChannelHandler(cConf.getBoolean(Constants.Security
-                                                                                 .INTERNAL_AUTH_ENABLED)));
+                                 .INTERNAL_AUTH_ENABLED), auditLoggingEnabled, auditLogWriter));
         }
       };
     }
     this.setExceptionHandler(new HttpExceptionHandler());
+    this.setHandlerHooks(Collections.unmodifiableList(
+      Arrays.asList(new MetricsReporterHook(cConf, metricsCollectionService, serviceName),
+                    new AuditLogSetterHook(cConf, serviceName))));
   }
 
   /**
    * Sets pipeline modifier, preserving the security one installed in constructor.
    */
   @Override
-  public NettyHttpService.Builder setChannelPipelineModifier(ChannelPipelineModifier additionalPipelineModifier) {
+  public NettyHttpService.Builder setChannelPipelineModifier(
+      ChannelPipelineModifier additionalPipelineModifier) {
     additionalModifier = additionalPipelineModifier;
     return this;
   }
@@ -69,13 +85,14 @@ public class CommonNettyHttpServiceBuilder extends NettyHttpService.Builder {
    * Sets a pipeline modifier replacing the security one installed in constructor.
    */
   public NettyHttpService.Builder replaceDefaultChannelPipelineModifier(
-    ChannelPipelineModifier channelPipelineModifier) {
+      ChannelPipelineModifier channelPipelineModifier) {
 
     pipelineModifier = channelPipelineModifier;
     return this;
   }
 
-  public NettyHttpService.Builder addChannelPipelineModifier(ChannelPipelineModifier additionalPipelineModifier) {
+  public NettyHttpService.Builder addChannelPipelineModifier(
+      ChannelPipelineModifier additionalPipelineModifier) {
     additionalModifier = combine(additionalModifier, additionalPipelineModifier);
     return this;
   }
@@ -90,7 +107,7 @@ public class CommonNettyHttpServiceBuilder extends NettyHttpService.Builder {
   }
 
   private ChannelPipelineModifier combine(@Nullable ChannelPipelineModifier existing,
-                                          @Nullable ChannelPipelineModifier additional) {
+      @Nullable ChannelPipelineModifier additional) {
     if (existing == null) {
       return additional;
     }

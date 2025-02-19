@@ -19,25 +19,34 @@ package io.cdap.cdap.messaging.distributed;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
+import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.messaging.TopicAlreadyExistsException;
 import io.cdap.cdap.api.messaging.TopicNotFoundException;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
-import io.cdap.cdap.messaging.MessageFetcher;
-import io.cdap.cdap.messaging.MessagingService;
-import io.cdap.cdap.messaging.RollbackDetail;
-import io.cdap.cdap.messaging.StoreRequest;
-import io.cdap.cdap.messaging.TopicMetadata;
 import io.cdap.cdap.messaging.server.MessagingHttpService;
 import io.cdap.cdap.messaging.service.CoreMessagingService;
-import io.cdap.cdap.messaging.store.ForwardingTableFactory;
-import io.cdap.cdap.messaging.store.TableFactory;
+import io.cdap.cdap.messaging.spi.MessageFetchRequest;
+import io.cdap.cdap.messaging.spi.MessagingServiceContext;
+import io.cdap.cdap.messaging.spi.MessagingService;
+import io.cdap.cdap.messaging.spi.RawMessage;
+import io.cdap.cdap.messaging.spi.RollbackDetail;
+import io.cdap.cdap.messaging.spi.StoreRequest;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.store.cache.MessageTableCacheProvider;
-import io.cdap.cdap.messaging.store.hbase.HBaseTableFactory;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.TopicId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicMarkableReference;
+import javax.annotation.Nullable;
 import org.apache.twill.api.ElectionHandler;
 import org.apache.twill.common.Threads;
 import org.apache.twill.internal.zookeeper.LeaderElection;
@@ -45,19 +54,12 @@ import org.apache.twill.zookeeper.ZKClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicMarkableReference;
-import javax.annotation.Nullable;
-
 /**
- * A {@link MessagingService} that performs lead-election and only operates if it is currently a leader.
+ * A {@link MessagingService} that performs lead-election and only operates if it is currently a
+ * leader.
  */
-public class LeaderElectionMessagingService extends AbstractIdleService implements MessagingService {
+public class LeaderElectionMessagingService extends AbstractIdleService implements
+    MessagingService {
 
   private static final Logger LOG = LoggerFactory.getLogger(LeaderElectionMessagingService.class);
 
@@ -72,7 +74,7 @@ public class LeaderElectionMessagingService extends AbstractIdleService implemen
 
   @Inject
   LeaderElectionMessagingService(Injector injector, CConfiguration cConf,
-                                 MessageTableCacheProvider cacheProvider, ZKClient zkClient) {
+      MessageTableCacheProvider cacheProvider, ZKClient zkClient) {
     this.injector = injector;
     this.cConf = cConf;
     this.cacheProvider = cacheProvider;
@@ -81,39 +83,50 @@ public class LeaderElectionMessagingService extends AbstractIdleService implemen
   }
 
   @Override
+  public void initialize(MessagingServiceContext context) throws IOException {
+  }
+
+  @Override
+  public String getName() {
+    return this.getClass().getSimpleName();
+  }
+
+  @Override
   protected void startUp() throws Exception {
-    delayExecutor = Executors.newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("fencing-delay"));
+    delayExecutor = Executors.newSingleThreadScheduledExecutor(
+        Threads.createDaemonThreadFactory("fencing-delay"));
 
     // Starts leader election
     final CountDownLatch latch = new CountDownLatch(1);
-    leaderElection = new LeaderElection(zkClient, Constants.Service.MESSAGING_SERVICE, new ElectionHandler() {
-      @Override
-      public void leader() {
-        if (!tableUpgraded) {
-          upgradeTable();
-          tableUpgraded = true;
-        }
+    leaderElection = new LeaderElection(zkClient, Constants.Service.MESSAGING_SERVICE,
+        new ElectionHandler() {
+          @Override
+          public void leader() {
+            if (!tableUpgraded) {
+              tableUpgraded = true;
+            }
 
-        final DelegateService delegateService = new DelegateService(injector.getInstance(CoreMessagingService.class),
-                                                                    injector.getInstance(MessagingHttpService.class));
-        updateDelegate(delegateService);
-        LOG.info("Messaging service instance {} running at {} becomes leader",
-                 cConf.get(Constants.MessagingSystem.CONTAINER_INSTANCE_ID),
-                 cConf.get(Constants.MessagingSystem.HTTP_SERVER_BIND_ADDRESS));
+            final DelegateService delegateService = new DelegateService(
+                injector.getInstance(CoreMessagingService.class),
+                injector.getInstance(MessagingHttpService.class));
+            updateDelegate(delegateService);
+            LOG.info("Messaging service instance {} running at {} becomes leader",
+                cConf.get(Constants.MessagingSystem.CONTAINER_INSTANCE_ID),
+                cConf.get(Constants.MessagingSystem.HTTP_SERVER_BIND_ADDRESS));
 
-        fencingStart(delegateService);
-        latch.countDown();
-      }
+            fencingStart(delegateService);
+            latch.countDown();
+          }
 
-      @Override
-      public void follower() {
-        updateDelegate(null);
-        LOG.info("Messaging service instance {} running at {} becomes follower",
-                 cConf.get(Constants.MessagingSystem.CONTAINER_INSTANCE_ID),
-                 cConf.get(Constants.MessagingSystem.HTTP_SERVER_BIND_ADDRESS));
-        latch.countDown();
-      }
-    });
+          @Override
+          public void follower() {
+            updateDelegate(null);
+            LOG.info("Messaging service instance {} running at {} becomes follower",
+                cConf.get(Constants.MessagingSystem.CONTAINER_INSTANCE_ID),
+                cConf.get(Constants.MessagingSystem.HTTP_SERVER_BIND_ADDRESS));
+            latch.countDown();
+          }
+        });
     leaderElection.startAndWait();
     latch.await();
   }
@@ -132,87 +145,62 @@ public class LeaderElectionMessagingService extends AbstractIdleService implemen
 
   @Override
   public void createTopic(TopicMetadata topicMetadata)
-    throws TopicAlreadyExistsException, IOException, UnauthorizedException {
+      throws TopicAlreadyExistsException, IOException, UnauthorizedException {
     getMessagingService().createTopic(topicMetadata);
   }
 
   @Override
   public void updateTopic(TopicMetadata topicMetadata)
-    throws TopicNotFoundException, IOException, UnauthorizedException {
+      throws TopicNotFoundException, IOException, UnauthorizedException {
     getMessagingService().updateTopic(topicMetadata);
   }
 
   @Override
-  public void deleteTopic(TopicId topicId) throws TopicNotFoundException, IOException, UnauthorizedException {
+  public void deleteTopic(TopicId topicId)
+      throws TopicNotFoundException, IOException, UnauthorizedException {
     getMessagingService().deleteTopic(topicId);
   }
 
   @Override
-  public TopicMetadata getTopic(TopicId topicId) throws TopicNotFoundException, IOException, UnauthorizedException {
-    return getMessagingService().getTopic(topicId);
+  public Map<String, String> getTopicMetadataProperties(TopicId topicId)
+      throws TopicNotFoundException, IOException, UnauthorizedException {
+    return getMessagingService().getTopicMetadataProperties(topicId);
   }
 
   @Override
-  public List<TopicId> listTopics(NamespaceId namespaceId) throws IOException, UnauthorizedException {
+  public List<TopicId> listTopics(NamespaceId namespaceId)
+      throws IOException, UnauthorizedException {
     return getMessagingService().listTopics(namespaceId);
   }
 
   @Override
-  public MessageFetcher prepareFetch(TopicId topicId) throws TopicNotFoundException, IOException {
-    return getMessagingService().prepareFetch(topicId);
+  public CloseableIterator<RawMessage> fetch(MessageFetchRequest messageFetchRequest)
+      throws TopicNotFoundException, IOException {
+    return getMessagingService().fetch(messageFetchRequest);
   }
 
   @Override
   @Nullable
   public RollbackDetail publish(StoreRequest request)
-    throws TopicNotFoundException, IOException, UnauthorizedException {
+      throws TopicNotFoundException, IOException, UnauthorizedException {
     return getMessagingService().publish(request);
   }
 
   @Override
-  public void storePayload(StoreRequest request) throws TopicNotFoundException, IOException, UnauthorizedException {
+  public void storePayload(StoreRequest request)
+      throws TopicNotFoundException, IOException, UnauthorizedException {
     getMessagingService().storePayload(request);
   }
 
   @Override
   public void rollback(TopicId topicId, RollbackDetail rollbackDetail)
-    throws TopicNotFoundException, IOException, UnauthorizedException {
+      throws TopicNotFoundException, IOException, UnauthorizedException {
     getMessagingService().rollback(topicId, rollbackDetail);
   }
 
-  private void upgradeTable() {
-    HBaseTableFactory tableFactory = getHBaseTableFactory(injector.getInstance(TableFactory.class));
-
-    // Upgrade the TMS Message and Payload Tables
-    if (tableFactory != null) {
-      try {
-        tableFactory.upgradeMessageTable(cConf.get(Constants.MessagingSystem.MESSAGE_TABLE_NAME));
-      } catch (IOException ex) {
-        LOG.warn("Exception while trying to upgrade TMS MessageTable.", ex);
-      }
-
-      try {
-        tableFactory.upgradePayloadTable(cConf.get(Constants.MessagingSystem.PAYLOAD_TABLE_NAME));
-      } catch (IOException ex) {
-        LOG.warn("Exception while trying to upgrade TMS PayloadTable.", ex);
-      }
-    }
-  }
-
-  @Nullable
-  private HBaseTableFactory getHBaseTableFactory(TableFactory tableFactory) {
-    TableFactory factory = tableFactory;
-
-    while (!(factory instanceof HBaseTableFactory) && factory instanceof ForwardingTableFactory) {
-      factory = ((ForwardingTableFactory) factory).getDelegate();
-    }
-
-    return factory instanceof HBaseTableFactory ? (HBaseTableFactory) factory : null;
-  }
-
   /**
-   * Updates the delegate with the given {@link DelegateService} and stop the old one.
-   * It also mark the delegate not usable.
+   * Updates the delegate with the given {@link DelegateService} and stop the old one. It also mark
+   * the delegate not usable.
    */
   private void updateDelegate(@Nullable DelegateService newService) {
     DelegateService oldService = delegate.getReference();
@@ -251,13 +239,14 @@ public class LeaderElectionMessagingService extends AbstractIdleService implemen
     DelegateService delegateService = delegate.getReference();
     if (delegateService == null || !delegate.isMarked()) {
       throw new ServiceUnavailableException(Constants.Service.MESSAGING_SERVICE,
-                                            "Messaging service is temporarily unavailable due to leader transition");
+          "Messaging service is temporarily unavailable due to leader transition");
     }
     return delegateService.getMessagingService();
   }
 
   /**
-   * Private class to hold both {@link CoreMessagingService} and {@link MessagingHttpService} together.
+   * Private class to hold both {@link CoreMessagingService} and {@link MessagingHttpService}
+   * together.
    */
   private final class DelegateService extends AbstractIdleService {
 

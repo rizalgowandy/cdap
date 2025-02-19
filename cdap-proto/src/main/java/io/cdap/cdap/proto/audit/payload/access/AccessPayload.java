@@ -19,7 +19,6 @@ package io.cdap.cdap.proto.audit.payload.access;
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.proto.audit.AuditPayload;
 import io.cdap.cdap.proto.id.EntityId;
-
 import java.util.Objects;
 
 /**
@@ -27,6 +26,7 @@ import java.util.Objects;
  */
 @Beta
 public class AccessPayload extends AuditPayload {
+
   private final AccessType accessType;
   private final EntityId accessor;
 
@@ -52,8 +52,8 @@ public class AccessPayload extends AuditPayload {
       return false;
     }
     AccessPayload that = (AccessPayload) o;
-    return Objects.equals(accessType, that.accessType) &&
-      Objects.equals(accessor, that.accessor);
+    return Objects.equals(accessType, that.accessType)
+        && Objects.equals(accessor, that.accessor);
   }
 
   @Override
@@ -63,9 +63,9 @@ public class AccessPayload extends AuditPayload {
 
   @Override
   public String toString() {
-    return "AccessPayload{" +
-      "accessType=" + accessType +
-      ", accessor=" + accessor +
-      "} " + super.toString();
+    return "AccessPayload{"
+        + "accessType=" + accessType
+        + ", accessor=" + accessor
+        + "} " + super.toString();
   }
 }

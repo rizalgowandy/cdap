@@ -16,6 +16,9 @@
 
 package io.cdap.cdap.common.twill;
 
+import java.net.URI;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.twill.api.ClassAcceptor;
 import org.apache.twill.api.SecureStore;
 import org.apache.twill.api.TwillController;
@@ -23,15 +26,11 @@ import org.apache.twill.api.TwillPreparer;
 import org.apache.twill.api.logging.LogEntry;
 import org.apache.twill.api.logging.LogHandler;
 
-import java.net.URI;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 /**
  * A no-op implementation of {@link TwillPreparer}.
  */
 final class NoopTwillPreparer implements TwillPreparer {
-  
+
   @Override
   public TwillPreparer withConfiguration(Map<String, String> config) {
     return this;
@@ -178,7 +177,8 @@ final class NoopTwillPreparer implements TwillPreparer {
   }
 
   @Override
-  public TwillPreparer setLogLevels(String runnableName, Map<String, LogEntry.Level> logLevelsForRunnable) {
+  public TwillPreparer setLogLevels(String runnableName,
+      Map<String, LogEntry.Level> logLevelsForRunnable) {
     return this;
   }
 

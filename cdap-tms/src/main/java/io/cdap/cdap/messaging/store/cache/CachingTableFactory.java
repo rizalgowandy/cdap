@@ -19,13 +19,12 @@ package io.cdap.cdap.messaging.store.cache;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import io.cdap.cdap.common.conf.CConfiguration;
-import io.cdap.cdap.messaging.TopicMetadata;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import io.cdap.cdap.messaging.store.ForwardingTableFactory;
 import io.cdap.cdap.messaging.store.MessageTable;
 import io.cdap.cdap.messaging.store.MetadataTable;
 import io.cdap.cdap.messaging.store.PayloadTable;
 import io.cdap.cdap.messaging.store.TableFactory;
-
 import java.io.IOException;
 
 /**
@@ -41,8 +40,8 @@ public class CachingTableFactory extends ForwardingTableFactory {
 
   @Inject
   CachingTableFactory(CConfiguration cConf,
-                      @Named(DELEGATE_TABLE_FACTORY) TableFactory delegateTableFactory,
-                      MessageTableCacheProvider cacheProvider) {
+      @Named(DELEGATE_TABLE_FACTORY) TableFactory delegateTableFactory,
+      MessageTableCacheProvider cacheProvider) {
     this.cConf = cConf;
     this.delegateTableFactory = delegateTableFactory;
     this.cacheProvider = cacheProvider;

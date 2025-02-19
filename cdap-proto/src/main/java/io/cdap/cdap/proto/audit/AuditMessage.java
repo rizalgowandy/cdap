@@ -19,7 +19,6 @@ package io.cdap.cdap.proto.audit;
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.proto.id.EntityId;
-
 import java.util.Objects;
 
 /**
@@ -27,6 +26,7 @@ import java.util.Objects;
  */
 @Beta
 public class AuditMessage {
+
   // version 1 has consisted of EntityId and version 2 consists of MetadataEntity
   private final int version = 2;
 
@@ -36,11 +36,13 @@ public class AuditMessage {
   private final AuditType type;
   private final AuditPayload payload;
 
-  public AuditMessage(long time, EntityId entityId, String user, AuditType type, AuditPayload payload) {
+  public AuditMessage(long time, EntityId entityId, String user, AuditType type,
+      AuditPayload payload) {
     this(time, entityId.toMetadataEntity(), user, type, payload);
   }
 
-  public AuditMessage(long time, MetadataEntity metadataEntity, String user, AuditType type, AuditPayload payload) {
+  public AuditMessage(long time, MetadataEntity metadataEntity, String user, AuditType type,
+      AuditPayload payload) {
     this.time = time;
     this.metadataEntity = metadataEntity;
     this.user = user;
@@ -81,12 +83,12 @@ public class AuditMessage {
       return false;
     }
     AuditMessage that = (AuditMessage) o;
-    return Objects.equals(version, that.version) &&
-      Objects.equals(time, that.time) &&
-      Objects.equals(metadataEntity, that.metadataEntity) &&
-      Objects.equals(user, that.user) &&
-      Objects.equals(type, that.type) &&
-      Objects.equals(payload, that.payload);
+    return Objects.equals(version, that.version)
+        && Objects.equals(time, that.time)
+        && Objects.equals(metadataEntity, that.metadataEntity)
+        && Objects.equals(user, that.user)
+        && Objects.equals(type, that.type)
+        && Objects.equals(payload, that.payload);
   }
 
   @Override
@@ -96,13 +98,13 @@ public class AuditMessage {
 
   @Override
   public String toString() {
-    return "AuditMessage{" +
-      "version=" + version +
-      ", time=" + time +
-      ", metadataEntity=" + metadataEntity +
-      ", user='" + user + '\'' +
-      ", type=" + type +
-      ", payload=" + payload +
-      '}';
+    return "AuditMessage{"
+        + "version=" + version
+        + ", time=" + time
+        + ", metadataEntity=" + metadataEntity
+        + ", user='" + user + '\''
+        + ", type=" + type
+        + ", payload=" + payload
+        + '}';
   }
 }

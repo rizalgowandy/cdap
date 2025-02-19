@@ -36,17 +36,16 @@ import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.nio.charset.StandardCharsets;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Provides REST endpoints for {@link DatasetAdmin} operations.
- * The corresponding client is {@link RemoteDatasetOpExecutor}.
+ * Provides REST endpoints for {@link DatasetAdmin} operations. The corresponding client is {@link
+ * RemoteDatasetOpExecutor}.
  */
 @Path(Constants.Gateway.API_VERSION_3 + "/namespaces/{namespace-id}")
 public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
@@ -65,32 +64,36 @@ public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
   @POST
   @Path("/data/datasets/{name}/admin/exists")
   public void exists(HttpRequest request, HttpResponder responder,
-                     @PathParam("namespace-id") String namespaceId,
-                     @PathParam("name") String instanceName) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String instanceName) throws Exception {
     propagateUserId(request);
     NamespaceId namespace = new NamespaceId(namespaceId);
     DatasetId instanceId = namespace.dataset(instanceName);
     responder.sendJson(HttpResponseStatus.OK,
-                       GSON.toJson(new DatasetAdminOpResponse(datasetAdminService.exists(instanceId), null)));
+        GSON.toJson(new DatasetAdminOpResponse(datasetAdminService.exists(instanceId), null)));
   }
 
   @POST
   @Path("/data/datasets/{name}/admin/create")
   public void create(FullHttpRequest request, HttpResponder responder,
-                     @PathParam("namespace-id") String namespaceId,
-                     @PathParam("name") String name) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     propagateUserId(request);
-    InternalDatasetCreationParams params = GSON.fromJson(request.content().toString(StandardCharsets.UTF_8),
-                                                         InternalDatasetCreationParams.class);
-    Preconditions.checkArgument(params.getProperties() != null, "Missing required 'instanceProps' parameter.");
-    Preconditions.checkArgument(params.getTypeMeta() != null, "Missing required 'typeMeta' parameter.");
+    InternalDatasetCreationParams params = GSON.fromJson(
+        request.content().toString(StandardCharsets.UTF_8),
+        InternalDatasetCreationParams.class);
+    Preconditions.checkArgument(params.getProperties() != null,
+        "Missing required 'instanceProps' parameter.");
+    Preconditions.checkArgument(params.getTypeMeta() != null,
+        "Missing required 'typeMeta' parameter.");
 
     DatasetProperties props = params.getProperties();
     DatasetTypeMeta typeMeta = params.getTypeMeta();
 
     try {
       DatasetId instanceId = new DatasetId(namespaceId, name);
-      DatasetCreationResponse response = datasetAdminService.createOrUpdate(instanceId, typeMeta, props, null);
+      DatasetCreationResponse response = datasetAdminService.createOrUpdate(instanceId, typeMeta,
+          props, null);
       responder.sendJson(HttpResponseStatus.OK, GSON.toJson(response));
     } catch (IllegalArgumentException e) {
       throw new BadRequestException(e.getMessage());
@@ -100,14 +103,18 @@ public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
   @POST
   @Path("/data/datasets/{name}/admin/update")
   public void update(FullHttpRequest request, HttpResponder responder,
-                     @PathParam("namespace-id") String namespaceId,
-                     @PathParam("name") String name) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String name) throws Exception {
     propagateUserId(request);
-    InternalDatasetUpdateParams params = GSON.fromJson(request.content().toString(StandardCharsets.UTF_8),
-                                                       InternalDatasetUpdateParams.class);
-    Preconditions.checkArgument(params.getProperties() != null, "Missing required 'instanceProps' parameter.");
-    Preconditions.checkArgument(params.getTypeMeta() != null, "Missing required 'typeMeta' parameter.");
-    Preconditions.checkArgument(params.getExistingSpec() != null, "Missing required 'existingSpec' parameter.");
+    InternalDatasetUpdateParams params = GSON.fromJson(
+        request.content().toString(StandardCharsets.UTF_8),
+        InternalDatasetUpdateParams.class);
+    Preconditions.checkArgument(params.getProperties() != null,
+        "Missing required 'instanceProps' parameter.");
+    Preconditions.checkArgument(params.getTypeMeta() != null,
+        "Missing required 'typeMeta' parameter.");
+    Preconditions.checkArgument(params.getExistingSpec() != null,
+        "Missing required 'existingSpec' parameter.");
 
     DatasetProperties props = params.getProperties();
     DatasetSpecification existing = params.getExistingSpec();
@@ -115,7 +122,8 @@ public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
 
     try {
       DatasetId instanceId = new DatasetId(namespaceId, name);
-      DatasetCreationResponse response = datasetAdminService.createOrUpdate(instanceId, typeMeta, props, existing);
+      DatasetCreationResponse response = datasetAdminService.createOrUpdate(instanceId, typeMeta,
+          props, existing);
       responder.sendJson(HttpResponseStatus.OK, GSON.toJson(response));
     } catch (IncompatibleUpdateException e) {
       throw new ConflictException(e.getMessage());
@@ -125,13 +133,16 @@ public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
   @POST
   @Path("/data/datasets/{name}/admin/drop")
   public void drop(FullHttpRequest request, HttpResponder responder,
-                   @PathParam("namespace-id") String namespaceId,
-                   @PathParam("name") String instanceName) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String instanceName) throws Exception {
     propagateUserId(request);
-    InternalDatasetDropParams params = GSON.fromJson(request.content().toString(StandardCharsets.UTF_8),
-                                                     InternalDatasetDropParams.class);
-    Preconditions.checkArgument(params.getInstanceSpec() != null, "Missing required 'instanceSpec' parameter.");
-    Preconditions.checkArgument(params.getTypeMeta() != null, "Missing required 'typeMeta' parameter.");
+    InternalDatasetDropParams params = GSON.fromJson(
+        request.content().toString(StandardCharsets.UTF_8),
+        InternalDatasetDropParams.class);
+    Preconditions.checkArgument(params.getInstanceSpec() != null,
+        "Missing required 'instanceSpec' parameter.");
+    Preconditions.checkArgument(params.getTypeMeta() != null,
+        "Missing required 'typeMeta' parameter.");
 
     DatasetSpecification spec = params.getInstanceSpec();
     DatasetTypeMeta typeMeta = params.getTypeMeta();
@@ -143,8 +154,8 @@ public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
   @POST
   @Path("/data/datasets/{name}/admin/truncate")
   public void truncate(HttpRequest request, HttpResponder responder,
-                       @PathParam("namespace-id") String namespaceId,
-                       @PathParam("name") String instanceName) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String instanceName) throws Exception {
     propagateUserId(request);
     DatasetId instanceId = new DatasetId(namespaceId, instanceName);
     datasetAdminService.truncate(instanceId);
@@ -154,8 +165,8 @@ public class DatasetAdminOpHTTPHandler extends AbstractHttpHandler {
   @POST
   @Path("/data/datasets/{name}/admin/upgrade")
   public void upgrade(HttpRequest request, HttpResponder responder,
-                      @PathParam("namespace-id") String namespaceId,
-                      @PathParam("name") String instanceName) throws Exception {
+      @PathParam("namespace-id") String namespaceId,
+      @PathParam("name") String instanceName) throws Exception {
     propagateUserId(request);
     DatasetId instanceId = new DatasetId(namespaceId, instanceName);
     datasetAdminService.upgrade(instanceId);

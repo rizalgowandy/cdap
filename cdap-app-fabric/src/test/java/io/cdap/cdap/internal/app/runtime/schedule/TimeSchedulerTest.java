@@ -24,13 +24,12 @@ import io.cdap.cdap.proto.ScheduledRuntime;
 import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.WorkflowId;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Tests {@link TimeScheduler}
@@ -69,5 +68,16 @@ public class TimeSchedulerTest extends AppFabricTestBase {
     // for a scan range of 1pm to 3pm. since start time is inclusive, from 1pm tp 2pm we will have 13 schedules
     // and from 2:05 pm to 2:55pm will have 11 schedules as end time is exclusive. in total we expect 24 schedules.
     Assert.assertEquals(24, nextRuntimes.size());
+  }
+
+  @Test
+  public void testDeleteNonExisting() throws Exception {
+    ProgramSchedule sched = new ProgramSchedule("name", "description", PROG1_ID,
+                                                Collections.emptyMap(),
+                                                new TimeTrigger("*/5 * * * *"), Collections.emptyList());
+    timeScheduler.addProgramSchedule(sched);
+    timeScheduler.deleteProgramSchedule(sched);
+    // check deleting non-existing doesn't throw an exception
+    timeScheduler.deleteProgramSchedule(sched);
   }
 }

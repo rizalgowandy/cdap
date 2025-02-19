@@ -21,14 +21,13 @@ import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.dataset.lib.KeyValue;
 import io.cdap.cdap.etl.api.Emitter;
 import io.cdap.cdap.format.StructuredRecordStringConverter;
+import java.io.IOException;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 
-import java.io.IOException;
-
 /**
- * Connector sink that only writes a single type of record.
- * This is used in the Spark engine, where connectors are only used for conditions.
+ * Connector sink that only writes a single type of record. This is used in the Spark engine, where
+ * connectors are only used for conditions.
  */
 public class SingleConnectorSink extends ConnectorSink<StructuredRecord> {
 
@@ -38,17 +37,17 @@ public class SingleConnectorSink extends ConnectorSink<StructuredRecord> {
 
   @Override
   public void transform(StructuredRecord input, Emitter<KeyValue<NullWritable, Text>> emitter)
-    throws Exception {
+      throws Exception {
     StructuredRecord modifiedRecord = modifyRecord(input);
     emitter.emit(new KeyValue<>(NullWritable.get(),
-                                new Text(StructuredRecordStringConverter.toJsonString(modifiedRecord))));
+        new Text(StructuredRecordStringConverter.toJsonString(modifiedRecord))));
   }
 
   private StructuredRecord modifyRecord(StructuredRecord input) throws IOException {
     Schema inputSchema = input.getSchema();
     return StructuredRecord.builder(SingleConnectorSource.RECORD_WITH_SCHEMA)
-      .set("schema", inputSchema.toString())
-      .set("record", StructuredRecordStringConverter.toJsonString(input))
-      .build();
+        .set("schema", inputSchema.toString())
+        .set("record", StructuredRecordStringConverter.toJsonString(input))
+        .build();
   }
 }

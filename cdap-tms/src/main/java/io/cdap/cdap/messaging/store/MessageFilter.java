@@ -17,14 +17,11 @@
 package io.cdap.cdap.messaging.store;
 
 import com.google.common.base.Function;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
  * Filter messages read from {@link MessageTable}.
- *
- * @param <T>
  */
 public abstract class MessageFilter<T> implements Function<T, MessageFilter.Result> {
 

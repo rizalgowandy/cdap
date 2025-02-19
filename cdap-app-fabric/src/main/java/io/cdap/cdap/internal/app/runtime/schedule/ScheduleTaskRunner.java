@@ -35,19 +35,20 @@ import io.cdap.cdap.internal.app.runtime.schedule.trigger.SatisfiableTrigger;
 import io.cdap.cdap.internal.app.runtime.schedule.trigger.TriggerInfoContext;
 import io.cdap.cdap.internal.app.services.ProgramLifecycleService;
 import io.cdap.cdap.internal.app.services.PropertiesResolver;
+import io.cdap.cdap.internal.app.store.ApplicationMeta;
 import io.cdap.cdap.internal.capability.CapabilityNotAvailableException;
+import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.spi.authentication.SecurityRequestContext;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-import org.apache.hadoop.security.authentication.util.KerberosName;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.security.authentication.util.KerberosName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Task runner that runs a schedule.
@@ -56,7 +57,7 @@ public final class ScheduleTaskRunner {
 
   private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskRunner.class);
   private static final Gson GSON = TriggeringScheduleInfoAdapter.addTypeAdapters(new GsonBuilder())
-    .create();
+      .create();
 
   private final Store store;
   private final ProgramLifecycleService lifecycleService;
@@ -65,8 +66,8 @@ public final class ScheduleTaskRunner {
   private final CConfiguration cConf;
 
   public ScheduleTaskRunner(Store store, ProgramLifecycleService lifecycleService,
-                            PropertiesResolver propertiesResolver,
-                            NamespaceQueryAdmin namespaceQueryAdmin, CConfiguration cConf) {
+      PropertiesResolver propertiesResolver,
+      NamespaceQueryAdmin namespaceQueryAdmin, CConfiguration cConf) {
     this.store = store;
     this.lifecycleService = lifecycleService;
     this.propertiesResolver = propertiesResolver;
@@ -76,32 +77,36 @@ public final class ScheduleTaskRunner {
 
   public void launch(Job job) throws Exception {
     ProgramSchedule schedule = job.getSchedule();
-    ProgramId programId = schedule.getProgramId();
+    ProgramId programId = getLatestAppProgramId(schedule.getProgramId());
 
     Map<String, String> userArgs = getUserArgs(schedule, propertiesResolver);
 
-    Map<String, String> systemArgs = new HashMap<>(propertiesResolver.getSystemProperties(programId));
+    Map<String, String> systemArgs = new HashMap<>(
+        propertiesResolver.getSystemProperties(programId));
 
     // Let the triggers update the arguments first before setting the triggering schedule info
     ((SatisfiableTrigger) job.getSchedule().getTrigger()).updateLaunchArguments(job.getSchedule(),
-                                                                                job.getNotifications(),
-                                                                                userArgs, systemArgs);
+        job.getNotifications(),
+        userArgs, systemArgs);
 
     TriggeringScheduleInfo triggeringScheduleInfo = getTriggeringScheduleInfo(job);
-    systemArgs.put(ProgramOptionConstants.TRIGGERING_SCHEDULE_INFO, GSON.toJson(triggeringScheduleInfo));
+    systemArgs.put(ProgramOptionConstants.TRIGGERING_SCHEDULE_INFO,
+        GSON.toJson(triggeringScheduleInfo));
+    systemArgs.put(ProgramOptionConstants.TRIGGERING_SCHEDULE_INFO_TYPE,
+        GSON.toJson(job.getSchedule().getTrigger().getType()));
 
     try {
       execute(programId, systemArgs, userArgs);
-      LOG.info("Successfully started program {} in schedule {}.", schedule.getProgramId(), schedule.getName());
+      LOG.info("Successfully started program {} in schedule {}.", programId, schedule.getName());
     } catch (CapabilityNotAvailableException ex) {
-      LOG.debug("Ignoring program {} in schedule {}.", schedule.getProgramId(), schedule.getName(), ex);
+      LOG.debug("Ignoring program {} in schedule {}.", programId, schedule.getName(), ex);
     }
   }
 
   @VisibleForTesting
   static Map<String, String> getUserArgs(ProgramSchedule schedule,
-                                         PropertiesResolver propertiesResolver)
-    throws IOException, NotFoundException, UnauthorizedException {
+      PropertiesResolver propertiesResolver)
+      throws IOException, NotFoundException, UnauthorizedException {
     Map<String, String> userArgs = new HashMap<>();
     userArgs.putAll(propertiesResolver.getUserProperties(schedule.getProgramId()));
     userArgs.putAll(schedule.getProperties());
@@ -115,13 +120,14 @@ public final class ScheduleTaskRunner {
 
     ProgramSchedule schedule = job.getSchedule();
     return new DefaultTriggeringScheduleInfo(schedule.getName(), schedule.getDescription(),
-                                             triggerInfo, schedule.getProperties());
+        triggerInfo, schedule.getProperties());
   }
 
   /**
    * Executes a program without blocking until its completion.
    */
-  public void execute(ProgramId id, Map<String, String> sysArgs, Map<String, String> userArgs) throws Exception {
+  public void execute(ProgramId id, Map<String, String> sysArgs, Map<String, String> userArgs)
+      throws Exception {
     String originalUserId = SecurityRequestContext.getUserId();
     try {
       // if the program has a namespace user configured then set that user in the security request context.
@@ -132,10 +138,25 @@ public final class ScheduleTaskRunner {
       }
       lifecycleService.runInternal(id, userArgs, sysArgs, false);
     } catch (ProgramNotFoundException | ApplicationNotFoundException e) {
-      throw new TaskExecutionException(String.format(UserMessages.getMessage(UserErrors.PROGRAM_NOT_FOUND), id),
-                                       e, false);
+      throw new TaskExecutionException(
+          String.format(UserMessages.getMessage(UserErrors.PROGRAM_NOT_FOUND), id),
+          e, false);
     } finally {
       SecurityRequestContext.setUserId(originalUserId);
     }
+  }
+
+  /**
+   * Get the ProgramId of the latest version.
+   */
+  private ProgramId getLatestAppProgramId(ProgramId programId) throws ProgramNotFoundException {
+    ApplicationMeta applicationMeta = store.getLatest(programId.getAppReference());
+    if (applicationMeta == null) {
+      throw new ProgramNotFoundException(programId);
+    }
+    ApplicationId appId = new ApplicationId(programId.getNamespace(),
+        programId.getApplication(),
+        applicationMeta.getSpec().getAppVersion());
+    return new ProgramId(appId, programId.getType(), programId.getProgram());
   }
 }

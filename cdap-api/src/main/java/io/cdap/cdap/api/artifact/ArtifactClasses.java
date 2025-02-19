@@ -18,7 +18,6 @@ package io.cdap.cdap.api.artifact;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.plugin.PluginClass;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
@@ -29,6 +28,7 @@ import java.util.Set;
  */
 @Beta
 public final class ArtifactClasses {
+
   private final Set<ApplicationClass> apps;
   private final Set<PluginClass> plugins;
 
@@ -39,6 +39,7 @@ public final class ArtifactClasses {
 
   /**
    * get set of application classes
+   *
    * @return {@link Set<ApplicationClass>}
    */
   public Set<ApplicationClass> getApps() {
@@ -47,6 +48,7 @@ public final class ArtifactClasses {
 
   /**
    * get the set of plugin classes
+   *
    * @return {@link Set<PluginClass>}
    */
   public Set<PluginClass> getPlugins() {
@@ -63,8 +65,8 @@ public final class ArtifactClasses {
     }
 
     ArtifactClasses that = (ArtifactClasses) o;
-    return Objects.equals(apps, that.apps) &&
-      Objects.equals(plugins, that.plugins);
+    return Objects.equals(apps, that.apps)
+        && Objects.equals(plugins, that.plugins);
   }
 
   @Override
@@ -74,10 +76,10 @@ public final class ArtifactClasses {
 
   @Override
   public String toString() {
-    return "ArtifactClasses{" +
-      "apps=" + apps +
-      ", plugins=" + plugins +
-      '}';
+    return "ArtifactClasses{"
+        + "apps=" + apps
+        + ", plugins=" + plugins
+        + '}';
   }
 
   public static Builder builder() {
@@ -85,7 +87,8 @@ public final class ArtifactClasses {
   }
 
   /**
-   * Builder to more easily add application and plugin classes, and in the future, program and dataset classes.
+   * Builder to more easily add application and plugin classes, and in the future, program and
+   * dataset classes.
    */
   public static class Builder {
 
@@ -128,7 +131,7 @@ public final class ArtifactClasses {
 
     public ArtifactClasses build() {
       return new ArtifactClasses(Collections.unmodifiableSet(apps),
-                                 Collections.unmodifiableSet(plugins));
+          Collections.unmodifiableSet(plugins));
     }
   }
 }

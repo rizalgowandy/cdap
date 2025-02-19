@@ -29,13 +29,13 @@ import io.cdap.cdap.cli.util.AbstractAuthCommand;
 import io.cdap.cdap.client.ServiceClient;
 import io.cdap.cdap.proto.id.ServiceId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
  * Check whether a {@link Service} has reached active status.
  */
 public class CheckServiceAvailabilityCommand extends AbstractAuthCommand implements Categorized {
+
   private final ServiceClient serviceClient;
 
   @Inject
@@ -54,13 +54,13 @@ public class CheckServiceAvailabilityCommand extends AbstractAuthCommand impleme
   @Override
   public String getPattern() {
     return String.format("check service availability <%s> [version <%s>]", ArgumentName.SERVICE,
-                         ArgumentName.APP_VERSION);
+        ArgumentName.APP_VERSION);
   }
 
   @Override
   public String getDescription() {
     return String.format("Check if %s is available to accept requests",
-                         Fragment.of(Article.A, ElementType.SERVICE.getName()));
+        Fragment.of(Article.A, ElementType.SERVICE.getName()));
   }
 
   @Override

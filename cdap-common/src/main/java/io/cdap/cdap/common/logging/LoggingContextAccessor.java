@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 Cask Data, Inc.
+ * Copyright © 2024 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -14,37 +14,43 @@
  * the License.
  */
 
-package io.cdap.cdap.common.logging;
 
-import org.apache.twill.common.Cancellable;
-import org.slf4j.MDC;
+package io.cdap.cdap.common.logging;
 
 import java.util.Collections;
 import java.util.Map;
+import org.apache.twill.common.Cancellable;
+import org.slf4j.MDC;
 
 /**
  * Allows to store and access the logging context.
  * <p>
- *   The logging context is injected into log messages emitted via standard logging APIs. This enables grouping logs
- *   based on the execution context of the place where log message was emitted and searching messages on the logs
- *   processing back-end.
+ * The logging context is injected into log messages emitted via standard logging APIs. This enables
+ * grouping logs based on the execution context of the place where log message was emitted and
+ * searching messages on the logs processing back-end.
  * </p>
  */
 public class LoggingContextAccessor {
-  private static final InheritableThreadLocal<LoggingContext> loggingContext =
-    new InheritableThreadLocal<>();
 
+  private static final InheritableThreadLocal<LoggingContext> loggingContext =
+      new InheritableThreadLocal<>();
+
+  public interface LoggingContextRestorer extends Cancellable, AutoCloseable {
+    // The AutoCloseable interface implicitly provides the close() method
+  }
   /**
    * Sets the logging context.
    * <p>
-   *   NOTE: in work execution frameworks where threads are shared between workers (like Akka) we would have to init
-   *         context very frequently (before every chunk of work is started). In that case we really want to re-use
-   *         logging context object instance.
+   * NOTE: in work execution frameworks where threads are shared between workers (like Akka) we
+   * would have to init context very frequently (before every chunk of work is started). In that
+   * case we really want to re-use logging context object instance.
    * </p>
+   *
    * @param context context to set
-   * @return Cancellable that can be used to revert the logging context and MDC Map to its original value
+   * @return Cancellable that can be used to revert the logging context and MDC Map to its original
+   *     value
    */
-  public static Cancellable setLoggingContext(LoggingContext context) {
+  public static LoggingContextRestorer setLoggingContext(LoggingContext context) {
     final LoggingContext saveLoggingContext = loggingContext.get();
     final Map saveContextMap = MDC.getCopyOfContextMap();
     final Thread saveCurrentThread = Thread.currentThread();
@@ -57,15 +63,28 @@ public class LoggingContextAccessor {
       // MDC will throw this if there is no valid binding. Normally this shouldn't happen, but in case it does,
       // we'll just ignore it as it doesn't affect platform logic at all as we always use loggingContext.
     }
-    return new Cancellable() {
+    return new LoggingContextRestorer() {
       private boolean cancelled;
-      @Override
+
+      /**
+       * Cancels the current logging context change and restores the previous context.
+       */
+      @Override // From Cancellable
       public void cancel() {
         if (Thread.currentThread() == saveCurrentThread && !cancelled) {
           MDC.setContextMap(saveContextMap == null ? Collections.emptyMap() : saveContextMap);
           loggingContext.set(saveLoggingContext);
           cancelled = true;
         }
+      }
+
+      /**
+       * AutoCloseable implementation to ensure restoration of context.
+       * Delegates to the cancel() method.
+       */
+      @Override // From AutoCloseable
+      public void close() throws Exception {
+        cancel(); // Calls the cancel logic
       }
     };
   }

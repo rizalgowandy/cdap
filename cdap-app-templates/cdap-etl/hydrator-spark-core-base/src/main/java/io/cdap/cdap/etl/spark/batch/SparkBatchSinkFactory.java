@@ -122,8 +122,8 @@ public final class SparkBatchSinkFactory {
       Set<String> sinkOutputNames = sinkOutputs.get(sinkName);
       if (sinkOutputNames == null || sinkOutputNames.isEmpty()) {
         // should never happen if validation happened correctly at pipeline configure time
-        throw new IllegalStateException(sinkName + " has no outputs. " +
-                                          "Please check that the sink calls addOutput at some point.");
+        throw new IllegalStateException(sinkName + " has no outputs. "
+                                          + "Please check that the sink calls addOutput at some point.");
       }
 
       for (String outputName : sinkOutputNames) {
@@ -138,15 +138,17 @@ public final class SparkBatchSinkFactory {
           // should never happen if planner is implemented correctly and dataset based sinks are not
           // grouped with other sinks
           throw new IllegalStateException(
-            String.format("sink '%s' does not use an OutputFormatProvider. " +
-                            "This indicates that there is a planner bug. " +
-                            "Please report the issue and turn off stage consolidation by setting '%s'" +
-                            " to false in the runtime arguments.", sinkName, Constants.CONSOLIDATE_STAGES));
+            String.format("sink '%s' does not use an OutputFormatProvider. "
+                            + "This indicates that there is a planner bug. "
+                            + "Please report the issue and turn off stage consolidation by setting '%s'"
+                            + " to false in the runtime arguments.", sinkName, Constants.CONSOLIDATE_STAGES));
         }
         lineageNames.add(outputFormatProvider.name);
         outputFormatProviders.put(outputName, outputFormatProvider);
       }
     }
+
+    RDDUtils.logExecutionPlan(combinedRDD);
 
     Configuration hConf = new Configuration();
     Map<String, Set<String>> groupSinkOutputs = new HashMap<>();
@@ -171,8 +173,8 @@ public final class SparkBatchSinkFactory {
     Set<String> outputNames = sinkOutputs.get(sinkName);
     if (outputNames == null || outputNames.isEmpty()) {
       // should never happen if validation happened correctly at pipeline configure time
-      throw new IllegalArgumentException(sinkName + " has no outputs. " +
-                                           "Please check that the sink calls addOutput at some point.");
+      throw new IllegalArgumentException(sinkName + " has no outputs. "
+                                           + "Please check that the sink calls addOutput at some point.");
     }
 
     Set<String> lineageNames = new HashSet<>();
@@ -189,6 +191,8 @@ public final class SparkBatchSinkFactory {
         sec.saveAsDataset(rdd, datasetInfo.getDatasetName(), datasetInfo.getDatasetArgs());
       }
     }
+
+    RDDUtils.logExecutionPlan(rdd);
 
     if (outputFormats.isEmpty()) {
       return lineageNames;

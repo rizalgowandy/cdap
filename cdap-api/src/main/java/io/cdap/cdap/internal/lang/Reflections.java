@@ -16,7 +16,6 @@
 package io.cdap.cdap.internal.lang;
 
 import io.cdap.cdap.internal.guava.reflect.TypeToken;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
@@ -40,17 +39,19 @@ public final class Reflections {
       return isResolved(((GenericArrayType) type).getGenericComponentType());
     }
     if (type instanceof ParameterizedType) {
-      return Arrays.stream(((ParameterizedType) type).getActualTypeArguments()).allMatch(Reflections::isResolved);
+      return Arrays.stream(((ParameterizedType) type).getActualTypeArguments())
+          .allMatch(Reflections::isResolved);
     }
     return type instanceof Class;
   }
 
 
   /**
-   * Inspect all members in the given type. Fields and Methods that are given to Visitor are
-   * always having accessible flag being set.
+   * Inspect all members in the given type. Fields and Methods that are given to Visitor are always
+   * having accessible flag being set.
    */
-  public static void visit(Object instance, Type inspectType, Visitor firstVisitor, Visitor... moreVisitors) {
+  public static void visit(Object instance, Type inspectType, Visitor firstVisitor,
+      Visitor... moreVisitors) {
     try {
       TypeToken<?> inspectTypeToken = TypeToken.of(inspectType);
       List<Visitor> visitors = new ArrayList<>(1 + moreVisitors.length);

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Cask Data, Inc.
+ * Copyright © 2019-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -18,15 +18,24 @@ package io.cdap.cdap.master.environment.k8s;
 
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
+import com.google.inject.Injector;
 import io.cdap.cdap.api.artifact.ArtifactId;
+import io.cdap.cdap.api.artifact.ArtifactInfo;
+import io.cdap.cdap.api.artifact.ArtifactManager;
 import io.cdap.cdap.api.artifact.ArtifactScope;
 import io.cdap.cdap.api.artifact.ArtifactSummary;
 import io.cdap.cdap.api.artifact.ArtifactVersion;
+import io.cdap.cdap.api.artifact.CloseableClassLoader;
+import io.cdap.cdap.api.security.AccessException;
 import io.cdap.cdap.app.preview.PreviewStatus;
 import io.cdap.cdap.app.program.ManifestFields;
+import io.cdap.cdap.common.conf.CConfiguration;
+import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.common.test.PluginJarHelper;
 import io.cdap.cdap.common.utils.Tasks;
+import io.cdap.cdap.internal.app.worker.sidecar.ArtifactLocalizerService;
+import io.cdap.cdap.internal.app.worker.sidecar.ArtifactLocalizerTwillRunnable;
 import io.cdap.cdap.master.environment.app.PreviewTestApp;
 import io.cdap.cdap.master.environment.app.PreviewTestAppWithPlugin;
 import io.cdap.cdap.master.environment.plugin.ConstantCallable;
@@ -39,15 +48,6 @@ import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequestConfig;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
@@ -59,14 +59,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Manifest;
+import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Unit test for {@link PreviewServiceMain}.
  */
 public class PreviewServiceMainTest extends MasterServiceMainTestBase {
+
   private static final Gson GSON = new Gson();
 
-  private static final Type ARTIFACT_SUMMARY_LIST = new TypeToken<List<ArtifactSummary>>() { }.getType();
+  private static final Type ARTIFACT_SUMMARY_LIST = new TypeToken<List<ArtifactSummary>>() {
+  }.getType();
+
+  @ClassRule
+  public static TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+  private static ArtifactLocalizerService artifactLocalizerService;
 
   @After
   public void after() throws IOException {
@@ -75,14 +94,21 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
 
   @BeforeClass
   public static void initPreviewService() throws Exception {
-    // Start the preview service main, which will use its own local datadir, thus should fetch artifact location
-    // from appFabric when running a preview
+    // Start the artifact localizer service using a temporary folder.
+    CConfiguration cConf = CConfiguration.create();
+    cConf.set(Constants.CFG_LOCAL_DATA_DIR, temporaryFolder.newFolder().getAbsolutePath());
+    Injector injector = ArtifactLocalizerTwillRunnable.createInjector(cConf, new Configuration());
+    artifactLocalizerService = injector.getInstance(ArtifactLocalizerService.class);
+    artifactLocalizerService.startAndWait();
+    // Start the preview service main, which will use its own local datadir and fetch artifacts from app-fabric via
+    // the artifact localizer service.
     startService(PreviewServiceMain.class);
   }
 
   @AfterClass
   public static void afterPreviewService() throws Exception {
     stopService(PreviewServiceMain.class);
+    artifactLocalizerService.stopAndWait();
   }
 
   @Test
@@ -98,8 +124,9 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
 
     // Run a preview
     ArtifactSummary artifactSummary = new ArtifactSummary(artifactName, artifactVersion);
-    PreviewConfig previewConfig = new PreviewConfig(PreviewTestApp.TestWorkflow.NAME, ProgramType.WORKFLOW,
-                                                    Collections.emptyMap(), 2);
+    PreviewConfig previewConfig = new PreviewConfig(PreviewTestApp.TestWorkflow.NAME,
+        ProgramType.WORKFLOW,
+        Collections.emptyMap(), 2);
     AppRequest appRequest = new AppRequest<>(artifactSummary, null, previewConfig);
     ApplicationId previewId = runPreview(appRequest);
 
@@ -107,17 +134,18 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
     waitForPreview(previewId);
 
     // Verify the result of preview run
-    URL url = getRouterBaseURI()
-      .resolve(String.format("/v3/namespaces/default/previews/%s/tracers/%s",
-                             previewId.getApplication(), PreviewTestApp.TRACER_NAME)).toURL();
-    HttpResponse response = HttpRequests.execute(HttpRequest.get(url).build(), getHttpRequestConfig());
+    URL url = getRouterBaseUri()
+        .resolve(String.format("/v3/namespaces/default/previews/%s/tracers/%s",
+            previewId.getApplication(), PreviewTestApp.TRACER_NAME)).toURL();
+    HttpResponse response = HttpRequests
+        .execute(HttpRequest.get(url).build(), getHttpRequestConfig());
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Map<String, List<String>> tracerData = GSON.fromJson(response.getResponseBodyAsString(),
-                                                         new TypeToken<Map<String, List<String>>>() {
-                                                         }.getType());
+        new TypeToken<Map<String, List<String>>>() {
+        }.getType());
     Assert.assertEquals(Collections.singletonMap(PreviewTestApp.TRACER_KEY,
-                                                 Collections.singletonList(PreviewTestApp.TRACER_VAL)),
-                        tracerData);
+        Collections.singletonList(PreviewTestApp.TRACER_VAL)),
+        tracerData);
 
     // Clean up
     deleteArtfiact(artifactName, artifactVersion);
@@ -127,7 +155,8 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
   public void testPreviewAppWithPlugin() throws Exception {
     // Build the app
     LocationFactory locationFactory = new LocalLocationFactory(TEMP_FOLDER.newFolder());
-    Location appJar = AppJarHelper.createDeploymentJar(locationFactory, PreviewTestAppWithPlugin.class);
+    Location appJar = AppJarHelper
+        .createDeploymentJar(locationFactory, PreviewTestAppWithPlugin.class);
     String appArtifactName = PreviewTestAppWithPlugin.class.getSimpleName() + "_artifact";
     String artifactVersion = "1.0.0-SNAPSHOT";
 
@@ -137,32 +166,38 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
 
     // Build plugin artifact
     Manifest manifest = new Manifest();
-    manifest.getMainAttributes().put(ManifestFields.EXPORT_PACKAGE, ConstantCallable.class.getPackage().getName());
-    Location pluginJar = PluginJarHelper.createPluginJar(locationFactory, manifest, ConstantCallable.class);
+    manifest.getMainAttributes()
+        .put(ManifestFields.EXPORT_PACKAGE, ConstantCallable.class.getPackage().getName());
+    Location pluginJar = PluginJarHelper
+        .createPluginJar(locationFactory, manifest, ConstantCallable.class);
 
     // Deploy plug artifact
     String pluginArtifactName = ConstantCallable.class.getSimpleName() + "_artifact";
     URL pluginArtifactUrl =
-      getRouterBaseURI().resolve(String.format("/v3/namespaces/default/artifacts/%s", pluginArtifactName)).toURL();
+        getRouterBaseUri()
+            .resolve(String.format("/v3/namespaces/default/artifacts/%s", pluginArtifactName))
+            .toURL();
     response = HttpRequests.execute(
-      HttpRequest
-        .post(pluginArtifactUrl)
-        .withBody((ContentProvider<? extends InputStream>) pluginJar::getInputStream)
-        .addHeader("Artifact-Extends", String.format("%s[1.0.0-SNAPSHOT,10.0.0]", appArtifactName))
-        .addHeader("Artifact-Version", artifactVersion)
-        .build(), getHttpRequestConfig());
+        HttpRequest
+            .post(pluginArtifactUrl)
+            .withBody((ContentProvider<? extends InputStream>) pluginJar::getInputStream)
+            .addHeader("Artifact-Extends",
+                String.format("%s[1.0.0-SNAPSHOT,10.0.0]", appArtifactName))
+            .addHeader("Artifact-Version", artifactVersion)
+            .build(), getHttpRequestConfig());
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
 
     // Run a preview
     String expectedOutput = "output_value";
     ArtifactId appArtifactId = new ArtifactId(appArtifactName, new ArtifactVersion(artifactVersion),
-                                              ArtifactScope.USER);
+        ArtifactScope.USER);
     ArtifactSummary artifactSummary = ArtifactSummary.from(appArtifactId);
-    PreviewConfig previewConfig = new PreviewConfig(PreviewTestAppWithPlugin.TestWorkflow.NAME, ProgramType.WORKFLOW,
-                                                    Collections.emptyMap(), 2);
+    PreviewConfig previewConfig = new PreviewConfig(PreviewTestAppWithPlugin.TestWorkflow.NAME,
+        ProgramType.WORKFLOW,
+        Collections.emptyMap(), 2);
     PreviewTestAppWithPlugin.Conf appConf =
-      new PreviewTestAppWithPlugin.Conf(ConstantCallable.NAME,
-                                        Collections.singletonMap("val", expectedOutput));
+        new PreviewTestAppWithPlugin.Conf(ConstantCallable.NAME,
+            Collections.singletonMap("val", expectedOutput));
     AppRequest appRequest = new AppRequest<>(artifactSummary, appConf, previewConfig);
     ApplicationId previewId = runPreview(appRequest);
 
@@ -170,31 +205,35 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
     waitForPreview(previewId);
 
     // Verify the result of preview run
-    URL url = getRouterBaseURI().resolve(String.format("/v3/namespaces/default/previews/%s/tracers/%s",
-                                                       previewId.getApplication(), PreviewTestApp.TRACER_NAME)).toURL();
+    URL url = getRouterBaseUri()
+        .resolve(String.format("/v3/namespaces/default/previews/%s/tracers/%s",
+            previewId.getApplication(), PreviewTestApp.TRACER_NAME)).toURL();
     response = HttpRequests.execute(HttpRequest.get(url).build(), getHttpRequestConfig());
     Assert.assertEquals(HttpURLConnection.HTTP_OK, response.getResponseCode());
     Map<String, List<String>> tracerData = GSON.fromJson(response.getResponseBodyAsString(),
-                                                         new TypeToken<Map<String, List<String>>>() {
-                                                         }.getType());
+        new TypeToken<Map<String, List<String>>>() {
+        }.getType());
     Assert.assertEquals(Collections.singletonMap(PreviewTestAppWithPlugin.TRACER_KEY,
-                                                 Collections.singletonList(expectedOutput)),
-                        tracerData);
+        Collections.singletonList(expectedOutput)),
+        tracerData);
   }
 
   /**
    * Wait for preview to complete with a deadline
    */
   private void waitForPreview(ApplicationId previewId) throws MalformedURLException,
-    java.util.concurrent.TimeoutException, InterruptedException, java.util.concurrent.ExecutionException {
-    URL statusUrl = getRouterBaseURI().resolve(String.format("/v3/namespaces/default/previews/%s/status",
-                                                             previewId.getApplication())).toURL();
+      java.util.concurrent.TimeoutException, InterruptedException, java.util.concurrent.ExecutionException {
+    URL statusUrl = getRouterBaseUri()
+        .resolve(String.format("/v3/namespaces/default/previews/%s/status",
+            previewId.getApplication())).toURL();
     Tasks.waitFor(PreviewStatus.Status.COMPLETED, () -> {
-      HttpResponse statusResponse = HttpRequests.execute(HttpRequest.get(statusUrl).build(), getHttpRequestConfig());
+      HttpResponse statusResponse = HttpRequests
+          .execute(HttpRequest.get(statusUrl).build(), getHttpRequestConfig());
       if (statusResponse.getResponseCode() != 200) {
         return null;
       }
-      PreviewStatus previewStatus = GSON.fromJson(statusResponse.getResponseBodyAsString(), PreviewStatus.class);
+      PreviewStatus previewStatus = GSON
+          .fromJson(statusResponse.getResponseBodyAsString(), PreviewStatus.class);
       return previewStatus.getStatus();
     }, 2, TimeUnit.MINUTES);
   }
@@ -204,10 +243,12 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
    */
   private ApplicationId runPreview(AppRequest appRequest) throws IOException {
     URL url;
-    url = getRouterBaseURI().resolve("/v3/namespaces/default/previews").toURL();
-    HttpResponse response = HttpRequests.execute(HttpRequest.post(url).withBody(GSON.toJson(appRequest)).build(),
-                                                 getHttpRequestConfig());
-    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK, response.getResponseCode());
+    url = getRouterBaseUri().resolve("/v3/namespaces/default/previews").toURL();
+    HttpResponse response = HttpRequests
+        .execute(HttpRequest.post(url).withBody(GSON.toJson(appRequest)).build(),
+            getHttpRequestConfig());
+    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK,
+        response.getResponseCode());
     return GSON.fromJson(response.getResponseBodyAsString(), ApplicationId.class);
   }
 
@@ -215,17 +256,20 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
   /**
    * Deploy the given application in default namespace
    */
-  private void deployArtifact(Location artifactLocation, String artifactName, String artifactVersion)
-    throws IOException {
+  private void deployArtifact(Location artifactLocation, String artifactName,
+      String artifactVersion)
+      throws IOException {
     HttpRequestConfig requestConfig = getHttpRequestConfig();
-    URL url = getRouterBaseURI().resolve(String.format("/v3/namespaces/default/artifacts/%s", artifactName)).toURL();
+    URL url = getRouterBaseUri()
+        .resolve(String.format("/v3/namespaces/default/artifacts/%s", artifactName)).toURL();
     HttpResponse response = HttpRequests.execute(
-      HttpRequest.post(url)
-        .withBody((ContentProvider<? extends InputStream>) artifactLocation::getInputStream)
-        .addHeader("Artifact-Version", artifactVersion)
-        .build(),
-      requestConfig);
-    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK, response.getResponseCode());
+        HttpRequest.post(url)
+            .withBody((ContentProvider<? extends InputStream>) artifactLocation::getInputStream)
+            .addHeader("Artifact-Version", artifactVersion)
+            .build(),
+        requestConfig);
+    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK,
+        response.getResponseCode());
   }
 
   /**
@@ -233,10 +277,12 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
    */
   private void deleteArtfiact(String artifactName, String artifactVersion) throws IOException {
     HttpRequestConfig requestConfig = getHttpRequestConfig();
-    URL url = getRouterBaseURI().resolve(String.format("/v3/namespaces/default/artifacts/%s/versions/%s",
-                                                       artifactName, artifactVersion)).toURL();
+    URL url = getRouterBaseUri()
+        .resolve(String.format("/v3/namespaces/default/artifacts/%s/versions/%s",
+            artifactName, artifactVersion)).toURL();
     HttpResponse response = HttpRequests.execute(HttpRequest.delete(url).build(), requestConfig);
-    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK, response.getResponseCode());
+    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK,
+        response.getResponseCode());
   }
 
   /**
@@ -244,15 +290,19 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
    */
   private void deleteAllArtifact() throws IOException {
     HttpRequestConfig requestConfig = getHttpRequestConfig();
-    URL url = getRouterBaseURI().resolve(String.format("/v3/namespaces/default/artifacts")).toURL();
+    URL url = getRouterBaseUri().resolve(String.format("/v3/namespaces/default/artifacts")).toURL();
     HttpResponse response = HttpRequests.execute(HttpRequest.get(url).build(), requestConfig);
-    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK, response.getResponseCode());
-    List<ArtifactSummary> summaryList = GSON.fromJson(response.getResponseBodyAsString(), ARTIFACT_SUMMARY_LIST);
+    Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK,
+        response.getResponseCode());
+    List<ArtifactSummary> summaryList = GSON
+        .fromJson(response.getResponseBodyAsString(), ARTIFACT_SUMMARY_LIST);
     for (ArtifactSummary summary : summaryList) {
-      url = getRouterBaseURI().resolve(String.format("/v3/namespaces/default/artifacts/%s/versions/%s",
-                                                     summary.getName(), summary.getVersion())).toURL();
+      url = getRouterBaseUri()
+          .resolve(String.format("/v3/namespaces/default/artifacts/%s/versions/%s",
+              summary.getName(), summary.getVersion())).toURL();
       response = HttpRequests.execute(HttpRequest.delete(url).build(), requestConfig);
-      Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK, response.getResponseCode());
+      Assert.assertEquals(response.getResponseBodyAsString(), HttpURLConnection.HTTP_OK,
+          response.getResponseCode());
     }
   }
 
@@ -261,5 +311,32 @@ public class PreviewServiceMainTest extends MasterServiceMainTestBase {
    */
   private HttpRequestConfig getHttpRequestConfig() {
     return new HttpRequestConfig(0, 0, false);
+  }
+
+  private static class NoOpArtifactManager implements ArtifactManager {
+
+    @Override
+    public List<ArtifactInfo> listArtifacts() throws IOException, AccessException {
+      return Collections.emptyList();
+    }
+
+    @Override
+    public List<ArtifactInfo> listArtifacts(String namespace) throws IOException, AccessException {
+      return Collections.emptyList();
+    }
+
+    @Override
+    public CloseableClassLoader createClassLoader(ArtifactInfo artifactInfo,
+        @Nullable ClassLoader parentClassLoader)
+        throws IOException, AccessException {
+      return null;
+    }
+
+    @Override
+    public CloseableClassLoader createClassLoader(String namespace, ArtifactInfo artifactInfo,
+        @Nullable ClassLoader parentClassLoader)
+        throws IOException, AccessException {
+      return null;
+    }
   }
 }

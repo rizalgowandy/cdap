@@ -27,7 +27,6 @@ import io.cdap.cdap.client.ProgramClient;
 import io.cdap.cdap.proto.BatchProgram;
 import io.cdap.cdap.proto.BatchProgramResult;
 import io.cdap.cdap.proto.ProgramRecord;
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -35,38 +34,43 @@ import java.util.List;
  * Stops one or more programs in an application.
  */
 public class StopProgramsCommand extends BaseBatchCommand<BatchProgram> {
+
   private final ProgramClient programClient;
 
   @Inject
-  public StopProgramsCommand(ApplicationClient appClient, ProgramClient programClient, CLIConfig cliConfig) {
+  public StopProgramsCommand(ApplicationClient appClient, ProgramClient programClient,
+      CLIConfig cliConfig) {
     super(appClient, cliConfig);
     this.programClient = programClient;
   }
 
   @Override
   protected BatchProgram createProgram(ProgramRecord programRecord) {
-    return new BatchProgram(programRecord.getApp(), programRecord.getType(), programRecord.getName());
+    return new BatchProgram(programRecord.getApp(), programRecord.getType(),
+        programRecord.getName());
   }
 
   @Override
-  protected void runBatchCommand(PrintStream printStream, Args<BatchProgram> args) throws Exception {
+  protected void runBatchCommand(PrintStream printStream, Args<BatchProgram> args)
+      throws Exception {
     List<BatchProgramResult> results = programClient.stop(args.appId.getParent(), args.programs);
 
     Table table = Table.builder()
-      .setHeader("name", "type", "error")
-      .setRows(results, new RowMaker<BatchProgramResult>() {
-        @Override
-        public List<?> makeRow(BatchProgramResult result) {
-          return Lists.newArrayList(
-            result.getProgramId(), result.getProgramType(), result.getError());
-        }
-      }).build();
+        .setHeader("name", "type", "error")
+        .setRows(results, new RowMaker<BatchProgramResult>() {
+          @Override
+          public List<?> makeRow(BatchProgramResult result) {
+            return Lists.newArrayList(
+                result.getProgramId(), result.getProgramType(), result.getError());
+          }
+        }).build();
     cliConfig.getTableRenderer().render(cliConfig, printStream, table);
   }
 
   @Override
   public String getPattern() {
-    return String.format("stop app <%s> programs [of type <%s>]", ArgumentName.APP, ArgumentName.PROGRAM_TYPES);
+    return String.format("stop app <%s> programs [of type <%s>]", ArgumentName.APP,
+        ArgumentName.PROGRAM_TYPES);
   }
 
   @Override

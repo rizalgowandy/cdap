@@ -16,7 +16,6 @@
 package io.cdap.cdap.common.zookeeper.coordination;
 
 import com.google.common.base.Function;
-
 import javax.annotation.Nullable;
 
 /**
@@ -27,7 +26,8 @@ public interface ResourceModifier extends Function<ResourceRequirement, Resource
   /**
    * Called to produce a new {@link ResourceRequirement}.
    *
-   * @param existingRequirement The existing requirement or {@code null} if no existing requirement
+   * @param existingRequirement The existing requirement or {@code null} if no existing
+   *     requirement
    * @return The new requirement to submit or {@code null} if no modification wanted to be made
    */
   @Nullable

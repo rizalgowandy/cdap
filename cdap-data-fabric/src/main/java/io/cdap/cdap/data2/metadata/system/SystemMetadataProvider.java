@@ -21,7 +21,6 @@ import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.api.metadata.MetadataScope;
 import io.cdap.cdap.api.plugin.PluginClass;
 import io.cdap.cdap.spi.metadata.MetadataConstants;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +32,6 @@ import javax.annotation.Nullable;
 public interface SystemMetadataProvider {
 
   String VERSION_KEY = "version";
-  String EXPLORE_TAG = "explore";
 
   String PLUGIN_KEY_PREFIX = "plugin";
   String PLUGIN_VERSION_KEY_PREFIX = "plugin-version";
@@ -59,20 +57,21 @@ public interface SystemMetadataProvider {
   }
 
   static void addPlugin(PluginClass pluginClass, @Nullable String version,
-                        ImmutableMap.Builder<String, String> properties) {
+      ImmutableMap.Builder<String, String> properties) {
     String name = pluginClass.getName();
     String type = pluginClass.getType();
     // Need both name and type in the key because two plugins of different types could have the same name.
     // However, the composite of name + type is guaranteed to be unique
     properties.put(
-      PLUGIN_KEY_PREFIX + MetadataConstants.KEYVALUE_SEPARATOR + name + MetadataConstants.KEYVALUE_SEPARATOR + type,
-      name + MetadataConstants.KEYVALUE_SEPARATOR + type
+        PLUGIN_KEY_PREFIX + MetadataConstants.KEYVALUE_SEPARATOR + name
+            + MetadataConstants.KEYVALUE_SEPARATOR + type,
+        name + MetadataConstants.KEYVALUE_SEPARATOR + type
     );
     if (version != null) {
       properties.put(
-        PLUGIN_VERSION_KEY_PREFIX + MetadataConstants.KEYVALUE_SEPARATOR + name +
-          MetadataConstants.KEYVALUE_SEPARATOR + type,
-        name + MetadataConstants.KEYVALUE_SEPARATOR + version
+          PLUGIN_VERSION_KEY_PREFIX + MetadataConstants.KEYVALUE_SEPARATOR + name
+              + MetadataConstants.KEYVALUE_SEPARATOR + type,
+          name + MetadataConstants.KEYVALUE_SEPARATOR + version
       );
     }
   }

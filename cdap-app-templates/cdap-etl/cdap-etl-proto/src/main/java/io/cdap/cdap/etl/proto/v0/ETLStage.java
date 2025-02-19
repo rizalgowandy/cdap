@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.proto.v0;
 import io.cdap.cdap.etl.proto.ArtifactSelectorConfig;
 import io.cdap.cdap.etl.proto.UpgradeContext;
 import io.cdap.cdap.etl.proto.v1.Plugin;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +29,7 @@ import javax.annotation.Nullable;
  * {@link Plugin} class.
  */
 public class ETLStage {
+
   private final String name;
   private final Map<String, String> properties;
   private final String errorDatasetName;
@@ -49,11 +49,14 @@ public class ETLStage {
   }
 
   public Map<String, String> getProperties() {
-    return Collections.unmodifiableMap(properties == null ? new HashMap<String, String>() : properties);
+    return Collections.unmodifiableMap(
+        properties == null ? new HashMap<String, String>() : properties);
   }
 
-  io.cdap.cdap.etl.proto.v1.ETLStage upgradeStage(String name, String pluginType, UpgradeContext upgradeContext) {
-    ArtifactSelectorConfig artifactSelectorConfig = upgradeContext.getPluginArtifact(pluginType, this.name);
+  io.cdap.cdap.etl.proto.v1.ETLStage upgradeStage(String name, String pluginType,
+      UpgradeContext upgradeContext) {
+    ArtifactSelectorConfig artifactSelectorConfig = upgradeContext.getPluginArtifact(pluginType,
+        this.name);
     Plugin plugin = new Plugin(this.name, getProperties(), artifactSelectorConfig);
     return new io.cdap.cdap.etl.proto.v1.ETLStage(name, plugin, this.errorDatasetName);
   }

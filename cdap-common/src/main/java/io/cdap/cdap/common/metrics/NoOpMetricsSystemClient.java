@@ -19,15 +19,14 @@ package io.cdap.cdap.common.metrics;
 import io.cdap.cdap.api.metrics.MetricDeleteQuery;
 import io.cdap.cdap.api.metrics.MetricTimeSeries;
 import io.cdap.cdap.api.metrics.MetricsSystemClient;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
 /**
- * A noop {@link MetricsSystemClient} implementation. It is intended for satisfying Guice dependency injection in
- * cases where actual operation is not needed (e.g. UpgradeTool).
+ * A noop {@link MetricsSystemClient} implementation. It is intended for satisfying Guice dependency
+ * injection in cases where actual operation is not needed (e.g. UpgradeTool).
  */
 public class NoOpMetricsSystemClient implements MetricsSystemClient {
 
@@ -37,8 +36,9 @@ public class NoOpMetricsSystemClient implements MetricsSystemClient {
   }
 
   @Override
-  public Collection<MetricTimeSeries> query(int start, int end, int resolution, Map<String, String> tags,
-                                            Collection<String> metrics, Collection<String> groupByTags) {
+  public Collection<MetricTimeSeries> query(int start, int end, int resolution,
+      Map<String, String> tags,
+      Collection<String> metrics, Collection<String> groupByTags) {
     return Collections.emptyList();
   }
 

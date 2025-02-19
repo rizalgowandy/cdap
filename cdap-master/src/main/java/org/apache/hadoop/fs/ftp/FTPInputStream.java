@@ -16,6 +16,8 @@
 
 package org.apache.hadoop.fs.ftp;
 
+import java.io.IOException;
+import java.io.InputStream;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -23,14 +25,12 @@ import org.apache.hadoop.fs.FSInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.mapreduce.lib.input.LineRecordReader;
 
-import java.io.IOException;
-import java.io.InputStream;
-
 /**
- * {@link FTPInputStream}, copied from Hadoop and modified, that doesn't throw an exception when seeks are attempted
- * to the current position. Position equality check logic in {@link FTPInputStream#seek} is the only change from the
- * original class in Hadoop. This change is required since {@link LineRecordReader} calls {@link FTPInputStream#seek}
- * with value of 0. TODO: This file can be removed once https://issues.cask.co/browse/CDAP-5387 is addressed.
+ * {@link FTPInputStream}, copied from Hadoop and modified, that doesn't throw an exception when
+ * seeks are attempted to the current position. Position equality check logic in {@link
+ * FTPInputStream#seek} is the only change from the original class in Hadoop. This change is
+ * required since {@link LineRecordReader} calls {@link FTPInputStream#seek} with value of 0. TODO:
+ * This file can be removed once https://issues.cask.co/browse/CDAP-5387 is addressed.
  */
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
@@ -43,7 +43,7 @@ public class FTPInputStream extends FSInputStream {
   long pos;
 
   public FTPInputStream(InputStream stream, FTPClient client,
-                        FileSystem.Statistics stats) {
+      FileSystem.Statistics stats) {
     if (stream == null) {
       throw new IllegalArgumentException("Null InputStream");
     }
@@ -127,7 +127,7 @@ public class FTPInputStream extends FSInputStream {
     client.disconnect();
     if (!cmdCompleted) {
       throw new FTPException("Could not complete transfer, Reply Code - "
-                               + client.getReplyCode());
+          + client.getReplyCode());
     }
   }
 

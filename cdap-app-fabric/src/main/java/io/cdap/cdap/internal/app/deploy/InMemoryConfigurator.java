@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -39,6 +39,7 @@ import io.cdap.cdap.app.deploy.Configurator;
 import io.cdap.cdap.common.InvalidArtifactException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.feature.DefaultFeatureFlagsProvider;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.io.CaseInsensitiveEnumTypeAdapterFactory;
@@ -48,7 +49,6 @@ import io.cdap.cdap.common.utils.DirUtils;
 import io.cdap.cdap.internal.app.deploy.pipeline.AppDeploymentInfo;
 import io.cdap.cdap.internal.app.deploy.pipeline.AppDeploymentRuntimeInfo;
 import io.cdap.cdap.internal.app.deploy.pipeline.AppSpecInfo;
-import io.cdap.cdap.internal.app.feature.DefaultFeatureFlagsProvider;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactDescriptor;
 import io.cdap.cdap.internal.app.runtime.artifact.ArtifactRepository;
 import io.cdap.cdap.internal.app.runtime.artifact.Artifacts;
@@ -56,18 +56,18 @@ import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.plugin.PluginInstantiator;
 import io.cdap.cdap.security.impersonation.EntityImpersonator;
 import io.cdap.cdap.security.impersonation.Impersonator;
-import org.apache.twill.filesystem.Location;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import org.apache.twill.filesystem.Location;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * In Memory Configurator doesn't spawn a external process, but does this in memory.
  */
 public final class InMemoryConfigurator implements Configurator {
+
   private static final Logger LOG = LoggerFactory.getLogger(InMemoryConfigurator.class);
 
   private final CConfiguration cConf;
@@ -86,6 +86,7 @@ public final class InMemoryConfigurator implements Configurator {
   private final RemoteClientFactory remoteClientFactory;
   private final AppDeploymentRuntimeInfo runtimeInfo;
   private final FeatureFlagsProvider featureFlagsProvider;
+  private final ApplicationSpecification deployedApplicationSpec;
 
   // These fields are needed to create the classLoader in the config method
   private final ArtifactRepository artifactRepository;
@@ -93,19 +94,21 @@ public final class InMemoryConfigurator implements Configurator {
   private final Impersonator impersonator;
 
   @Inject
-  public InMemoryConfigurator(CConfiguration cConf, PluginFinder pluginFinder, Impersonator impersonator,
-                              ArtifactRepository artifactRepository, RemoteClientFactory remoteClientFactory,
-                              @Assisted AppDeploymentInfo deploymentInfo) {
+  public InMemoryConfigurator(CConfiguration cConf, PluginFinder pluginFinder,
+      Impersonator impersonator,
+      ArtifactRepository artifactRepository, RemoteClientFactory remoteClientFactory,
+      @Assisted AppDeploymentInfo deploymentInfo) {
     this.cConf = cConf;
     this.pluginFinder = pluginFinder;
     this.appNamespace = Id.Namespace.fromEntityId(deploymentInfo.getNamespaceId());
     this.artifactId = Id.Artifact.fromEntityId(deploymentInfo.getArtifactId());
-    this.appClassName = deploymentInfo.getApplicationClassName();
+    this.appClassName = deploymentInfo.getApplicationClass().getClassName();
     this.applicationName = deploymentInfo.getApplicationName();
     this.applicationVersion = deploymentInfo.getApplicationVersion();
-    this.configString = deploymentInfo.getConfigString() == null ? "" : deploymentInfo.getConfigString();
+    this.configString =
+        deploymentInfo.getConfigString() == null ? "" : deploymentInfo.getConfigString();
     this.baseUnpackDir = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR),
-                                  cConf.get(Constants.AppFabric.TEMP_DIR)).getAbsoluteFile();
+        cConf.get(Constants.AppFabric.TEMP_DIR)).getAbsoluteFile();
 
     this.impersonator = impersonator;
     this.artifactRepository = artifactRepository;
@@ -113,6 +116,7 @@ public final class InMemoryConfigurator implements Configurator {
     this.remoteClientFactory = remoteClientFactory;
     this.runtimeInfo = deploymentInfo.getRuntimeInfo();
     this.featureFlagsProvider = new DefaultFeatureFlagsProvider(cConf);
+    this.deployedApplicationSpec = deploymentInfo.getDeployedApplicationSpec();
   }
 
   /**
@@ -127,18 +131,21 @@ public final class InMemoryConfigurator implements Configurator {
   public ListenableFuture<ConfigResponse> config() {
 
     // Create the classloader
-    EntityImpersonator classLoaderImpersonator = new EntityImpersonator(artifactId.toEntityId(), impersonator);
+    EntityImpersonator classLoaderImpersonator = new EntityImpersonator(artifactId.toEntityId(),
+        impersonator);
     try (CloseableClassLoader classLoader =
-           artifactRepository.createArtifactClassLoader(new ArtifactDescriptor(artifactId.getNamespace().getId(),
-                                                                               artifactId.toArtifactId(),
-                                                                               artifactLocation),
-                                                        classLoaderImpersonator)) {
+        artifactRepository.createArtifactClassLoader(
+            new ArtifactDescriptor(artifactId.getNamespace().getId(),
+                artifactId.toArtifactId(),
+                artifactLocation),
+            classLoaderImpersonator)) {
       SettableFuture<ConfigResponse> result = SettableFuture.create();
 
       Object appMain = classLoader.loadClass(appClassName).newInstance();
       if (!(appMain instanceof Application)) {
-        throw new IllegalStateException(String.format("Application main class is of invalid type: %s",
-                                                      appMain.getClass().getName()));
+        throw new IllegalStateException(
+            String.format("Application main class is of invalid type: %s",
+                appMain.getClass().getName()));
       }
 
       Application<?> app = (Application<?>) appMain;
@@ -153,25 +160,28 @@ public final class InMemoryConfigurator implements Configurator {
   }
 
   private <T extends Config> ConfigResponse createResponse(Application<T> app,
-                                                           ClassLoader artifactClassLoader) throws Exception {
+      ClassLoader artifactClassLoader) throws Exception {
     // This Gson cannot be static since it is used to deserialize user class.
     // Gson will keep a static map to class, hence will leak the classloader
-    Gson gson = new GsonBuilder().registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory()).create();
+    Gson gson = new GsonBuilder().registerTypeAdapterFactory(
+        new CaseInsensitiveEnumTypeAdapterFactory()).create();
     // Now, we call configure, which returns application specification.
     DefaultAppConfigurer configurer;
 
     File tempDir = DirUtils.createTempDir(baseUnpackDir);
     try (
-      PluginInstantiator pluginInstantiator = new PluginInstantiator(cConf, app.getClass().getClassLoader(), tempDir)
+        PluginInstantiator pluginInstantiator = new PluginInstantiator(cConf,
+            app.getClass().getClassLoader(), tempDir)
     ) {
 
       RuntimeConfigurer runtimeConfigurer =
-        runtimeInfo != null ? new DefaultAppRuntimeConfigurer(
-          appNamespace.getId(), remoteClientFactory, runtimeInfo.getUserArguments(),
-          runtimeInfo.getExistingAppSpec()) : null;
+          runtimeInfo != null ? new DefaultAppRuntimeConfigurer(
+              appNamespace.getId(), remoteClientFactory, runtimeInfo.getUserArguments(),
+              runtimeInfo.getExistingAppSpec()) : null;
       configurer = new DefaultAppConfigurer(
-        appNamespace, artifactId, app, configString, pluginFinder, pluginInstantiator, runtimeConfigurer, runtimeInfo,
-        featureFlagsProvider);
+          appNamespace, artifactId, app, configString, pluginFinder, pluginInstantiator,
+          runtimeConfigurer, runtimeInfo,
+          featureFlagsProvider, deployedApplicationSpec);
 
       T appConfig;
       Type configType = Artifacts.getConfigType(app.getClass());
@@ -182,13 +192,15 @@ public final class InMemoryConfigurator implements Configurator {
         try {
           appConfig = gson.fromJson(configString, configType);
         } catch (JsonSyntaxException e) {
-          throw new IllegalArgumentException("Invalid JSON configuration was provided. Please check the syntax.", e);
+          throw new IllegalArgumentException(
+              "Invalid JSON configuration was provided. Please check the syntax.", e);
         }
       }
 
       try {
         ClassLoader oldClassLoader = ClassLoaders.setContextClassLoader(
-          new CombineClassLoader(null, app.getClass().getClassLoader(), getClass().getClassLoader()));
+            new CombineClassLoader(null, app.getClass().getClassLoader(),
+                getClass().getClassLoader()));
         try {
           app.configure(configurer, new DefaultApplicationContext<>(appConfig));
         } finally {
@@ -201,29 +213,31 @@ public final class InMemoryConfigurator implements Configurator {
           String missingClass = rootCause.getMessage();
 
           // If the missing class has "spark" in the name, try to see if Spark is available
-          if (missingClass.startsWith("org.apache.spark.") || missingClass.startsWith("io.cdap.cdap.api.spark.")) {
+          if (missingClass.startsWith("org.apache.spark.") || missingClass.startsWith(
+              "io.cdap.cdap.api.spark.")) {
             // Try to load the SparkContext class, which should be available if Spark is available in the platform
             try {
               artifactClassLoader.loadClass("org.apache.spark.SparkContext");
             } catch (ClassNotFoundException e) {
               // Spark is not available, it is most likely caused by missing Spark in the platform
               throw new IllegalStateException(
-                "Missing Spark related class " + missingClass +
-                  ". It may be caused by unavailability of Spark. " +
-                  "Please verify environment variable " + Constants.SPARK_HOME + " is set correctly", t);
+                  "Missing Spark related class " + missingClass
+                      + ". It may be caused by unavailability of Spark. "
+                      + "Please verify environment variable " + Constants.SPARK_HOME
+                      + " is set correctly", t);
             }
 
             // Spark is available, can be caused by incompatible Spark version
             throw new InvalidArtifactException(
-              "Missing Spark related class " + missingClass +
-                ". Configured to use Spark located at " + System.getenv(Constants.SPARK_HOME) +
-                ", which may be incompatible with the one required by the application", t);
+                "Missing Spark related class " + missingClass
+                    + ". Configured to use Spark located at " + System.getenv(Constants.SPARK_HOME)
+                    + ", which may be incompatible with the one required by the application", t);
           }
           // If Spark is available or the missing class is not a spark related class,
           // then the missing class is most likely due to some missing library in the artifact jar
           throw new InvalidArtifactException(
-            "Missing class " + missingClass +
-              ". It may be caused by missing dependency jar(s) in the artifact jar.", t);
+              "Missing class " + missingClass
+                  + ". It may be caused by missing dependency jar(s) in the artifact jar.", t);
         }
         throw t;
       }
@@ -234,8 +248,10 @@ public final class InMemoryConfigurator implements Configurator {
         LOG.warn("Exception raised when deleting directory {}", tempDir, e);
       }
     }
-    ApplicationSpecification specification = configurer.createSpecification(applicationName, applicationVersion);
-    AppSpecInfo appSpecInfo = new AppSpecInfo(specification, configurer.getSystemTables(), configurer.getMetadata());
+    ApplicationSpecification specification = configurer.createSpecification(applicationName,
+        applicationVersion);
+    AppSpecInfo appSpecInfo = new AppSpecInfo(specification, configurer.getSystemTables(),
+        configurer.getMetadata());
     return new DefaultConfigResponse(0, appSpecInfo);
   }
 }

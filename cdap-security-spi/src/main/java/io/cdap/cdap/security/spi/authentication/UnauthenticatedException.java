@@ -18,7 +18,6 @@ package io.cdap.cdap.security.spi.authentication;
 
 import io.cdap.cdap.api.common.HttpErrorStatusProvider;
 import io.cdap.cdap.api.security.AccessException;
-
 import java.net.HttpURLConnection;
 
 /**
@@ -28,6 +27,10 @@ public class UnauthenticatedException extends AccessException implements HttpErr
 
   public UnauthenticatedException() {
     super();
+  }
+
+  public UnauthenticatedException(Throwable throwable) {
+    super(throwable);
   }
 
   public UnauthenticatedException(String msg, Throwable throwable) {

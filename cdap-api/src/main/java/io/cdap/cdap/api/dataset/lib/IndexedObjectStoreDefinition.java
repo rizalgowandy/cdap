@@ -21,7 +21,6 @@ import io.cdap.cdap.api.dataset.DatasetContext;
 import io.cdap.cdap.api.dataset.DatasetDefinition;
 import io.cdap.cdap.api.dataset.DatasetSpecification;
 import io.cdap.cdap.api.dataset.table.Table;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -30,17 +29,17 @@ import java.util.Map;
  */
 @Beta
 public class IndexedObjectStoreDefinition
-  extends CompositeDatasetDefinition<IndexedObjectStore> {
+    extends CompositeDatasetDefinition<IndexedObjectStore> {
 
   public IndexedObjectStoreDefinition(String name,
-                                      DatasetDefinition<? extends Table, ?> tableDef,
-                                      DatasetDefinition<? extends ObjectStore, ?> objectStoreDef) {
+      DatasetDefinition<? extends Table, ?> tableDef,
+      DatasetDefinition<? extends ObjectStore, ?> objectStoreDef) {
     super(name, "index", tableDef, "data", objectStoreDef);
   }
 
   @Override
   public IndexedObjectStore<?> getDataset(DatasetContext datasetContext, DatasetSpecification spec,
-                                          Map<String, String> arguments, ClassLoader classLoader) throws IOException {
+      Map<String, String> arguments, ClassLoader classLoader) throws IOException {
 
     Table index = getDataset(datasetContext, "index", spec, arguments, classLoader);
     ObjectStore<?> objectStore = getDataset(datasetContext, "data", spec, arguments, classLoader);

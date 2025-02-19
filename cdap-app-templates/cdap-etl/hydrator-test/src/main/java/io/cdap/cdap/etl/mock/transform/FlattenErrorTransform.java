@@ -29,7 +29,6 @@ import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.StageConfigurer;
 import io.cdap.cdap.etl.api.TransformContext;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +40,7 @@ import java.util.Map;
 @Plugin(type = ErrorTransform.PLUGIN_TYPE)
 @Name("Flatten")
 public class FlattenErrorTransform extends ErrorTransform<StructuredRecord, StructuredRecord> {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
 
   @Override
@@ -63,16 +63,18 @@ public class FlattenErrorTransform extends ErrorTransform<StructuredRecord, Stru
   }
 
   @Override
-  public void transform(ErrorRecord<StructuredRecord> input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(ErrorRecord<StructuredRecord> input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     StructuredRecord invalidRecord = input.getRecord();
-    StructuredRecord.Builder output = StructuredRecord.builder(getOutputSchema(invalidRecord.getSchema()));
+    StructuredRecord.Builder output = StructuredRecord.builder(
+        getOutputSchema(invalidRecord.getSchema()));
     for (Schema.Field field : invalidRecord.getSchema().getFields()) {
       output.set(field.getName(), invalidRecord.get(field.getName()));
     }
     emitter.emit(output.set("errMsg", input.getErrorMessage())
-                   .set("errCode", input.getErrorCode())
-                   .set("errStage", input.getStageName())
-                   .build());
+        .set("errCode", input.getErrorCode())
+        .set("errStage", input.getStageName())
+        .build());
   }
 
   private Schema getOutputSchema(Schema inputSchema) {
@@ -85,13 +87,15 @@ public class FlattenErrorTransform extends ErrorTransform<StructuredRecord, Stru
   }
 
   public static ETLPlugin getPlugin() {
-    return new ETLPlugin("Flatten", ErrorTransform.PLUGIN_TYPE, new HashMap<String, String>(), null);
+    return new ETLPlugin("Flatten", ErrorTransform.PLUGIN_TYPE, new HashMap<String, String>(),
+        null);
   }
 
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     return PluginClass.builder().setName("Flatten").setType(ErrorTransform.PLUGIN_TYPE)
-             .setDescription("").setClassName(FlattenErrorTransform.class.getName()).setProperties(properties)
-             .build();
+        .setDescription("").setClassName(FlattenErrorTransform.class.getName())
+        .setProperties(properties)
+        .build();
   }
 }

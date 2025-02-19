@@ -20,9 +20,8 @@ import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.feature.FeatureFlagsProvider;
 import io.cdap.cdap.api.preview.DataTracer;
-import org.apache.twill.api.RunId;
-
 import java.util.Map;
+import org.apache.twill.api.RunId;
 
 /**
  * This interface represents a context for a processor or elements of a processor.
@@ -60,8 +59,8 @@ public interface RuntimeContext extends FeatureFlagsProvider {
   Admin getAdmin();
 
   /**
-   * @param dataTracerName the name of the logger using which the debug information will be logged
-   *
+   * @param dataTracerName the name of the logger using which the debug information will be
+   *     logged
    * @return an {@link DataTracer} to perform data trace operations.
    */
   @Beta

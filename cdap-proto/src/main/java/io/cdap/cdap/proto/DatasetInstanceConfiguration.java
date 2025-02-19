@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto;
 
 import com.google.gson.annotations.SerializedName;
-
 import java.util.Collections;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -26,6 +25,7 @@ import javax.annotation.Nullable;
  * POJO that carries dataset type and properties information for create dataset request
  */
 public final class DatasetInstanceConfiguration {
+
   private final String typeName;
   private final Map<String, String> properties;
   private final String description;
@@ -36,8 +36,9 @@ public final class DatasetInstanceConfiguration {
     this(typeName, properties, null, null);
   }
 
-  public DatasetInstanceConfiguration(String typeName, Map<String, String> properties, @Nullable String description,
-                                      @Nullable String ownerPrincipal) {
+  public DatasetInstanceConfiguration(String typeName, Map<String, String> properties,
+      @Nullable String description,
+      @Nullable String ownerPrincipal) {
     this.typeName = typeName;
     this.properties = properties;
     this.description = description;

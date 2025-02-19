@@ -19,7 +19,6 @@ package io.cdap.cdap.common.metadata;
 import com.google.common.collect.ImmutableSet;
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.proto.id.EntityId;
-
 import java.util.Set;
 
 /**
@@ -28,10 +27,9 @@ import java.util.Set;
 public final class MetadataUtil {
 
   private static final Set<String> VERSIONED_ENTITY_TYPES = ImmutableSet.of(
-    MetadataEntity.APPLICATION,
-    MetadataEntity.SCHEDULE,
-    MetadataEntity.PROGRAM,
-    MetadataEntity.PROGRAM_RUN);
+      MetadataEntity.APPLICATION,
+      MetadataEntity.PROGRAM,
+      MetadataEntity.PROGRAM_RUN);
 
   /**
    * @return whether an entity of the given type requires a version

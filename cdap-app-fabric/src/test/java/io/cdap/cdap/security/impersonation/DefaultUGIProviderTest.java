@@ -30,6 +30,8 @@ import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
 import io.cdap.cdap.proto.id.NamespaceId;
+import java.io.File;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.minikdc.MiniKdc;
@@ -43,9 +45,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * Unit tests for {@link UGIProvider}.
@@ -147,7 +146,7 @@ public class DefaultUGIProviderTest extends AppFabricTestBase {
     // create a namespace with a principal and keytab so that later we can verify that if a required entity owner does
     // not exists then the provider gives the UGI for namespace owner
     namespaceClient.create(new NamespaceMeta.Builder().setName(namespaceId).setPrincipal(
-      eveKerberosPrincipalId.getPrincipal()).setKeytabURI(eveKeytabFile.getAbsolutePath()).build());
+      eveKerberosPrincipalId.getPrincipal()).setKeytabUri(eveKeytabFile.getAbsolutePath()).build());
 
     // add an owner for some entity
     ownerAdmin.add(aliceEntity, aliceKerberosPrincipalId);
@@ -260,8 +259,8 @@ public class DefaultUGIProviderTest extends AppFabricTestBase {
   }
 
   private void setKeytabDir(String keytabDirPath) {
-    cConf.set(Constants.Security.KEYTAB_PATH, keytabDirPath + "/" +
-      Constants.USER_NAME_SPECIFIER + ".keytab");
+    cConf.set(Constants.Security.KEYTAB_PATH, keytabDirPath + "/"
+        + Constants.USER_NAME_SPECIFIER + ".keytab");
   }
 
   private static String getPrincipal(String name) {

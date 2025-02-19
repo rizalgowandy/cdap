@@ -27,12 +27,11 @@ import io.cdap.cdap.common.service.Retries;
 import io.cdap.cdap.common.service.RetryStrategy;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.apache.twill.filesystem.Location;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
 
 /**
  * An implementation of {@link ArtifactManager} that talks to {@link ArtifactRepository} directly.
@@ -46,9 +45,9 @@ public final class LocalArtifactManager extends AbstractArtifactManager {
 
   @Inject
   LocalArtifactManager(CConfiguration cConf,
-                       ArtifactRepository artifactRepository,
-                       @Assisted NamespaceId namespaceId,
-                       @Assisted RetryStrategy retryStrategy) {
+      ArtifactRepository artifactRepository,
+      @Assisted NamespaceId namespaceId,
+      @Assisted RetryStrategy retryStrategy) {
     super(cConf);
     this.artifactRepository = artifactRepository;
     this.namespaceId = namespaceId;
@@ -68,7 +67,8 @@ public final class LocalArtifactManager extends AbstractArtifactManager {
   private List<ArtifactInfo> listArtifacts(NamespaceId namespaceId) throws IOException {
     return Retries.callWithRetries(() -> {
       try {
-        List<ArtifactInfo> result = new ArrayList<>(artifactRepository.getArtifactsInfo(namespaceId));
+        List<ArtifactInfo> result = new ArrayList<>(
+            artifactRepository.getArtifactsInfo(namespaceId));
         result.addAll(artifactRepository.getArtifactsInfo(NamespaceId.SYSTEM));
         return result;
       } catch (IOException | RuntimeException e) {
@@ -81,7 +81,7 @@ public final class LocalArtifactManager extends AbstractArtifactManager {
 
   @Override
   protected Location getArtifactLocation(ArtifactInfo artifactInfo,
-                                         @Nullable String artifactNamespace) throws IOException {
+      @Nullable String artifactNamespace) throws IOException {
     NamespaceId namespace;
     if (ArtifactScope.SYSTEM.equals(artifactInfo.getScope())) {
       namespace = NamespaceId.SYSTEM;
@@ -94,7 +94,8 @@ public final class LocalArtifactManager extends AbstractArtifactManager {
 
     return Retries.callWithRetries(() -> {
       try {
-        ArtifactDetail artifactDetail = artifactRepository.getArtifact(Id.Artifact.fromEntityId(artifactId));
+        ArtifactDetail artifactDetail = artifactRepository.getArtifact(
+            Id.Artifact.fromEntityId(artifactId));
         return artifactDetail.getDescriptor().getLocation();
       } catch (IOException | RuntimeException e) {
         throw e;

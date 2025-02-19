@@ -16,10 +16,10 @@
 
 package io.cdap.cdap.etl.common.guice;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-
-import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Captures the actual type of {@code T}.
@@ -28,11 +28,13 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 abstract class TypeCapture<T> {
 
-  /** Returns the captured type. */
+  /**
+   * Returns the captured type.
+   */
   final Type capture() {
     Type superclass = getClass().getGenericSuperclass();
     checkArgument(superclass instanceof ParameterizedType,
-                  "%s isn't parameterized", superclass);
+        "%s isn't parameterized", superclass);
     return ((ParameterizedType) superclass).getActualTypeArguments()[0];
   }
 }

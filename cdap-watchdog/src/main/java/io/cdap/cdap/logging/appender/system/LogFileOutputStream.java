@@ -22,6 +22,11 @@ import io.cdap.cdap.common.io.ByteBuffers;
 import io.cdap.cdap.common.io.Syncable;
 import io.cdap.cdap.logging.serialize.LoggingEvent;
 import io.cdap.cdap.logging.serialize.LoggingEventSerializer;
+import java.io.Closeable;
+import java.io.Flushable;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -30,20 +35,15 @@ import org.apache.twill.filesystem.Location;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.io.Flushable;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-
 /**
  * Represents output stream for a log file.
  *
- * Since there is no way to check the state of the underlying file on an exception,
- * all methods of this class assume that the file state is bad on any exception and close the file.
+ * Since there is no way to check the state of the underlying file on an exception, all methods of
+ * this class assume that the file state is bad on any exception and close the file.
  */
 
 class LogFileOutputStream implements Closeable, Flushable, Syncable {
+
   private static final Logger LOG = LoggerFactory.getLogger(LogFileOutputStream.class);
 
   private final Location location;
@@ -56,7 +56,7 @@ class LogFileOutputStream implements Closeable, Flushable, Syncable {
   private long fileSize;
 
   LogFileOutputStream(Location location, String filePermissions,
-                      int syncIntervalBytes, long createTime, Closeable closeable) throws IOException {
+      int syncIntervalBytes, long createTime, Closeable closeable) throws IOException {
     this.location = location;
     this.closeable = closeable;
     this.serializer = new LoggingEventSerializer();
@@ -64,7 +64,8 @@ class LogFileOutputStream implements Closeable, Flushable, Syncable {
     Schema schema = serializer.getAvroSchema();
     try {
       this.outputStream =
-        filePermissions.isEmpty() ? location.getOutputStream() : location.getOutputStream(filePermissions);
+          filePermissions.isEmpty() ? location.getOutputStream()
+              : location.getOutputStream(filePermissions);
       this.dataFileWriter = new DataFileWriter<>(new GenericDatumWriter<GenericRecord>(schema));
       this.dataFileWriter.create(schema, outputStream);
       this.dataFileWriter.setSyncInterval(syncIntervalBytes);
@@ -98,6 +99,7 @@ class LogFileOutputStream implements Closeable, Flushable, Syncable {
 
   /**
    * get create time of the file
+   *
    * @return create time
    */
   long getCreateTime() {
@@ -106,6 +108,7 @@ class LogFileOutputStream implements Closeable, Flushable, Syncable {
 
   /**
    * get the number of bytes written to output stream
+   *
    * @return file size
    */
   long getSize() {

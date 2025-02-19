@@ -25,13 +25,13 @@ import io.cdap.cdap.client.WorkflowClient;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 
 /**
  * Command to delete the local datasets associated with the Workflow run.
  */
 public class DeleteWorkflowLocalDatasetsCommand extends AbstractCommand {
+
   private final ElementType elementType;
   private final WorkflowClient workflowClient;
 
@@ -49,9 +49,10 @@ public class DeleteWorkflowLocalDatasetsCommand extends AbstractCommand {
       throw new CommandInputError(this);
     }
 
-    ProgramRunId programRunId = new ProgramRunId(cliConfig.getCurrentNamespace().getNamespace(), programIdParts[0],
-                                                 ProgramType.WORKFLOW, programIdParts[1],
-                                                 arguments.get(ArgumentName.RUN_ID.toString()));
+    ProgramRunId programRunId = new ProgramRunId(cliConfig.getCurrentNamespace().getNamespace(),
+        programIdParts[0],
+        ProgramType.WORKFLOW, programIdParts[1],
+        arguments.get(ArgumentName.RUN_ID.toString()));
 
     workflowClient.deleteWorkflowLocalDatasets(programRunId);
     printStream.printf("Successfully deleted local datasets associated with the workflow run.");
@@ -60,12 +61,13 @@ public class DeleteWorkflowLocalDatasetsCommand extends AbstractCommand {
   @Override
   public String getPattern() {
     return String.format("delete workflow local datasets <%s> <%s>", elementType.getArgumentName(),
-                         ArgumentName.RUN_ID);
+        ArgumentName.RUN_ID);
   }
 
   @Override
   public String getDescription() {
-    return String.format("Deletes the local datasets associated with the workflow for a given '<%s>'",
-                         ArgumentName.RUN_ID);
+    return String.format(
+        "Deletes the local datasets associated with the workflow for a given '<%s>'",
+        ArgumentName.RUN_ID);
   }
 }

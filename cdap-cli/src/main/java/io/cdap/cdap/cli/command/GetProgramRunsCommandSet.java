@@ -23,7 +23,6 @@ import io.cdap.cdap.cli.ElementType;
 import io.cdap.cdap.client.ProgramClient;
 import io.cdap.common.cli.Command;
 import io.cdap.common.cli.CommandSet;
-
 import java.util.List;
 
 /**
@@ -36,7 +35,8 @@ public class GetProgramRunsCommandSet extends CommandSet<Command> {
     super(generateCommands(programClient, cliConfig));
   }
 
-  private static Iterable<Command> generateCommands(ProgramClient programClient, CLIConfig cliConfig) {
+  private static Iterable<Command> generateCommands(ProgramClient programClient,
+      CLIConfig cliConfig) {
     List<Command> commands = Lists.newArrayList();
     for (ElementType elementType : ElementType.values()) {
       if (elementType.hasRuns()) {

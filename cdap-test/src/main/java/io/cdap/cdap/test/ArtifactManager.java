@@ -17,13 +17,13 @@
 package io.cdap.cdap.test;
 
 import io.cdap.cdap.proto.id.ArtifactId;
-
 import java.util.Map;
 
 /**
  * An interface to manage interactions with an {@link ArtifactId artifact} in tests.
  */
 public interface ArtifactManager {
+
   /**
    * Write properties to the artifact.
    *

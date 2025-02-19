@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Cask Data, Inc.
+ * Copyright © 2019-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -24,15 +24,14 @@ import io.cdap.cdap.security.server.BasicAuthenticationHandler;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class RouterServiceMainWithSecurityEnabledTest extends MasterServiceMainTestBase {
 
@@ -64,8 +63,9 @@ public class RouterServiceMainWithSecurityEnabledTest extends MasterServiceMainT
 
   @Test
   public void testRouterServiceWithAuthenticationEnabled() throws Exception {
-    URL url = getRouterBaseURI().resolve("/").toURL();
-    HttpResponse response = HttpRequests.execute(HttpRequest.get(url).build(), new DefaultHttpRequestConfig(false));
+    URL url = getRouterBaseUri().resolve("/").toURL();
+    HttpResponse response = HttpRequests
+        .execute(HttpRequest.get(url).build(), new DefaultHttpRequestConfig(false));
 
     Assert.assertEquals(HttpURLConnection.HTTP_UNAUTHORIZED, response.getResponseCode());
   }

@@ -21,14 +21,13 @@ import io.cdap.cdap.internal.app.runtime.distributed.ForwardingTwillPreparer;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.TokenSecureStoreRenewer;
 import io.cdap.cdap.security.impersonation.Impersonator;
+import java.lang.reflect.Method;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.twill.api.TwillController;
 import org.apache.twill.api.TwillPreparer;
 import org.apache.twill.yarn.YarnSecureStore;
-
-import java.lang.reflect.Method;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A {@link TwillPreparer} wrapper that provides impersonation support.
@@ -42,7 +41,7 @@ final class ImpersonatedTwillPreparer extends ForwardingTwillPreparer {
   private final TokenSecureStoreRenewer secureStoreRenewer;
 
   ImpersonatedTwillPreparer(Configuration hConf, TwillPreparer delegate, Impersonator impersonator,
-                            TokenSecureStoreRenewer secureStoreRenewer, ProgramId programId) {
+      TokenSecureStoreRenewer secureStoreRenewer, ProgramId programId) {
     this.hConf = hConf;
     this.delegate = delegate;
     this.impersonator = impersonator;
@@ -64,7 +63,7 @@ final class ImpersonatedTwillPreparer extends ForwardingTwillPreparer {
           addSecureStore(YarnSecureStore.create(secureStoreRenewer.createCredentials()));
         }
         return new ImpersonatedTwillController(delegate.start(timeout, timeoutUnit),
-                                               impersonator, programId);
+            impersonator, programId);
       });
     } catch (Exception e) {
       throw Throwables.propagate(e);
@@ -72,8 +71,8 @@ final class ImpersonatedTwillPreparer extends ForwardingTwillPreparer {
   }
 
   /**
-   * Determines if HBase security is enabled. This method uses reflection to invoke HBase case so that
-   * we can ignore if HBase is not present in the current environment.
+   * Determines if HBase security is enabled. This method uses reflection to invoke HBase case so
+   * that we can ignore if HBase is not present in the current environment.
    */
   private boolean isHBaseSecurityEnabled() {
     try {

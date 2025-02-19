@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.inject.Injector;
 import io.cdap.cdap.AppWithMisbehavedDataset;
 import io.cdap.cdap.AppWithWorker;
+import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.dataset.DatasetDefinition;
 import io.cdap.cdap.api.dataset.lib.KeyValueTable;
 import io.cdap.cdap.api.dataset.lib.cube.AggregationFunction;
@@ -48,7 +49,15 @@ import io.cdap.cdap.internal.app.runtime.BasicArguments;
 import io.cdap.cdap.proto.DatasetSpecificationSummary;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.test.SlowTests;
-import org.apache.hadoop.hbase.util.Bytes;
+import java.io.File;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.tephra.TransactionExecutor;
 import org.apache.tephra.TransactionManager;
 import org.apache.tephra.TransactionSystemClient;
@@ -62,16 +71,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tests running worker programs.

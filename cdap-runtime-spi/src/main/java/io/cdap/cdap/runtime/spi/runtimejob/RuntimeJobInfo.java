@@ -17,25 +17,26 @@
 package io.cdap.cdap.runtime.spi.runtimejob;
 
 import io.cdap.cdap.runtime.spi.ProgramRunInfo;
-import org.apache.twill.api.LocalFile;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import org.apache.twill.api.LocalFile;
 
 /**
- * Runtime job information. The instance of this interface will be provided to
- * {@link RuntimeJobManager#launch(RuntimeJobInfo)} with files to be localized and runtime job class implementation.
+ * Runtime job information. The instance of this interface will be provided to {@link
+ * RuntimeJobManager#launch(RuntimeJobInfo)} with files to be localized and runtime job class
+ * implementation.
  */
 public interface RuntimeJobInfo {
+
   /**
    * Returns a collection of files that are used to launch the job.
    */
   Collection<? extends LocalFile> getLocalizeFiles();
 
   /**
-   * Returns fully qualified classname of default implementation of a {@link RuntimeJob}.
-   * This class is responsible for submitting runtime job to provided environment.
+   * Returns fully qualified classname of default implementation of a {@link RuntimeJob}. This class
+   * is responsible for submitting runtime job to provided environment.
    */
   String getRuntimeJobClassname();
 
@@ -49,5 +50,26 @@ public interface RuntimeJobInfo {
    */
   default Map<String, String> getJvmProperties() {
     return Collections.emptyMap();
+  }
+
+  /**
+   * Returns a set of arguments for process that runs the {@link RuntimeJob}.
+   */
+  default Map<String, String> getArguments() {
+    return Collections.emptyMap();
+  }
+
+  /**
+   * Returns the number of virtual cores to use for the {@link RuntimeJob}.
+   */
+  default int getVirtualCores() {
+    return 0;
+  }
+
+  /**
+   * Returns the amount of memory to use for the {@link RuntimeJob}.
+   */
+  default int getMemoryMb() {
+    return 0;
   }
 }

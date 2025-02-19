@@ -21,13 +21,14 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 /**
  * Contains information about a SQL Engine Job.
+ *
  * @param <T> The output type for this SQL Engine Job.
  */
 public class SQLEngineJob<T> {
+
   private final SQLEngineJobKey key;
   private final CompletableFuture<T> task;
 
@@ -35,8 +36,6 @@ public class SQLEngineJob<T> {
     this.key = key;
     this.task = task;
   }
-
-
 
   public boolean isDone() {
     return task.isDone();

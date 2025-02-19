@@ -17,7 +17,6 @@
 package io.cdap.cdap.api;
 
 import io.cdap.cdap.api.schedule.TriggeringScheduleInfo;
-
 import javax.annotation.Nullable;
 
 /**
@@ -26,8 +25,8 @@ import javax.annotation.Nullable;
 public interface SchedulableProgramContext {
 
   /**
-   * @return The information of the schedule that launches this program.
-   *         Return {@code null} if the program is not launched by a schedule.
+   * @return The information of the schedule that launches this program. Return {@code null} if the
+   *     program is not launched by a schedule.
    */
   @Nullable
   TriggeringScheduleInfo getTriggeringScheduleInfo();

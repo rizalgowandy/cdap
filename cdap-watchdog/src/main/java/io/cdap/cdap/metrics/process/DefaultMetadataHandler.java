@@ -17,7 +17,6 @@
 package io.cdap.cdap.metrics.process;
 
 import io.cdap.cdap.proto.id.TopicId;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Default implementation for {@link MetadataHandler}.
- * Loads/saves metadata from/to {@link MetricsConsumerMetaTable}
+ * Default implementation for {@link MetadataHandler}. Loads/saves metadata from/to {@link
+ * MetricsConsumerMetaTable}
  */
 public class DefaultMetadataHandler implements MetadataHandler {
 
@@ -35,7 +34,8 @@ public class DefaultMetadataHandler implements MetadataHandler {
   private final String metricsPrefixForDelayMetrics;
   private final MetricsMetaKeyProvider keyProvider;
 
-  public DefaultMetadataHandler(String metricsPrefixForDelayMetrics, MetricsMetaKeyProvider keyProvider) {
+  public DefaultMetadataHandler(String metricsPrefixForDelayMetrics,
+      MetricsMetaKeyProvider keyProvider) {
     this.topicProcessMetaMap = new ConcurrentHashMap<>();
     this.metricsPrefixForDelayMetrics = metricsPrefixForDelayMetrics;
     this.keyProvider = keyProvider;
@@ -52,16 +52,16 @@ public class DefaultMetadataHandler implements MetadataHandler {
         continue;
       }
       String oldestTsMetricName = String.format("%s.topic.%s.oldest.delay.ms",
-                                                metricsPrefixForDelayMetrics, keyEntry.getKey());
+          metricsPrefixForDelayMetrics, keyEntry.getKey());
       String latestTsMetricName = String.format("%s.topic.%s.latest.delay.ms",
-                                                metricsPrefixForDelayMetrics, keyEntry.getKey());
+          metricsPrefixForDelayMetrics, keyEntry.getKey());
       topicProcessMetaMap.put(topicIdMetaKey,
-                              new TopicProcessMeta(topicProcessMeta.getMessageId(),
-                                                   topicProcessMeta.getOldestMetricsTimestamp(),
-                                                   topicProcessMeta.getLatestMetricsTimestamp(),
-                                                   topicProcessMeta.getMessagesProcessed(),
-                                                   topicProcessMeta.getLastProcessedTimestamp(),
-                                                   oldestTsMetricName, latestTsMetricName));
+          new TopicProcessMeta(topicProcessMeta.getMessageId(),
+              topicProcessMeta.getOldestMetricsTimestamp(),
+              topicProcessMeta.getLatestMetricsTimestamp(),
+              topicProcessMeta.getMessagesProcessed(),
+              topicProcessMeta.getLastProcessedTimestamp(),
+              oldestTsMetricName, latestTsMetricName));
     }
   }
 

@@ -19,9 +19,6 @@ package io.cdap.cdap.common.lang;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 import com.google.common.base.Throwables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +39,8 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility class for collection of methods for dealing with ClassLoader and loading class.
@@ -53,7 +52,8 @@ public final class ClassLoaders {
   // Class-Path attributed in JAR are " " separated
   private static final Splitter CLASS_PATH_ATTR_SPLITTER = Splitter.on(" ").omitEmptyStrings();
 
-  private ClassLoaders() { }
+  private ClassLoaders() {
+  }
 
   /**
    * Loads the class with the given class name with the given classloader. If it is {@code null},
@@ -66,7 +66,7 @@ public final class ClassLoaders {
    * @throws ClassNotFoundException If failed to load the given class.
    */
   public static Class<?> loadClass(String className, @Nullable ClassLoader classLoader,
-                                   Object caller) throws ClassNotFoundException {
+      Object caller) throws ClassNotFoundException {
     ClassLoader cl = Objects.firstNonNull(classLoader, caller.getClass().getClassLoader());
     return cl.loadClass(className);
   }
@@ -82,9 +82,9 @@ public final class ClassLoaders {
 
   /**
    * Finds a ClassLoader along the ClassLoader hierarchy that is assignable from the given type.
-   * This method recognize usage of {@link Delegator} and {@link CombineClassLoader} and will try to match with
-   * the object returned by {@link Delegator#getDelegate()} or {@link CombineClassLoader#getDelegates()}
-   * for the ClassLoader of the given type.
+   * This method recognize usage of {@link Delegator} and {@link CombineClassLoader} and will try to
+   * match with the object returned by {@link Delegator#getDelegate()} or {@link
+   * CombineClassLoader#getDelegates()} for the ClassLoader of the given type.
    *
    * @return the ClassLoader found or {@code null} if no such ClassLoader exists.
    */
@@ -120,9 +120,10 @@ public final class ClassLoaders {
   }
 
   /**
-   * Finds a ClassLoader along the ClassLoader hierarchy that the ClassLoader class matches the given name.
-   * This method recognize usage of {@link Delegator} on ClassLoader and will try to match with
-   * the object returned by {@link Delegator#getDelegate()} for the ClassLoader of the given type.
+   * Finds a ClassLoader along the ClassLoader hierarchy that the ClassLoader class matches the
+   * given name. This method recognize usage of {@link Delegator} on ClassLoader and will try to
+   * match with the object returned by {@link Delegator#getDelegate()} for the ClassLoader of the
+   * given type.
    *
    * @return the ClassLoader found or {@code null} if no such ClassLoader exists.
    */
@@ -146,33 +147,36 @@ public final class ClassLoaders {
   }
 
   /**
-   * Populates the list of {@link URL} that this ClassLoader uses, including all URLs used by the parent of the
-   * given ClassLoader. This is the same as calling {@link #getClassLoaderURLs(ClassLoader, boolean, Collection)} with
-   * {@code childFirst} set to {@code false}.
+   * Populates the list of {@link URL} that this ClassLoader uses, including all URLs used by the
+   * parent of the given ClassLoader. This is the same as calling {@link
+   * #getClassLoaderURLs(ClassLoader, boolean, Collection)} with {@code childFirst} set to {@code
+   * false}.
    *
    * @param classLoader the {@link ClassLoader} for searching urls
-   * @param urls a {@link Collection} for storing the {@link URL}s
-   * @return the same {@link Collection} passed from the parameter
-   */
-  public static <T extends Collection<? super URL>> T getClassLoaderURLs(ClassLoader classLoader, T urls) {
-    return getClassLoaderURLs(classLoader, false, urls);
-  }
-
-  /**
-   * Populates the list of {@link URL} that this ClassLoader uses, including all URLs used by the parent of the
-   * given ClassLoader.
-   *
-   * @param classLoader the {@link ClassLoader} for searching urls
-   * @param childFirst if {@code true}, urls gathered from the lower classloader in the hierarchy will be
-   *                   added before the higher one.
    * @param urls a {@link Collection} for storing the {@link URL}s
    * @return the same {@link Collection} passed from the parameter
    */
   public static <T extends Collection<? super URL>> T getClassLoaderURLs(ClassLoader classLoader,
-                                                                         boolean childFirst, T urls) {
+      T urls) {
+    return getClassLoaderURLs(classLoader, false, urls);
+  }
+
+  /**
+   * Populates the list of {@link URL} that this ClassLoader uses, including all URLs used by the
+   * parent of the given ClassLoader.
+   *
+   * @param classLoader the {@link ClassLoader} for searching urls
+   * @param childFirst if {@code true}, urls gathered from the lower classloader in the
+   *     hierarchy will be added before the higher one.
+   * @param urls a {@link Collection} for storing the {@link URL}s
+   * @return the same {@link Collection} passed from the parameter
+   */
+  public static <T extends Collection<? super URL>> T getClassLoaderURLs(ClassLoader classLoader,
+      boolean childFirst, T urls) {
     Deque<URLClassLoader> classLoaders = collectURLClassLoaders(classLoader, new LinkedList<>());
 
-    Iterator<URLClassLoader> iterator = childFirst ? classLoaders.iterator() : classLoaders.descendingIterator();
+    Iterator<URLClassLoader> iterator =
+        childFirst ? classLoaders.iterator() : classLoaders.descendingIterator();
     while (iterator.hasNext()) {
       URLClassLoader cl = iterator.next();
       for (URL url : cl.getURLs()) {
@@ -186,17 +190,18 @@ public final class ClassLoaders {
   }
 
   /**
-   * Collects {@link URLClassLoader} along the {@link ClassLoader} chain. This method recognizes both
-   * {@link Delegator} and {@link CombineClassLoader} and will unfold the delegating classloaders inside it.
-   * The order of insertion
+   * Collects {@link URLClassLoader} along the {@link ClassLoader} chain. This method recognizes
+   * both {@link Delegator} and {@link CombineClassLoader} and will unfold the delegating
+   * classloaders inside it. The order of insertion
    *
    * @param classLoader the classloader to start the search from
    * @param result a collection for storing the result
    * @param <T> type of the collection
    * @return the result collection
    */
-  private static <T extends Collection<? super URLClassLoader>> T collectURLClassLoaders(ClassLoader classLoader,
-                                                                                        T result) {
+  private static <T extends Collection<? super URLClassLoader>> T collectURLClassLoaders(
+      ClassLoader classLoader,
+      T result) {
     // Do BFS from the bottom of the ClassLoader chain
     Deque<ClassLoader> queue = new LinkedList<>();
     queue.add(classLoader);
@@ -258,11 +263,12 @@ public final class ClassLoaders {
   }
 
   /**
-   * Returns the URL to the base classpath for the given class resource URL of the given class name.
+   * Returns the URL to the base classpath for the given class resource URL of the given class
+   * name.
    */
   public static URL getClassPathURL(String className, URL classUrl) {
     try {
-      if ("file".equals(classUrl.getProtocol())) {
+      if ("file".equals(classUrl.getProtocol()) || "jrt".equals(classUrl.getProtocol())) {
         String path = classUrl.getFile();
         // Compute the directory container the class.
         int endIdx = path.length() - className.length() - ".class".length();
@@ -270,7 +276,7 @@ public final class ClassLoaders {
           // If it is not the root directory, return the end index to remove the trailing '/'.
           endIdx--;
         }
-        return new URL("file", "", -1, path.substring(0, endIdx));
+        return new URL(classUrl.getProtocol(), "", -1, path.substring(0, endIdx));
       }
       if ("jar".equals(classUrl.getProtocol())) {
         String path = classUrl.getFile();
@@ -283,8 +289,8 @@ public final class ClassLoaders {
   }
 
   /**
-   * Returns an {@link InputStream} to the given resource by looking it up from the given {@link ClassLoader}
-   * or {@code null} if the given resource is not found.
+   * Returns an {@link InputStream} to the given resource by looking it up from the given {@link
+   * ClassLoader} or {@code null} if the given resource is not found.
    */
   @Nullable
   public static InputStream openResource(ClassLoader classLoader, String resourceName) {
@@ -301,7 +307,8 @@ public final class ClassLoaders {
       urlConn.setUseCaches(false);
       return urlConn.getInputStream();
     } catch (IOException e) {
-      LOG.debug("Failed to open resource {} for reading from ClassLoader {}", resourceName, classLoader);
+      LOG.debug("Failed to open resource {} for reading from ClassLoader {}", resourceName,
+          classLoader);
       // If cannot read the resource, treat it as if not exist.
       return null;
     }
@@ -330,7 +337,8 @@ public final class ClassLoaders {
           if (uri.isAbsolute()) {
             urls.add(uri.toURL());
           } else {
-            urls.add(new File(file.getParentFile(), path.replace('/', File.separatorChar)).toURI().toURL());
+            urls.add(new File(file.getParentFile(), path.replace('/', File.separatorChar)).toURI()
+                .toURL());
           }
         }
       }

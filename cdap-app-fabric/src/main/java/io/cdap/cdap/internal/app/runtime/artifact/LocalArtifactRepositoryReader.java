@@ -21,16 +21,16 @@ import io.cdap.cdap.api.artifact.ArtifactRange;
 import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.proto.artifact.ArtifactSortOrder;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
 /**
- * Implementation for {@link ArtifactRepositoryReader} to fetch artifact metadata directly from local
- * {@link ArtifactStore}
+ * Implementation for {@link ArtifactRepositoryReader} to fetch artifact metadata directly from
+ * local {@link ArtifactStore}
  */
 public class LocalArtifactRepositoryReader implements ArtifactRepositoryReader {
+
   private final ArtifactStore artifactStore;
 
   @Inject
@@ -45,11 +45,12 @@ public class LocalArtifactRepositoryReader implements ArtifactRepositoryReader {
 
   @Override
   public InputStream newInputStream(Id.Artifact artifactId) throws IOException, NotFoundException {
-   return artifactStore.getArtifact(artifactId).getDescriptor().getLocation().getInputStream();
+    return artifactStore.getArtifact(artifactId).getDescriptor().getLocation().getInputStream();
   }
 
   @Override
-  public List<ArtifactDetail> getArtifactDetails(ArtifactRange range, int limit, ArtifactSortOrder order) {
+  public List<ArtifactDetail> getArtifactDetails(ArtifactRange range, int limit,
+      ArtifactSortOrder order) {
     return artifactStore.getArtifacts(range, limit, order);
   }
 }

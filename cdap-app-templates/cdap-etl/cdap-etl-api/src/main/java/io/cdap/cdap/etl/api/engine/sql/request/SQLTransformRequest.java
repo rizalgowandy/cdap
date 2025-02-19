@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.api.engine.sql.request;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.api.engine.sql.dataset.SQLDataset;
 import io.cdap.cdap.etl.api.relational.Relation;
-
 import java.io.Serializable;
 import java.util.Map;
 
@@ -27,6 +26,7 @@ import java.util.Map;
  * Defines a request to perform relational transformation by SQL engine
  */
 public class SQLTransformRequest implements Serializable {
+
   private final Map<String, SQLDataset> inputDataSets;
 
   private final String outputDatasetName;
@@ -34,7 +34,7 @@ public class SQLTransformRequest implements Serializable {
   private final Schema outputSchema;
 
   public SQLTransformRequest(Map<String, SQLDataset> inputDataSets, String outputDatasetName,
-                             Relation outputRelation, Schema outputDataSetSchema) {
+      Relation outputRelation, Schema outputDataSetSchema) {
     this.inputDataSets = inputDataSets;
     this.outputDatasetName = outputDatasetName;
     this.outputRelation = outputRelation;
@@ -49,7 +49,6 @@ public class SQLTransformRequest implements Serializable {
   }
 
   /**
-   *
    * @return primary output dataset name
    */
   public String getOutputDatasetName() {
@@ -57,7 +56,6 @@ public class SQLTransformRequest implements Serializable {
   }
 
   /**
-   *
    * @return output dataset to transform
    */
   public Relation getOutputRelation() {
@@ -65,7 +63,6 @@ public class SQLTransformRequest implements Serializable {
   }
 
   /**
-   *
    * @return output SQLDataset schema
    */
   public Schema getOutputSchema() {

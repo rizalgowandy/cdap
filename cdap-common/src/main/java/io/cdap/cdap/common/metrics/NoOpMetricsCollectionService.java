@@ -19,14 +19,14 @@ package io.cdap.cdap.common.metrics;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.api.metrics.MetricsContext;
-
 import java.util.Collections;
 import java.util.Map;
 
 /**
  * No-op, to be used in unit-tests
  */
-public class NoOpMetricsCollectionService extends AbstractIdleService implements MetricsCollectionService {
+public class NoOpMetricsCollectionService extends AbstractIdleService implements
+    MetricsCollectionService {
 
   @Override
   protected void startUp() throws Exception {

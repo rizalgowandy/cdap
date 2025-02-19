@@ -16,7 +16,6 @@
 
 package io.cdap.cdap.gateway.handlers;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -28,13 +27,11 @@ import io.cdap.cdap.common.security.AuditPolicy;
 import io.cdap.cdap.config.Config;
 import io.cdap.cdap.config.ConfigNotFoundException;
 import io.cdap.cdap.config.ConsoleSettingsStore;
-import io.cdap.cdap.security.spi.authentication.SecurityRequestContext;
 import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import javax.ws.rs.DELETE;
@@ -63,7 +60,10 @@ public class ConsoleSettingsHttpHandler extends AbstractHttpHandler {
   @Path("/")
   @GET
   public void get(HttpRequest request, HttpResponder responder) throws Exception {
-    String userId = Objects.firstNonNull(SecurityRequestContext.getUserId(), "");
+    // The current behavior that only the creator should see the corresponding plugin template when RBAC is enabled is
+    // correct. But the customers has been used to the old behavior that plugin template is exposed to all users in the
+    // same namespace when RBAC is enabled. Revert the behavior to meet customers' requests.
+    String userId = "";
     Config userConfig;
     try {
       userConfig = store.get(userId);
@@ -76,14 +76,15 @@ public class ConsoleSettingsHttpHandler extends AbstractHttpHandler {
     jsonObject.addProperty(ID, userConfig.getName());
 
     //We store the serialized JSON string of the properties in ConfigStore and we return a JsonObject back
-    jsonObject.add(CONFIG_PROPERTY, JSON_PARSER.parse(userConfig.getProperties().get(CONFIG_PROPERTY)));
+    jsonObject.add(CONFIG_PROPERTY,
+        JSON_PARSER.parse(userConfig.getProperties().get(CONFIG_PROPERTY)));
     responder.sendJson(HttpResponseStatus.OK, jsonObject.toString());
   }
 
   @Path("/")
   @DELETE
   public void delete(HttpRequest request, HttpResponder responder) throws Exception {
-    String userId = Objects.firstNonNull(SecurityRequestContext.getUserId(), "");
+    String userId = "";
     try {
       store.delete(userId);
     } catch (ConfigNotFoundException e) {
@@ -107,7 +108,7 @@ public class ConsoleSettingsHttpHandler extends AbstractHttpHandler {
     //Config Properties : Map (Key = CONFIG_PROPERTY, Value = Serialized JSON string of properties)
     //User Settings configurations are stored under empty NAMESPACE.
     Map<String, String> propMap = ImmutableMap.of(CONFIG_PROPERTY, data);
-    String userId = Objects.firstNonNull(SecurityRequestContext.getUserId(), "");
+    String userId = "";
     Config userConfig = new Config(userId, propMap);
     store.put(userConfig);
     responder.sendStatus(HttpResponseStatus.OK);

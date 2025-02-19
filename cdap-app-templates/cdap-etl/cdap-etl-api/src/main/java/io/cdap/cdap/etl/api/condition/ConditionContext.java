@@ -21,17 +21,18 @@ import io.cdap.cdap.api.security.store.SecureStore;
 import io.cdap.cdap.api.security.store.SecureStoreManager;
 import io.cdap.cdap.etl.api.StageContext;
 import io.cdap.cdap.etl.api.action.SettableArguments;
-
 import java.util.Map;
 
 /**
  * Represents the context available to the condition plugin during runtime.
  */
-public interface ConditionContext extends StageContext, Transactional, SecureStore, SecureStoreManager {
+public interface ConditionContext extends StageContext, Transactional, SecureStore,
+    SecureStoreManager {
 
   /**
-   * Get a {@link Map} of stage name to the {@link StageStatistics}. This map will only contain the stages
-   * those were executed before the execution of the condition.
+   * Get a {@link Map} of stage name to the {@link StageStatistics}. This map will only contain the
+   * stages those were executed before the execution of the condition.
+   *
    * @return stage statistics associated with the stages that were executed before the condition
    */
   Map<String, StageStatistics> getStageStatistics();

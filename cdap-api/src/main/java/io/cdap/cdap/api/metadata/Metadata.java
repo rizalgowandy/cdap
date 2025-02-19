@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.metadata;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +27,7 @@ import java.util.Set;
  */
 @Beta
 public class Metadata {
+
   public static final Metadata EMPTY = new Metadata(Collections.emptyMap(), Collections.emptySet());
   private final Map<String, String> properties;
   private final Set<String> tags;
@@ -54,8 +54,8 @@ public class Metadata {
       return false;
     }
     Metadata that = (Metadata) o;
-    return Objects.equals(properties, that.properties) &&
-      Objects.equals(tags, that.tags);
+    return Objects.equals(properties, that.properties)
+        && Objects.equals(tags, that.tags);
   }
 
   @Override
@@ -65,9 +65,9 @@ public class Metadata {
 
   @Override
   public String toString() {
-    return "Metadata{" +
-      "properties=" + properties +
-      ", tags=" + tags +
-      '}';
+    return "Metadata{"
+        + "properties=" + properties
+        + ", tags=" + tags
+        + '}';
   }
 }

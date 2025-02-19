@@ -27,19 +27,23 @@ import javax.annotation.Nullable;
  * Request for sampling operations
  */
 public class SampleRequest {
+
   private final String path;
   private final int limit;
   private final Map<String, String> properties;
+  private final Long timeoutMs;
 
-  private SampleRequest(@Nullable String path, int limit, Map<String, String> properties) {
+  protected SampleRequest(@Nullable String path, int limit, Map<String, String> properties,
+      @Nullable Long timeoutMs) {
     this.path = path;
     this.limit = limit;
     this.properties = properties;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
-   * Get the entity path for the sample request, if the path is null, that means the properties contains
-   * all the path related configs required for the sampling
+   * Get the entity path for the sample request, if the path is null, that means the properties
+   * contains all the path related configs required for the sampling
    */
   @Nullable
   public String getPath() {
@@ -48,6 +52,11 @@ public class SampleRequest {
 
   public int getLimit() {
     return limit;
+  }
+
+  @Nullable
+  public Long getTimeoutMs() {
+    return timeoutMs;
   }
 
   public Map<String, String> getProperties() {
@@ -66,14 +75,15 @@ public class SampleRequest {
     }
 
     SampleRequest that = (SampleRequest) o;
-    return limit == that.limit &&
-             Objects.equals(path, that.path) &&
-             Objects.equals(properties, that.properties);
+    return limit == that.limit
+        && Objects.equals(path, that.path)
+        && Objects.equals(properties, that.properties) &&
+        Objects.equals(timeoutMs, that.timeoutMs);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(path, limit, properties);
+    return Objects.hash(path, limit, properties, timeoutMs);
   }
 
   /**
@@ -87,9 +97,11 @@ public class SampleRequest {
    * Builder for {@link SampleRequest}
    */
   public static class Builder {
+
     private String path;
     private int limit;
-    private Map<String, String> properties;
+    private final Map<String, String> properties;
+    private Long timeoutMs;
 
     public Builder(int limit) {
       this.limit = limit;
@@ -112,8 +124,13 @@ public class SampleRequest {
       return this;
     }
 
+    public Builder setTimeoutMs(Long timeoutMs) {
+      this.timeoutMs = timeoutMs;
+      return this;
+    }
+
     public SampleRequest build() {
-      return new SampleRequest(path, limit, properties);
+      return new SampleRequest(path, limit, properties, timeoutMs);
     }
   }
 }

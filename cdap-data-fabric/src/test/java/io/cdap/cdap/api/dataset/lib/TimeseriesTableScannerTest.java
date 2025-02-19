@@ -27,14 +27,6 @@ import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.dataset.DatasetProperties;
 import io.cdap.cdap.data2.dataset2.DatasetFrameworkTestUtil;
 import io.cdap.cdap.proto.id.DatasetId;
-import org.apache.tephra.TransactionExecutor;
-import org.apache.tephra.TransactionFailureException;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -42,6 +34,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import org.apache.tephra.TransactionExecutor;
+import org.apache.tephra.TransactionFailureException;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
 
 /**
  * Defines a class to test EntryScanner in TimeseriesTable
@@ -57,8 +56,8 @@ public class TimeseriesTableScannerTest {
   private static final String SRC_DEVICE_ID_TAG = "src_device_id";
   private static final String DEST_DEVICE_ID_TAG = "dest_device_id";
 
-  private static TimeseriesTable table = null;
-  private static TransactionExecutor txnl = null;
+  private static TimeseriesTable table;
+  private static TransactionExecutor txnl;
   @BeforeClass
   public static void setup() throws Exception {
     dsFrameworkUtil.createInstance("timeseriesTable", facts, DatasetProperties.EMPTY);

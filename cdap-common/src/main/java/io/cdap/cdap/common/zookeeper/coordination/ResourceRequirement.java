@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Maps;
 import com.google.common.primitives.Ints;
-
 import java.util.Map;
 import java.util.Set;
 
@@ -62,9 +61,9 @@ public final class ResourceRequirement {
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
-      .add("name", name)
-      .add("partitions", partitions)
-      .toString();
+        .add("name", name)
+        .add("partitions", partitions)
+        .toString();
   }
 
   @Override
@@ -141,9 +140,9 @@ public final class ResourceRequirement {
     @Override
     public String toString() {
       return Objects.toStringHelper(this)
-        .add("name", name)
-        .add("replicas", replicas)
-        .toString();
+          .add("name", name)
+          .add("replicas", replicas)
+          .toString();
     }
 
     @Override
@@ -178,16 +177,16 @@ public final class ResourceRequirement {
     }
 
     /**
-     * Adds N partitions with each partition named by a prefix followed by a sequence id, starting from
-     * {@code 0}. Each partition would have the same number of replicas.
+     * Adds N partitions with each partition named by a prefix followed by a sequence id, starting
+     * from {@code 0}. Each partition would have the same number of replicas.
      *
      * @param partitionPrefix Name prefix for partition.
      * @param numberOfPartitions Number of partitions to add.
      * @param replicasPerPartitions Number of replicas in each partition.
-     *
      * @return This builder.
      */
-    public Builder addPartitions(String partitionPrefix, int numberOfPartitions, int replicasPerPartitions) {
+    public Builder addPartitions(String partitionPrefix, int numberOfPartitions,
+        int replicasPerPartitions) {
       for (int i = 0; i < numberOfPartitions; i++) {
         addPartition(new Partition(partitionPrefix + i, replicasPerPartitions));
       }
@@ -202,7 +201,7 @@ public final class ResourceRequirement {
      */
     public Builder addPartition(Partition partition) {
       Preconditions.checkArgument(!partitions.containsKey(partition.getName()),
-                                  "Partition %s already added.", partition);
+          "Partition %s already added.", partition);
       partitions.put(partition.getName(), partition);
       return this;
     }

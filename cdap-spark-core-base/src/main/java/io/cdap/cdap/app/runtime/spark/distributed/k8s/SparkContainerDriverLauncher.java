@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.app.runtime.spark.distributed.k8s;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.inject.AbstractModule;
@@ -36,7 +37,10 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
 import io.cdap.cdap.common.guice.SupplierProviderBridge;
+import io.cdap.cdap.common.http.CommonNettyHttpServiceFactory;
 import io.cdap.cdap.common.internal.remote.InternalAuthenticator;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.lang.jar.BundleJarUtil;
@@ -49,10 +53,13 @@ import io.cdap.cdap.logging.guice.RemoteLogAppenderModule;
 import io.cdap.cdap.master.environment.MasterEnvironments;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
+import io.cdap.cdap.messaging.guice.client.DefaultMessagingClientModule;
+import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.guice.CoreSecurityModule;
 import io.cdap.cdap.security.guice.CoreSecurityRuntimeModule;
+import io.cdap.cdap.security.spi.authenticator.RemoteAuthenticator;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.twill.discovery.DiscoveryService;
@@ -77,6 +84,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
+import javax.annotation.Nullable;
 
 /**
  * Spark container launcher for launching spark drivers, and also allowing spark executors to fetch artifacts from it.
@@ -141,24 +149,44 @@ public class SparkContainerDriverLauncher {
     Configuration hConf = new Configuration();
     hConf.addResource(new org.apache.hadoop.fs.Path("file:" + new File(HCONF_PATH).getAbsolutePath()));
 
+    Injector injector = createInjector(cConf, hConf);
+
     if (artifactFetcherUri == null) {
       LOG.warn("Localizing artifacts from appfabric");
-      localizeArtifactsFromAppfabric(cConf, hConf);
+      localizeArtifactsFromAppfabric(hConf, injector);
     } else {
       try {
         LOG.info(String.format("Localizing artifacts from %s", artifactFetcherUri));
         localizeArtifactsBundle(artifactFetcherUri);
       } catch (Exception e) {
         LOG.warn(String.format("Localizing artifacts from appfabric due to %s", e.getMessage()));
-        localizeArtifactsFromAppfabric(cConf, hConf);
+        localizeArtifactsFromAppfabric(hConf, injector);
       }
     }
 
     artifactFetcherService =
-      new ArtifactFetcherService(cConf, createBundle(new File(WORKING_DIRECTORY).getAbsoluteFile().toPath()));
+      new ArtifactFetcherService(cConf, createBundle(new File(WORKING_DIRECTORY).getAbsoluteFile().toPath()),
+                                 injector.getInstance(CommonNettyHttpServiceFactory.class));
     artifactFetcherService.startAndWait();
 
     SparkContainerLauncher.launch(delegateClass, delegateArgs.toArray(new String[delegateArgs.size()]), false, "k8s");
+  }
+
+
+  /**
+   * Retrieves injector to retrieve services.
+   */
+  private static Injector createInjector(CConfiguration cConf, Configuration hConf) throws Exception {
+      MasterEnvironment masterEnv = MasterEnvironments.create(cConf, "k8s");
+      if (masterEnv == null) {
+        throw new RuntimeException("Unable to initialize k8s masterEnv from cConf.");
+      }
+      MasterEnvironmentContext context = MasterEnvironments.createContext(cConf, hConf, masterEnv.getName());
+      masterEnv.initialize(context);
+      MasterEnvironments.setMasterEnvironment(masterEnv);
+
+      Injector injector = createInjector(cConf, hConf, masterEnv);
+      return injector;
   }
 
   /**
@@ -185,8 +213,8 @@ public class SparkContainerDriverLauncher {
     Files.delete(bundleJarFile);
   }
 
-  private static void localizeArtifactsFromAppfabric(CConfiguration cConf, Configuration hConf) throws Exception {
-    ArtifactLocalizerClient fetchArtifacts = createArtifactLocalizerClient(cConf, hConf);
+  private static void localizeArtifactsFromAppfabric(Configuration hConf, Injector injector) throws Exception {
+    ArtifactLocalizerClient fetchArtifacts = injector.getInstance(ArtifactLocalizerClient.class);;
     ApplicationSpecification spec =
       GSON.fromJson(hConf.getRaw(CDAP_APP_SPEC_KEY), ApplicationSpecification.class);
     ProgramId programId = GSON.fromJson(hConf.getRaw(PROGRAM_ID_KEY), ProgramId.class);
@@ -220,29 +248,21 @@ public class SparkContainerDriverLauncher {
     Files.copy(tempLocation.toPath(), programJarLocation.resolve(PROGRAM_JAR_NAME));
   }
 
-  private static ArtifactLocalizerClient createArtifactLocalizerClient(CConfiguration cConf, Configuration hConf)
-    throws Exception {
-    MasterEnvironment masterEnv = MasterEnvironments.create(cConf, "k8s");
-    if (masterEnv == null) {
-      throw new RuntimeException("Unable to initialize k8s masterEnv from cConf.");
-    }
-    MasterEnvironmentContext context = MasterEnvironments.createContext(cConf, hConf, masterEnv.getName());
-    masterEnv.initialize(context);
-    MasterEnvironments.setMasterEnvironment(masterEnv);
-
-    Injector injector = createInjector(cConf, hConf, masterEnv);
-    return injector.getInstance(ArtifactLocalizerClient.class);
-  }
-
-  private static Injector createInjector(CConfiguration cConf, Configuration hConf, MasterEnvironment masterEnv) {
+  @VisibleForTesting
+  static Injector createInjector(CConfiguration cConf, Configuration hConf, MasterEnvironment masterEnv) {
     List<Module> modules = new ArrayList<>();
 
     CoreSecurityModule coreSecurityModule = CoreSecurityRuntimeModule.getDistributedModule(cConf);
 
     modules.add(new ConfigModule(cConf, hConf));
+    modules.add(RemoteAuthenticatorModules.getDefaultModule());
     modules.add(new IOModule());
     modules.add(new AuthenticationContextModules().getMasterWorkerModule());
     modules.add(coreSecurityModule);
+    modules.add(new DefaultMessagingClientModule());
+    modules.add(new MetricsClientRuntimeModule().getDistributedModules());
+    //Need for guice binding, but No Audit Log action required.
+    modules.add(new NoOpAuditLogModule());
 
     modules.add(new AbstractModule() {
       @Override
@@ -272,16 +292,17 @@ public class SparkContainerDriverLauncher {
     @Inject
     ArtifactLocalizerClient(DiscoveryServiceClient discoveryServiceClient,
                             InternalAuthenticator internalAuthenticator,
-                            CConfiguration cConf, ArtifactManagerFactory artifactManagerFactory) {
+                            CConfiguration cConf, ArtifactManagerFactory artifactManagerFactory,
+                            @Nullable RemoteAuthenticator remoteAuthenticator) {
 
       RemoteClientFactory remoteClientFactory =
-        new RemoteClientFactory(discoveryServiceClient, internalAuthenticator);
+        new RemoteClientFactory(discoveryServiceClient, internalAuthenticator, remoteAuthenticator, cConf);
       this.artifactLocalizer = new ArtifactLocalizer(cConf, remoteClientFactory, artifactManagerFactory);
     }
 
     File localizeArtifact(ArtifactId artifactId, String programNamespace) throws Exception {
-      String namespace = artifactId.getScope().name().equalsIgnoreCase(ArtifactScope.USER.toString()) ?
-        programNamespace : artifactId.getScope().name();
+      String namespace = artifactId.getScope().name().equalsIgnoreCase(ArtifactScope.USER.toString())
+        ? programNamespace : artifactId.getScope().name();
       io.cdap.cdap.proto.id.ArtifactId aId =
         new io.cdap.cdap.proto.id.ArtifactId(namespace,
                                              artifactId.getName(),

@@ -16,14 +16,13 @@
 
 package io.cdap.cdap.messaging;
 
-import org.apache.avro.Schema;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import javax.annotation.Nullable;
+import org.apache.avro.Schema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helper class for getting various {@link Schema} used by the messaging system.
@@ -41,6 +40,7 @@ public final class Schemas {
      * Contains schema for publish request.
      */
     public static final class PublishRequest {
+
       public static final Schema SCHEMA = loadSchema(PublishRequest.class);
     }
 
@@ -48,6 +48,7 @@ public final class Schemas {
      * Contains schema for publish response.
      */
     public static final class PublishResponse {
+
       public static final Schema SCHEMA = loadSchema(PublishResponse.class);
     }
 
@@ -55,6 +56,7 @@ public final class Schemas {
      * Contains schema for consume request.
      */
     public static final class ConsumeRequest {
+
       public static final Schema SCHEMA = loadSchema(ConsumeRequest.class);
     }
 
@@ -62,6 +64,7 @@ public final class Schemas {
      * Contains schema for consume response.
      */
     public static final class ConsumeResponse {
+
       public static final Schema SCHEMA = loadSchema(ConsumeResponse.class);
     }
   }
@@ -77,8 +80,8 @@ public final class Schemas {
   private static Schema loadSchema(Class<?> cls) {
     // The schema file is part of the classloader resource.
     String resourceName = String.format("schema/%s/%s.avsc",
-                                        cls.getDeclaringClass().getSimpleName().toLowerCase(),
-                                        cls.getSimpleName());
+        cls.getDeclaringClass().getSimpleName().toLowerCase(),
+        cls.getSimpleName());
     URL resource = cls.getClassLoader().getResource(resourceName);
     if (resource == null) {
       // Shouldn't happen

@@ -26,7 +26,6 @@ import io.cdap.cdap.client.ApplicationClient;
 import io.cdap.cdap.proto.ProgramRecord;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.common.cli.Arguments;
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -38,7 +37,8 @@ public class ListProgramsCommand extends AbstractAuthCommand {
   private final ApplicationClient appClient;
   private final ProgramType programType;
 
-  public ListProgramsCommand(ProgramType programType, ApplicationClient appClient, CLIConfig cliConfig) {
+  public ListProgramsCommand(ProgramType programType, ApplicationClient appClient,
+      CLIConfig cliConfig) {
     super(cliConfig);
     this.programType = programType;
     this.appClient = appClient;
@@ -46,16 +46,17 @@ public class ListProgramsCommand extends AbstractAuthCommand {
 
   @Override
   public void perform(Arguments arguments, PrintStream output) throws Exception {
-    List<ProgramRecord> programs = appClient.listAllPrograms(cliConfig.getCurrentNamespace(), programType);
+    List<ProgramRecord> programs = appClient.listAllPrograms(cliConfig.getCurrentNamespace(),
+        programType);
 
     Table table = Table.builder()
-      .setHeader("app", "id", "description")
-      .setRows(programs, new RowMaker<ProgramRecord>() {
-        @Override
-        public List<?> makeRow(ProgramRecord object) {
-          return Lists.newArrayList(object.getApp(), object.getName(), object.getDescription());
-        }
-      }).build();
+        .setHeader("app", "id", "description")
+        .setRows(programs, new RowMaker<ProgramRecord>() {
+          @Override
+          public List<?> makeRow(ProgramRecord object) {
+            return Lists.newArrayList(object.getApp(), object.getName(), object.getDescription());
+          }
+        }).build();
     cliConfig.getTableRenderer().render(cliConfig, output, table);
   }
 

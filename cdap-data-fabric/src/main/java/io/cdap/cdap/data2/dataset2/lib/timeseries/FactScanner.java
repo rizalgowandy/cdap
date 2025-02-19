@@ -24,7 +24,6 @@ import io.cdap.cdap.api.dataset.lib.cube.DimensionValue;
 import io.cdap.cdap.api.dataset.lib.cube.TimeValue;
 import io.cdap.cdap.api.dataset.table.Row;
 import io.cdap.cdap.api.dataset.table.Scanner;
-
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -54,7 +53,8 @@ public final class FactScanner implements Iterator<FactScanResult> {
   /**
    * Construct a FactScanner. Should only be called by FactTable.
    */
-  FactScanner(Scanner scanner, FactCodec codec, long startTs, long endTs, Collection<String> measureNames) {
+  FactScanner(Scanner scanner, FactCodec codec, long startTs, long endTs,
+      Collection<String> measureNames) {
     this.scanner = scanner;
     this.codec = codec;
     this.internalIterator = createIterator();

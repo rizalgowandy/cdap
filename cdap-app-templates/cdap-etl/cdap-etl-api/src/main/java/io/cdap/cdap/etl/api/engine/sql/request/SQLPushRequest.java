@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.api.engine.sql.request;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.data.schema.Schema;
-
 import java.io.Serializable;
 
 /**
@@ -26,6 +25,7 @@ import java.io.Serializable;
  */
 @Beta
 public class SQLPushRequest implements Serializable {
+
   private static final long serialVersionUID = -6749961305721580710L;
   private final String datasetName;
   private final Schema datasetSchema;

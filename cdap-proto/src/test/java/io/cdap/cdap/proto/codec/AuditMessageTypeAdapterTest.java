@@ -24,10 +24,9 @@ import io.cdap.cdap.proto.audit.AuditType;
 import io.cdap.cdap.proto.id.DatasetId;
 import io.cdap.cdap.proto.id.EntityId;
 import io.cdap.cdap.proto.id.NamespaceId;
+import java.util.Objects;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.Objects;
 
 public class AuditMessageTypeAdapterTest {
 
@@ -103,12 +102,12 @@ class AuditMessage {
       return false;
     }
     AuditMessage that = (AuditMessage) o;
-    return Objects.equals(version, that.version) &&
-      Objects.equals(time, that.time) &&
-      Objects.equals(entityId, that.entityId) &&
-      Objects.equals(user, that.user) &&
-      Objects.equals(type, that.type) &&
-      Objects.equals(payload, that.payload);
+    return Objects.equals(version, that.version)
+        && Objects.equals(time, that.time)
+        && Objects.equals(entityId, that.entityId)
+        && Objects.equals(user, that.user)
+        && Objects.equals(type, that.type)
+        && Objects.equals(payload, that.payload);
   }
 
   @Override
@@ -118,13 +117,13 @@ class AuditMessage {
 
   @Override
   public String toString() {
-    return "AuditMessage{" +
-      "version=" + version +
-      ", time=" + time +
-      ", entityId=" + entityId +
-      ", user='" + user + '\'' +
-      ", type=" + type +
-      ", payload=" + payload +
-      '}';
+    return "AuditMessage{"
+        + "version=" + version
+        + ", time=" + time
+        + ", entityId=" + entityId
+        + ", user='" + user + '\''
+        + ", type=" + type
+        + ", payload=" + payload
+        + '}';
   }
 }

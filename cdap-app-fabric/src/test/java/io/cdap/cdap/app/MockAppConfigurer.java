@@ -40,7 +40,6 @@ import io.cdap.cdap.internal.app.runtime.schedule.DefaultScheduleBuilder;
 import io.cdap.cdap.internal.app.runtime.schedule.trigger.DefaultTriggerFactory;
 import io.cdap.cdap.internal.schedule.ScheduleCreationSpec;
 import io.cdap.cdap.proto.id.NamespaceId;
-
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -49,10 +48,11 @@ import javax.annotation.Nullable;
  */
 public final class MockAppConfigurer implements ApplicationConfigurer {
 
-  private static final String ERROR_MSG = "Applications that use plugins cannot be deployed/created using " +
-    "deployApplication(Id.Namespace namespace, Class<? extends Application> applicationClz) method." +
-    "Instead use addAppArtifact, addPluginArtifact and " +
-    "deployApplication(Id.Artifact artifactId, AppRequest appRequest) method.";
+  private static final String ERROR_MSG =
+      "Applications that use plugins cannot be deployed/created using "
+          + "deployApplication(Id.Namespace namespace, Class<? extends Application> applicationClz) method."
+          + "Instead use addAppArtifact, addPluginArtifact and "
+          + "deployApplication(Id.Artifact artifactId, AppRequest appRequest) method.";
 
   private String name;
 

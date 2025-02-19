@@ -18,7 +18,6 @@ package io.cdap.cdap.etl.api;
 
 import io.cdap.cdap.api.annotation.Beta;
 import io.cdap.cdap.api.data.schema.Schema;
-
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -38,8 +37,8 @@ public interface MultiOutputStageConfigurer {
   Schema getInputSchema();
 
   /**
-   * Set schema for each output port. If the schema for an output port is not known, the port should be placed in
-   * the map with a null value.
+   * Set schema for each output port. If the schema for an output port is not known, the port should
+   * be placed in the map with a null value.
    *
    * @param outputSchemas map of output port to its schema
    */

@@ -20,17 +20,15 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.cdap.cdap.pipeline.Pipeline;
 import io.cdap.cdap.pipeline.Stage;
+import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.ExecutionException;
 
 /**
  * Concrete implementation of synchronous {@link Pipeline}.
  * <p>
- * Input from each {@link Stage} is passed to next {@link Stage}.
- * Before processing to next {@link Stage}, we wait for results
- * to be available.
+ * Input from each {@link Stage} is passed to next {@link Stage}. Before processing to next {@link
+ * Stage}, we wait for results to be available.
  * </p>
  *
  * @param <T> Type of object produced by this pipeline.
@@ -42,8 +40,7 @@ public final class SynchronousPipeline<T> extends AbstractPipeline<T> {
   /**
    * Executes a pipeline in synchronous mode.
    * <p>
-   * Waits for the results of previous to be available to move to next
-   * stage of processing.
+   * Waits for the results of previous to be available to move to next stage of processing.
    * </p>
    *
    * @param o argument to run the pipeline.

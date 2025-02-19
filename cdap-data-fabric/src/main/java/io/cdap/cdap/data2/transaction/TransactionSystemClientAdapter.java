@@ -16,8 +16,11 @@
 
 package io.cdap.cdap.data2.transaction;
 
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.conf.Constants;
+import java.io.InputStream;
+import java.util.Collection;
+import java.util.Set;
 import org.apache.tephra.InvalidTruncateTimeException;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionCouldNotTakeSnapshotException;
@@ -26,13 +29,9 @@ import org.apache.tephra.TransactionNotInProgressException;
 import org.apache.tephra.TransactionSystemClient;
 import org.apache.thrift.TException;
 
-import java.io.InputStream;
-import java.util.Collection;
-import java.util.Set;
-
 /**
- * Translates exceptions thrown by Tephra's TransactionServiceClient when the tx service is unavailable into
- * CDAP's ServiceUnavailableException.
+ * Translates exceptions thrown by Tephra's TransactionServiceClient when the tx service is
+ * unavailable into CDAP's ServiceUnavailableException.
  */
 public class TransactionSystemClientAdapter implements TransactionSystemClient {
 
@@ -70,7 +69,8 @@ public class TransactionSystemClientAdapter implements TransactionSystemClient {
   }
 
   @Override
-  public boolean canCommit(Transaction tx, Collection<byte[]> changeIds) throws TransactionNotInProgressException {
+  public boolean canCommit(Transaction tx, Collection<byte[]> changeIds)
+      throws TransactionNotInProgressException {
     try {
       //noinspection deprecation
       return delegate.canCommit(tx, changeIds);
@@ -80,7 +80,8 @@ public class TransactionSystemClientAdapter implements TransactionSystemClient {
   }
 
   @Override
-  public void canCommitOrThrow(Transaction tx, Collection<byte[]> changeIds) throws TransactionFailureException {
+  public void canCommitOrThrow(Transaction tx, Collection<byte[]> changeIds)
+      throws TransactionFailureException {
     try {
       delegate.canCommitOrThrow(tx, changeIds);
     } catch (RuntimeException e) {

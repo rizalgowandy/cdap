@@ -17,6 +17,9 @@
 package io.cdap.cdap.security.server;
 
 import io.cdap.cdap.common.conf.Constants;
+import java.util.Map;
+import javax.security.auth.login.Configuration;
+import javax.ws.rs.Path;
 import org.eclipse.jetty.security.Authenticator;
 import org.eclipse.jetty.security.ConstraintMapping;
 import org.eclipse.jetty.security.ConstraintSecurityHandler;
@@ -24,16 +27,13 @@ import org.eclipse.jetty.security.IdentityService;
 import org.eclipse.jetty.security.LoginService;
 import org.eclipse.jetty.util.security.Constraint;
 
-import java.util.Map;
-import javax.security.auth.login.Configuration;
-import javax.ws.rs.Path;
-
 /**
- * An abstract authentication handler that provides basic functionality including
- * setting of constraints and setting of different required services.
+ * An abstract authentication handler that provides basic functionality including setting of
+ * constraints and setting of different required services.
  */
 @Path("/*")
 public abstract class AbstractAuthenticationHandler extends ConstraintSecurityHandler {
+
   protected Map<String, String> handlerProps;
 
   /**
@@ -43,9 +43,9 @@ public abstract class AbstractAuthenticationHandler extends ConstraintSecurityHa
     this.handlerProps = handlerProps;
 
     Constraint constraint = new Constraint();
-    constraint.setRoles(new String[]{"*"});
+    constraint.setRoles(new String[]{Constraint.ANY_AUTH});
     constraint.setAuthenticate(true);
-
+    constraint.setDataConstraint(Constraint.DC_NONE);
     if (Boolean.parseBoolean(handlerProps.get(Constants.Security.SSL.EXTERNAL_ENABLED))) {
       constraint.setDataConstraint(Constraint.DC_CONFIDENTIAL);
     }
@@ -55,7 +55,6 @@ public abstract class AbstractAuthenticationHandler extends ConstraintSecurityHa
     constraintMapping.setPathSpec("/*");
 
     this.setConstraintMappings(new ConstraintMapping[]{constraintMapping});
-    this.setStrict(false);
     this.setIdentityService(getHandlerIdentityService());
     this.setAuthenticator(getHandlerAuthenticator());
     this.setLoginService(getHandlerLoginService());

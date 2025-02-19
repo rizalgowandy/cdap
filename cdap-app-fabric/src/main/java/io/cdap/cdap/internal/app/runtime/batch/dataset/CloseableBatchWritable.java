@@ -17,7 +17,6 @@
 package io.cdap.cdap.internal.app.runtime.batch.dataset;
 
 import io.cdap.cdap.api.data.batch.BatchWritable;
-
 import java.io.Closeable;
 
 /**
@@ -27,4 +26,5 @@ import java.io.Closeable;
  * @param <V> The value type.
  */
 public interface CloseableBatchWritable<K, V> extends BatchWritable<K, V>, Closeable {
+
 }

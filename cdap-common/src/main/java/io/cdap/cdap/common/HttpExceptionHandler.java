@@ -19,6 +19,7 @@ package io.cdap.cdap.common;
 import com.google.common.base.Objects;
 import com.google.common.base.Throwables;
 import io.cdap.cdap.api.common.HttpErrorStatusProvider;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.security.spi.authentication.SecurityRequestContext;
 import io.cdap.http.ExceptionHandler;
 import io.cdap.http.HttpResponder;
@@ -47,8 +48,9 @@ public class HttpExceptionHandler extends ExceptionHandler {
 
       if (cause instanceof HttpErrorStatusProvider) {
         logWithTrace(request, cause);
-        responder.sendString(HttpResponseStatus.valueOf(((HttpErrorStatusProvider) cause).getStatusCode()),
-                             cause.getMessage());
+        responder.sendString(
+            HttpResponseStatus.valueOf(((HttpErrorStatusProvider) cause).getStatusCode()),
+            cause.getMessage());
         return;
       }
 
@@ -74,12 +76,14 @@ public class HttpExceptionHandler extends ExceptionHandler {
 
     // If it is not some known exception type, response with 500.
     LOG.error("Unexpected error: request={} {} user={}:", request.method().name(), request.getUri(),
-              Objects.firstNonNull(SecurityRequestContext.getUserId(), "<null>"), t);
-    responder.sendString(HttpResponseStatus.INTERNAL_SERVER_ERROR, Throwables.getRootCause(t).getMessage());
+        Objects.firstNonNull(SecurityRequestContext.getUserId(), "<null>"), t);
+    responder.sendString(HttpResponseStatus.INTERNAL_SERVER_ERROR,
+        Throwables.getRootCause(t).getMessage());
   }
 
   private void logWithTrace(HttpRequest request, Throwable t) {
-    LOG.trace("Error in handling request={} {} for user={}:", request.method().name(), request.getUri(),
-              Objects.firstNonNull(SecurityRequestContext.getUserId(), "<null>"), t);
+    LOG.trace("Error in handling request={} {} for user={}:", request.method().name(),
+        request.getUri(),
+        Objects.firstNonNull(SecurityRequestContext.getUserId(), "<null>"), t);
   }
 }

@@ -25,9 +25,9 @@ import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
 import io.cdap.cdap.app.guice.AppFabricServiceRuntimeModule;
+import io.cdap.cdap.app.guice.AppFabricServiceRuntimeModule.ServiceType;
 import io.cdap.cdap.app.guice.AuthorizationModule;
 import io.cdap.cdap.app.guice.ProgramRunnerRuntimeModule;
-import io.cdap.cdap.app.guice.UnsupportedExploreClient;
 import io.cdap.cdap.app.preview.PreviewHttpServer;
 import io.cdap.cdap.app.preview.PreviewManagerModule;
 import io.cdap.cdap.app.preview.PreviewRunnerManager;
@@ -41,28 +41,24 @@ import io.cdap.cdap.common.logging.ServiceLoggingContext;
 import io.cdap.cdap.data.runtime.DataSetServiceModules;
 import io.cdap.cdap.data.runtime.DataSetsModules;
 import io.cdap.cdap.data2.audit.AuditModule;
-import io.cdap.cdap.explore.client.ExploreClient;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
 import io.cdap.cdap.metadata.MetadataReaderWriterModules;
 import io.cdap.cdap.metadata.MetadataServiceModule;
 import io.cdap.cdap.metrics.guice.MetricsStoreModule;
 import io.cdap.cdap.proto.id.NamespaceId;
-import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.guice.SecureStoreClientModule;
-import io.cdap.cdap.security.impersonation.SecurityUtil;
-import org.apache.twill.api.Configs;
-import org.apache.twill.api.TwillRunner;
-import org.apache.twill.api.TwillRunnerService;
-import org.apache.twill.zookeeper.ZKClientService;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.twill.api.Configs;
+import org.apache.twill.api.TwillRunner;
+import org.apache.twill.api.TwillRunnerService;
+import org.apache.twill.zookeeper.ZKClientService;
 
 /**
  * The main class to run the preview service.
@@ -83,9 +79,9 @@ public class PreviewServiceMain extends AbstractServiceMain<EnvironmentOptions> 
   @Override
   protected CConfiguration updateCConf(CConfiguration cConf) {
     Map<String, String> keyMap = ImmutableMap.of(
-      Constants.Preview.CONTAINER_CPU_MULTIPLIER, KUBE_CPU_MULTIPLIER,
-      Constants.Preview.CONTAINER_MEMORY_MULTIPLIER, KUBE_MEMORY_MULTIPLIER,
-      Constants.Preview.CONTAINER_HEAP_RESERVED_RATIO, Configs.Keys.HEAP_RESERVED_MIN_RATIO
+        Constants.Preview.CONTAINER_CPU_MULTIPLIER, KUBE_CPU_MULTIPLIER,
+        Constants.Preview.CONTAINER_MEMORY_MULTIPLIER, KUBE_MEMORY_MULTIPLIER,
+        Constants.Preview.CONTAINER_HEAP_RESERVED_RATIO, Configs.Keys.HEAP_RESERVED_MIN_RATIO
     );
 
     for (Map.Entry<String, String> entry : keyMap.entrySet()) {
@@ -99,37 +95,37 @@ public class PreviewServiceMain extends AbstractServiceMain<EnvironmentOptions> 
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options, CConfiguration cConf) {
+      EnvironmentOptions options, CConfiguration cConf) {
     List<Module> modules = new ArrayList<>(Arrays.asList(
-      new DataSetServiceModules().getStandaloneModules(),
-      new DataSetsModules().getStandaloneModules(),
-      new AppFabricServiceRuntimeModule(cConf).getStandaloneModules(),
-      new ProgramRunnerRuntimeModule().getStandaloneModules(),
-      new MetricsStoreModule(),
-      new MessagingClientModule(),
-      new AuditModule(),
-      new SecureStoreClientModule(),
-      new MetadataReaderWriterModules().getStandaloneModules(),
-      getDataFabricModule(),
-      new DFSLocationModule(),
-      new MetadataServiceModule(),
-      new AuthorizationModule(),
-      new AuthorizationEnforcementModule().getDistributedModules(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          bind(TwillRunnerService.class).toProvider(
-            new SupplierProviderBridge<>(masterEnv.getTwillRunnerSupplier())).in(Scopes.SINGLETON);
-          bind(TwillRunner.class).to(TwillRunnerService.class);
-          bind(ExploreClient.class).to(UnsupportedExploreClient.class);
+        new DataSetServiceModules().getStandaloneModules(),
+        new DataSetsModules().getStandaloneModules(),
+        new AppFabricServiceRuntimeModule(cConf, ServiceType.SERVER).getStandaloneModules(),
+        new ProgramRunnerRuntimeModule().getStandaloneModules(),
+        new MetricsStoreModule(),
+        new MessagingServiceModule(cConf),
+        new AuditModule(),
+        new SecureStoreClientModule(),
+        new MetadataReaderWriterModules().getStandaloneModules(),
+        getDataFabricModule(),
+        new DFSLocationModule(),
+        new MetadataServiceModule(),
+        new AuthorizationModule(),
+        new AuthorizationEnforcementModule().getDistributedModules(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(TwillRunnerService.class).toProvider(
+                    new SupplierProviderBridge<>(masterEnv.getTwillRunnerSupplier()))
+                .in(Scopes.SINGLETON);
+            bind(TwillRunner.class).to(TwillRunnerService.class);
+          }
         }
-      }
     ));
 
     if (cConf.getInt(Constants.Preview.CONTAINER_COUNT) > 0) {
-      modules.add(new PreviewManagerModule(true));
+      modules.add(new PreviewManagerModule(cConf, true));
     } else {
-      modules.add(new PreviewManagerModule(false));
+      modules.add(new PreviewManagerModule(cConf, false));
       modules.add(new PreviewRunnerManagerModule().getStandaloneModules());
     }
 
@@ -138,20 +134,14 @@ public class PreviewServiceMain extends AbstractServiceMain<EnvironmentOptions> 
 
   @Override
   protected void addServices(Injector injector, List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources,
-                             MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
-                             EnvironmentOptions options) {
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv, MasterEnvironmentContext masterEnvContext,
+      EnvironmentOptions options) {
     CConfiguration cConf = injector.getInstance(CConfiguration.class);
-
-    // When internal auth is enabled, start TokenManager first, so it is ready
-    // for generating and validating tokens needed for communicating with other
-    // system services.
-    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
-      services.add(injector.getInstance(TokenManager.class));
-    }
     services.add(new TwillRunnerServiceWrapper(injector.getInstance(TwillRunnerService.class)));
     services.add(injector.getInstance(PreviewHttpServer.class));
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
     }
@@ -165,7 +155,7 @@ public class PreviewServiceMain extends AbstractServiceMain<EnvironmentOptions> 
   @Override
   protected LoggingContext getLoggingContext(EnvironmentOptions options) {
     return new ServiceLoggingContext(NamespaceId.SYSTEM.getNamespace(),
-                                     Constants.Logging.COMPONENT_NAME,
-                                     Constants.Service.PREVIEW_HTTP);
+        Constants.Logging.COMPONENT_NAME,
+        Constants.Service.PREVIEW_HTTP);
   }
 }

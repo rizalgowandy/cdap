@@ -23,15 +23,6 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.SettableFuture;
-import org.apache.twill.common.Cancellable;
-import org.apache.twill.zookeeper.NodeChildren;
-import org.apache.twill.zookeeper.NodeData;
-import org.apache.twill.zookeeper.ZKClient;
-import org.apache.twill.zookeeper.ZKOperations;
-import org.apache.zookeeper.KeeperException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +37,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
+import org.apache.twill.common.Cancellable;
+import org.apache.twill.zookeeper.NodeChildren;
+import org.apache.twill.zookeeper.NodeData;
+import org.apache.twill.zookeeper.ZKClient;
+import org.apache.twill.zookeeper.ZKOperations;
+import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A service for watching changes in the leader-election participants.
@@ -62,23 +61,25 @@ public class LeaderElectionInfoService extends AbstractIdleService {
 
   public LeaderElectionInfoService(ZKClient zkClient, String leaderElectionPath) {
     this.zkClient = zkClient;
-    this.leaderElectionPath = leaderElectionPath.startsWith("/") ? leaderElectionPath : "/" + leaderElectionPath;
+    this.leaderElectionPath =
+        leaderElectionPath.startsWith("/") ? leaderElectionPath : "/" + leaderElectionPath;
     this.readyFuture = SettableFuture.create();
     this.participants = new ConcurrentSkipListMap<>();
   }
 
   /**
-   * Gets the map of participants. This method will block until the participants information is fetched
-   * for the first time from ZK or timeout happened.
+   * Gets the map of participants. This method will block until the participants information is
+   * fetched for the first time from ZK or timeout happened.
    *
-   * @return An immutable {@link SortedMap} ordered by the participant ID with the smallest key in the map
-   *         as the current leader. The returned map is thread-safe and will be updated asynchronously
-   * @throws InterruptedException if the caller thread is interrupted while waiting for the participants information
-   *                              to be available
+   * @return An immutable {@link SortedMap} ordered by the participant ID with the smallest key in
+   *     the map as the current leader. The returned map is thread-safe and will be updated
+   *     asynchronously
+   * @throws InterruptedException if the caller thread is interrupted while waiting for the
+   *     participants information to be available
    * @throws TimeoutException if the wait timed out
    */
   public SortedMap<Integer, Participant> getParticipants(long timeout,
-                                                         TimeUnit unit) throws InterruptedException, TimeoutException {
+      TimeUnit unit) throws InterruptedException, TimeoutException {
     try {
       Stopwatch stopwatch = new Stopwatch().start();
       CountDownLatch readyLatch = readyFuture.get(timeout, unit);
@@ -92,14 +93,15 @@ public class LeaderElectionInfoService extends AbstractIdleService {
   }
 
   /**
-   * Fetches the latest participants from ZK. This method will block until it fetched all participants information.
-   * Note that the map returned is only a snapshot of the leader election information in ZK, which only reflects
-   * the states in ZK at the time when the snapshot was taken.
+   * Fetches the latest participants from ZK. This method will block until it fetched all
+   * participants information. Note that the map returned is only a snapshot of the leader election
+   * information in ZK, which only reflects the states in ZK at the time when the snapshot was
+   * taken.
    *
-   * @return An immutable {@link SortedMap} ordered by the participant ID with the smallest key in the map
-   *         as the current leader
-   * @throws InterruptedException if the caller thread is interrupted while waiting for the participants information
-   *                              to be available
+   * @return An immutable {@link SortedMap} ordered by the participant ID with the smallest key in
+   *     the map as the current leader
+   * @throws InterruptedException if the caller thread is interrupted while waiting for the
+   *     participants information to be available
    * @throws Exception if failed to fetch information from ZK
    */
   public SortedMap<Integer, Participant> fetchCurrentParticipants() throws Exception {
@@ -127,12 +129,13 @@ public class LeaderElectionInfoService extends AbstractIdleService {
 
   @Override
   protected void startUp() throws Exception {
-    cancellable = ZKOperations.watchChildren(zkClient, leaderElectionPath, new ZKOperations.ChildrenCallback() {
-      @Override
-      public void updated(NodeChildren nodeChildren) {
-        childrenUpdated(nodeChildren, participants, readyFuture);
-      }
-    });
+    cancellable = ZKOperations.watchChildren(zkClient, leaderElectionPath,
+        new ZKOperations.ChildrenCallback() {
+          @Override
+          public void updated(NodeChildren nodeChildren) {
+            childrenUpdated(nodeChildren, participants, readyFuture);
+          }
+        });
   }
 
   @Override
@@ -143,8 +146,8 @@ public class LeaderElectionInfoService extends AbstractIdleService {
   }
 
   private void childrenUpdated(NodeChildren nodeChildren,
-                               ConcurrentNavigableMap<Integer, Participant> participants,
-                               SettableFuture<CountDownLatch> readyFuture) {
+      ConcurrentNavigableMap<Integer, Participant> participants,
+      SettableFuture<CountDownLatch> readyFuture) {
     if (!isRunning()) {
       return;
     }
@@ -155,7 +158,9 @@ public class LeaderElectionInfoService extends AbstractIdleService {
       int idx = child.lastIndexOf("-");
       if (idx < 0) {
         // This is not expected as ZK nodes created by LeaderElection always has "-" to separate the node seq no.
-        LOG.warn("Ignoring child node {} due to un-recognized format. Expected to be [guid]-[integer]", child);
+        LOG.warn(
+            "Ignoring child node {} due to un-recognized format. Expected to be [guid]-[integer]",
+            child);
         continue;
       }
 
@@ -165,7 +170,9 @@ public class LeaderElectionInfoService extends AbstractIdleService {
         childIdNodes.put(id, child);
         participants.putIfAbsent(id, new Participant(leaderElectionPath + "/" + child, null));
       } catch (NumberFormatException e) {
-        LOG.warn("Ignoring child node {} due to un-recognized format. Expected to be [guid]-[integer]", child);
+        LOG.warn(
+            "Ignoring child node {} due to un-recognized format. Expected to be [guid]-[integer]",
+            child);
       }
     }
 
@@ -198,8 +205,8 @@ public class LeaderElectionInfoService extends AbstractIdleService {
   }
 
   private void fetchParticipant(String participantNode, final int participantId,
-                                final ConcurrentNavigableMap<Integer, Participant> participants,
-                                @Nullable final CountDownLatch readyLatch) {
+      final ConcurrentNavigableMap<Integer, Participant> participants,
+      @Nullable final CountDownLatch readyLatch) {
     final String path = leaderElectionPath + "/" + participantNode;
     final Participant oldInfo = participants.get(participantId);
 
@@ -257,10 +264,10 @@ public class LeaderElectionInfoService extends AbstractIdleService {
 
     @Override
     public String toString() {
-      return "ParticipantInfo{" +
-        "zkPath='" + zkPath + '\'' +
-        ", hostname='" + hostname + '\'' +
-        '}';
+      return "ParticipantInfo{"
+          + "zkPath='" + zkPath + '\''
+          + ", hostname='" + hostname + '\''
+          + '}';
     }
 
     @Override

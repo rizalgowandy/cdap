@@ -16,6 +16,9 @@
 
 package io.cdap.cdap.common.twill;
 
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.twill.api.ResourceSpecification;
 import org.apache.twill.api.RunId;
 import org.apache.twill.api.SecureStoreUpdater;
@@ -26,10 +29,6 @@ import org.apache.twill.api.TwillRunnable;
 import org.apache.twill.api.TwillRunnerService;
 import org.apache.twill.api.security.SecureStoreRenewer;
 import org.apache.twill.common.Cancellable;
-
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 
 /**
  * A no-op implementation of {@link TwillRunnerService}.
@@ -52,7 +51,8 @@ public final class NoopTwillRunnerService implements TwillRunnerService {
   }
 
   @Override
-  public TwillPreparer prepare(TwillRunnable runnable, ResourceSpecification resourceSpecification) {
+  public TwillPreparer prepare(TwillRunnable runnable,
+      ResourceSpecification resourceSpecification) {
     return new NoopTwillPreparer();
   }
 
@@ -79,13 +79,15 @@ public final class NoopTwillRunnerService implements TwillRunnerService {
 
   @Override
   public Cancellable scheduleSecureStoreUpdate(SecureStoreUpdater updater,
-                                               long initialDelay, long delay, TimeUnit unit) {
-    return () -> { };
+      long initialDelay, long delay, TimeUnit unit) {
+    return () -> {
+    };
   }
 
   @Override
   public Cancellable setSecureStoreRenewer(SecureStoreRenewer renewer, long initialDelay,
-                                           long delay, long retryDelay, TimeUnit unit) {
-    return () -> { };
+      long delay, long retryDelay, TimeUnit unit) {
+    return () -> {
+    };
   }
 }

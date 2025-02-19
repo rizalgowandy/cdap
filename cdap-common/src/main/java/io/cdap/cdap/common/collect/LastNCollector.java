@@ -18,13 +18,12 @@ package io.cdap.cdap.common.collect;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-
 import java.util.Collection;
 import java.util.Deque;
 
 /**
- * This collector will keep only the most recent N elements. It will
- * never return false, but keeps a bound on the memory it uses.
+ * This collector will keep only the most recent N elements. It will never return false, but keeps a
+ * bound on the memory it uses.
  *
  * @param <Element> Type of element.
  */

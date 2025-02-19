@@ -17,7 +17,6 @@
 package io.cdap.cdap.internal.asm;
 
 import com.google.common.collect.Maps;
-
 import java.util.Map;
 
 /**
@@ -57,7 +56,8 @@ public class ByteCodeClassLoader extends ClassLoader {
   }
 
   @Override
-  public synchronized Class<?> loadClass(String className, boolean resolveIt) throws ClassNotFoundException {
+  public synchronized Class<?> loadClass(String className, boolean resolveIt)
+      throws ClassNotFoundException {
 
     Class<?> result = findLoadedClass(className);
     if (result != null) {

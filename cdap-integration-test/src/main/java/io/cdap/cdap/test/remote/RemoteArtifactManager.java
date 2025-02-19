@@ -21,17 +21,18 @@ import io.cdap.cdap.client.config.ClientConfig;
 import io.cdap.cdap.client.util.RESTClient;
 import io.cdap.cdap.proto.id.ArtifactId;
 import io.cdap.cdap.test.ArtifactManager;
-
 import java.util.Map;
 
 /**
  * {@link ArtifactManager} for use in integration tests.
  */
 public class RemoteArtifactManager implements ArtifactManager {
+
   private final ArtifactClient artifactClient;
   private final ArtifactId artifactId;
 
-  public RemoteArtifactManager(ClientConfig clientConfig, RESTClient restClient, ArtifactId artifactId) {
+  public RemoteArtifactManager(ClientConfig clientConfig, RESTClient restClient,
+      ArtifactId artifactId) {
     this.artifactClient = new ArtifactClient(clientConfig, restClient);
     this.artifactId = artifactId;
   }

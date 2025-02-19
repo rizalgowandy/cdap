@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2019 Cask Data, Inc.
+ * Copyright © 2016-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -23,6 +23,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import io.cdap.cdap.api.ProgramStatus;
 import io.cdap.cdap.api.app.ApplicationConfigurer;
+import io.cdap.cdap.api.app.RuntimeConfigurer;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.dataset.lib.CloseableIterator;
 import io.cdap.cdap.api.dataset.lib.FileSet;
@@ -39,6 +40,7 @@ import io.cdap.cdap.api.workflow.AbstractWorkflow;
 import io.cdap.cdap.api.workflow.NodeValue;
 import io.cdap.cdap.api.workflow.WorkflowContext;
 import io.cdap.cdap.api.workflow.WorkflowToken;
+import io.cdap.cdap.datapipeline.service.PipelineTriggers;
 import io.cdap.cdap.etl.api.Alert;
 import io.cdap.cdap.etl.api.AlertPublisher;
 import io.cdap.cdap.etl.api.AlertPublisherContext;
@@ -69,7 +71,6 @@ import io.cdap.cdap.etl.batch.connector.ConnectorSource;
 import io.cdap.cdap.etl.batch.connector.MultiConnectorSource;
 import io.cdap.cdap.etl.batch.customaction.PipelineAction;
 import io.cdap.cdap.etl.batch.mapreduce.ETLMapReduce;
-import io.cdap.cdap.etl.common.BasicArguments;
 import io.cdap.cdap.etl.common.Constants;
 import io.cdap.cdap.etl.common.DefaultAlertPublisherContext;
 import io.cdap.cdap.etl.common.DefaultMacroEvaluator;
@@ -88,12 +89,13 @@ import io.cdap.cdap.etl.planner.DisjointConnectionsException;
 import io.cdap.cdap.etl.planner.PipelinePlan;
 import io.cdap.cdap.etl.planner.PipelinePlanner;
 import io.cdap.cdap.etl.proto.Connection;
-import io.cdap.cdap.etl.proto.v2.ArgumentMapping;
 import io.cdap.cdap.etl.proto.v2.ETLBatchConfig;
-import io.cdap.cdap.etl.proto.v2.PluginPropertyMapping;
+import io.cdap.cdap.etl.proto.v2.ETLTransformationPushdown;
 import io.cdap.cdap.etl.proto.v2.TriggeringPropertyMapping;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
 import io.cdap.cdap.etl.spark.batch.ETLSpark;
+import io.cdap.cdap.etl.spec.PipelineArguments;
+import io.cdap.cdap.features.Feature;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
@@ -130,7 +132,6 @@ public class SmartWorkflow extends AbstractWorkflow {
     .registerTypeAdapter(Schema.class, new SchemaTypeAdapter())
     .registerTypeAdapter(FieldOperation.class, new FieldOperationTypeAdapter()).create();
   private static final Type STAGE_DATASET_MAP = new TypeToken<Map<String, String>>() { }.getType();
-  private static final Type STAGE_PROPERTIES_MAP = new TypeToken<Map<String, Map<String, String>>>() { }.getType();
   private static final Type STAGE_OPERATIONS_MAP = new TypeToken<Map<String, List<FieldOperation>>>() { }.getType();
 
   private final ApplicationConfigurer applicationConfigurer;
@@ -150,12 +151,12 @@ public class SmartWorkflow extends AbstractWorkflow {
   private Metrics workflowMetrics;
   private ETLBatchConfig config;
   private BatchPipelineSpec spec;
-  private int connectorNum = 0;
-  private int publisherNum = 0;
+  private int connectorNum;
+  private int publisherNum;
 
   public SmartWorkflow(ETLBatchConfig config, Set<String> supportedPluginTypes,
                        ApplicationConfigurer applicationConfigurer) {
-    this.config = config;
+    this.config = getConfigFromRuntimeArgs(applicationConfigurer, config);
     this.supportedPluginTypes = supportedPluginTypes;
     this.applicationConfigurer = applicationConfigurer;
     this.phaseNum = 1;
@@ -285,8 +286,7 @@ public class SmartWorkflow extends AbstractWorkflow {
           for (String source : dag.getSources()) {
             subDagConnections.add(new Connection(dummyNode, source));
           }
-          Deque<String> subDagBFS = new LinkedList<>();
-          subDagBFS.addAll(dag.getSources());
+          Deque<String> subDagBFS = new LinkedList<>(dag.getSources());
 
           while (subDagBFS.peek() != null) {
             String node = subDagBFS.poll();
@@ -383,7 +383,7 @@ public class SmartWorkflow extends AbstractWorkflow {
 
   private void updateTokenWithTriggeringProperties(TriggeringScheduleInfo scheduleInfo,
                                                    TriggeringPropertyMapping propertiesMapping,
-                                                   WorkflowToken token) {
+                                                   WorkflowContext context) {
     List<ProgramStatusTriggerInfo> programStatusTriggerInfos = new ArrayList<>();
     for (TriggerInfo info : scheduleInfo.getTriggerInfos()) {
       if (info instanceof ProgramStatusTriggerInfo) {
@@ -394,63 +394,24 @@ public class SmartWorkflow extends AbstractWorkflow {
     if (programStatusTriggerInfos.isEmpty()) {
       return;
     }
-    // Currently only expecting one trigger in a schedule
-    ProgramStatusTriggerInfo triggerInfo = programStatusTriggerInfos.get(0);
-    BasicArguments triggeringArguments = new BasicArguments(triggerInfo.getWorkflowToken(),
-                                                            triggerInfo.getRuntimeArguments());
-    // Get the value of every triggering pipeline arguments specified in the propertiesMapping and update newRuntimeArgs
-    List<ArgumentMapping> argumentMappings = propertiesMapping.getArguments();
-    for (ArgumentMapping mapping : argumentMappings) {
-      String sourceKey = mapping.getSource();
-      if (sourceKey == null) {
-        LOG.warn("The name of argument from the triggering pipeline cannot be null, " +
-                   "skip this argument mapping: '{}'.", mapping);
-        continue;
+
+    Map<String, String> propertiesMappings = new HashMap<>();
+    if (Feature.PIPELINE_COMPOSITE_TRIGGERS.isEnabled(context)) {
+      // Iterate all triggers and match pipeline ID info
+      for (ProgramStatusTriggerInfo triggerInfo : programStatusTriggerInfos) {
+        PipelineTriggers.addSchedulePropertiesMapping(
+          propertiesMappings, triggerInfo, propertiesMapping, true);
       }
-      String value = triggeringArguments.get(sourceKey);
-      if (value == null) {
-        LOG.warn("Runtime argument '{}' is not found in run '{}' of the triggering pipeline '{}' " +
-                   "in namespace '{}' ",
-                 sourceKey, triggerInfo.getRunId(), triggerInfo.getApplicationName(),
-                 triggerInfo.getNamespace());
-        continue;
-      }
-      // Use the argument name in the triggering pipeline if target is not specified
-      String targetKey = mapping.getTarget() == null ? sourceKey : mapping.getTarget();
-      token.put(targetKey, value);
+    } else {
+      // Only expecting one trigger in a program_status schedule
+      PipelineTriggers.addSchedulePropertiesMapping(
+        propertiesMappings, programStatusTriggerInfos.get(0), propertiesMapping, false);
     }
-    // Get the resolved plugin properties map from triggering pipeline's workflow token in triggeringArguments
-    Map<String, Map<String, String>> resolvedProperties =
-      GSON.fromJson(triggeringArguments.get(RESOLVED_PLUGIN_PROPERTIES_MAP), STAGE_PROPERTIES_MAP);
-    for (PluginPropertyMapping mapping : propertiesMapping.getPluginProperties()) {
-      String stageName = mapping.getStageName();
-      if (stageName == null) {
-        LOG.warn("The name of the stage cannot be null in plugin property mapping, skip this mapping: '{}'.", mapping);
-        continue;
-      }
-      Map<String, String> pluginProperties = resolvedProperties.get(stageName);
-      if (pluginProperties == null) {
-        LOG.warn("No plugin properties can be found with stage name '{}' in triggering pipeline '{}' " +
-                   "in namespace '{}' ", mapping.getStageName(), triggerInfo.getApplicationName(),
-                 triggerInfo.getNamespace());
-        continue;
-      }
-      String sourceKey = mapping.getSource();
-      if (sourceKey == null) {
-        LOG.warn("The name of argument from the triggering pipeline cannot be null, " +
-                   "skip this argument mapping: '{}'.", mapping);
-        continue;
-      }
-      String value = pluginProperties.get(sourceKey);
-      if (value == null) {
-        LOG.warn("No property with name '{}' can be found in plugin '{}' of the triggering pipeline '{}' " +
-                   "in namespace '{}' ", sourceKey, stageName, triggerInfo.getApplicationName(),
-                 triggerInfo.getNamespace());
-        continue;
-      }
-      // Use the argument name in the triggering pipeline if target is not specified
-      String targetKey = mapping.getTarget() == null ? sourceKey : mapping.getTarget();
-      token.put(targetKey, value);
+
+    // Add the arguments mapping to context token
+    WorkflowToken token = context.getToken();
+    for (String key : propertiesMappings.keySet()) {
+      token.put(key, propertiesMappings.get(key));
     }
   }
 
@@ -464,8 +425,24 @@ public class SmartWorkflow extends AbstractWorkflow {
       if (propertiesMappingString != null) {
         TriggeringPropertyMapping propertiesMapping =
           GSON.fromJson(propertiesMappingString, TriggeringPropertyMapping.class);
-        updateTokenWithTriggeringProperties(scheduleInfo, propertiesMapping, context.getToken());
+        updateTokenWithTriggeringProperties(scheduleInfo, propertiesMapping, context);
       }
+    }
+    spec = GSON.fromJson(context.getWorkflowSpecification().getProperty(Constants.PIPELINE_SPEC_KEY),
+                         BatchPipelineSpec.class);
+
+    if (spec.isPreviewEnabled(context)) {
+      for (StageSpec stageSpec : spec.getStages()) {
+        String pluginType = stageSpec.getPluginType();
+        if (pluginType.equals(Condition.PLUGIN_TYPE)) {
+          throw new IllegalArgumentException("Can not run pipeline with condition plugins in preview mode.");
+        }
+      }
+    }
+
+    if (spec.getEngine() == Engine.MAPREDUCE) {
+      WRAPPERLOGGER.warn("Pipeline '{}' is using Mapreduce engine which is planned to be deprecated. "
+                           + "Please use Spark engine.", context.getApplicationSpecification().getName());
     }
     PipelineRuntime pipelineRuntime = new PipelineRuntime(context, workflowMetrics);
     WRAPPERLOGGER.info("Pipeline '{}' is started by user '{}' with arguments {}",
@@ -477,19 +454,22 @@ public class SmartWorkflow extends AbstractWorkflow {
     postActions = new LinkedHashMap<>();
     spec = GSON.fromJson(context.getWorkflowSpecification().getProperty(Constants.PIPELINE_SPEC_KEY),
                          BatchPipelineSpec.class);
+    boolean processTimingEnabled = PipelineArguments.isProcessTimingEnabled(pipelineRuntime.getArguments().asMap(),
+                                                                            spec.isProcessTimingEnabled());
+
     stageSpecs = new HashMap<>();
     MacroEvaluator macroEvaluator = new DefaultMacroEvaluator(pipelineRuntime.getArguments(),
                                                               context.getLogicalStartTime(), context,
                                                               context, context.getNamespace());
     PluginContext pluginContext = new PipelinePluginContext(context, workflowMetrics,
                                                             spec.isStageLoggingEnabled(),
-                                                            spec.isProcessTimingEnabled());
+                                                            processTimingEnabled);
     for (ActionSpec actionSpec : spec.getEndingActions()) {
       String stageName = actionSpec.getName();
       postActions.put(stageName, pluginContext.newPluginInstance(stageName, macroEvaluator));
       stageSpecs.put(stageName, StageSpec.builder(stageName, actionSpec.getPluginSpec())
         .setStageLoggingEnabled(spec.isStageLoggingEnabled())
-        .setProcessTimingEnabled(spec.isProcessTimingEnabled())
+        .setProcessTimingEnabled(processTimingEnabled)
         .setMaxPreviewRecords(spec.getNumOfRecordsPreview())
         .build());
     }
@@ -667,9 +647,9 @@ public class SmartWorkflow extends AbstractWorkflow {
       // if we're already on a branch, we should never have another branch for non-condition programs
       Set<String> nodeOutputs = dag.getNodeOutputs(node);
       if (nodeOutputs.size() > 1) {
-        throw new IllegalStateException("Found an unexpected non-condition branch while on another branch. " +
-                                          "This means there is a pipeline planning bug. " +
-                                          "Please contact the CDAP team to open a bug report.");
+        throw new IllegalStateException("Found an unexpected non-condition branch while on another branch. "
+                                          + "This means there is a pipeline planning bug. "
+                                          + "Please contact the CDAP team to open a bug report.");
       }
       if (!nodeOutputs.isEmpty()) {
         addBranchPrograms(dag.getNodeOutputs(node).iterator().next(), programAdder, shouldJoin);
@@ -709,9 +689,21 @@ public class SmartWorkflow extends AbstractWorkflow {
       }
     }
 
+    // overide spec with runtime arguments
+    boolean processTimingEnabled = spec.isProcessTimingEnabled();
+    Map<String, String> properties = spec.getProperties();
+
+    // runtime configurer is null at deployment
+    if (applicationConfigurer != null && applicationConfigurer.getRuntimeConfigurer() != null) {
+      Map<String, String> runtimeArguments = applicationConfigurer.getRuntimeConfigurer().getRuntimeArguments();
+      processTimingEnabled = PipelineArguments.isProcessTimingEnabled(runtimeArguments,
+                                                                      spec.isProcessTimingEnabled());
+      properties = PipelineArguments.getEngineProperties(runtimeArguments, spec.getProperties());
+    } 
+
     return new BatchPhaseSpec(programName, phase, spec.getResources(), spec.getDriverResources(),
-                              spec.getClientResources(), spec.isStageLoggingEnabled(), spec.isProcessTimingEnabled(),
-                              phaseConnectorDatasets, spec.getNumOfRecordsPreview(), spec.getProperties(),
+                              spec.getClientResources(), spec.isStageLoggingEnabled(), processTimingEnabled,
+                              phaseConnectorDatasets, spec.getNumOfRecordsPreview(), properties,
                               !plan.getConditionPhaseBranches().isEmpty(), spec.getSqlEngineStageSpec());
   }
 
@@ -780,5 +772,33 @@ public class SmartWorkflow extends AbstractWorkflow {
     // publisher to the local datasets for it, so that we can publish alerts in destroy()
     properties.put(Constants.CONNECTOR_DATASETS, GSON.toJson(connectorDatasets));
     setProperties(properties);
+  }
+
+  private ETLBatchConfig getConfigFromRuntimeArgs(ApplicationConfigurer applicationConfigurer,
+                                                  ETLBatchConfig originalConfig) {
+    if (applicationConfigurer == null || applicationConfigurer.getRuntimeConfigurer() == null) {
+      return originalConfig;
+    }
+    RuntimeConfigurer runtimeConfigurer = applicationConfigurer.getRuntimeConfigurer();
+    Map<String, String> runtimeArguments = runtimeConfigurer.getRuntimeArguments();
+    if (!runtimeArguments.containsKey(PipelineArguments.PIPELINE_CONFIG_OVERWRITE)) {
+      return originalConfig;
+    }
+    boolean processTimingEnabled = PipelineArguments.isProcessTimingEnabled(runtimeArguments,
+                                                  originalConfig.isProcessTimingEnabled());
+    Map<String, String> properties = PipelineArguments.getEngineProperties(runtimeArguments,
+                                                                          originalConfig.getProperties());
+    boolean pushdownEnabled = PipelineArguments.isPushdownEnabled(runtimeArguments, originalConfig.isPushdownEnabled());
+    ETLTransformationPushdown transformationPushdown = PipelineArguments.getTransformationPushdown(runtimeArguments,
+                                                                 originalConfig.getTransformationPushdown());
+    // overwrite config using runtimeargs
+    ETLBatchConfig.Builder builder = new ETLBatchConfig.Builder(originalConfig);
+    if (!processTimingEnabled) {
+      builder.disableProcessTiming();
+    }
+    builder.setProperties(properties)
+      .setPushdownEnabled(pushdownEnabled)
+      .setTransformationPushdown(transformationPushdown);
+    return builder.build();
   }
 }

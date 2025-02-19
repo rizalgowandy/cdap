@@ -23,7 +23,6 @@ import io.cdap.cdap.api.dataset.table.Scanner;
 import io.cdap.cdap.api.dataset.table.Table;
 import io.cdap.cdap.data2.dataset2.lib.table.FuzzyRowFilter;
 import io.cdap.cdap.data2.dataset2.lib.table.MetricsTable;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -34,6 +33,7 @@ import javax.annotation.Nullable;
  * Implementation of {@link MetricsTable} based on {@link Table}.
  */
 class MetricsTableOnTable implements MetricsTable {
+
   private final Table table;
 
   MetricsTableOnTable(Table table) {
@@ -105,7 +105,7 @@ class MetricsTableOnTable implements MetricsTable {
 
   @Override
   public Scanner scan(@Nullable byte[] start, @Nullable byte[] stop,
-                      @Nullable FuzzyRowFilter filter) {
+      @Nullable FuzzyRowFilter filter) {
     return table.scan(new Scan(start, stop, filter));
   }
 

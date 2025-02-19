@@ -18,13 +18,15 @@ package io.cdap.cdap.master.spi.environment;
 
 import io.cdap.cdap.master.spi.environment.spark.SparkConfig;
 import io.cdap.cdap.master.spi.environment.spark.SparkSubmitContext;
+import io.cdap.cdap.master.spi.namespace.NamespaceDetail;
+import io.cdap.cdap.master.spi.namespace.NamespaceListener;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.twill.api.TwillRunnerService;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
-
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Supplier;
 
 /**
  * The interface is the integration point for CDAP master runtime provider.
@@ -32,10 +34,11 @@ import java.util.function.Supplier;
 public interface MasterEnvironment {
 
   /**
-   * This method will be invoked to initialize this {@link MasterEnvironment}.
-   * It will be called before any other method is called.
+   * This method will be invoked to initialize this {@link MasterEnvironment}. It will be called
+   * before any other method is called.
    *
-   * @param context a {@link MasterEnvironmentContext} to provide information about the CDAP environment
+   * @param context a {@link MasterEnvironmentContext} to provide information about the CDAP
+   *     environment
    * @throws Exception if initialization failed
    */
   default void initialize(MasterEnvironmentContext context) throws Exception {
@@ -43,31 +46,32 @@ public interface MasterEnvironment {
   }
 
   /**
-   * This method will be invoked to destroy this {@link MasterEnvironment}.
-   * This will be the last method called on this instance.
+   * This method will be invoked to destroy this {@link MasterEnvironment}. This will be the last
+   * method called on this instance.
    */
   default void destroy() {
     // no-op by default
   }
 
   /**
-   * Returns a {@link Optional} {@link MasterEnvironmentTask} to be executed periodically.
-   * It is guaranteed that there is no concurrent call to the task returned.
+   * Returns a list of {@link MasterEnvironmentTask}s to be executed periodically.
    */
-  default Optional<MasterEnvironmentTask> getTask() {
-    return Optional.empty();
+  default Collection<MasterEnvironmentTask> getTasks() {
+    return Collections.emptySet();
   }
 
   /**
    * Creates a new instance of {@link MasterEnvironmentRunnable} from the given class name.
    *
-   * @param context a {@link MasterEnvironmentRunnableContext} to provide access to CDAP resources.
-   * @param runnableClass the {@link MasterEnvironmentRunnable} class to create an instance from
+   * @param context a {@link MasterEnvironmentRunnableContext} to provide access to CDAP
+   *     resources.
+   * @param runnableClass the {@link MasterEnvironmentRunnable} class to create an instance
+   *     from
    * @return a new instance of the given class
    * @throws Exception if failed to create a new instance
    */
   MasterEnvironmentRunnable createRunnable(MasterEnvironmentRunnableContext context,
-                                           Class<? extends MasterEnvironmentRunnable> runnableClass) throws Exception;
+      Class<? extends MasterEnvironmentRunnable> runnableClass) throws Exception;
 
   /**
    * Returns the name of this environment implementation.
@@ -95,21 +99,46 @@ public interface MasterEnvironment {
    * @param sparkSubmitContext Spark submit context for master environment
    * @throws Exception if there is any error in generating spark submit config
    */
-  default SparkConfig generateSparkSubmitConfig(SparkSubmitContext sparkSubmitContext) throws Exception {
+  default SparkConfig generateSparkSubmitConfig(SparkSubmitContext sparkSubmitContext)
+      throws Exception {
     throw new UnsupportedOperationException("Method not implemented");
   }
 
   /**
-   * Called during namespace creation
+   * Called during namespace creation. Namespace creation is rolled back if this method throws an
+   * exception.
+   *
+   * @deprecated use {@link NamespaceListener#onNamespaceCreation(NamespaceDetail)} instead.
    */
-  default void onNamespaceCreation(String namespace, Map<String, String> properties) throws Exception {
+  @Deprecated
+  default void onNamespaceCreation(String namespace, Map<String, String> properties)
+      throws Exception {
     // no-op by default
   }
 
   /**
-   * Called during namespace deletion
+   * Used to create the credential identity associated with the namespace.
    */
-  default void onNamespaceDeletion(String namespace, Map<String, String> properties) throws Exception {
+  default void createIdentity(String namespace, String identity) throws Exception {
+    // no-op by default
+  }
+
+  /**
+   * Used to delete the credential identity associated with the namespace.
+   */
+  default void deleteIdentity(String namespace, String identity) throws Exception {
+    // no-op by default
+  }
+
+  /**
+   * Called during namespace deletion. Namespace deletion is rolled back if this method throws an
+   * exception.
+   *
+   * @deprecated use {@link NamespaceListener#onNamespaceDeletion(NamespaceDetail)} instead.
+   */
+  @Deprecated
+  default void onNamespaceDeletion(String namespace, Map<String, String> properties)
+      throws Exception {
     // no-op by default
   }
 }

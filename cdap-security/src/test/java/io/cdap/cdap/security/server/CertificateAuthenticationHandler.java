@@ -17,13 +17,12 @@
 package io.cdap.cdap.security.server;
 
 import com.google.common.base.Strings;
+import javax.security.auth.login.Configuration;
 import org.eclipse.jetty.security.Authenticator;
 import org.eclipse.jetty.security.DefaultIdentityService;
 import org.eclipse.jetty.security.IdentityService;
 import org.eclipse.jetty.security.LoginService;
 import org.eclipse.jetty.security.authentication.ClientCertAuthenticator;
-
-import javax.security.auth.login.Configuration;
 
 /**
  * An Authentication Handler that support mutual TLS based authentication. The
@@ -40,7 +39,7 @@ public class CertificateAuthenticationHandler extends AbstractAuthenticationHand
    * Configure the Jetty {@link ClientCertAuthenticator} by setting the
    * Truststore.
    *
-   * @param clientCertAuthenticator
+   * @param clientCertAuthenticator , the authenticator to be set
    */
   private void setupClientCertAuthenticator(ClientCertAuthenticator clientCertAuthenticator) {
     String trustStorePath = handlerProps.get(AUTH_SSL_CONFIG_BASE.concat("truststore.path"));
@@ -63,7 +62,7 @@ public class CertificateAuthenticationHandler extends AbstractAuthenticationHand
 
   @Override
   protected LoginService getHandlerLoginService() {
-    return new MTLSLoginService(handlerProps.get("realmfile"));
+    return new MtlsLoginService(handlerProps.get("realmfile"));
   }
 
   @Override

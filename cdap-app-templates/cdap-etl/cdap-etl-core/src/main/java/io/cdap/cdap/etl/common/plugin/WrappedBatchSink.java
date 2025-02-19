@@ -23,24 +23,26 @@ import io.cdap.cdap.etl.api.batch.BatchRuntimeContext;
 import io.cdap.cdap.etl.api.batch.BatchSink;
 import io.cdap.cdap.etl.api.batch.BatchSinkContext;
 import io.cdap.cdap.etl.api.batch.BatchSource;
-
 import java.util.concurrent.Callable;
 
 /**
- * Wrapper around {@link BatchSource} that makes sure logging, classloading, and other pipeline capabilities
- * are setup correctly.
+ * Wrapper around {@link BatchSource} that makes sure logging, classloading, and other pipeline
+ * capabilities are setup correctly.
  *
  * @param <IN> type of input
  * @param <KEY_OUT> type of output key
  * @param <VAL_OUT> type of output value
  */
-public class WrappedBatchSink<IN, KEY_OUT, VAL_OUT> extends BatchSink<IN, KEY_OUT, VAL_OUT> {
+public class WrappedBatchSink<IN, KEY_OUT, VAL_OUT>
+    extends BatchSink<IN, KEY_OUT, VAL_OUT>
+    implements PluginWrapper<BatchSink<IN, KEY_OUT, VAL_OUT>> {
+
   private final BatchSink<IN, KEY_OUT, VAL_OUT> batchSink;
   private final Caller caller;
   private final OperationTimer operationTimer;
 
   public WrappedBatchSink(BatchSink<IN, KEY_OUT, VAL_OUT> batchSink, Caller caller,
-                          OperationTimer operationTimer) {
+      OperationTimer operationTimer) {
     this.batchSink = batchSink;
     this.caller = caller;
     this.operationTimer = operationTimer;
@@ -64,7 +66,7 @@ public class WrappedBatchSink<IN, KEY_OUT, VAL_OUT> extends BatchSink<IN, KEY_OU
 
   @Override
   public void transform(IN input,
-                        Emitter<KeyValue<KEY_OUT, VAL_OUT>> emitter) throws Exception {
+      Emitter<KeyValue<KEY_OUT, VAL_OUT>> emitter) throws Exception {
     operationTimer.start();
     try {
       caller.call((Callable<Void>) () -> {
@@ -98,5 +100,10 @@ public class WrappedBatchSink<IN, KEY_OUT, VAL_OUT> extends BatchSink<IN, KEY_OU
       batchSink.onRunFinish(succeeded, context);
       return null;
     });
+  }
+
+  @Override
+  public BatchSink<IN, KEY_OUT, VAL_OUT> getWrapped() {
+    return batchSink;
   }
 }

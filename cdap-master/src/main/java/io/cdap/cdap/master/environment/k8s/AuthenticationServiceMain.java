@@ -27,15 +27,14 @@ import io.cdap.cdap.common.logging.LoggingContext;
 import io.cdap.cdap.common.logging.ServiceLoggingContext;
 import io.cdap.cdap.master.spi.environment.MasterEnvironment;
 import io.cdap.cdap.master.spi.environment.MasterEnvironmentContext;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.MessagingServiceModule;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.guice.ExternalAuthenticationModule;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.server.ExternalAuthenticationServer;
-import org.apache.twill.zookeeper.ZKClientService;
-
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.twill.zookeeper.ZKClientService;
 
 /**
  * The main class responsible for Authentication  .
@@ -48,27 +47,29 @@ public class AuthenticationServiceMain extends AbstractServiceMain<EnvironmentOp
 
   @Override
   protected List<Module> getServiceModules(MasterEnvironment masterEnv,
-                                           EnvironmentOptions options,
-                                           CConfiguration cConf) {
+      EnvironmentOptions options,
+      CConfiguration cConf) {
 
     if (!SecurityUtil.isManagedSecurity(cConf)) {
-      throw new RuntimeException("Security is not enabled. Authentication service shouldn't be used");
+      throw new RuntimeException(
+          "Security is not enabled. Authentication service shouldn't be used");
     }
 
     List<Module> modules = new ArrayList<>();
-    modules.add(new MessagingClientModule());
+    modules.add(new MessagingServiceModule(cConf));
     modules.add(new ExternalAuthenticationModule());
     return modules;
   }
 
   @Override
   protected void addServices(Injector injector,
-                             List<? super Service> services,
-                             List<? super AutoCloseable> closeableResources,
-                             MasterEnvironment masterEnv,
-                             MasterEnvironmentContext masterEnvContext,
-                             EnvironmentOptions options) {
-    Binding<ZKClientService> zkBinding = injector.getExistingBinding(Key.get(ZKClientService.class));
+      List<? super Service> services,
+      List<? super AutoCloseable> closeableResources,
+      MasterEnvironment masterEnv,
+      MasterEnvironmentContext masterEnvContext,
+      EnvironmentOptions options) {
+    Binding<ZKClientService> zkBinding = injector.getExistingBinding(
+        Key.get(ZKClientService.class));
     if (zkBinding != null) {
       services.add(zkBinding.getProvider().get());
     }

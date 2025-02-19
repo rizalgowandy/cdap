@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 Cask Data, Inc.
+ * Copyright © 2021-2022 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -17,6 +17,7 @@
 package io.cdap.cdap.master.environment;
 
 
+import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.discovery.ResolvingDiscoverable;
 import io.cdap.cdap.common.discovery.URIScheme;
@@ -29,6 +30,15 @@ import io.cdap.http.HttpResponder;
 import io.cdap.http.NettyHttpService;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
@@ -41,16 +51,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.nio.charset.StandardCharsets;
-import java.util.stream.Collectors;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 
 /**
  * Test for {@link DefaultMasterEnvironmentRunnableContextTest}.
@@ -68,7 +68,8 @@ public class DefaultMasterEnvironmentRunnableContextTest {
     LocationFactory locationFactory = new LocalLocationFactory(TMP_FOLDER.newFolder());
     RemoteClientFactory remoteClientFactory = new RemoteClientFactory(
       (DiscoveryServiceClient) discoveryService, new DefaultInternalAuthenticator(new AuthenticationTestContext()));
-    context = new DefaultMasterEnvironmentRunnableContext(locationFactory, remoteClientFactory);
+    context = new DefaultMasterEnvironmentRunnableContext(locationFactory, remoteClientFactory,
+                                                          CConfiguration.create());
 
     httpService = NettyHttpService.builder(Constants.Service.APP_FABRIC_HTTP)
       .setHttpHandlers(new MockHttpHandler())

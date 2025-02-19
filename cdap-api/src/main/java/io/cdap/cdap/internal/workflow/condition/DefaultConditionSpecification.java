@@ -17,7 +17,6 @@
 package io.cdap.cdap.internal.workflow.condition;
 
 import io.cdap.cdap.api.workflow.ConditionSpecification;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,7 +35,7 @@ public class DefaultConditionSpecification implements ConditionSpecification {
   private final Set<String> datasets;
 
   public DefaultConditionSpecification(String className, String name, String description,
-                                       Map<String, String> properties, Set<String> datasets) {
+      Map<String, String> properties, Set<String> datasets) {
     this.className = className;
     this.name = name;
     this.description = description;

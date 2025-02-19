@@ -18,15 +18,15 @@ package io.cdap.cdap.config;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
 
 /**
  * Console Settings Store Management.
  */
 public class ConsoleSettingsStore {
+
   private static final Logger LOG = LoggerFactory.getLogger(ConsoleSettingsStore.class);
   private static final String CONSOLE_NAMESPACE = "";
   private static final String CONFIG_TYPE = "usersettings";

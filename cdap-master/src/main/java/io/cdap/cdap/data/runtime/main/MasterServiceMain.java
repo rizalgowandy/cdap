@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2019 Cask Data, Inc.
+ * Copyright © 2014-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -19,9 +19,7 @@ package io.cdap.cdap.data.runtime.main;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -32,11 +30,11 @@ import com.google.inject.Injector;
 import com.google.inject.Key;
 import io.cdap.cdap.api.metrics.MetricsCollectionService;
 import io.cdap.cdap.app.guice.AppFabricServiceRuntimeModule;
+import io.cdap.cdap.app.guice.AuditLogWriterModule;
 import io.cdap.cdap.app.guice.AuthorizationModule;
 import io.cdap.cdap.app.guice.MonitorHandlerModule;
 import io.cdap.cdap.app.guice.ProgramRunnerRuntimeModule;
 import io.cdap.cdap.app.guice.RuntimeServerModule;
-import io.cdap.cdap.app.guice.SupportBundleServiceModule;
 import io.cdap.cdap.app.guice.TwillModule;
 import io.cdap.cdap.app.store.ServiceStore;
 import io.cdap.cdap.common.MasterUtils;
@@ -48,8 +46,9 @@ import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.FileContextProvider;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.io.URLConnections;
 import io.cdap.cdap.common.logging.LoggerLogHandler;
 import io.cdap.cdap.common.runtime.DaemonMain;
@@ -68,26 +67,17 @@ import io.cdap.cdap.data2.metadata.writer.DefaultMetadataServiceClient;
 import io.cdap.cdap.data2.metadata.writer.MessagingMetadataPublisher;
 import io.cdap.cdap.data2.metadata.writer.MetadataPublisher;
 import io.cdap.cdap.data2.metadata.writer.MetadataServiceClient;
-import io.cdap.cdap.data2.util.hbase.ConfigurationReader;
-import io.cdap.cdap.data2.util.hbase.ConfigurationWriter;
-import io.cdap.cdap.data2.util.hbase.HBaseDDLExecutorFactory;
-import io.cdap.cdap.data2.util.hbase.HBaseTableUtil;
-import io.cdap.cdap.data2.util.hbase.HBaseTableUtilFactory;
-import io.cdap.cdap.explore.client.ExploreClient;
-import io.cdap.cdap.explore.guice.ExploreClientModule;
-import io.cdap.cdap.explore.service.ExploreServiceUtils;
-import io.cdap.cdap.hive.ExploreUtils;
 import io.cdap.cdap.internal.app.runtime.monitor.RuntimeServer;
+import io.cdap.cdap.internal.app.services.AppFabricProcessorService;
 import io.cdap.cdap.internal.app.services.AppFabricServer;
 import io.cdap.cdap.logging.appender.LogAppenderInitializer;
 import io.cdap.cdap.logging.guice.KafkaLogAppenderModule;
 import io.cdap.cdap.master.startup.ServiceResourceKeys;
-import io.cdap.cdap.messaging.guice.MessagingClientModule;
+import io.cdap.cdap.messaging.guice.client.DefaultMessagingClientModule;
 import io.cdap.cdap.metrics.guice.MetricsClientRuntimeModule;
 import io.cdap.cdap.metrics.guice.MetricsStoreModule;
 import io.cdap.cdap.operations.OperationalStatsService;
 import io.cdap.cdap.operations.guice.OperationalStatsModule;
-import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.TokenSecureStoreRenewer;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.authorization.AccessControllerInstantiator;
@@ -97,43 +87,9 @@ import io.cdap.cdap.security.guice.SecureStoreServerModule;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.store.SecureStoreService;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
-import io.cdap.cdap.spi.data.TableAlreadyExistsException;
-import io.cdap.cdap.spi.hbase.HBaseDDLExecutor;
 import io.cdap.cdap.spi.metadata.MetadataStorage;
 import io.cdap.cdap.store.StoreDefinition;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
-import org.apache.hadoop.fs.FileContext;
-import org.apache.hadoop.fs.ParentNotDirectoryException;
-import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.security.User;
-import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.api.ApplicationConstants;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.twill.api.Configs;
-import org.apache.twill.api.ElectionHandler;
-import org.apache.twill.api.TwillApplication;
-import org.apache.twill.api.TwillController;
-import org.apache.twill.api.TwillPreparer;
-import org.apache.twill.api.TwillRunnerService;
-import org.apache.twill.common.Cancellable;
-import org.apache.twill.common.Threads;
-import org.apache.twill.internal.ServiceListenerAdapter;
-import org.apache.twill.internal.zookeeper.LeaderElection;
-import org.apache.twill.internal.zookeeper.ReentrantDistributedLock;
-import org.apache.twill.kafka.client.KafkaClientService;
-import org.apache.twill.yarn.YarnSecureStore;
-import org.apache.twill.zookeeper.ZKClient;
-import org.apache.twill.zookeeper.ZKClientService;
-import org.apache.twill.zookeeper.ZKOperations;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.cdap.cdap.support.guice.SupportBundleServiceModule;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -160,15 +116,48 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.ParentNotDirectoryException;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.twill.api.Configs;
+import org.apache.twill.api.ElectionHandler;
+import org.apache.twill.api.TwillApplication;
+import org.apache.twill.api.TwillController;
+import org.apache.twill.api.TwillPreparer;
+import org.apache.twill.api.TwillRunnerService;
+import org.apache.twill.common.Cancellable;
+import org.apache.twill.common.Threads;
+import org.apache.twill.internal.ServiceListenerAdapter;
+import org.apache.twill.internal.zookeeper.LeaderElection;
+import org.apache.twill.internal.zookeeper.ReentrantDistributedLock;
+import org.apache.twill.kafka.client.KafkaClientService;
+import org.apache.twill.yarn.YarnSecureStore;
+import org.apache.twill.zookeeper.ZKClient;
+import org.apache.twill.zookeeper.ZKClientService;
+import org.apache.twill.zookeeper.ZKOperations;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Driver class for starting all master services.
  */
 public class MasterServiceMain extends DaemonMain {
+
   private static final Logger LOG = LoggerFactory.getLogger(MasterServiceMain.class);
 
-  private static final long MAX_BACKOFF_TIME_MS = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
-  private static final long SUCCESSFUL_RUN_DURATION_MS = TimeUnit.MILLISECONDS.convert(20, TimeUnit.MINUTES);
+  private static final long MAX_BACKOFF_TIME_MS = TimeUnit.MILLISECONDS.convert(10,
+      TimeUnit.MINUTES);
+  private static final long SUCCESSFUL_RUN_DURATION_MS = TimeUnit.MILLISECONDS.convert(20,
+      TimeUnit.MINUTES);
 
   // Maximum time to try looking up the existing twill application
   private static final long LOOKUP_ATTEMPT_TIMEOUT_MS = 2000;
@@ -189,14 +178,23 @@ public class MasterServiceMain extends DaemonMain {
       // Workaround for release of file descriptors opened by URLClassLoader - https://issues.cask.co/browse/CDAP-2841
       URLConnections.setDefaultUseCaches(false);
     } catch (IOException e) {
-      LOG.error("Could not disable caching of URLJarFiles. This may lead to 'too many open files` exception.", e);
+      LOG.error(
+          "Could not disable caching of URLJarFiles. This may lead to 'too many open files` exception.",
+          e);
     }
   }
 
+  /**
+   * Entry point for master.
+   *
+   * @param args The master arguments.
+   * @throws Exception If an error occurs.
+   */
   public static void main(final String[] args) throws Exception {
     ClassLoader classLoader = MainClassLoader.createFromContext();
     if (classLoader == null) {
-      LOG.warn("Failed to create CDAP system ClassLoader. AuthEnforce annotation will not be rewritten.");
+      LOG.warn(
+          "Failed to create CDAP system ClassLoader. AuthEnforce annotation will not be rewritten.");
       new MasterServiceMain().doMain(args);
     } else {
       Thread.currentThread().setContextClassLoader(classLoader);
@@ -208,6 +206,9 @@ public class MasterServiceMain extends DaemonMain {
     }
   }
 
+  /**
+   * Creates a master service main.
+   */
   @SuppressWarnings("WeakerAccess")
   public MasterServiceMain() {
     CConfiguration cConf = CConfiguration.create();
@@ -215,18 +216,20 @@ public class MasterServiceMain extends DaemonMain {
     // Note: login has to happen before any objects that need Kerberos credentials are instantiated.
     login(cConf);
 
-    Configuration hConf = HBaseConfiguration.create();
+    Configuration hConf = new Configuration();
 
     Injector injector = createProcessInjector(cConf, hConf);
     this.cConf = injector.getInstance(CConfiguration.class);
     this.hConf = injector.getInstance(Configuration.class);
     this.logAppenderInitializer = injector.getInstance(LogAppenderInitializer.class);
     this.zkClient = injector.getInstance(ZKClientService.class);
-    this.shutdownLock = new ReentrantDistributedLock(zkClient, "/lock/" + Constants.Service.MASTER_SERVICES);
+    this.shutdownLock = new ReentrantDistributedLock(zkClient,
+        "/lock/" + Constants.Service.MASTER_SERVICES);
 
     String electionPath = "/election/" + Constants.Service.MASTER_SERVICES;
     this.electionInfoService = new LeaderElectionInfoService(zkClient, electionPath);
-    this.electionHandler = new MasterLeaderElectionHandler(cConf, hConf, zkClient, electionInfoService);
+    this.electionHandler = new MasterLeaderElectionHandler(cConf, hConf, zkClient,
+        electionInfoService);
     this.leaderElection = new LeaderElection(zkClient, electionPath, electionHandler);
 
     // leader election will normally stay running. Will only stop if there was some issue starting up.
@@ -253,7 +256,6 @@ public class MasterServiceMain extends DaemonMain {
   public void init(String[] args) {
     resetShutdownTime();
     cleanupTempDir();
-    checkExploreRequirements();
   }
 
   @Override
@@ -261,16 +263,15 @@ public class MasterServiceMain extends DaemonMain {
     logAppenderInitializer.initialize();
     resetShutdownTime();
     createDirectory("twill");
-    createSystemHBaseNamespace();
-    updateConfigurationTable();
-    Services.startAndWait(zkClient, cConf.getLong(Constants.Zookeeper.CLIENT_STARTUP_TIMEOUT_MILLIS),
-                          TimeUnit.MILLISECONDS,
-                          String.format("Connection timed out while trying to start ZooKeeper client. Please " +
-                                          "verify that the ZooKeeper quorum settings are correct in cdap-site.xml. " +
-                                          "Currently configured as: %s", zkClient.getConnectString()));
+    Services.startAndWait(zkClient,
+        cConf.getLong(Constants.Zookeeper.CLIENT_STARTUP_TIMEOUT_MILLIS),
+        TimeUnit.MILLISECONDS,
+        String.format("Connection timed out while trying to start ZooKeeper client. Please "
+            + "verify that the ZooKeeper quorum settings are correct in cdap-site.xml. "
+            + "Currently configured as: %s", zkClient.getConnectString()));
     // Tries to create the ZK root node (which can be namespaced through the zk connection string)
     Futures.getUnchecked(ZKOperations.ignoreError(zkClient.create("/", null, CreateMode.PERSISTENT),
-                                                  KeeperException.NodeExistsException.class, null));
+        KeeperException.NodeExistsException.class, null));
     electionInfoService.startAndWait();
     leaderElection.startAndWait();
   }
@@ -340,11 +341,10 @@ public class MasterServiceMain extends DaemonMain {
   }
 
   /**
-   * CDAP-6644 for secure impersonation to work,
-   * we want other users to be able to write to the "path" directory,
-   * currently only cdap.user has read-write permissions
-   * while other users can only read the "{hdfs.namespace}/{path}" dir,
-   * we want to let others to be able to write to "path" directory, until we have a better solution.
+   * CDAP-6644 for secure impersonation to work, we want other users to be able to write to the
+   * "path" directory, currently only cdap.user has read-write permissions while other users can
+   * only read the "{hdfs.namespace}/{path}" dir, we want to let others to be able to write to
+   * "path" directory, until we have a better solution.
    */
   private void createDirectory(String path) {
     String hdfsNamespace = cConf.get(Constants.CFG_HDFS_NAMESPACE);
@@ -374,15 +374,18 @@ public class MasterServiceMain extends DaemonMain {
     }
   }
 
-  private boolean checkDirectoryExists(FileContext fileContext, org.apache.hadoop.fs.Path path) throws IOException {
+  private boolean checkDirectoryExists(FileContext fileContext, org.apache.hadoop.fs.Path path)
+      throws IOException {
     if (fileContext.util().exists(path)) {
       // dir exists
       // check permissions
       FsAction action =
-        fileContext.getFileStatus(path).getPermission().getOtherAction();
+          fileContext.getFileStatus(path).getPermission().getOtherAction();
       if (!action.implies(FsAction.WRITE)) {
-        LOG.error("Directory {} is not writable for others, If you are using secure impersonation, " +
-                    "make this directory writable for others, else you can ignore this message.", path);
+        LOG.error(
+            "Directory {} is not writable for others, If you are using secure impersonation, "
+                + "make this directory writable for others, else you can ignore this message.",
+            path);
       }
       return true;
     }
@@ -390,8 +393,8 @@ public class MasterServiceMain extends DaemonMain {
   }
 
   /**
-   * Gets an instance of the given {@link Service} class from the given {@link Injector}, start the service and
-   * returns it.
+   * Gets an instance of the given {@link Service} class from the given {@link Injector}, start the
+   * service and returns it.
    */
   private static <T extends Service> T getAndStart(Injector injector, Class<T> cls) {
     T service = injector.getInstance(cls);
@@ -436,7 +439,7 @@ public class MasterServiceMain extends DaemonMain {
    */
   private void cleanupTempDir() {
     File tmpDir = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR),
-                           cConf.get(Constants.AppFabric.TEMP_DIR)).getAbsoluteFile();
+        cConf.get(Constants.AppFabric.TEMP_DIR)).getAbsoluteFile();
 
     if (!tmpDir.isDirectory()) {
       return;
@@ -447,17 +450,6 @@ public class MasterServiceMain extends DaemonMain {
     } catch (IOException e) {
       // It's ok not able to cleanup temp directory.
       LOG.debug("Failed to cleanup temp directory {}", tmpDir, e);
-    }
-  }
-
-  /**
-   * Check that if Explore is enabled, the correct jars are present on master node,
-   * and that the distribution of Hive is supported.
-   */
-  private void checkExploreRequirements() {
-    if (cConf.getBoolean(Constants.Explore.EXPLORE_ENABLED)) {
-      // This check will throw an exception if Hive is not present or if it's distribution is unsupported
-      ExploreServiceUtils.checkHiveSupport(cConf);
     }
   }
 
@@ -474,38 +466,15 @@ public class MasterServiceMain extends DaemonMain {
   }
 
   /**
-   * Creates HBase namespace for the cdap system namespace.
-   */
-  private void createSystemHBaseNamespace() {
-    HBaseTableUtil tableUtil = new HBaseTableUtilFactory(cConf).get();
-    try (HBaseDDLExecutor ddlExecutor = new HBaseDDLExecutorFactory(cConf, hConf).get()) {
-      ddlExecutor.createNamespaceIfNotExists(tableUtil.getHBaseNamespace(NamespaceId.SYSTEM));
-    } catch (IOException e) {
-      throw Throwables.propagate(e);
-    }
-  }
-
-  /**
-   * The transaction coprocessors (0.94 and 0.96 versions of {@code DefaultTransactionProcessor}) need access
-   * to CConfiguration values in order to load transaction snapshots for data cleanup.
-   */
-  private void updateConfigurationTable() {
-    try {
-      new ConfigurationWriter(hConf, cConf).write(ConfigurationReader.Type.DEFAULT, cConf);
-    } catch (IOException ioe) {
-      throw Throwables.propagate(ioe);
-    }
-  }
-
-  /**
-   * The replication Status tool will use CDAP shutdown time to determine last CDAP related writes to HBase.
+   * The replication Status tool will use CDAP shutdown time to determine last CDAP related writes
+   * to HBase.
    */
   private void saveShutdownTime(long timestamp) {
     File shutdownTimeFile = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR),
-                                     Constants.Replication.CDAP_SHUTDOWN_TIME_FILENAME).getAbsoluteFile();
+        Constants.Replication.CDAP_SHUTDOWN_TIME_FILENAME).getAbsoluteFile();
     if (!DirUtils.mkdirs(shutdownTimeFile.getParentFile())) {
       LOG.error("Failed to create parent directory for writing shutdown time {} to file {}",
-                timestamp, shutdownTimeFile);
+          timestamp, shutdownTimeFile);
       return;
     }
 
@@ -520,7 +489,7 @@ public class MasterServiceMain extends DaemonMain {
 
   private void resetShutdownTime() {
     File shutdownTimeFile = new File(cConf.get(Constants.CFG_LOCAL_DATA_DIR),
-                                     Constants.Replication.CDAP_SHUTDOWN_TIME_FILENAME).getAbsoluteFile();
+        Constants.Replication.CDAP_SHUTDOWN_TIME_FILENAME).getAbsoluteFile();
     if (shutdownTimeFile.exists() && !shutdownTimeFile.delete()) {
       LOG.error("Failed to reset shutdown time file {}", shutdownTimeFile);
     }
@@ -533,9 +502,9 @@ public class MasterServiceMain extends DaemonMain {
   @VisibleForTesting
   static Injector createProcessInjector(CConfiguration cConf, Configuration hConf) {
     return Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new ZKClientModule(),
-      new KafkaLogAppenderModule()
+        new ConfigModule(cConf, hConf),
+        new ZkClientModule(),
+        new KafkaLogAppenderModule()
     );
   }
 
@@ -544,53 +513,55 @@ public class MasterServiceMain extends DaemonMain {
    */
   @VisibleForTesting
   static Injector createLeaderInjector(CConfiguration cConf, Configuration hConf,
-                                       final ZKClientService zkClientService,
-                                       final LeaderElectionInfoService electionInfoService) {
+      final ZKClientService zkClientService,
+      final LeaderElectionInfoService electionInfoService) {
     return Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          // Instead of using ZKClientModule that will create new instance of ZKClient, we create instance
-          // binding to reuse the same ZKClient used for leader election
-          bind(ZKClient.class).toInstance(zkClientService);
-          bind(ZKClientService.class).toInstance(zkClientService);
-          bind(LeaderElectionInfoService.class).toInstance(electionInfoService);
+        new ConfigModule(cConf, hConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            // Instead of using ZkClientModule that will create new instance of ZKClient, we create instance
+            // binding to reuse the same ZKClient used for leader election
+            bind(ZKClient.class).toInstance(zkClientService);
+            bind(ZKClientService.class).toInstance(zkClientService);
+            bind(LeaderElectionInfoService.class).toInstance(electionInfoService);
+          }
+        },
+        new KafkaLogAppenderModule(),
+        new DFSLocationModule(),
+        new IOModule(),
+        new ZkDiscoveryModule(),
+        new KafkaClientModule(),
+        new DataSetServiceModules().getDistributedModules(),
+        new DataFabricModules("cdap.master").getDistributedModules(),
+        new DataSetsModules().getDistributedModules(),
+        new MetricsClientRuntimeModule().getDistributedModules(),
+        new MetricsStoreModule(),
+        new DefaultMessagingClientModule(),
+        new AuditModule(),
+        new AuditLogWriterModule(cConf).getDistributedModules(),
+        CoreSecurityRuntimeModule.getDistributedModule(cConf),
+        new AuthenticationContextModules().getMasterModule(),
+        new AuthorizationModule(),
+        new AuthorizationEnforcementModule().getMasterModule(),
+        new TwillModule(),
+        new AppFabricServiceRuntimeModule(cConf, AppFabricServiceRuntimeModule.ALL_SERVICE_TYPES)
+            .getDistributedModules(),
+        new MonitorHandlerModule(true, cConf),
+        new ProgramRunnerRuntimeModule().getDistributedModules(),
+        new SecureStoreServerModule(),
+        new SupportBundleServiceModule(),
+        new RuntimeServerModule(),
+        new OperationalStatsModule(),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            // TODO (CDAP-14677): find a better way to inject metadata publisher
+            bind(MetadataPublisher.class).to(MessagingMetadataPublisher.class);
+            bind(MetadataServiceClient.class).to(DefaultMetadataServiceClient.class);
+          }
         }
-      },
-      new KafkaLogAppenderModule(),
-      new DFSLocationModule(),
-      new IOModule(),
-      new ZKDiscoveryModule(),
-      new KafkaClientModule(),
-      new DataSetServiceModules().getDistributedModules(),
-      new DataFabricModules("cdap.master").getDistributedModules(),
-      new DataSetsModules().getDistributedModules(),
-      new MetricsClientRuntimeModule().getDistributedModules(),
-      new MetricsStoreModule(),
-      new MessagingClientModule(),
-      new ExploreClientModule(),
-      new AuditModule(),
-      CoreSecurityRuntimeModule.getDistributedModule(cConf),
-      new AuthenticationContextModules().getMasterModule(),
-      new AuthorizationModule(),
-      new AuthorizationEnforcementModule().getMasterModule(),
-      new TwillModule(),
-      new AppFabricServiceRuntimeModule(cConf).getDistributedModules(),
-      new MonitorHandlerModule(true),
-      new ProgramRunnerRuntimeModule().getDistributedModules(),
-      new SecureStoreServerModule(),
-      new SupportBundleServiceModule(),
-      new RuntimeServerModule(),
-      new OperationalStatsModule(),
-      new AbstractModule() {
-        @Override
-        protected void configure() {
-          // TODO (CDAP-14677): find a better way to inject metadata publisher
-          bind(MetadataPublisher.class).to(MessagingMetadataPublisher.class);
-          bind(MetadataServiceClient.class).to(DefaultMetadataServiceClient.class);
-        }
-      }
     );
   }
 
@@ -613,13 +584,13 @@ public class MasterServiceMain extends DaemonMain {
     private AccessControllerInstantiator accessControllerInstantiator;
     private TwillRunnerService twillRunner;
     private TwillRunnerService remoteExecutionTwillRunner;
-    private ExploreClient exploreClient;
     private LogAppenderInitializer logAppenderInitializer;
     private MetadataStorage metadataStorage;
 
 
-    private MasterLeaderElectionHandler(CConfiguration cConf, Configuration hConf, ZKClientService zkClient,
-                                        LeaderElectionInfoService electionInfoService) {
+    private MasterLeaderElectionHandler(CConfiguration cConf, Configuration hConf,
+        ZKClientService zkClient,
+        LeaderElectionInfoService electionInfoService) {
       this.cConf = cConf;
       this.hConf = hConf;
       this.zkClient = zkClient;
@@ -638,10 +609,6 @@ public class MasterServiceMain extends DaemonMain {
 
       logAppenderInitializer = injector.getInstance(LogAppenderInitializer.class);
       logAppenderInitializer.initialize();
-
-      if (cConf.getBoolean(Constants.Explore.EXPLORE_ENABLED)) {
-        exploreClient = injector.getInstance(ExploreClient.class);
-      }
 
       try {
         // Define all StructuredTable before starting any services that need StructuredTable
@@ -669,28 +636,31 @@ public class MasterServiceMain extends DaemonMain {
       twillRunner.start();
 
       remoteExecutionTwillRunner = injector.getInstance(Key.get(TwillRunnerService.class,
-                                                                Constants.AppFabric.RemoteExecution.class));
+          Constants.AppFabric.RemoteExecution.class));
       remoteExecutionTwillRunner.start();
 
-      TokenSecureStoreRenewer secureStoreRenewer = injector.getInstance(TokenSecureStoreRenewer.class);
+      TokenSecureStoreRenewer secureStoreRenewer = injector.getInstance(
+          TokenSecureStoreRenewer.class);
 
       // Schedule secure store update.
-      if (User.isHBaseSecurityEnabled(hConf) || UserGroupInformation.isSecurityEnabled()) {
+      if (UserGroupInformation.isSecurityEnabled()) {
         secureStoreUpdateCancellable = twillRunner.setSecureStoreRenewer(secureStoreRenewer, 30000L,
-                                                                         secureStoreRenewer.getUpdateInterval(),
-                                                                         30000L,
-                                                                         TimeUnit.MILLISECONDS);
+            secureStoreRenewer.getUpdateInterval(),
+            30000L,
+            TimeUnit.MILLISECONDS);
       }
 
       // Create app-fabric and dataset services
       services.add(new RetryOnStartFailureService(() -> injector.getInstance(DatasetService.class),
-                                                  RetryStrategies.exponentialDelay(200, 5000, TimeUnit.MILLISECONDS)));
+          RetryStrategies.exponentialDelay(200, 5000, TimeUnit.MILLISECONDS)));
       services.add(injector.getInstance(AppFabricServer.class));
-
-      executor = Executors.newSingleThreadScheduledExecutor(Threads.createDaemonThreadFactory("master-runner"));
+      services.add(injector.getInstance(AppFabricProcessorService.class));
+      executor = Executors.newSingleThreadScheduledExecutor(
+          Threads.createDaemonThreadFactory("master-runner"));
 
       // Start monitoring twill application
-      monitorTwillApplication(executor, 0, controller, twillRunner, serviceStore, secureStoreRenewer);
+      monitorTwillApplication(executor, 0, controller, twillRunner, serviceStore,
+          secureStoreRenewer);
 
       // Starts all services.
       for (Service service : services) {
@@ -706,7 +676,8 @@ public class MasterServiceMain extends DaemonMain {
           // then throw an exception to cause the leader election service to stop
           // leader election's listener will then shutdown the master
           stop(true);
-          throw new RuntimeException(String.format("Unable to start service %s: %s", service, t.getMessage()));
+          throw new RuntimeException(
+              String.format("Unable to start service %s: %s", service, t.getMessage()));
         }
       }
       LOG.info("CDAP Master started successfully.");
@@ -743,14 +714,14 @@ public class MasterServiceMain extends DaemonMain {
       services.clear();
       Closeables.closeQuietly(metadataStorage);
       Closeables.closeQuietly(accessControllerInstantiator);
-      Closeables.closeQuietly(exploreClient);
       Closeables.closeQuietly(logAppenderInitializer);
     }
 
     /**
-     * Stops the twill application if necessary. If this process was not the leader, this method will just return.
-     * If this process was the leader, it will check if there is any other participants currently running. If there is,
-     * it won't stop the twill application; otherwise it will.
+     * Stops the twill application if necessary. If this process was not the leader, this method
+     * will just return. If this process was the leader, it will check if there is any other
+     * participants currently running. If there is, it won't stop the twill application; otherwise
+     * it will.
      */
     void postStop() {
       TwillController twillController = controller.get();
@@ -760,7 +731,8 @@ public class MasterServiceMain extends DaemonMain {
           return;
         }
 
-        SortedMap<Integer, LeaderElectionInfoService.Participant> participants = ImmutableSortedMap.of();
+        SortedMap<Integer, LeaderElectionInfoService.Participant> participants = ImmutableSortedMap
+            .of();
         try {
           participants = electionInfoService.fetchCurrentParticipants();
 
@@ -771,7 +743,8 @@ public class MasterServiceMain extends DaemonMain {
           // In case if the participants map is empty, also terminate the twill ap to be safe
         } catch (Exception e) {
           // Calling e.toString() explicitly, otherwise it will print the stack trace, which we don't need in this case
-          LOG.warn("Unable to detect if there are other leader election partitions due to {}", e.toString());
+          LOG.warn("Unable to detect if there are other leader election partitions due to {}",
+              e.toString());
         }
 
         // If failed to get the participant information, the safest thing to do is to shutdown the Twill app
@@ -787,7 +760,7 @@ public class MasterServiceMain extends DaemonMain {
           }
         } else {
           LOG.info("Keep the twill application running to fail-over to a master in the set {}",
-                   participants.values());
+              participants.values());
         }
       } finally {
         stopQuietly(twillRunner);
@@ -797,14 +770,15 @@ public class MasterServiceMain extends DaemonMain {
     /**
      * Monitors the twill application for master services running through Twill.
      *
-     * @param executor executor for re-running the application if it gets terminated
-     * @param failures number of failures in starting the application
+     * @param executor          executor for re-running the application if it gets terminated
+     * @param failures          number of failures in starting the application
      * @param serviceController the reference to be updated with the active {@link TwillController}
      */
-    private void monitorTwillApplication(final ScheduledExecutorService executor, final int failures,
-                                         final AtomicReference<TwillController> serviceController,
-                                         final TwillRunnerService twillRunner, final ServiceStore serviceStore,
-                                         final TokenSecureStoreRenewer secureStoreRenewer) {
+    private void monitorTwillApplication(final ScheduledExecutorService executor,
+        final int failures,
+        final AtomicReference<TwillController> serviceController,
+        final TwillRunnerService twillRunner, final ServiceStore serviceStore,
+        final TokenSecureStoreRenewer secureStoreRenewer) {
       if (executor.isShutdown()) {
         return;
       }
@@ -845,7 +819,8 @@ public class MasterServiceMain extends DaemonMain {
           } catch (InterruptedException e) {
             // Should never happen
           } catch (ExecutionException e) {
-            LOG.error("{} was terminated due to failure", Constants.Service.MASTER_SERVICES, e.getCause());
+            LOG.error("{} was terminated due to failure", Constants.Service.MASTER_SERVICES,
+                e.getCause());
           }
 
           LOG.warn("Restarting {} with back-off", Constants.Service.MASTER_SERVICES);
@@ -858,7 +833,8 @@ public class MasterServiceMain extends DaemonMain {
             executor.execute(new Runnable() {
               @Override
               public void run() {
-                monitorTwillApplication(executor, 0, serviceController, twillRunner, serviceStore, secureStoreRenewer);
+                monitorTwillApplication(executor, 0, serviceController, twillRunner, serviceStore,
+                    secureStoreRenewer);
               }
             });
             return;
@@ -869,7 +845,7 @@ public class MasterServiceMain extends DaemonMain {
             @Override
             public void run() {
               monitorTwillApplication(executor, failures + 1, serviceController,
-                                      twillRunner, serviceStore, secureStoreRenewer);
+                  twillRunner, serviceStore, secureStoreRenewer);
             }
           }, nextRunTime, TimeUnit.MILLISECONDS);
         }
@@ -877,7 +853,8 @@ public class MasterServiceMain extends DaemonMain {
     }
 
     /**
-     * Returns the {@link TwillController} for the current master service or {@code null} if none is running.
+     * Returns the {@link TwillController} for the current master service or {@code null} if none is
+     * running.
      */
     @Nullable
     private TwillController getCurrentTwillController(TwillRunnerService twillRunner) {
@@ -894,7 +871,8 @@ public class MasterServiceMain extends DaemonMain {
               controller.terminate();
               controller.awaitTerminated();
             } catch (ExecutionException e) {
-              LOG.warn("Exception while Stopping one extra instance of {} - {}", Constants.Service.MASTER_SERVICES, e);
+              LOG.warn("Exception while Stopping one extra instance of {} - {}",
+                  Constants.Service.MASTER_SERVICES, e);
             }
           } else {
             result = controller;
@@ -918,33 +896,39 @@ public class MasterServiceMain extends DaemonMain {
      * @return The {@link TwillController} for the application.
      */
     private TwillController startTwillApplication(TwillRunnerService twillRunner,
-                                                  ServiceStore serviceStore,
-                                                  TokenSecureStoreRenewer secureStoreRenewer) {
+        ServiceStore serviceStore,
+        TokenSecureStoreRenewer secureStoreRenewer) {
       try {
         // Create a temp dir for the run to hold temporary files created to run the application
         Path tempPath = Files.createDirectories(Paths.get(cConf.get(Constants.CFG_LOCAL_DATA_DIR),
-                                                          cConf.get(Constants.AppFabric.TEMP_DIR)).toAbsolutePath());
+            cConf.get(Constants.AppFabric.TEMP_DIR)).toAbsolutePath());
         final Path runDir = Files.createTempDirectory(tempPath, "master");
         try {
-          Path logbackFile = saveLogbackConf(runDir.resolve("logback.xml"));
           MasterTwillApplication masterTwillApp = new MasterTwillApplication(cConf,
-                                                                             getServiceInstances(serviceStore, cConf));
+              getServiceInstances(serviceStore, cConf));
           List<String> extraClassPath = masterTwillApp.prepareLocalizeResource(runDir, hConf);
           TwillPreparer preparer = twillRunner.prepare(masterTwillApp);
+          // Setup extra classpath. Currently twill doesn't support different classpath per runnable,
+          // hence we just set it for all containers. The actual jars are localized via the MasterTwillApplication,
+          // and having missing jars as specified in the classpath is ok.
+          preparer = preparer.withClassPaths(extraClassPath);
 
           Map<String, String> twillConfigs = new HashMap<>();
           if (!cConf.getBoolean(Constants.COLLECT_CONTAINER_LOGS)) {
             twillConfigs.put(Configs.Keys.LOG_COLLECTION_ENABLED, Boolean.toString(false));
           }
           twillConfigs.put(Configs.Keys.YARN_ATTEMPT_FAILURES_VALIDITY_INTERVAL,
-                           cConf.get(Constants.AppFabric.YARN_ATTEMPT_FAILURES_VALIDITY_INTERVAL));
+              cConf.get(Constants.AppFabric.YARN_ATTEMPT_FAILURES_VALIDITY_INTERVAL));
           preparer.withConfiguration(twillConfigs);
+
+          Path logbackFile = saveLogbackConf(runDir.resolve("logback.xml"));
 
           // Add logback xml
           if (Files.exists(logbackFile)) {
             preparer
-              .withResources(logbackFile.toUri())
-              .withEnv(Collections.singletonMap("CDAP_LOG_DIR", ApplicationConstants.LOG_DIR_EXPANSION_VAR));
+                .withResources(logbackFile.toUri())
+                .withEnv(Collections.singletonMap("CDAP_LOG_DIR",
+                    ApplicationConstants.LOG_DIR_EXPANSION_VAR));
           }
 
           // Add yarn queue name if defined
@@ -954,37 +938,18 @@ public class MasterServiceMain extends DaemonMain {
             preparer.setSchedulerQueue(queueName);
           }
 
-          // Add HBase dependencies
-          preparer.withDependencies(injector.getInstance(HBaseTableUtil.class).getClass());
-
           // Add secure tokens
-          if (User.isHBaseSecurityEnabled(hConf) || UserGroupInformation.isSecurityEnabled()) {
+          if (UserGroupInformation.isSecurityEnabled()) {
             preparer.addSecureStore(YarnSecureStore.create(secureStoreRenewer.createCredentials()));
           }
 
           // add hadoop classpath to application classpath and exclude hadoop classes from bundle jar.
           List<String> yarnAppClassPath = Arrays.asList(
-            hConf.getTrimmedStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
-                                    YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH));
+              hConf.getTrimmedStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
+                  YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH));
 
-          preparer.withApplicationClassPaths(yarnAppClassPath).withBundlerClassAcceptor(new HadoopClassExcluder());
-
-          // Setup extra classpath. Currently twill doesn't support different classpath per runnable,
-          // hence we just set it for all containers. The actual jars are localized via the MasterTwillApplication,
-          // and having missing jars as specified in the classpath is ok.
-          boolean yarnFirst = cConf.getBoolean(Constants.Explore.CONTAINER_YARN_APP_CLASSPATH_FIRST);
-          if (yarnFirst) {
-            // It's ok to have yarn application classpath set here even it can affect non-explore container,
-            // since we anyway have yarn application classpath in the "withApplicationClassPaths".
-            preparer = preparer.withClassPaths(Iterables.concat(yarnAppClassPath, extraClassPath));
-          } else {
-            preparer = preparer.withClassPaths(extraClassPath);
-          }
-
-          // Add explore dependencies
-          if (cConf.getBoolean(Constants.Explore.EXPLORE_ENABLED)) {
-            prepareExploreContainer(preparer);
-          }
+          preparer.withApplicationClassPaths(yarnAppClassPath)
+              .withBundlerClassAcceptor(new HadoopClassExcluder());
 
           // Set the container to use MasterServiceMainClassLoader for class rewriting
           preparer.setClassLoader(MasterServiceMainClassLoader.class.getName());
@@ -992,8 +957,9 @@ public class MasterServiceMain extends DaemonMain {
           // Set per service configurations
           prepareServiceConfig(preparer, masterTwillApp.getRunnableConfigPrefixes());
 
-          TwillController controller = preparer.start(cConf.getLong(Constants.AppFabric.PROGRAM_MAX_START_SECONDS),
-                                                      TimeUnit.SECONDS);
+          TwillController controller = preparer.start(
+              cConf.getLong(Constants.AppFabric.PROGRAM_MAX_START_SECONDS),
+              TimeUnit.SECONDS);
 
           // Add a listener to delete temp files when application started/terminated.
           Runnable cleanup = new Runnable() {
@@ -1029,9 +995,12 @@ public class MasterServiceMain extends DaemonMain {
     /**
      * Reads the master service instance count configuration.
      */
-    private Map<String, Integer> getServiceInstances(ServiceStore serviceStore, CConfiguration cConf) {
+    private Map<String, Integer> getServiceInstances(ServiceStore serviceStore,
+        CConfiguration cConf) {
       Map<String, Integer> instanceCountMap = new HashMap<>();
-      Set<ServiceResourceKeys> serviceResourceKeysSet = MasterUtils.createSystemServicesResourceKeysSet(cConf);
+      Set<ServiceResourceKeys> serviceResourceKeysSet = MasterUtils
+          .createSystemServicesResourceKeysSet(
+              cConf);
       for (ServiceResourceKeys serviceResourceKeys : serviceResourceKeysSet) {
         String service = serviceResourceKeys.getServiceName();
         try {
@@ -1060,7 +1029,8 @@ public class MasterServiceMain extends DaemonMain {
     /**
      * Sets the configurations for each service.
      */
-    private TwillPreparer prepareServiceConfig(TwillPreparer preparer, Map<String, String> runnableConfigPrefixes) {
+    private TwillPreparer prepareServiceConfig(TwillPreparer preparer,
+        Map<String, String> runnableConfigPrefixes) {
       for (Map.Entry<String, String> entry : runnableConfigPrefixes.entrySet()) {
         String runnableName = entry.getKey();
         String configPrefix = entry.getValue() + "twill.";
@@ -1082,39 +1052,6 @@ public class MasterServiceMain extends DaemonMain {
         if (!config.isEmpty()) {
           preparer.withConfiguration(runnableName, config);
         }
-      }
-
-      return preparer;
-    }
-
-
-    /**
-     * Prepare the specs of the twill application for the Explore twill runnable.
-     * Add jars needed by the Explore module in the classpath of the containers, and
-     * add conf files (hive_site.xml, etc) as resources available for the Explore twill
-     * runnable.
-     */
-    private TwillPreparer prepareExploreContainer(TwillPreparer preparer) throws IOException {
-      // Add all the conf files needed by hive as resources. They will be available in the explore container classpath
-      Set<String> addedFiles = Sets.newHashSet();
-      for (File file : ExploreUtils.getExploreConfFiles()) {
-        String name = file.getName();
-        if (name.equals("logback.xml") || !name.endsWith(".xml")) {
-          continue;
-        }
-        if (addedFiles.add(name)) {
-          LOG.debug("Adding config file: {}", file.getAbsolutePath());
-          preparer = preparer.withResources(file.toURI());
-        } else {
-          LOG.warn("Ignoring duplicate config file: {}", file);
-        }
-      }
-
-      // Setup SPARK_HOME environment variable as well if spark is configured
-      String sparkHome = System.getenv(Constants.SPARK_HOME);
-      if (sparkHome != null) {
-        preparer.withEnv(Constants.Service.EXPLORE_HTTP_USER_SERVICE,
-                         Collections.singletonMap(Constants.SPARK_HOME, sparkHome));
       }
 
       return preparer;

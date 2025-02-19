@@ -17,13 +17,13 @@
 package io.cdap.cdap.proto;
 
 import io.cdap.cdap.proto.id.ProgramId;
-
 import java.util.List;
 
 /**
  * A live info for in-memory runtime environment.
  */
 public class InMemoryProgramLiveInfo extends ProgramLiveInfo {
+
   private final List<String> services;
 
   public InMemoryProgramLiveInfo(ProgramId programId) {

@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.artifact;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -45,22 +44,23 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
   private final String suffix;
 
   /**
-   * Constructs an instance by parsing the given string. If the string does not match the version pattern,
-   * {@link #getVersion()} will return null.
+   * Constructs an instance by parsing the given string. If the string does not match the version
+   * pattern, {@link #getVersion()} will return null.
    *
-   * @param str the version string. The whole string needs to match with the version pattern supported by this class.
+   * @param str the version string. The whole string needs to match with the version pattern
+   *     supported by this class.
    */
   public ArtifactVersion(String str) {
     this(str, false);
   }
 
   /**
-   * Constructs an instance by parsing the given string. If the string does not match the version pattern,
-   * {@link #getVersion()} will return null.
+   * Constructs an instance by parsing the given string. If the string does not match the version
+   * pattern, {@link #getVersion()} will return null.
    *
    * @param str the version string.
-   * @param matchSuffix if {@code true}, try to match the version pattern by the suffix of the string. Otherwise match
-   *                    the whole string.
+   * @param matchSuffix if {@code true}, try to match the version pattern by the suffix of the
+   *     string. Otherwise match the whole string.
    */
   public ArtifactVersion(String str, boolean matchSuffix) {
     String tmpVersion = null;
@@ -90,6 +90,7 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
 
   /**
    * get the version string of artifact
+   *
    * @return artifact version string
    */
   @Nullable
@@ -99,6 +100,7 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
 
   /**
    * get the major version of artifact
+   *
    * @return major version of artifact
    */
   @Nullable
@@ -108,8 +110,8 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
 
   /**
    * get the minor version of artifact
-   * @return minor version of artifact
    *
+   * @return minor version of artifact
    */
   @Nullable
   public Integer getMinor() {
@@ -118,8 +120,8 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
 
   /**
    * get the fix version of artifact
-   * @return fix version of artifact
    *
+   * @return fix version of artifact
    */
   @Nullable
   public Integer getFix() {
@@ -128,6 +130,7 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
 
   /**
    * get the artifact version suffix
+   *
    * @return artifact version suffix
    */
   @Nullable
@@ -137,6 +140,7 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
 
   /**
    * get if artifact version is a snapshot version
+   *
    * @return true if artifact version is snapshot, false otherwise
    */
   public boolean isSnapshot() {
@@ -198,9 +202,9 @@ public final class ArtifactVersion implements Comparable<ArtifactVersion> {
   }
 
   /**
-   * Compares two {@link Comparable}s that can be null. Returns -1, 0, 1 if first is smaller, equal, larger than second,
-   * based on comparison defined by the {@link Comparable}.
-   * The {@code null} value is smaller than any non-null value and only equals to {@code null}.
+   * Compares two {@link Comparable}s that can be null. Returns -1, 0, 1 if first is smaller, equal,
+   * larger than second, based on comparison defined by the {@link Comparable}. The {@code null}
+   * value is smaller than any non-null value and only equals to {@code null}.
    */
   private <T extends Comparable<T>> int compare(@Nullable T first, @Nullable T second) {
     if (first == null && second == null) {

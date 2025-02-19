@@ -18,9 +18,18 @@ package io.cdap.cdap.app.guice;
 
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.Futures;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.impersonation.Impersonator;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import javax.annotation.Nullable;
 import org.apache.twill.api.Command;
 import org.apache.twill.api.ResourceReport;
 import org.apache.twill.api.RunId;
@@ -32,19 +41,9 @@ import org.apache.twill.discovery.ServiceDiscovered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import javax.annotation.Nullable;
-
 /**
- * A {@link TwillController} wrapper that performs impersonation on {@link #getResourceReport()}, {@link #terminate()}
- * and {@link #kill()}.
+ * A {@link TwillController} wrapper that performs impersonation on {@link #getResourceReport()},
+ * {@link #terminate()} and {@link #kill()}.
  */
 final class ImpersonatedTwillController implements TwillController {
 
@@ -54,7 +53,8 @@ final class ImpersonatedTwillController implements TwillController {
   private final Impersonator impersonator;
   private final ProgramId programId;
 
-  ImpersonatedTwillController(TwillController delegate, Impersonator impersonator, ProgramId programId) {
+  ImpersonatedTwillController(TwillController delegate, Impersonator impersonator,
+      ProgramId programId) {
     this.delegate = delegate;
     this.impersonator = impersonator;
     this.programId = programId;
@@ -106,7 +106,8 @@ final class ImpersonatedTwillController implements TwillController {
   }
 
   @Override
-  public Future<Set<String>> restartInstances(Map<String, ? extends Set<Integer>> runnableToInstanceIds) {
+  public Future<Set<String>> restartInstances(
+      Map<String, ? extends Set<Integer>> runnableToInstanceIds) {
     return delegate.restartInstances(runnableToInstanceIds);
   }
 
@@ -121,13 +122,14 @@ final class ImpersonatedTwillController implements TwillController {
   }
 
   @Override
-  public Future<Map<String, LogEntry.Level>> updateLogLevels(Map<String, LogEntry.Level> logLevels) {
+  public Future<Map<String, LogEntry.Level>> updateLogLevels(
+      Map<String, LogEntry.Level> logLevels) {
     return delegate.updateLogLevels(logLevels);
   }
 
   @Override
   public Future<Map<String, LogEntry.Level>> updateLogLevels(String runnableName,
-                                                             Map<String, LogEntry.Level> logLevels) {
+      Map<String, LogEntry.Level> logLevels) {
     return delegate.updateLogLevels(runnableName, logLevels);
   }
 
@@ -201,7 +203,8 @@ final class ImpersonatedTwillController implements TwillController {
   }
 
   @Override
-  public void awaitTerminated(long timeout, TimeUnit timeoutUnit) throws TimeoutException, ExecutionException {
+  public void awaitTerminated(long timeout, TimeUnit timeoutUnit)
+      throws TimeoutException, ExecutionException {
     delegate.awaitTerminated(timeout, timeoutUnit);
   }
 

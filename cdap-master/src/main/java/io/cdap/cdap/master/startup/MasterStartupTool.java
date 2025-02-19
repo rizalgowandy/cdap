@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2018 Cask Data, Inc.
+ * Copyright © 2016-2023 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -28,30 +28,34 @@ import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.DFSLocationModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.KafkaClientModule;
-import io.cdap.cdap.common.guice.ZKClientModule;
-import io.cdap.cdap.common.guice.ZKDiscoveryModule;
+import io.cdap.cdap.common.guice.RemoteAuthenticatorModules;
+import io.cdap.cdap.common.guice.ZkClientModule;
+import io.cdap.cdap.common.guice.ZkDiscoveryModule;
 import io.cdap.cdap.common.startup.CheckRunner;
 import io.cdap.cdap.common.startup.ConfigurationLogger;
 import io.cdap.cdap.data.runtime.main.ClientVersions;
-import io.cdap.cdap.explore.service.ExploreServiceUtils;
 import io.cdap.cdap.internal.app.spark.SparkCompatReader;
 import io.cdap.cdap.security.impersonation.SecurityUtil;
-import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.util.List;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.hadoop.conf.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs some sanity checks that indicate whether the CDAP master will be able to start right away.
  */
 public class MasterStartupTool {
+
   private static final Logger LOG = LoggerFactory.getLogger(MasterStartupTool.class);
   private final CheckRunner checkRunner;
 
+  /**
+   * Entry point for the master startup tool.
+   *
+   * @param args Arguments for the tool.
+   */
   public static void main(String[] args) {
 
     CConfiguration cConf = CConfiguration.create();
@@ -59,14 +63,9 @@ public class MasterStartupTool {
     ConfigurationLogger.logImportantConfig(cConf);
     LOG.info("Hadoop subsystem versions:");
     LOG.info("  Hadoop version: {}", ClientVersions.getHadoopVersion());
-    LOG.info("  HBase version: {}", ClientVersions.getHBaseVersion());
     LOG.info("  ZooKeeper version: {}", ClientVersions.getZooKeeperVersion());
     LOG.info("  Kafka version: {}", ClientVersions.getKafkaVersion());
-    if (cConf.getBoolean(Constants.Explore.EXPLORE_ENABLED)) {
-      LOG.info("  Hive version: {}", ExploreServiceUtils.getHiveVersion());
-    }
     LOG.info("CDAP version: {}", ClientVersions.getCdapVersion());
-    LOG.info("CDAP HBase compat version: {}", ClientVersions.getCdapHBaseCompatVersion());
     LOG.info("CDAP Spark compat version: {}", SparkCompatReader.get(cConf));
     LOG.info("Tephra HBase compat version: {}", ClientVersions.getTephraHBaseCompatVersion());
 
@@ -81,7 +80,7 @@ public class MasterStartupTool {
       throw Throwables.propagate(e);
     }
 
-    Configuration hConf = HBaseConfiguration.create();
+    Configuration hConf = new Configuration();
 
     MasterStartupTool masterStartupTool = new MasterStartupTool(createInjector(cConf, hConf));
     if (!masterStartupTool.canStartMaster()) {
@@ -89,23 +88,34 @@ public class MasterStartupTool {
     }
   }
 
+  /**
+   * Constructs an instance of a {@link MasterStartupTool}.
+   *
+   * @param injector The injector to use.
+   */
   public MasterStartupTool(Injector injector) {
     this.checkRunner = createCheckRunner(injector);
   }
 
+  /**
+   * Returns whether the master will startup successfully.
+   *
+   * @return Whether the master will startup successfully.
+   */
   public boolean canStartMaster() {
     List<CheckRunner.Failure> failures = checkRunner.runChecks();
     if (!failures.isEmpty()) {
       for (CheckRunner.Failure failure : failures) {
         LOG.error("{} failed with {}: {}", failure.getName(),
-                  failure.getException().getClass().getSimpleName(),
-                  failure.getException().getMessage(), failure.getException());
+            failure.getException().getClass().getSimpleName(),
+            failure.getException().getMessage(), failure.getException());
         if (failure.getException().getCause() != null) {
-          LOG.error("  Root cause: {}", ExceptionUtils.getRootCauseMessage(failure.getException().getCause()));
+          LOG.error("  Root cause: {}",
+              ExceptionUtils.getRootCauseMessage(failure.getException().getCause()));
         }
       }
-      LOG.error("Errors detected while starting up master. " +
-                  "Please check the logs, address all errors, then try again.");
+      LOG.error("Errors detected while starting up master. "
+          + "Please check the logs, address all errors, then try again.");
       return false;
     }
     return true;
@@ -124,7 +134,8 @@ public class MasterStartupTool {
           checkRunnerBuilder.addChecksInPackage(checkPackage);
         } catch (IOException e) {
           // not expected unless something is weird with the local filesystem
-          LOG.error("Unable to examine classpath to look for startup checks in package {}.", checkPackage, e);
+          LOG.error("Unable to examine classpath to look for startup checks in package {}.",
+              checkPackage, e);
           throw new RuntimeException(e);
         }
       }
@@ -138,8 +149,9 @@ public class MasterStartupTool {
         try {
           checkRunnerBuilder.addClass(className);
         } catch (ClassNotFoundException e) {
-          LOG.error("Startup check {} not found. " +
-                      "Please check for typos and ensure the class is available on the classpath.", className);
+          LOG.error("Startup check {} not found. "
+                  + "Please check for typos and ensure the class is available on the classpath.",
+              className);
           throw new RuntimeException(e);
         }
       }
@@ -151,12 +163,13 @@ public class MasterStartupTool {
   @VisibleForTesting
   static Injector createInjector(CConfiguration cConf, Configuration hConf) {
     return Guice.createInjector(
-      new ConfigModule(cConf, hConf),
-      new ZKClientModule(),
-      new ZKDiscoveryModule(),
-      new IOModule(),
-      new KafkaClientModule(),
-      new DFSLocationModule()
+        new ConfigModule(cConf, hConf),
+        RemoteAuthenticatorModules.getDefaultModule(),
+        new ZkClientModule(),
+        new ZkDiscoveryModule(),
+        new IOModule(),
+        new KafkaClientModule(),
+        new DFSLocationModule()
     );
   }
 }

@@ -31,19 +31,6 @@ import io.cdap.cdap.data2.util.TableId;
 import io.cdap.cdap.security.auth.context.AuthenticationContextModules;
 import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import io.cdap.cdap.security.authorization.AuthorizationTestModule;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.DBIterator;
-import org.iq80.leveldb.impl.DbImpl;
-import org.iq80.leveldb.impl.FileMetaData;
-import org.iq80.leveldb.impl.SnapshotImpl;
-import org.iq80.leveldb.util.SizeOf;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -51,31 +38,43 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.iq80.leveldb.DB;
+import org.iq80.leveldb.DBIterator;
+import org.iq80.leveldb.impl.DbImpl;
+import org.iq80.leveldb.impl.FileMetaData;
+import org.iq80.leveldb.impl.SnapshotImpl;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
 
 /**
  *
  */
 @RunWith(TestRunner.class)
 public class LevelDBTableServiceTest {
+
   @ClassRule
   public static TemporaryFolder tmpFolder = new TemporaryFolder();
 
   static LevelDBTableService service;
-  static Injector injector = null;
+  static Injector injector;
 
   @BeforeClass
   public static void init() throws Exception {
     CConfiguration conf = CConfiguration.create();
     conf.set(Constants.CFG_LOCAL_DATA_DIR, tmpFolder.newFolder().getAbsolutePath());
     injector = Guice.createInjector(
-      new ConfigModule(conf),
-      new NonCustomLocationUnitTestModule(),
-      new InMemoryDiscoveryModule(),
-      new DataFabricLevelDBModule(),
-      new TransactionMetricsModule(),
-      new AuthorizationTestModule(),
-      new AuthorizationEnforcementModule().getStandaloneModules(),
-      new AuthenticationContextModules().getMasterModule());
+        new ConfigModule(conf),
+        new NonCustomLocationUnitTestModule(),
+        new InMemoryDiscoveryModule(),
+        new DataFabricLevelDBModule(),
+        new TransactionMetricsModule(),
+        new AuthorizationTestModule(),
+        new AuthorizationEnforcementModule().getStandaloneModules(),
+        new AuthenticationContextModules().getMasterModule());
     service = injector.getInstance(LevelDBTableService.class);
   }
 
@@ -138,7 +137,8 @@ public class LevelDBTableServiceTest {
     compressedTableService.ensureTableExists(tableUncompressed);
     // Write large enough number of rows to ensure some data are flushed to disk (e.g. > 4MB)
     writeSome(compressedTableService, tableUncompressed, 32768, 1024, true);
-    long uncompressedDiskSizeBytes = compressedTableService.getTableStats().get(tableUncompressedID).getDiskSizeBytes();
+    long uncompressedDiskSizeBytes = compressedTableService.getTableStats().get(tableUncompressedID)
+        .getDiskSizeBytes();
 
     // Write compressible data to table that enables compression, then record on-disk size, which should be
     // smaller than that with compressed disabled.
@@ -149,7 +149,8 @@ public class LevelDBTableServiceTest {
     TableId tableCompressedID = TableId.from("default", "tableCompressed");
     uncompressedTableService.ensureTableExists(tableCompressed);
     writeSome(uncompressedTableService, tableCompressed, 32768, 1024, true);
-    long compressedDiskSizeBytes = uncompressedTableService.getTableStats().get(tableCompressedID).getDiskSizeBytes();
+    long compressedDiskSizeBytes = uncompressedTableService.getTableStats().get(tableCompressedID)
+        .getDiskSizeBytes();
 
     // Ensure on-disk file size is smaller when compression is enabled.
     Assert.assertTrue(uncompressedDiskSizeBytes > compressedDiskSizeBytes);
@@ -210,14 +211,14 @@ public class LevelDBTableServiceTest {
     Assert.assertFalse(fileMetaDatas.isEmpty());
     for (FileMetaData fileMetaData : fileMetaDatas) {
       Assert.assertEquals(fileMetaData.getLargest().getUserKey().length(),
-                          fileMetaData.getLargest().getUserKey().getRawArray().length);
+          fileMetaData.getLargest().getUserKey().getRawArray().length);
       Assert.assertEquals(fileMetaData.getSmallest().getUserKey().length(),
-                          fileMetaData.getSmallest().getUserKey().getRawArray().length);
+          fileMetaData.getSmallest().getUserKey().getRawArray().length);
     }
   }
 
   private void writeSome(LevelDBTableService service, String tableName,
-                         long numRows, int valNumBytes, boolean compressible) throws IOException {
+      long numRows, int valNumBytes, boolean compressible) throws IOException {
     LevelDBTableCore table = new LevelDBTableCore(tableName, service);
     Random r = new Random();
     int keyNumBytes = 64;

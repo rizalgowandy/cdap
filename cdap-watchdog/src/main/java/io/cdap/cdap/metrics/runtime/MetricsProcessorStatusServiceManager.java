@@ -30,13 +30,13 @@ public class MetricsProcessorStatusServiceManager extends AbstractMasterServiceM
 
   @Inject
   MetricsProcessorStatusServiceManager(CConfiguration cConf, TwillRunner twillRunner,
-                                       DiscoveryServiceClient discoveryClient) {
-    super(cConf, discoveryClient, Constants.Service.METRICS_PROCESSOR, twillRunner);
+      DiscoveryServiceClient discoveryClient) {
+    super(cConf, discoveryClient, Constants.Service.METRICS, twillRunner);
   }
 
   @Override
   public int getMaxInstances() {
-    return getCConf().getInt(Constants.MetricsProcessor.MAX_INSTANCES);
+    return getCconf().getInt(Constants.MetricsProcessor.MAX_INSTANCES);
   }
 
   @Override

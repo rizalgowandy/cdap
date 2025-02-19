@@ -18,13 +18,13 @@ package io.cdap.cdap.proto.artifact;
 
 import io.cdap.cdap.api.artifact.ArtifactSummary;
 import io.cdap.cdap.api.data.schema.Schema;
-
 import java.util.Objects;
 
 /**
  * Represents the objects returned by /classes/app/{classname}
  */
 public class ApplicationClassInfo extends ApplicationClassSummary {
+
   private Schema configSchema;
 
   public ApplicationClassInfo(ArtifactSummary artifact, String className, Schema configSchema) {

@@ -22,13 +22,12 @@ import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.security.Action;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.proto.security.StandardPermission;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class UnauthorizedExceptionTest {
   private static final Principal TEST_PRINCIPAL = new Principal("test-principal", Principal.PrincipalType.USER);
@@ -36,19 +35,22 @@ public class UnauthorizedExceptionTest {
 
   @Test
   public void testSingleActionReturnsExpectedMessage() {
-    String expected = String.format("Principal '%s' has insufficient privileges to perform action '%s' " +
-                                      "on entity '%s'.", TEST_PRINCIPAL, Action.ADMIN, TEST_NAMESPACE_ENTITY);
-    String got = new UnauthorizedException(TEST_PRINCIPAL, Action.ADMIN, TEST_NAMESPACE_ENTITY).getMessage();
+    String expected = String.format(
+        "Principal '%s' has insufficient privileges to perform action '%s' "
+            + "on entity '%s'.", TEST_PRINCIPAL, Action.ADMIN, TEST_NAMESPACE_ENTITY);
+    String got = new UnauthorizedException(TEST_PRINCIPAL, Action.ADMIN,
+        TEST_NAMESPACE_ENTITY).getMessage();
     Assert.assertEquals(expected, got);
   }
 
   @Test
   public void testSingleActionReturnsExpectedMessageWithChild() {
-    String expected = String.format("Principal '%s' has insufficient privileges to perform action '%s' " +
-                                      "on %s in entity '%s'.", TEST_PRINCIPAL, StandardPermission.CREATE,
-                                    EntityType.DATASET.name().toLowerCase(), TEST_NAMESPACE_ENTITY);
+    String expected = String.format(
+        "Principal '%s' has insufficient privileges to perform action '%s' "
+            + "on %s in entity '%s'.", TEST_PRINCIPAL, StandardPermission.CREATE,
+        EntityType.DATASET.name().toLowerCase(), TEST_NAMESPACE_ENTITY);
     String got = new UnauthorizedException(TEST_PRINCIPAL, EnumSet.of(StandardPermission.CREATE),
-                                           TEST_NAMESPACE_ENTITY, EntityType.DATASET).getMessage();
+        TEST_NAMESPACE_ENTITY, EntityType.DATASET).getMessage();
     Assert.assertEquals(expected, got);
   }
 
@@ -65,9 +67,11 @@ public class UnauthorizedExceptionTest {
     Set<Action> actions = new LinkedHashSet<>();
     actions.add(Action.ADMIN);
     actions.add(Action.EXECUTE);
-    String expected = String.format("Principal '%s' has insufficient privileges to perform actions '%s' on " +
-                                      "entity '%s'.", TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY);
-    String got = new UnauthorizedException(TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY).getMessage();
+    String expected = String.format(
+        "Principal '%s' has insufficient privileges to perform actions '%s' on "
+            + "entity '%s'.", TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY);
+    String got = new UnauthorizedException(TEST_PRINCIPAL, actions,
+        TEST_NAMESPACE_ENTITY).getMessage();
     Assert.assertEquals(expected, got);
   }
 
@@ -87,9 +91,11 @@ public class UnauthorizedExceptionTest {
     Set<Action> actions = new LinkedHashSet<>();
     actions.add(Action.ADMIN);
     actions.add(Action.EXECUTE);
-    String expected = String.format("Principal '%s' has insufficient privileges to perform any one of the actions " +
-                                      "'%s' on entity '%s'.", TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY);
-    String got = new UnauthorizedException(TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY, false).getMessage();
+    String expected = String.format(
+        "Principal '%s' has insufficient privileges to perform any one of the actions "
+            + "'%s' on entity '%s'.", TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY);
+    String got = new UnauthorizedException(TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY,
+        false).getMessage();
     Assert.assertEquals(expected, got);
   }
 
@@ -97,9 +103,11 @@ public class UnauthorizedExceptionTest {
   public void testOneActionWithoutMustHaveAllReturnsExpectedMessage() {
     Set<Action> actions = new LinkedHashSet<>();
     actions.add(Action.ADMIN);
-    String expected = String.format("Principal '%s' has insufficient privileges to perform action '%s' " +
-                                      "on entity '%s'.", TEST_PRINCIPAL, Action.ADMIN, TEST_NAMESPACE_ENTITY);
-    String got = new UnauthorizedException(TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY, false).getMessage();
+    String expected = String.format(
+        "Principal '%s' has insufficient privileges to perform action '%s' "
+            + "on entity '%s'.", TEST_PRINCIPAL, Action.ADMIN, TEST_NAMESPACE_ENTITY);
+    String got = new UnauthorizedException(TEST_PRINCIPAL, actions, TEST_NAMESPACE_ENTITY,
+        false).getMessage();
     Assert.assertEquals(expected, got);
   }
 

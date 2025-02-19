@@ -49,13 +49,6 @@ import io.cdap.cdap.etl.exec.StageFailureException;
 import io.cdap.cdap.etl.log.LogStageInjector;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,29 +57,41 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MapReduce Driver for ETL Batch Applications.
  */
 public class ETLMapReduce extends AbstractMapReduce {
+
   public static final String NAME = ETLMapReduce.class.getSimpleName();
   static final String MAP_KEY_CLASS = "cdap.etl.map.key.class";
   static final String MAP_VAL_CLASS = "cdap.etl.map.val.class";
   static final String RUNTIME_ARGS_KEY = "cdap.etl.runtime.args";
   static final String INPUT_ALIAS_KEY = "cdap.etl.source.alias.key";
   static final String SINK_OUTPUTS_KEY = "cdap.etl.sink.outputs";
-  static final Type RUNTIME_ARGS_TYPE = new TypeToken<Map<String, String>>() { }.getType();
-  static final Type INPUT_ALIAS_TYPE = new TypeToken<Map<String, String>>() { }.getType();
-  static final Type SINK_OUTPUTS_TYPE = new TypeToken<Map<String, SinkOutput>>() { }.getType();
-  private static final Type CONNECTOR_DATASETS_TYPE = new TypeToken<HashSet<String>>() { }.getType();
+  static final Type RUNTIME_ARGS_TYPE = new TypeToken<Map<String, String>>() {
+  }.getType();
+  static final Type INPUT_ALIAS_TYPE = new TypeToken<Map<String, String>>() {
+  }.getType();
+  static final Type SINK_OUTPUTS_TYPE = new TypeToken<Map<String, SinkOutput>>() {
+  }.getType();
+  private static final Type CONNECTOR_DATASETS_TYPE = new TypeToken<HashSet<String>>() {
+  }.getType();
   private static final Logger LOG = LoggerFactory.getLogger(ETLMapReduce.class);
-  private static final Logger PIPELINE_LOG = new LocationAwareMDCWrapperLogger(LOG, Constants.EVENT_TYPE_TAG,
-                                                                              Constants.PIPELINE_LIFECYCLE_TAG_VALUE);
+  private static final Logger PIPELINE_LOG = new LocationAwareMDCWrapperLogger(LOG,
+      Constants.EVENT_TYPE_TAG,
+      Constants.PIPELINE_LIFECYCLE_TAG_VALUE);
   private static final Gson GSON = new GsonBuilder()
-    .registerTypeAdapter(Schema.class, new SchemaTypeAdapter())
-    .registerTypeAdapter(SetMultimap.class, new SetMultimapCodec<>())
-    .registerTypeAdapter(FieldOperation.class, new FieldOperationTypeAdapter())
-    .create();
+      .registerTypeAdapter(Schema.class, new SchemaTypeAdapter())
+      .registerTypeAdapter(SetMultimap.class, new SetMultimapCodec<>())
+      .registerTypeAdapter(FieldOperation.class, new FieldOperationTypeAdapter())
+      .create();
 
   private Finisher finisher;
 
@@ -102,7 +107,7 @@ public class ETLMapReduce extends AbstractMapReduce {
   private final Set<String> connectorDatasets;
 
   public ETLMapReduce(BatchPhaseSpec phaseSpec, Set<String> connectorDatasets,
-                      @Nullable RuntimeConfigurer runtimeConfigurer, String deployedNamespace) {
+      @Nullable RuntimeConfigurer runtimeConfigurer, String deployedNamespace) {
     this.phaseSpec = phaseSpec;
     this.connectorDatasets = connectorDatasets;
     this.runtimeConfigurer = runtimeConfigurer;
@@ -127,18 +132,20 @@ public class ETLMapReduce extends AbstractMapReduce {
     // Planner should make sure this never happens
     if (sources.isEmpty()) {
       throw new IllegalArgumentException(String.format(
-        "Pipeline phase '%s' must contain at least one source but it has no sources.", phaseSpec.getPhaseName()));
+          "Pipeline phase '%s' must contain at least one source but it has no sources.",
+          phaseSpec.getPhaseName()));
     }
     if (phaseSpec.getPhase().getSinks().isEmpty()) {
       throw new IllegalArgumentException(String.format(
-        "Pipeline phase '%s' must contain at least one sink but does not have any.", phaseSpec.getPhaseName()));
+          "Pipeline phase '%s' must contain at least one sink but does not have any.",
+          phaseSpec.getPhaseName()));
     }
     Set<StageSpec> reducers = phaseSpec.getPhase().getStagesOfType(BatchAggregator.PLUGIN_TYPE,
-                                                                   BatchJoiner.PLUGIN_TYPE);
+        BatchJoiner.PLUGIN_TYPE);
     if (reducers.size() > 1) {
       throw new IllegalArgumentException(String.format(
-        "Pipeline phase '%s' cannot contain more than one reducer but it has reducers '%s'.",
-        phaseSpec.getPhaseName(), Joiner.on(',').join(reducers)));
+          "Pipeline phase '%s' cannot contain more than one reducer but it has reducers '%s'.",
+          phaseSpec.getPhaseName(), Joiner.on(',').join(reducers)));
     }
 
     // add source, sink, transform ids to the properties. These are needed at runtime to instantiate the plugins
@@ -161,15 +168,17 @@ public class ETLMapReduce extends AbstractMapReduce {
     Job job = context.getHadoopJob();
     Configuration hConf = job.getConfiguration();
 
-    BatchPhaseSpec phaseSpec = GSON.fromJson(properties.get(Constants.PIPELINEID), BatchPhaseSpec.class);
+    BatchPhaseSpec phaseSpec = GSON.fromJson(properties.get(Constants.PIPELINEID),
+        BatchPhaseSpec.class);
 
-    for (Map.Entry<String, String> pipelineProperty : phaseSpec.getPipelineProperties().entrySet()) {
+    for (Map.Entry<String, String> pipelineProperty : phaseSpec.getPipelineProperties()
+        .entrySet()) {
       hConf.set(pipelineProperty.getKey(), pipelineProperty.getValue());
     }
 
     // should never happen if planner is correct
     Set<StageSpec> reducers = phaseSpec.getPhase().getStagesOfType(BatchAggregator.PLUGIN_TYPE,
-                                                                   BatchJoiner.PLUGIN_TYPE);
+        BatchJoiner.PLUGIN_TYPE);
     if (reducers.size() > 1) {
       Iterator<StageSpec> reducerIter = reducers.iterator();
       StringBuilder reducersStr = new StringBuilder(reducerIter.next().getName());
@@ -177,8 +186,9 @@ public class ETLMapReduce extends AbstractMapReduce {
         reducersStr.append(",");
         reducersStr.append(reducerIter.next().getName());
       }
-      throw new IllegalStateException("Found multiple reducers ( " + reducersStr + " ) in the same pipeline phase. " +
-                                        "This means there was a bug in planning the pipeline when it was deployed. ");
+      throw new IllegalStateException(
+          "Found multiple reducers ( " + reducersStr + " ) in the same pipeline phase. "
+              + "This means there was a bug in planning the pipeline when it was deployed. ");
     }
 
     job.setMapperClass(ETLMapper.class);
@@ -190,12 +200,12 @@ public class ETLMapReduce extends AbstractMapReduce {
 
     // instantiate plugins and call their prepare methods
     Set<String> connectorDatasets = GSON.fromJson(properties.get(Constants.CONNECTOR_DATASETS),
-                                                  CONNECTOR_DATASETS_TYPE);
+        CONNECTOR_DATASETS_TYPE);
     MacroEvaluator evaluator = new DefaultMacroEvaluator(pipelineRuntime.getArguments(),
-                                                         context.getLogicalStartTime(),
-                                                         context, context, context.getNamespace());
+        context.getLogicalStartTime(),
+        context, context, context.getNamespace());
     MapReducePreparer preparer = new MapReducePreparer(context, mrMetrics, evaluator,
-                                                       pipelineRuntime, connectorDatasets);
+        pipelineRuntime, connectorDatasets);
     List<Finisher> finishers = preparer.prepare(phaseSpec, job);
     finisher = new CompositeFinisher(finishers);
   }
@@ -214,7 +224,8 @@ public class ETLMapReduce extends AbstractMapReduce {
   /**
    * Mapper Driver for ETL Transforms.
    */
-  public static class ETLMapper extends Mapper implements ProgramLifecycle<MapReduceTaskContext<Object, Object>> {
+  public static class ETLMapper extends Mapper implements
+      ProgramLifecycle<MapReduceTaskContext<Object, Object>> {
 
     private TransformRunner<Object, Object> transformRunner;
     // injected by CDAP
@@ -252,7 +263,8 @@ public class ETLMapReduce extends AbstractMapReduce {
   /**
    * Reducer for a phase of an ETL pipeline.
    */
-  public static class ETLReducer extends Reducer implements ProgramLifecycle<MapReduceTaskContext<Object, Object>> {
+  public static class ETLReducer extends Reducer implements
+      ProgramLifecycle<MapReduceTaskContext<Object, Object>> {
 
     // injected by CDAP
     @SuppressWarnings("unused")

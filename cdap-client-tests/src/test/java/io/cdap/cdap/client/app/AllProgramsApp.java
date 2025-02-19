@@ -45,6 +45,12 @@ import io.cdap.cdap.api.service.http.HttpServiceResponder;
 import io.cdap.cdap.api.spark.AbstractSpark;
 import io.cdap.cdap.api.worker.AbstractWorker;
 import io.cdap.cdap.api.workflow.AbstractWorkflow;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -53,13 +59,6 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
 
 /**
  * App that contains all program types. Used to test Metadata store.
@@ -94,30 +93,20 @@ public class AllProgramsApp extends AbstractApplication {
     createDataset(DATASET_NAME3, KeyValueTable.class);
     createDataset(DATASET_NAME4, FileSet.class,
                   FileSetProperties.builder()
-                    .setEnableExploreOnCreate(true)
-                    .setExploreFormat("text")
-                    .setExploreFormatProperty("delimiter", "\n")
-                    .setExploreSchema("record STRING")
                     .setDescription("fileSet")
                     .build());
     createDataset(DATASET_NAME5, PartitionedFileSet.class,
                   PartitionedFileSetProperties.builder()
-                    .setEnableExploreOnCreate(true)
-                    .setExploreFormat("text")
-                    .setExploreFormatProperty("delimiter", "\n")
-                    .setExploreSchema("record STRING")
                     .setDescription("partitonedFileSet")
                     .add("partitioning.fields.", "field1")
                     .add("partitioning.field.field1", "STRING")
                     .build());
     createDataset(DATASET_NAME6, FileSet.class,
                   FileSetProperties.builder()
-                    .setEnableExploreOnCreate(false)
                     .setDescription("fileSet")
                     .build());
     createDataset(DATASET_NAME7, PartitionedFileSet.class,
                   PartitionedFileSetProperties.builder()
-                    .setEnableExploreOnCreate(false)
                     .setDescription("partitonedFileSet")
                     .add("partitioning.fields.", "field1")
                     .add("partitioning.field.field1", "STRING")
@@ -288,7 +277,7 @@ public class AllProgramsApp extends AbstractApplication {
     private void makeServiceCall() throws IOException {
       URL serviceURL = getContext().getServiceURL(NoOpService.NAME);
       if (serviceURL != null) {
-        URL endpoint = new URL(serviceURL.toString() + NoOpService.ENDPOINT);
+        URL endpoint = new URL(serviceURL + NoOpService.ENDPOINT);
         LOG.info("Calling service endpoint {}", endpoint);
         URLConnection urlConnection = endpoint.openConnection();
         urlConnection.connect();

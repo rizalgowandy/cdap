@@ -21,7 +21,6 @@ import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.conf.SConfiguration;
 import io.cdap.cdap.spi.data.StorageProviderContext;
-
 import java.util.Collections;
 import java.util.Map;
 
@@ -35,8 +34,9 @@ final class DefaultStorageProviderContext implements StorageProviderContext {
   private final MetricsCollector metricsCollector;
 
   DefaultStorageProviderContext(CConfiguration cConf, SConfiguration sConf,
-                                String storageImpl, MetricsCollector metricsCollector) {
-    String propertiesPrefix = Constants.Dataset.STORAGE_EXTENSION_PROPERTY_PREFIX + storageImpl + ".";
+      String storageImpl, MetricsCollector metricsCollector) {
+    String propertiesPrefix =
+        Constants.Dataset.STORAGE_EXTENSION_PROPERTY_PREFIX + storageImpl + ".";
     this.cConf = Collections.unmodifiableMap(cConf.getPropsWithPrefix(propertiesPrefix));
     this.sConf = Collections.unmodifiableMap(sConf.getPropsWithPrefix(propertiesPrefix));
     this.metricsCollector = metricsCollector;

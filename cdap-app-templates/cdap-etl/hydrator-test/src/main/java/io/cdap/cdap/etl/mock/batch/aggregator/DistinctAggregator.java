@@ -17,7 +17,6 @@
 package io.cdap.cdap.etl.mock.batch.aggregator;
 
 import com.google.common.base.Splitter;
-import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.data.format.StructuredRecord;
@@ -32,7 +31,6 @@ import io.cdap.cdap.etl.api.StageConfigurer;
 import io.cdap.cdap.etl.api.batch.BatchAggregator;
 import io.cdap.cdap.etl.api.batch.BatchRuntimeContext;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -44,7 +42,9 @@ import java.util.Map;
  */
 @Plugin(type = BatchAggregator.PLUGIN_TYPE)
 @Name(DistinctAggregator.NAME)
-public class DistinctAggregator extends BatchAggregator<StructuredRecord, StructuredRecord, StructuredRecord> {
+public class DistinctAggregator extends
+    BatchAggregator<StructuredRecord, StructuredRecord, StructuredRecord> {
+
   public static final String NAME = "Distinct";
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
   private final Conf conf;
@@ -60,7 +60,8 @@ public class DistinctAggregator extends BatchAggregator<StructuredRecord, Struct
     StageConfigurer stageConfigurer = pipelineConfigurer.getStageConfigurer();
     Schema inputSchema = stageConfigurer.getInputSchema();
 
-    this.outputSchema = getOutputSchema(stageConfigurer.getFailureCollector(), inputSchema, conf.getFields());
+    this.outputSchema = getOutputSchema(stageConfigurer.getFailureCollector(), inputSchema,
+        conf.getFields());
     stageConfigurer.setOutputSchema(outputSchema);
   }
 
@@ -81,18 +82,19 @@ public class DistinctAggregator extends BatchAggregator<StructuredRecord, Struct
 
   @Override
   public void aggregate(StructuredRecord groupKey, Iterator<StructuredRecord> iterator,
-                        Emitter<StructuredRecord> emitter) {
+      Emitter<StructuredRecord> emitter) {
     emitter.emit(groupKey);
   }
 
-  private static Schema getOutputSchema(FailureCollector collector, Schema inputSchema, Iterable<String> fields) {
+  private static Schema getOutputSchema(FailureCollector collector, Schema inputSchema,
+      Iterable<String> fields) {
     List<Schema.Field> outputFields = new ArrayList<>();
     for (String fieldName : fields) {
       Schema.Field field = inputSchema.getField(fieldName);
       if (field == null) {
         collector.addFailure(String.format("Field %s does not exist in input schema.", fieldName),
-                             String.format("Make sure field %s is present in the input schema", fieldName))
-          .withConfigElement("fields", fieldName);
+                String.format("Make sure field %s is present in the input schema", fieldName))
+            .withConfigElement("fields", fieldName);
         continue;
       }
       outputFields.add(field);
@@ -105,6 +107,7 @@ public class DistinctAggregator extends BatchAggregator<StructuredRecord, Struct
    * Plugin Configuration.
    */
   public static class Conf extends PluginConfig {
+
     private String fields;
 
     Iterable<String> getFields() {
@@ -122,7 +125,7 @@ public class DistinctAggregator extends BatchAggregator<StructuredRecord, Struct
     Map<String, PluginPropertyField> properties = new HashMap<>();
     properties.put("fields", new PluginPropertyField("fields", "", "string", true, false));
     return PluginClass.builder().setName(NAME).setType(BatchAggregator.PLUGIN_TYPE)
-             .setDescription("").setClassName(DistinctAggregator.class.getName())
-             .setConfigFieldName("conf").setProperties(properties).build();
+        .setDescription("").setClassName(DistinctAggregator.class.getName())
+        .setConfigFieldName("conf").setProperties(properties).build();
   }
 }

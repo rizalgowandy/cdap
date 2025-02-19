@@ -18,13 +18,13 @@
 package io.cdap.cdap.api.service;
 
 import io.cdap.cdap.api.NamespaceSummary;
-
 import java.util.List;
 
 /**
  * Interface for list all namespaces for system service
  */
 public interface SystemNamespaceAdmin {
+
   /**
    * List all the namespaces
    */

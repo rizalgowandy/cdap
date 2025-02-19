@@ -18,7 +18,6 @@ package io.cdap.cdap.proto.metadata.lineage;
 
 import io.cdap.cdap.api.lineage.field.Operation;
 import io.cdap.cdap.proto.id.ProgramRunId;
-
 import java.util.Objects;
 import java.util.Set;
 
@@ -26,6 +25,7 @@ import java.util.Set;
  * Represents a set of program runs that performed the same set of field operations.
  */
 public class ProgramRunOperations {
+
   private final Set<ProgramRunId> programRunIds;
   private final Set<Operation> operations;
 
@@ -51,8 +51,8 @@ public class ProgramRunOperations {
       return false;
     }
     ProgramRunOperations that = (ProgramRunOperations) o;
-    return Objects.equals(programRunIds, that.programRunIds) &&
-            Objects.equals(operations, that.operations);
+    return Objects.equals(programRunIds, that.programRunIds)
+        && Objects.equals(operations, that.operations);
   }
 
   @Override

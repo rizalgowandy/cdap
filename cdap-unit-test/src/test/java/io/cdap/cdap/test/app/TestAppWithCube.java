@@ -28,21 +28,13 @@ import io.cdap.cdap.api.dataset.lib.cube.DimensionValue;
 import io.cdap.cdap.api.dataset.lib.cube.MeasureType;
 import io.cdap.cdap.api.dataset.lib.cube.TimeSeries;
 import io.cdap.cdap.api.dataset.lib.cube.TimeValue;
-import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.test.ApplicationManager;
 import io.cdap.cdap.test.ServiceManager;
 import io.cdap.cdap.test.SlowTests;
 import io.cdap.cdap.test.TestBase;
-import io.cdap.cdap.test.TestConfiguration;
 import io.cdap.common.http.HttpRequest;
-import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -50,19 +42,19 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  *
  */
 public class TestAppWithCube extends TestBase {
 
-  @ClassRule
-  public static final TestConfiguration CONFIG = new TestConfiguration(Constants.Explore.EXPLORE_ENABLED, false);
-
   private static final Gson GSON = new Gson();
 
-  @Category(SlowTests.class)
   @Test
+  @Category(SlowTests.class)
   public void testApp() throws Exception {
     // Deploy the application
     ApplicationManager appManager = deployApplication(AppWithCube.class);

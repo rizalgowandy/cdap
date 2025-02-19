@@ -24,12 +24,11 @@ import io.cdap.cdap.spi.data.table.field.Fields;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
 import io.cdap.cdap.store.StoreDefinition;
+import java.io.IOException;
+import java.util.List;
 import org.apache.twill.filesystem.Location;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.List;
 
 /**
  * Class for writing log file meta data.
@@ -53,20 +52,23 @@ public class FileMetaDataWriter {
    * @param location log file location.
    */
   public void writeMetaData(final LogPathIdentifier identifier,
-                            final long eventTimeMs,
-                            final long currentTimeMs,
-                            final Location location) throws Exception {
-    LOG.debug("Writing meta data for logging context {} with startTimeMs {} sequence Id {} and location {}",
-              identifier.getRowkey(), eventTimeMs, currentTimeMs, location);
+      final long eventTimeMs,
+      final long currentTimeMs,
+      final Location location) throws Exception {
+    LOG.debug(
+        "Writing meta data for logging context {} with startTimeMs {} sequence Id {} and location {}",
+        identifier.getRowkey(), eventTimeMs, currentTimeMs, location);
     TransactionRunners.run(transactionRunner, context -> {
       StructuredTable table = context.getTable(StoreDefinition.LogFileMetaStore.LOG_FILE_META);
 
       List<Field<?>> fields =
-        ImmutableList.of(Fields.stringField(StoreDefinition.LogFileMetaStore.LOGGING_CONTEXT_FIELD,
-                                            identifier.getRowkey()),
-                         Fields.longField(StoreDefinition.LogFileMetaStore.EVENT_TIME_FIELD, eventTimeMs),
-                         Fields.longField(StoreDefinition.LogFileMetaStore.CREATION_TIME_FIELD, currentTimeMs),
-                         Fields.stringField(StoreDefinition.LogFileMetaStore.FILE_FIELD, location.toURI().getPath()));
+          ImmutableList.of(
+              Fields.stringField(StoreDefinition.LogFileMetaStore.LOGGING_CONTEXT_FIELD,
+                  identifier.getRowkey()),
+              Fields.longField(StoreDefinition.LogFileMetaStore.EVENT_TIME_FIELD, eventTimeMs),
+              Fields.longField(StoreDefinition.LogFileMetaStore.CREATION_TIME_FIELD, currentTimeMs),
+              Fields.stringField(StoreDefinition.LogFileMetaStore.FILE_FIELD,
+                  location.toURI().getPath()));
       table.upsert(fields);
     }, IOException.class);
   }

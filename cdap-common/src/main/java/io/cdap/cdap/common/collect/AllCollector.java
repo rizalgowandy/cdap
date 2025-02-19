@@ -17,13 +17,11 @@
 package io.cdap.cdap.common.collect;
 
 import com.google.common.collect.Lists;
-
 import java.util.Collection;
 import java.util.List;
 
 /**
- * This collector will collect until it runs out of memory, it
- * never returns false.
+ * This collector will collect until it runs out of memory, it never returns false.
  *
  * @param <Element> Type of element
  */

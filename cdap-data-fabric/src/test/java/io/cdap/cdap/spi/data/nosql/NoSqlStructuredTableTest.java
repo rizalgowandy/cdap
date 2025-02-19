@@ -27,27 +27,30 @@ import io.cdap.cdap.data2.dataset2.lib.table.MDSKey;
 import io.cdap.cdap.spi.data.StructuredTableAdmin;
 import io.cdap.cdap.spi.data.StructuredTableTest;
 import io.cdap.cdap.spi.data.table.StructuredTableSchema;
+import io.cdap.cdap.spi.data.table.field.Field;
+import io.cdap.cdap.spi.data.table.field.Fields;
+import io.cdap.cdap.spi.data.transaction.TransactionException;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.tephra.TransactionManager;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.tephra.TransactionManager;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Test;
 
 /**
- * Unit test for nosql strcutured table.
+ * Unit test for nosql structured table.
  */
 public class NoSqlStructuredTableTest extends StructuredTableTest {
   @ClassRule
@@ -71,7 +74,7 @@ public class NoSqlStructuredTableTest extends StructuredTableTest {
 
   @BeforeClass
   public static void beforeClass() throws IOException {
-    Configuration txConf = HBaseConfiguration.create();
+    Configuration txConf = new Configuration();
     txManager = new TransactionManager(txConf);
     txManager.startAndWait();
 
@@ -101,6 +104,12 @@ public class NoSqlStructuredTableTest extends StructuredTableTest {
   @Test
   public void testScannerIteratorMulti() throws Exception {
     testScannerIterator(10);
+  }
+
+  @Override
+  @Ignore
+  public void testSortedPrimaryKeyFilteredIndexScan() throws Exception {
+    // no implementation
   }
 
   private void testScannerIterator(int max) throws Exception {
@@ -156,6 +165,49 @@ public class NoSqlStructuredTableTest extends StructuredTableTest {
     Assert.assertEquals(expected.subList(0, Math.min(max, limit)), actual);
   }
 
+  @Test
+  public void testFilterByIndexIteratorSingleMatch() {
+    List<Integer> expected = IntStream.range(0, 10).boxed().collect(Collectors.toList());
+    MockScanner scanner = new MockScanner(expected.iterator());
+    Field<?> filterIndex = Fields.intField("key", 9);
+    List<Integer> actual = new ArrayList<>();
+    try (NoSqlStructuredTable.FilterByFieldIterator closeableIterator = new NoSqlStructuredTable.FilterByFieldIterator(
+      (new NoSqlStructuredTable.ScannerIterator(scanner, SCHEMA)), Collections.singleton(filterIndex), SCHEMA)) {
+      while (closeableIterator.hasNext()) {
+        actual.add(closeableIterator.next().getInteger("key"));
+        Assert.assertFalse(scanner.isClosed());
+      }
+    }
+    Assert.assertTrue(scanner.isClosed());
+    Assert.assertEquals(actual.size(), 1);
+    Assert.assertEquals(actual.get(0), filterIndex.getValue());
+  }
+
+  @Test
+  public void testFilterByIndexIteratorMultiMatch() {
+    List<Integer> expected = new ArrayList<>(Arrays.asList(9, 9, 9, 7));
+    MockScanner scanner = new MockScanner(expected.iterator());
+    Field<?> filterIndex = Fields.intField("key", 9);
+    List<Integer> actual = new ArrayList<>();
+    try (NoSqlStructuredTable.FilterByFieldIterator closeableIterator = new NoSqlStructuredTable.FilterByFieldIterator(
+      new NoSqlStructuredTable.ScannerIterator(scanner, SCHEMA), Collections.singleton(filterIndex), SCHEMA)) {
+      while (closeableIterator.hasNext()) {
+        actual.add(closeableIterator.next().getInteger("key"));
+        Assert.assertFalse(scanner.isClosed());
+      }
+    }
+    Assert.assertTrue(scanner.isClosed());
+    Assert.assertEquals(actual.size(), 3);
+    Assert.assertEquals(actual.get(0), filterIndex.getValue());
+    Assert.assertEquals(actual.get(1), filterIndex.getValue());
+    Assert.assertEquals(actual.get(2), filterIndex.getValue());
+  }
+
+  @Test(expected = TransactionException.class)
+  @Override
+  public void testScanDeleteAll() throws Exception{
+    super.testScanDeleteAll();
+  }
   private static class MockScanner implements Scanner {
     private final Iterator<Integer> iterator;
     private boolean closed;
@@ -169,7 +221,8 @@ public class NoSqlStructuredTableTest extends StructuredTableTest {
     public Row next() {
       if (iterator.hasNext()) {
         int i = iterator.next();
-        return createResult(new MDSKey.Builder().add("tableNamePrefix").add(i).add((long) i).build().getKey(),
+        return createResult(new MDSKey.Builder().add("tableNamePrefix").add(i).add((long) i).add("key3")
+                              .build().getKey(),
                             "c" + i, "v" + i);
       }
       return null;

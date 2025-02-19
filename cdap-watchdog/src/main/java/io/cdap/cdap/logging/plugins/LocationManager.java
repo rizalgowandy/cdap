@@ -23,11 +23,6 @@ import com.google.common.io.ByteStreams;
 import com.google.common.io.Closeables;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.io.Syncable;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
@@ -39,11 +34,16 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manage locations for {@link RollingLocationLogAppender}
  */
 public class LocationManager implements Flushable, Closeable, Syncable {
+
   private static final Logger LOG = LoggerFactory.getLogger(LocationManager.class);
   protected static final String TAG_NAMESPACE_ID = Constants.Logging.TAG_NAMESPACE_ID;
   protected static final String TAG_APPLICATION_ID = Constants.Logging.TAG_APPLICATION_ID;
@@ -56,7 +56,7 @@ public class LocationManager implements Flushable, Closeable, Syncable {
   private LocationOutputStream invalidOutputStream;
 
   public LocationManager(LocationFactory locationFactory, String basePath, String dirPermissions,
-                         String filePermissions, long fileMaxInactiveTimeMs) {
+      String filePermissions, long fileMaxInactiveTimeMs) {
     this.logBaseDir = locationFactory.create(basePath);
     this.dirPermissions = dirPermissions;
     this.filePermissions = filePermissions;
@@ -77,8 +77,8 @@ public class LocationManager implements Flushable, Closeable, Syncable {
     String applicationId = propertyMap.get(TAG_APPLICATION_ID);
 
     Preconditions.checkArgument(!Strings.isNullOrEmpty(applicationId),
-                                String.format("%s is expected but not found in the context %s",
-                                              TAG_APPLICATION_ID, propertyMap));
+        String.format("%s is expected but not found in the context %s",
+            TAG_APPLICATION_ID, propertyMap));
 
     return new LocationIdentifier(namespaceId, applicationId);
   }
@@ -87,11 +87,12 @@ public class LocationManager implements Flushable, Closeable, Syncable {
    * Returns outpustream for log file created as: <basePath>/namespaceId/applicationId/<filePath>
    *
    * @param locationIdentifier location identifier for this event
-   * @param filePath           filePath for this event
+   * @param filePath filePath for this event
    * @return returns {@link LocationOutputStream} for an event
    * @throws IOException throws exception while creating a file
    */
-  OutputStream getLocationOutputStream(LocationIdentifier locationIdentifier, String filePath) throws IOException {
+  OutputStream getLocationOutputStream(LocationIdentifier locationIdentifier, String filePath)
+      throws IOException {
     if (activeLocations.containsKey(locationIdentifier)) {
       return activeLocations.get(locationIdentifier);
     }
@@ -102,12 +103,12 @@ public class LocationManager implements Flushable, Closeable, Syncable {
     if (logDir == null) {
       // this should never happen
       LOG.error("Parent Directory for {} is null", logFile.toURI().toString());
-      throw new IOException(String.format("Parent Directory for %s is null", logFile.toURI().toString()));
+      throw new IOException(
+          String.format("Parent Directory for %s is null", logFile.toURI().toString()));
     }
 
     // check if parent directories exist
     mkdirsIfNotExists(logDir, dirPermissions);
-
 
     if (logFile.exists()) {
       // The file name for a given application exists if the appender was stopped and then started again but file was
@@ -126,8 +127,9 @@ public class LocationManager implements Flushable, Closeable, Syncable {
         // create new file and open outputstream on it
         logFile.createNew(filePermissions);
         // TODO: Handle existing file in a better way rather than copying it over
-        OutputStream outputStream = new LocationOutputStream(logFile, logFile.getOutputStream(filePermissions),
-                                                             System.currentTimeMillis());
+        OutputStream outputStream = new LocationOutputStream(logFile,
+            logFile.getOutputStream(filePermissions),
+            System.currentTimeMillis());
         activeLocations.put(locationIdentifier, (LocationOutputStream) outputStream);
         ByteStreams.copy(inputStream, outputStream);
         outputStream.flush();
@@ -142,8 +144,8 @@ public class LocationManager implements Flushable, Closeable, Syncable {
       // create file with correct permissions
       logFile.createNew(filePermissions);
       activeLocations.put(locationIdentifier, new LocationOutputStream(logFile,
-                                                                       logFile.getOutputStream(filePermissions),
-                                                                       System.currentTimeMillis()));
+          logFile.getOutputStream(filePermissions),
+          System.currentTimeMillis()));
     }
 
     return activeLocations.get(locationIdentifier);
@@ -170,12 +172,13 @@ public class LocationManager implements Flushable, Closeable, Syncable {
   @Override
   public void close() {
     Collection<LocationOutputStream> locations = activeLocations.values();
-    activeLocations.clear();
 
     for (LocationOutputStream locationOutputStream : locations) {
       // we do not want to throw any exception rather close all the open output streams. so close quietly
       Closeables.closeQuietly(locationOutputStream);
     }
+
+    activeLocations.clear();
   }
 
   /**
@@ -183,7 +186,8 @@ public class LocationManager implements Flushable, Closeable, Syncable {
    */
   @Override
   public void flush() throws IOException {
-    Iterator<Map.Entry<LocationIdentifier, LocationOutputStream>> iter = activeLocations.entrySet().iterator();
+    Iterator<Map.Entry<LocationIdentifier, LocationOutputStream>> iter = activeLocations.entrySet()
+        .iterator();
 
     while (iter.hasNext()) {
       Map.Entry<LocationIdentifier, LocationOutputStream> entry = iter.next();
@@ -201,7 +205,8 @@ public class LocationManager implements Flushable, Closeable, Syncable {
     if (fileMaxInactiveTimeMs == 0) {
       return false;
     }
-    return (entry.getValue().getLastWriteTimestamp() < (System.currentTimeMillis() - fileMaxInactiveTimeMs));
+    return (entry.getValue().getLastWriteTimestamp() < (System.currentTimeMillis()
+        - fileMaxInactiveTimeMs));
   }
 
   /**
@@ -220,7 +225,8 @@ public class LocationManager implements Flushable, Closeable, Syncable {
    * Appends information from location identifier to logBaseDir
    */
   Location getLogLocation(LocationIdentifier locationIdentifier) throws IOException {
-    return logBaseDir.append(locationIdentifier.getNamespaceId()).append(locationIdentifier.getApplicationId());
+    return logBaseDir.append(locationIdentifier.getNamespaceId())
+        .append(locationIdentifier.getApplicationId());
   }
 
   @VisibleForTesting
@@ -233,7 +239,7 @@ public class LocationManager implements Flushable, Closeable, Syncable {
     return invalidOutputStream;
   }
 
-  void setInvalidOutputStream(@Nullable  LocationOutputStream invalidOutputStream) {
+  void setInvalidOutputStream(@Nullable LocationOutputStream invalidOutputStream) {
     this.invalidOutputStream = invalidOutputStream;
   }
 
@@ -264,6 +270,7 @@ public class LocationManager implements Flushable, Closeable, Syncable {
 
   /**
    * Create the directory represented by the location with provided permissions if not exists.
+   *
    * @param location the location for the directory.
    * @param permissions permissions on directory
    * @throws IOException If the location cannot be created

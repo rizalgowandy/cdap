@@ -21,6 +21,7 @@ import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import io.cdap.cdap.common.guice.preview.PreviewDiscoveryRuntimeModule;
 import io.netty.util.internal.ConcurrentSet;
+import java.util.Set;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.DiscoveryService;
@@ -28,19 +29,19 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.apache.twill.discovery.InMemoryDiscoveryService;
 import org.apache.twill.discovery.ServiceDiscovered;
 
-import java.util.Set;
-
 /**
- * Discovery service that delegates either to in memory discovery service(local) or shared (actual) discovery service.
+ * Discovery service that delegates either to in memory discovery service(local) or shared (actual)
+ * discovery service.
  */
 public class PreviewDiscoveryService implements DiscoveryService, DiscoveryServiceClient {
+
   private final DiscoveryServiceClient actual;
   private final InMemoryDiscoveryService local;
   private final Set<String> registeredLocalServices;
 
   @Inject
   PreviewDiscoveryService(
-    @Named(PreviewDiscoveryRuntimeModule.ACTUAL_DISCOVERY_CLIENT) DiscoveryServiceClient actual) {
+      @Named(PreviewDiscoveryRuntimeModule.ACTUAL_DISCOVERY_CLIENT) DiscoveryServiceClient actual) {
     this.actual = actual;
     this.local = new InMemoryDiscoveryService();
     this.registeredLocalServices = new ConcurrentSet<>();

@@ -24,11 +24,10 @@ import io.cdap.cdap.logging.appender.AbstractLogPublisher;
 import io.cdap.cdap.logging.appender.LogAppender;
 import io.cdap.cdap.logging.appender.LogMessage;
 import io.cdap.cdap.logging.serialize.LoggingEventSerializer;
-import kafka.producer.KeyedMessage;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import kafka.producer.KeyedMessage;
 
 /**
  * Log appender that publishes log messages to Kafka.
@@ -50,7 +49,8 @@ public final class KafkaLogAppender extends LogAppender {
   @Override
   public void start() {
     KafkaLogPublisher publisher = new KafkaLogPublisher(cConf);
-    Optional.ofNullable(kafkaLogPublisher.getAndSet(publisher)).ifPresent(KafkaLogPublisher::stopAndWait);
+    Optional.ofNullable(kafkaLogPublisher.getAndSet(publisher))
+        .ifPresent(KafkaLogPublisher::stopAndWait);
     publisher.startAndWait();
     addInfo("Successfully started KafkaLogAppender.");
     super.start();
@@ -59,7 +59,8 @@ public final class KafkaLogAppender extends LogAppender {
   @Override
   public void stop() {
     super.stop();
-    Optional.ofNullable(kafkaLogPublisher.getAndSet(null)).ifPresent(KafkaLogPublisher::stopAndWait);
+    Optional.ofNullable(kafkaLogPublisher.getAndSet(null))
+        .ifPresent(KafkaLogPublisher::stopAndWait);
   }
 
   @Override
@@ -87,12 +88,13 @@ public final class KafkaLogAppender extends LogAppender {
 
     private KafkaLogPublisher(CConfiguration cConf) {
       super(cConf.getInt(Constants.Logging.APPENDER_QUEUE_SIZE, 512),
-            RetryStrategies.fromConfiguration(cConf, "system.log.process."));
+          RetryStrategies.fromConfiguration(cConf, "system.log.process."));
       this.cConf = cConf;
       this.topic = cConf.get(Constants.Logging.KAFKA_TOPIC);
       this.loggingEventSerializer = new LoggingEventSerializer();
       this.logPartitionType =
-              LogPartitionType.valueOf(cConf.get(Constants.Logging.LOG_PUBLISH_PARTITION_KEY).toUpperCase());
+          LogPartitionType.valueOf(
+              cConf.get(Constants.Logging.LOG_PUBLISH_PARTITION_KEY).toUpperCase());
     }
 
     @Override

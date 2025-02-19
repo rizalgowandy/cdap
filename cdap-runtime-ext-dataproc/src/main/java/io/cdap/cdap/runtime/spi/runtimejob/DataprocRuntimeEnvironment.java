@@ -21,6 +21,11 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;
 import ch.qos.logback.core.joran.spi.JoranException;
 import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URL;
+import java.util.Map;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.twill.api.TwillRunner;
 import org.apache.twill.api.TwillRunnerService;
@@ -35,16 +40,10 @@ import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.URL;
-import java.util.Map;
-
 /**
  * Dataproc runtime job environment . This class will provide implementation of {@link TwillRunner},
- * {@link DiscoveryService} and {@link DiscoveryServiceClient} to the runtime job.
- * All the public methods in this class are called through reflection from {@link DataprocJobMain}.
+ * {@link DiscoveryService} and {@link DiscoveryServiceClient} to the runtime job. All the public
+ * methods in this class are called through reflection from {@link DataprocJobMain}.
  */
 @SuppressWarnings("unused")
 public class DataprocRuntimeEnvironment implements RuntimeJobEnvironment {
@@ -58,14 +57,16 @@ public class DataprocRuntimeEnvironment implements RuntimeJobEnvironment {
   private TwillRunnerService yarnTwillRunnerService;
   private LocationFactory locationFactory;
   private Map<String, String> properties;
+  private LaunchMode launchMode;
 
   /**
    * This method initializes the dataproc runtime environment.
    *
    * @param sparkCompat spark compat version supported by dataproc cluster
+   * @param launchMode program launch mode
    * @throws Exception any exception while initializing the environment.
    */
-  public void initialize(String sparkCompat) throws Exception {
+  public void initialize(String sparkCompat, String launchMode) throws Exception {
     addConsoleAppender();
     System.setProperty(TWILL_ZK_SERVER_LOCALHOST, "false");
     zkServer = InMemoryZKServer.builder().build();
@@ -79,6 +80,7 @@ public class DataprocRuntimeEnvironment implements RuntimeJobEnvironment {
     yarnTwillRunnerService = new YarnTwillRunnerService(conf, connectionStr, locationFactory);
     yarnTwillRunnerService.start();
     properties = ImmutableMap.of(ZK_QUORUM, connectionStr, APP_SPARK_COMPAT, sparkCompat);
+    this.launchMode = LaunchMode.valueOf(launchMode);
   }
 
   @Override
@@ -94,6 +96,11 @@ public class DataprocRuntimeEnvironment implements RuntimeJobEnvironment {
   @Override
   public Map<String, String> getProperties() {
     return properties;
+  }
+
+  @Override
+  public LaunchMode getLaunchMode() {
+    return launchMode;
   }
 
   /**
@@ -125,8 +132,8 @@ public class DataprocRuntimeEnvironment implements RuntimeJobEnvironment {
   }
 
   /**
-   * Adds a log appender for writing to stdout. This is for Dataproc job agent to include logs from the job main
-   * in the job output.
+   * Adds a log appender for writing to stdout. This is for Dataproc job agent to include logs from
+   * the job main in the job output.
    */
   private static void addConsoleAppender() {
     ILoggerFactory loggerFactory = LoggerFactory.getILoggerFactory();
@@ -149,7 +156,8 @@ public class DataprocRuntimeEnvironment implements RuntimeJobEnvironment {
       joranConfigurator.setContext(loggerContext);
       joranConfigurator.doConfigure(url);
     } catch (JoranException e) {
-      LOG.warn("Failed to configure log appender, logs will be missing from the Dataproc Job output");
+      LOG.warn(
+          "Failed to configure log appender, logs will be missing from the Dataproc Job output");
     }
   }
 }

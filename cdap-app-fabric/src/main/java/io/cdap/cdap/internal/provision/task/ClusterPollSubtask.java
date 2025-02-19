@@ -22,18 +22,19 @@ import io.cdap.cdap.runtime.spi.provisioner.Cluster;
 import io.cdap.cdap.runtime.spi.provisioner.ClusterStatus;
 import io.cdap.cdap.runtime.spi.provisioner.Provisioner;
 import io.cdap.cdap.runtime.spi.provisioner.ProvisionerContext;
-
 import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Provisioning subtask that polls for cluster status until it is different than a specified status.
+ * Provisioning subtask that polls for cluster status until it is different than a specified
+ * status.
  */
 public class ClusterPollSubtask extends ProvisioningSubtask {
 
   public ClusterPollSubtask(Provisioner provisioner, ProvisionerContext provisionerContext,
-                            Function<Cluster, Optional<ProvisioningOp.Status>> transition) {
-    super(provisioner, provisionerContext, transition); }
+      Function<Cluster, Optional<ProvisioningOp.Status>> transition) {
+    super(provisioner, provisionerContext, transition);
+  }
 
   @Override
   protected Cluster execute(Cluster cluster) throws Exception {

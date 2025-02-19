@@ -20,16 +20,15 @@ import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.inject.Singleton;
+import java.util.Iterator;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.twill.api.ElectionHandler;
 import org.apache.twill.common.Cancellable;
 import org.apache.twill.common.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Iterator;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * In memory version of leader election.
@@ -48,7 +47,8 @@ public final class InMemoryElectionRegistry {
     // It has to be a linked hash multimap as the order of addition determine who is the leader.
     this.registry = LinkedHashMultimap.create();
     // Creates a single thread executor using daemon threads. No need to worry about shutdown.
-    this.executor = Executors.newSingleThreadExecutor(Threads.createDaemonThreadFactory("memory-leader-election"));
+    this.executor = Executors.newSingleThreadExecutor(
+        Threads.createDaemonThreadFactory("memory-leader-election"));
   }
 
   /**
@@ -138,7 +138,9 @@ public final class InMemoryElectionRegistry {
       try {
         delegate.leader();
       } catch (Throwable t) {
-        LOG.warn("Exception thrown from ElectionHandler.leader(). Withdraw from leader election process.", t);
+        LOG.warn(
+            "Exception thrown from ElectionHandler.leader(). Withdraw from leader election process.",
+            t);
         registry.remove(name, this);
         leader = false;
       }
@@ -150,7 +152,9 @@ public final class InMemoryElectionRegistry {
       try {
         delegate.follower();
       } catch (Throwable t) {
-        LOG.warn("Exception thrown from ElectionHandler.follower(). Withdraw from leader election process.", t);
+        LOG.warn(
+            "Exception thrown from ElectionHandler.follower(). Withdraw from leader election process.",
+            t);
         registry.remove(name, this);
       }
     }

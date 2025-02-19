@@ -22,16 +22,16 @@ import io.cdap.cdap.api.workflow.WorkflowToken;
 import io.cdap.cdap.app.runtime.WorkflowDataProvider;
 import io.cdap.cdap.internal.app.runtime.ProgramControllerServiceAdapter;
 import io.cdap.cdap.internal.app.runtime.workflow.BasicWorkflowToken;
-import org.apache.hadoop.mapreduce.Job;
-
 import java.io.IOException;
 import java.util.Set;
+import org.apache.hadoop.mapreduce.Job;
 
 /**
  * A ProgramController for MapReduce. It mainly is an adapter for reflecting the state changes in
  * {@link MapReduceRuntimeService}.
  */
-final class MapReduceProgramController extends ProgramControllerServiceAdapter implements WorkflowDataProvider {
+final class MapReduceProgramController extends ProgramControllerServiceAdapter implements
+    WorkflowDataProvider {
 
   private final BasicMapReduceContext context;
 
@@ -45,8 +45,8 @@ final class MapReduceProgramController extends ProgramControllerServiceAdapter i
     BasicWorkflowToken workflowTokenFromContext = context.getWorkflowToken();
 
     if (workflowTokenFromContext == null) {
-      throw new IllegalStateException("WorkflowToken cannot be null when the " +
-                                        "MapReduce program is started by Workflow.");
+      throw new IllegalStateException("WorkflowToken cannot be null when the "
+          + "MapReduce program is started by Workflow.");
     }
 
     try {

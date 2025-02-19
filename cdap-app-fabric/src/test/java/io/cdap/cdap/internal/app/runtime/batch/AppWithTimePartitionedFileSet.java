@@ -25,14 +25,13 @@ import io.cdap.cdap.api.dataset.table.Put;
 import io.cdap.cdap.api.dataset.table.Row;
 import io.cdap.cdap.api.mapreduce.AbstractMapReduce;
 import io.cdap.cdap.api.mapreduce.MapReduceContext;
+import java.io.IOException;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
-
-import java.io.IOException;
 
 /**
  * App used to test whether M/R works well with time-partitioned file sets.
@@ -61,7 +60,6 @@ public class AppWithTimePartitionedFileSet extends AbstractApplication {
       .setInputFormat(TextInputFormat.class)
       .setOutputFormat(TextOutputFormat.class)
       .setOutputProperty(TextOutputFormat.SEPERATOR, SEPARATOR)
-      // don't configure properties for the Hive table - this is used in a context where explore is disabled
       .build());
     addMapReduce(new PartitionWriter());
     addMapReduce(new PartitionReader());

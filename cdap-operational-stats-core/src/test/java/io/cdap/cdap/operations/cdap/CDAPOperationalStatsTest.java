@@ -27,16 +27,15 @@ import io.cdap.cdap.internal.AppFabricTestHelper;
 import io.cdap.cdap.operations.OperationalStats;
 import io.cdap.cdap.proto.NamespaceMeta;
 import io.cdap.cdap.proto.id.NamespaceId;
+import java.util.Collections;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.apache.tephra.Transaction;
 import org.apache.tephra.TransactionSystemClient;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.Collections;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for {@link OperationalStats} for CDAP
@@ -95,8 +94,9 @@ public class CDAPOperationalStatsTest {
       @Override
       public Boolean call() throws Exception {
         transactions.collect();
-        return transactions.getNumCommittingChangeSets() > 0 && transactions.getNumInProgressTransactions() > 0 &&
-          transactions.getNumInvalidTransactions() > 0;
+        return transactions.getNumCommittingChangeSets() > 0
+            && transactions.getNumInProgressTransactions() > 0
+            && transactions.getNumInvalidTransactions() > 0;
       }
     }, 1, TimeUnit.MINUTES, 3, TimeUnit.SECONDS);
     Assert.assertTrue(transactions.getNumInProgressTransactions() >= 1);

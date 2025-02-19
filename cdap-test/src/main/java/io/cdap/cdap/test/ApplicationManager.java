@@ -26,11 +26,9 @@ import io.cdap.cdap.proto.ScheduleDetail;
 import io.cdap.cdap.proto.artifact.AppRequest;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ScheduleId;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nullable;
 
 /**
  * Instance of this class is for managing deployed application.
@@ -39,6 +37,7 @@ public interface ApplicationManager {
 
   /**
    * Returns a ProgramManager, without starting the program
+   *
    * @param programName Name of the program
    * @return A {@link MapReduceManager} for controlling the mapreduce job
    */
@@ -46,6 +45,7 @@ public interface ApplicationManager {
 
   /**
    * Returns a ProgramManager, without starting the program
+   *
    * @param jobName Name of the job
    * @return A {@link SparkManager} for controlling the spark job
    */
@@ -53,6 +53,7 @@ public interface ApplicationManager {
 
   /**
    * Returns a ProgramManager, without starting the program
+   *
    * @param workflowName Name of the workflow
    * @return A {@link WorkflowManager} for controlling the workflow
    */
@@ -60,6 +61,7 @@ public interface ApplicationManager {
 
   /**
    * Returns a ProgramManager, without starting the program
+   *
    * @param serviceName Name of the service
    * @return A {@link ServiceManager} for controlling the service
    */
@@ -67,6 +69,7 @@ public interface ApplicationManager {
 
   /**
    * Returns a ProgramManager, without starting the program
+   *
    * @param workerName Name of the worker
    * @return A {@link WorkerManager} for controlling the worker
    */
@@ -74,6 +77,7 @@ public interface ApplicationManager {
 
   /**
    * Returns the list of plugins used in the application.
+   *
    * @return list of plugins
    */
   List<PluginInstanceDetail> getPlugins();
@@ -85,48 +89,56 @@ public interface ApplicationManager {
 
   /**
    * Stops a particular program.
+   *
    * @param programId the program to stop
    */
   void stopProgram(Id.Program programId);
 
   /**
    * Stops a particular program.
+   *
    * @param programId the program to stop
    */
   void stopProgram(ProgramId programId);
 
   /**
    * Wait for a given programId to have no running run record
+   *
    * @param programId the program id to wait on
    */
   void waitForStopped(ProgramId programId) throws Exception;
 
   /**
    * Starts a particular program.
+   *
    * @param programId the program to start
    */
   void startProgram(Id.Program programId);
 
   /**
    * Starts a particular program.
+   *
    * @param programId the program to start
    */
   void startProgram(ProgramId programId);
 
   /**
    * Starts a particular program with arguments.
+   *
    * @param programId the program to start
    */
   void startProgram(Id.Program programId, Map<String, String> arguments);
 
   /**
    * Starts a particular program with arguments.
+   *
    * @param programId the program to start
    */
   void startProgram(ProgramId programId, Map<String, String> arguments);
 
   /**
    * Checks whether a particular program is running or not.
+   *
    * @param programId the program to check
    * @return true if the program is running; false otherwise.
    */
@@ -134,6 +146,7 @@ public interface ApplicationManager {
 
   /**
    * Checks whether a particular program is in the {@link ProgramStatus#RUNNING} state.
+   *
    * @param programId the program to check
    * @return true if the program is running; false otherwise.
    */
@@ -141,6 +154,7 @@ public interface ApplicationManager {
 
   /**
    * Checks whether a particular program is in the {@link ProgramStatus#STOPPED} state.
+   *
    * @param programId the program to check
    * @return true if the program is running; false otherwise.
    */
@@ -148,12 +162,14 @@ public interface ApplicationManager {
 
   /**
    * Gets the history of the program
+   *
    * @return list of {@link RunRecord} history
    */
   List<RunRecord> getHistory(Id.Program programId, ProgramRunStatus status);
 
   /**
    * Gets the history of the program
+   *
    * @return list of {@link RunRecord} history
    */
   List<RunRecord> getHistory(ProgramId programId, ProgramRunStatus status);
@@ -186,17 +202,15 @@ public interface ApplicationManager {
 
   /**
    * Upgrades the application.
-   *
-   * @throws Exception
    */
   void upgrade() throws Exception;
 
   /**
    * Upgrades the application.
    *
-   * @param artifactScopes Scopes in which to look for artifacts for upgrade. If null, then search in all scopes.
+   * @param artifactScopes Scopes in which to look for artifacts for upgrade. If null, then
+   *     search in all scopes.
    * @param allowSnapshot Consider snapshot version of artifacts for upgrade or not.
-   * @throws Exception
    */
   void upgrade(Set<String> artifactScopes, boolean allowSnapshot) throws Exception;
 

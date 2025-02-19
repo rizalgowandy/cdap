@@ -16,6 +16,8 @@
 
 package io.cdap.cdap.security.auth;
 
+import static org.junit.Assert.assertEquals;
+
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import io.cdap.cdap.common.conf.CConfiguration;
@@ -25,9 +27,6 @@ import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
 import io.cdap.cdap.common.io.Codec;
 import io.cdap.cdap.security.guice.FileBasedCoreSecurityModule;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -35,8 +34,8 @@ import java.util.Random;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
-import static org.junit.Assert.assertEquals;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Test serialization and deserialization of KeyIdentifiers.
@@ -85,11 +84,12 @@ public class TestKeyIdentifierCodec {
     SecretKeySpec keySpec = new SecretKeySpec(secretKeyBytes, algorithm);
     KeyIdentifier expectedKeyIdentifier = new KeyIdentifier(keySpec, keyId, expiration);
 
-    String jsonKeyIdentifier = String.format("{\"encodedKey\": \"%s\", \"algorithm\": \"%s\", " +
-                                               "\"keyId\": %d, \"expiration\": %d}",
-                                             Base64.getEncoder().encodeToString(secretKeyBytes), algorithm, keyId,
-                                             expiration);
-    KeyIdentifier decodedKeyIdentifier = keyIdentifierCodec.decode(jsonKeyIdentifier.getBytes(StandardCharsets.UTF_8));
+    String jsonKeyIdentifier = String.format("{\"encodedKey\": \"%s\", \"algorithm\": \"%s\", "
+            + "\"keyId\": %d, \"expiration\": %d}",
+        Base64.getEncoder().encodeToString(secretKeyBytes), algorithm, keyId,
+        expiration);
+    KeyIdentifier decodedKeyIdentifier = keyIdentifierCodec.decode(
+        jsonKeyIdentifier.getBytes(StandardCharsets.UTF_8));
     assertEquals(expectedKeyIdentifier, decodedKeyIdentifier);
   }
 

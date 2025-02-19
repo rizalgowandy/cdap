@@ -19,30 +19,38 @@ package io.cdap.cdap.internal.app.store;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import io.cdap.cdap.AllProgramsApp;
 import io.cdap.cdap.api.app.ApplicationSpecification;
 import io.cdap.cdap.api.artifact.ArtifactId;
 import io.cdap.cdap.app.store.ScanApplicationsRequest;
 import io.cdap.cdap.common.app.RunIds;
+import io.cdap.cdap.common.utils.ProjectInfo;
 import io.cdap.cdap.internal.AppFabricTestHelper;
+import io.cdap.cdap.internal.app.ApplicationSpecificationAdapter;
+import io.cdap.cdap.internal.app.DefaultApplicationSpecification;
 import io.cdap.cdap.internal.app.deploy.Specifications;
 import io.cdap.cdap.internal.app.runtime.SystemArguments;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramType;
+import io.cdap.cdap.proto.artifact.ChangeDetail;
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
+import io.cdap.cdap.proto.id.ProgramReference;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import io.cdap.cdap.spi.data.SortOrder;
+import io.cdap.cdap.spi.data.StructuredTable;
+import io.cdap.cdap.spi.data.table.field.Field;
+import io.cdap.cdap.spi.data.table.field.Fields;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-import org.apache.twill.api.RunId;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
+import io.cdap.cdap.store.StoreDefinition;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,18 +64,31 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.twill.api.RunId;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test AppMetadataStore.
  */
 public abstract class AppMetadataStoreTest {
+  private static final Logger LOG = LoggerFactory.getLogger(AppMetadataStoreTest.class);
+
   protected static TransactionRunner transactionRunner;
   private static final List<ProgramRunStatus> STOP_STATUSES =
     ImmutableList.of(ProgramRunStatus.COMPLETED, ProgramRunStatus.FAILED, ProgramRunStatus.KILLED);
@@ -77,6 +98,7 @@ public abstract class AppMetadataStoreTest {
 
   private final AtomicInteger sourceId = new AtomicInteger();
   private final AtomicLong runIdTime = new AtomicLong();
+  private final Long creationTimeMillis = System.currentTimeMillis();
 
   @Before
   public void before() {
@@ -718,6 +740,118 @@ public abstract class AppMetadataStoreTest {
   }
 
   @Test
+  public void testGetNumberOfActiveRunsAcrossVersions() throws Exception {
+    // write a run record for each state for 2 programs in 1 app (with 2 versions) in 2 namespaces
+    String app1 = "app1";
+    String program1 = "prog1";
+    String program2 = "prog2";
+    String v1 = "test-version-1";
+    String v2 = "test-version-2";
+
+    Collection<NamespaceId> namespaces = Arrays.asList(new NamespaceId("ns1"), new NamespaceId("ns2"));
+    Collection<ApplicationId> apps = namespaces.stream()
+        .flatMap(ns -> Stream.of(ns.app(app1, v1), ns.app(app1, v2)))
+        .collect(Collectors.toList());
+    Collection<ProgramId> programs = apps.stream()
+        .flatMap(app -> Stream.of(app.mr(program1), app.mr(program2)))
+        .collect(Collectors.toList());
+
+    // collect the program references to a set, the size of this set should be 4 (2 namespaces * 2 programs)
+    Collection<ProgramReference> programRefs = programs.stream()
+        .map(ProgramId::getProgramReference)
+        .collect(Collectors.toSet());
+    Assert.assertEquals(4, programRefs.size());
+
+    for (ProgramId programId : programs) {
+      TransactionRunners.run(transactionRunner, context -> {
+        AppMetadataStore store = AppMetadataStore.create(context);
+        // one in REJECTED state
+        ProgramRunId runId = programId.run(RunIds.generate());
+        store.recordProgramRejected(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+
+        // one run in pending state
+        runId = programId.run(RunIds.generate());
+        store.recordProgramProvisioning(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+
+        // one run in starting state
+        runId = programId.run(RunIds.generate());
+        store.recordProgramProvisioning(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+        store.recordProgramProvisioned(runId, 3, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        store.recordProgramStart(runId, UUID.randomUUID().toString(), Collections.emptyMap(),
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+
+        // one run in running state
+        runId = programId.run(RunIds.generate());
+        store.recordProgramProvisioning(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+        store.recordProgramProvisioned(runId, 3, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        String twillRunId = UUID.randomUUID().toString();
+        store.recordProgramStart(runId, twillRunId, Collections.emptyMap(),
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        store.recordProgramRunning(runId, System.currentTimeMillis(), twillRunId,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+
+        // one in suspended state
+        runId = programId.run(RunIds.generate());
+        store.recordProgramProvisioning(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+        store.recordProgramProvisioned(runId, 3, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        twillRunId = UUID.randomUUID().toString();
+        store.recordProgramStart(runId, twillRunId, Collections.emptyMap(),
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        store.recordProgramRunning(runId, System.currentTimeMillis(), twillRunId,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        store.recordProgramSuspend(runId, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()),
+            System.currentTimeMillis());
+
+        // one run in stopping state
+        runId = programId.run(RunIds.generate());
+        store.recordProgramProvisioning(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+        store.recordProgramProvisioned(runId, 3, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        twillRunId = UUID.randomUUID().toString();
+        store.recordProgramStart(runId, twillRunId, Collections.emptyMap(),
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        store.recordProgramRunning(runId, System.currentTimeMillis(), twillRunId,
+            AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        store.recordProgramStopping(runId, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()),
+            System.currentTimeMillis(), System.currentTimeMillis() + 1000);
+
+        // one run in each stopped state
+        for (ProgramRunStatus runStatus : ProgramRunStatus.values()) {
+          if (!runStatus.isEndState() || runStatus == ProgramRunStatus.REJECTED) {
+            continue;
+          }
+          runId = programId.run(RunIds.generate());
+          store.recordProgramProvisioning(runId, Collections.emptyMap(), SINGLETON_PROFILE_MAP,
+              AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()), ARTIFACT_ID);
+          store.recordProgramProvisioned(runId, 3, AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+          twillRunId = UUID.randomUUID().toString();
+          store.recordProgramStart(runId, twillRunId, Collections.emptyMap(),
+              AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+          store.recordProgramStop(runId, System.currentTimeMillis(), runStatus, null,
+              AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        }
+      });
+    }
+
+    // test get number of active runs. It checks if the number of active runs per program, per namespace
+    // is equal to 10. (2 versions each * 5 active states)
+    TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore store = AppMetadataStore.create(context);
+
+      // check active runs per program reference
+      for (ProgramReference programRef: programRefs) {
+        int numActiveRuns = store.getProgramActiveRunsCount(programRef);
+        Assert.assertEquals(10, numActiveRuns);
+      }
+    });
+  }
+
+  @Test
   public void testDuplicateWritesIgnored() throws Exception {
     ApplicationId application = NamespaceId.DEFAULT.app("app");
     ProgramId program = application.program(ProgramType.values()[ProgramType.values().length - 1],
@@ -727,7 +861,7 @@ public abstract class AppMetadataStoreTest {
     byte[] sourceId = new byte[] { 0 };
     TransactionRunners.run(transactionRunner, context -> {
       AppMetadataStore store = AppMetadataStore.create(context);
-      assertSecondCallIsNull(() -> store.recordProgramProvisioning(runId, null, SINGLETON_PROFILE_MAP,
+      Assert.assertNotNull(store.recordProgramProvisioning(runId, null, SINGLETON_PROFILE_MAP,
                                                                    sourceId, ARTIFACT_ID));
       assertSecondCallIsNull(() -> store.recordProgramProvisioned(runId, 0, sourceId));
       assertSecondCallIsNull(() -> store.recordProgramStart(runId, null, Collections.emptyMap(), sourceId));
@@ -923,10 +1057,27 @@ public abstract class AppMetadataStoreTest {
       String appName = "test" + i;
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
-        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec);
-        store.writeApplication(NamespaceId.SYSTEM.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec);
+        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
+        store.writeApplication(NamespaceId.SYSTEM.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
     }
+
+    // create new version of the application and mark older version as false
+    for (int i = 0; i < 20; i++) {
+      String appName = "test" + i;
+      TransactionRunners.run(transactionRunner, context -> {
+        AppMetadataStore store = AppMetadataStore.create(context);
+        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName,
+            ApplicationId.DEFAULT_VERSION, appSpec,
+            new ChangeDetail(null, null, null, creationTimeMillis), null, false);
+        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName,
+            ApplicationId.DEFAULT_VERSION + "1", appSpec,
+            new ChangeDetail(null, null, null, creationTimeMillis), null);
+      });
+    }
+
     TransactionRunners.run(transactionRunner, context -> {
       AppMetadataStore store = AppMetadataStore.create(context);
       long count =  store.getApplicationCount();
@@ -960,7 +1111,8 @@ public abstract class AppMetadataStoreTest {
       String appName = "test" + i;
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
-        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec);
+        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
     }
 
@@ -989,7 +1141,8 @@ public abstract class AppMetadataStoreTest {
       String appName = "test" + i;
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
-        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec);
+        store.writeApplication(NamespaceId.DEFAULT.getNamespace(), appName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
     }
 
@@ -1111,14 +1264,16 @@ public abstract class AppMetadataStoreTest {
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
         store.writeApplication(NamespaceId.DEFAULT.getNamespace(),
-                               defaultAppName, ApplicationId.DEFAULT_VERSION, appSpec);
+                               defaultAppName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
 
       String cdapAppName = "test" + (2 * i + 1);
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
         store.writeApplication(NamespaceId.CDAP.getNamespace(),
-                               cdapAppName, ApplicationId.DEFAULT_VERSION, appSpec);
+                               cdapAppName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
     }
 
@@ -1147,14 +1302,16 @@ public abstract class AppMetadataStoreTest {
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
         store.writeApplication(NamespaceId.DEFAULT.getNamespace(),
-            defaultAppName, ApplicationId.DEFAULT_VERSION, appSpec);
+            defaultAppName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
 
       String cdapAppName = "test" + (2 * i + 1);
       TransactionRunners.run(transactionRunner, context -> {
         AppMetadataStore store = AppMetadataStore.create(context);
         store.writeApplication(NamespaceId.CDAP.getNamespace(),
-            cdapAppName, ApplicationId.DEFAULT_VERSION, appSpec);
+            cdapAppName, ApplicationId.DEFAULT_VERSION, appSpec,
+                               new ChangeDetail(null, null, null, creationTimeMillis), null);
       });
     }
 
@@ -1308,10 +1465,13 @@ public abstract class AppMetadataStoreTest {
 
     TransactionRunners.run(transactionRunner, context -> {
       AppMetadataStore store = AppMetadataStore.create(context);
-      Map<ProgramId, Long> counts = store.getProgramRunCounts(ImmutableList.of(programId1, programId2, programId3));
-      Assert.assertEquals(5, (long) counts.get(programId1));
-      Assert.assertEquals(3, (long) counts.get(programId2));
-      Assert.assertEquals(0, (long) counts.get(programId3));
+      Map<ProgramReference, Long> counts =
+        store.getProgramTotalRunCounts(ImmutableList.of(programId1.getProgramReference(),
+                                                        programId2.getProgramReference(),
+                                                        programId3.getProgramReference()));
+      Assert.assertEquals(5, (long) counts.get(programId1.getProgramReference()));
+      Assert.assertEquals(3, (long) counts.get(programId2.getProgramReference()));
+      Assert.assertEquals(0, (long) counts.get(programId3.getProgramReference()));
     });
 
     // after cleanup we should only have 0 runs for all programs
@@ -1324,24 +1484,300 @@ public abstract class AppMetadataStoreTest {
 
     TransactionRunners.run(transactionRunner, context -> {
       AppMetadataStore store = AppMetadataStore.create(context);
-      Map<ProgramId, Long> counts = store.getProgramRunCounts(ImmutableList.of(programId1, programId2, programId3));
-      Assert.assertEquals(0, (long) counts.get(programId1));
-      Assert.assertEquals(0, (long) counts.get(programId2));
-      Assert.assertEquals(0, (long) counts.get(programId3));
+      Map<ProgramReference, Long> counts =
+        store.getProgramTotalRunCounts(ImmutableList.of(programId1.getProgramReference(),
+                                                        programId2.getProgramReference(),
+                                                        programId3.getProgramReference()));
+      Assert.assertEquals(0, (long) counts.get(programId1.getProgramReference()));
+      Assert.assertEquals(0, (long) counts.get(programId2.getProgramReference()));
+      Assert.assertEquals(0, (long) counts.get(programId3.getProgramReference()));
     });
   }
 
+  @Test
+  public void testConcurrentCreateAppFirstVersion() throws Exception {
+    String appName = "application1";
+    ArtifactId artifactId = NamespaceId.DEFAULT.artifact("testArtifact", "1.0").toApiArtifactId();
+    ApplicationReference appRef = new ApplicationReference(NamespaceId.DEFAULT, appName);
+
+    // Concurrently deploy different fist version of the same application
+    int numThreads = 10;
+    AtomicInteger idGenerator = new AtomicInteger();
+    runConcurrentOperation("concurrent-first-deploy-application", numThreads, () ->
+      TransactionRunners.run(transactionRunner, context -> {
+        AppMetadataStore metaStore = AppMetadataStore.create(context);
+        int id = idGenerator.getAndIncrement();
+        ApplicationId appId = appRef.app(appName + "_version_" + id);
+        ApplicationSpecification spec = createDummyAppSpec(appId.getApplication(), appId.getVersion(), artifactId);
+        ApplicationMeta meta = new ApplicationMeta(spec.getName(), spec,
+                                                   new ChangeDetail(null, null, null,
+                                                                    creationTimeMillis + id));
+        metaStore.createLatestApplicationVersion(appId, meta);
+      })
+    );
+
+    // Verify latest version
+    AtomicInteger latestVersionCount = new AtomicInteger();
+    AtomicInteger allVersionsCount = new AtomicInteger();
+    AtomicInteger appEditNumber = new AtomicInteger();
+    TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore metaStore = AppMetadataStore.create(context);
+      List<ApplicationMeta> allVersions = new ArrayList<>();
+      metaStore.scanApplications(
+        ScanApplicationsRequest.builder().setApplicationReference(appRef).build(),
+        entry -> {
+          allVersions.add(entry.getValue());
+          return true;
+        });
+
+      List<String> latestVersions = allVersions
+        .stream()
+        .filter(version -> {
+          Assert.assertNotNull(version.getChange());
+          Assert.assertNotNull(version.getChange().getLatest());
+          return version.getChange().getLatest().equals(true);
+        })
+        .map(version -> version.getSpec().getAppVersion())
+        .collect(Collectors.toList());
+      allVersionsCount.set(allVersions.size());
+      latestVersionCount.set(latestVersions.size());
+      appEditNumber.set(metaStore.getApplicationEditNumber(appRef));
+    });
+
+    // There can only be one latest version
+    Assert.assertEquals(1, latestVersionCount.get());
+    Assert.assertEquals(numThreads, allVersionsCount.get());
+    Assert.assertEquals(numThreads, appEditNumber.get());
+  }
+
+  @Test
+  public void testConcurrentCreateAppAfterTheFirstVersion() throws Exception {
+    String appName = "application1";
+    ArtifactId artifactId = NamespaceId.DEFAULT.artifact("testArtifact", "1.0").toApiArtifactId();
+    ApplicationReference appRef = new ApplicationReference(NamespaceId.DEFAULT, appName);
+
+    AtomicInteger idGenerator = new AtomicInteger();
+    // Deploy the first version
+    TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore metaStore = AppMetadataStore.create(context);
+      int id = idGenerator.getAndIncrement();
+      ApplicationId appId = appRef.app(appName + "_version_" + id);
+      ApplicationSpecification spec = createDummyAppSpec(appId.getApplication(), appId.getVersion(), artifactId);
+      ApplicationMeta meta = new ApplicationMeta(spec.getName(), spec,
+                                                 new ChangeDetail(null, null, null,
+                                                                  creationTimeMillis + id));
+      metaStore.createLatestApplicationVersion(appId, meta);
+    });
+
+    // Concurrently deploy different versions of the same application
+    int numThreads = 10;
+    runConcurrentOperation("concurrent-second-deploy-application", numThreads, () ->
+      TransactionRunners.run(transactionRunner, context -> {
+        AppMetadataStore metaStore = AppMetadataStore.create(context);
+        int id = idGenerator.getAndIncrement();
+        ApplicationId appId = appRef.app(appName + "_version_" + id);
+        ApplicationSpecification spec = createDummyAppSpec(appId.getApplication(), appId.getVersion(), artifactId);
+        ApplicationMeta meta = new ApplicationMeta(spec.getName(), spec,
+                                                   new ChangeDetail(null, null, null,
+                                                                    creationTimeMillis + id));
+        metaStore.createLatestApplicationVersion(appId, meta);
+      })
+    );
+
+    // Verify latest version
+    AtomicInteger latestVersionCount = new AtomicInteger();
+    AtomicInteger allVersionsCount = new AtomicInteger();
+    AtomicInteger appEditNumber = new AtomicInteger();
+    TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore metaStore = AppMetadataStore.create(context);
+      List<ApplicationMeta> allVersions = new ArrayList<>();
+      metaStore.scanApplications(
+        ScanApplicationsRequest.builder().setApplicationReference(appRef).build(),
+        entry -> {
+          allVersions.add(entry.getValue());
+          return true;
+        });
+      List<String> latestVersions = allVersions
+        .stream()
+        .filter(version -> {
+          Assert.assertNotNull(version.getChange());
+          Assert.assertNotNull(version.getChange().getLatest());
+          return version.getChange().getLatest().equals(true);
+        })
+        .map(version -> version.getSpec().getAppVersion())
+        .collect(Collectors.toList());
+      allVersionsCount.set(allVersions.size());
+      latestVersionCount.set(latestVersions.size());
+      appEditNumber.set(metaStore.getApplicationEditNumber(appRef));
+    });
+
+    // There can only be one latest version
+    Assert.assertEquals(1, latestVersionCount.get());
+    Assert.assertEquals(1 + numThreads, allVersionsCount.get());
+    Assert.assertEquals(1 + numThreads, appEditNumber.get());
+  }
+
+  @Test
+  public void testDeleteCompletedRunsStartedBefore() throws Exception {
+    // Map an iterator to one of 15 different program+workflow permutations. Used to ensure
+    // (1) Multiple types of ProgramId exist (2) Multiple runs exist for each ProgramId.
+    IntFunction<ProgramId> getProgramId =
+        (int i) ->
+            NamespaceId.DEFAULT
+                .app(String.format("test%d", i % 3))
+                .workflow(String.format("test%d", i % 5));
+
+    Instant ttlCutoff = Instant.ofEpochSecond(1631629389);
+
+    Set<ProgramRunId> shouldExpire =
+        IntStream.range(1, 101)
+            .mapToObj(i -> createCompletedRun(getProgramId.apply(i), ttlCutoff.minusSeconds(i)))
+            .collect(Collectors.toSet());
+    Set<ProgramRunId> shouldNotExpire =
+        IntStream.range(1, 101)
+            .mapToObj(i -> createCompletedRun(getProgramId.apply(i), ttlCutoff.plusSeconds(i)))
+            .collect(Collectors.toSet());
+
+    TransactionRunners.run(
+        transactionRunner,
+        context -> {
+          AppMetadataStore store = AppMetadataStore.create(context);
+
+          // Check that run data exists for both job sets initially.
+          store.getRuns(shouldExpire).values().forEach(Assert::assertNotNull);
+          store.getRuns(shouldNotExpire).values().forEach(Assert::assertNotNull);
+
+          // Run expiration process.
+          store.deleteCompletedRunsStartedBefore(ttlCutoff);
+        });
+
+    TransactionRunners.run(
+        transactionRunner,
+        context -> {
+          AppMetadataStore store = AppMetadataStore.create(context);
+
+          // Assert only the older runs were deleted.
+          store.getRuns(shouldExpire).values().forEach(Assert::assertNull);
+          store.getRuns(shouldNotExpire).values().forEach(Assert::assertNotNull);
+        });
+  }
+
+  /**
+   * Testcase for getting the latest application, where the application was deployed
+   * before 6.8.0 (where the latest column is not set).
+   * In this case, first insert a row in app spec table with the latest column set to null.
+   * This step is expected to fail in the NoSql implementation.
+   */
+  @Test
+  public void testGetLatestOnLegacyRows() throws Exception {
+    Gson GSON = ApplicationSpecificationAdapter.addTypeAdapters(new GsonBuilder()).create();
+    // insert a row in appspec table with latest column set to null
+    String appName = "legacy_app_without_latest";
+    String appVersion = ApplicationId.DEFAULT_VERSION;
+    ApplicationReference appRef = new ApplicationReference(NamespaceId.DEFAULT, appName);
+
+    ArtifactId artifactId = NamespaceId.DEFAULT.artifact("testArtifact", "1.0").toApiArtifactId();
+    ApplicationId appId = appRef.app(appVersion);
+    ApplicationSpecification spec = createDummyAppSpec(appId.getApplication(), appId.getVersion(), artifactId);
+    ApplicationMeta appMeta = new ApplicationMeta(appName, spec, null, null);
+
+    TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore metaStore = AppMetadataStore.create(context);
+      metaStore.createLatestApplicationVersion(appId, appMeta);
+      StructuredTable appSpecTable = context.getTable(
+          StoreDefinition.AppMetadataStore.APPLICATION_SPECIFICATIONS);
+
+      List<Field<?>> fields = metaStore.getApplicationPrimaryKeys(
+          NamespaceId.DEFAULT.getNamespace(), appName, appVersion);
+      fields.add(Fields.booleanField(StoreDefinition.AppMetadataStore.LATEST_FIELD, null));
+      appSpecTable.upsert(fields);
+    });
+
+    ApplicationMeta latestAppMeta = TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore metaStore = AppMetadataStore.create(context);
+      return metaStore.getLatest(appRef);
+    });
+
+    Assert.assertEquals(appName, latestAppMeta.getId());
+    Assert.assertEquals(appVersion, latestAppMeta.getSpec().getAppVersion());
+  }
+
+  /**
+   * Creates a new run of {@code programRunId} in the completed state with a starting time of {@code
+   * startingTime} and returns its corresponding run id.
+   *
+   * <p>The job will enter the following states: Provisioning -> Provisioned -> Starting -> Running
+   * -> Completed
+   *
+   * <p>The "start" and "end" times for the returned RunId will be after the provided "starting"
+   * time.
+   */
+  private ProgramRunId createCompletedRun(ProgramId programId, Instant startingTime) {
+    RunId runId = RunIds.generate(startingTime.toEpochMilli());
+    ProgramRunId run = programId.run(runId);
+
+    TransactionRunners.run(
+        transactionRunner,
+        context -> {
+          AppMetadataStore store = AppMetadataStore.create(context);
+          recordProvisionAndStart(run, store);
+          store.recordProgramRunning(
+              run,
+              startingTime.plusSeconds(10).getEpochSecond(),
+              null,
+              AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+          store.recordProgramStop(
+              run,
+              startingTime.plusSeconds(20).getEpochSecond(),
+              ProgramRunStatus.COMPLETED,
+              null,
+              AppFabricTestHelper.createSourceId(sourceId.incrementAndGet()));
+        });
+    return run;
+  }
+
+  /**
+   * Adds {@code count} new runs of {@code programRunId} in the completed state, returning their
+   * corresponding run ids.
+   */
   private List<ProgramRunId> addProgramCount(ProgramId programId, int count) throws Exception {
+    Instant startTimeBase = Instant.ofEpochSecond(0);
     List<ProgramRunId> runIds = new ArrayList<>();
     for (int i = 0; i < count; i++) {
-      RunId runId = RunIds.generate(i * 1000);
-      ProgramRunId run = programId.run(runId);
-      runIds.add(run);
-      TransactionRunners.run(transactionRunner, context -> {
-        AppMetadataStore store = AppMetadataStore.create(context);
-        recordProvisionAndStart(run, store);
-      });
+      runIds.add(createCompletedRun(programId, startTimeBase.plusSeconds(i)));
     }
     return runIds;
+  }
+
+  private ApplicationSpecification createDummyAppSpec(String appName, String appVersion, ArtifactId artifactId) {
+    return new DefaultApplicationSpecification(
+      appName, appVersion, ProjectInfo.getVersion().toString(), "desc", null, artifactId,
+      Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+      Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+      Collections.emptyMap());
+  }
+
+  private void runConcurrentOperation(String name, int numThreads, Runnable runnable) throws Exception {
+    ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+    CountDownLatch startLatch = new CountDownLatch(1);
+    CountDownLatch doneLatch = new CountDownLatch(numThreads);
+    try {
+      for (int i = 0; i < numThreads; ++i) {
+        executorService.submit(() -> {
+          try {
+            startLatch.await();
+            runnable.run();
+            doneLatch.countDown();
+          } catch (Exception e) {
+            LOG.error("Error performing concurrent operation {}", name, e);
+          }
+        });
+      }
+
+      startLatch.countDown();
+      doneLatch.await(30, TimeUnit.SECONDS);
+    } finally {
+      executorService.shutdown();
+    }
   }
 }

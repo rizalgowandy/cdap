@@ -28,14 +28,13 @@ import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProfileId;
 import io.cdap.cdap.proto.id.ProgramId;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.twill.api.Configs;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Unit tests for {@link SystemArguments}.
@@ -120,6 +119,19 @@ public class SystemArgumentsTest {
     // Specify >= container memory size
     configs = SystemArguments.getTwillContainerConfigs(
       ImmutableMap.of(SystemArguments.RESERVED_MEMORY_KEY_OVERRIDE, "300"), 300);
+    Assert.assertTrue(configs.isEmpty());
+  }
+
+  @Test
+  public void testGetTwillApplicationConfigs() {
+    // disable cleanup config specified
+    Map<String, String> configs = SystemArguments.getTwillApplicationConfigs(
+      ImmutableMap.of(SystemArguments.RUNTIME_CLEANUP_DISABLED, "true"));
+    Assert.assertTrue("unexpected value for config: " + SystemArguments.RUNTIME_CLEANUP_DISABLED,
+                      Boolean.parseBoolean(configs.get(SystemArguments.RUNTIME_CLEANUP_DISABLED)));
+
+    // disable cleanup config not specified
+    configs = SystemArguments.getTwillApplicationConfigs(ImmutableMap.of(SystemArguments.MEMORY_KEY, "10"));
     Assert.assertTrue(configs.isEmpty());
   }
 

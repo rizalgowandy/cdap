@@ -17,39 +17,39 @@
 package io.cdap.cdap.internal.app.runtime.artifact;
 
 import com.google.inject.Inject;
-import io.cdap.cdap.app.runtime.ProgramRunnerFactory;
 import io.cdap.cdap.common.ArtifactNotFoundException;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.io.Locations;
 import io.cdap.cdap.internal.app.worker.sidecar.ArtifactLocalizerClient;
 import io.cdap.cdap.proto.id.ArtifactId;
+import java.io.IOException;
 import org.apache.twill.filesystem.Location;
 
-import java.io.IOException;
-
 /**
- * {@link RemoteArtifactRepositoryWithLocalization} is an extension of {@link RemoteArtifactRepository}
- * that localizes artifacts and use their local locations in returned values.
+ * {@link RemoteArtifactRepositoryWithLocalization} is an extension of {@link
+ * RemoteArtifactRepository} that localizes artifacts and use their local locations in returned
+ * values.
  *
- * This implementation uses {@link ArtifactLocalizerClient} to download and cache artifacts on the local
- * file system.
+ * This implementation uses {@link ArtifactLocalizerClient} to download and cache artifacts on the
+ * local file system.
  */
 public class RemoteArtifactRepositoryWithLocalization extends RemoteArtifactRepository {
+
   private final ArtifactLocalizerClient artifactLocalizerClient;
 
   @Inject
-  RemoteArtifactRepositoryWithLocalization(CConfiguration cConf, ArtifactRepositoryReader artifactRepositoryReader,
-                                           ProgramRunnerFactory programRunnerFactory,
-                                           ArtifactLocalizerClient artifactLocalizerClient) {
-    super(cConf, artifactRepositoryReader, programRunnerFactory);
+  RemoteArtifactRepositoryWithLocalization(CConfiguration cConf,
+      ArtifactRepositoryReader artifactRepositoryReader,
+      ArtifactLocalizerClient artifactLocalizerClient) {
+    super(cConf, artifactRepositoryReader);
     this.artifactLocalizerClient = artifactLocalizerClient;
   }
 
   @Override
   protected Location getArtifactLocation(ArtifactDescriptor descriptor) throws IOException {
     ArtifactId artifactId = new ArtifactId(descriptor.getNamespace(),
-                       descriptor.getArtifactId().getName(),
-                       descriptor.getArtifactId().getVersion().getVersion());
+        descriptor.getArtifactId().getName(),
+        descriptor.getArtifactId().getVersion().getVersion());
     try {
       return Locations.toLocation(artifactLocalizerClient.getArtifactLocation(artifactId));
     } catch (ArtifactNotFoundException e) {

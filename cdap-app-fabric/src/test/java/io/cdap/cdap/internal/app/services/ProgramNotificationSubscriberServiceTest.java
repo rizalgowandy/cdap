@@ -33,6 +33,7 @@ import io.cdap.cdap.app.runtime.ProgramStateWriter;
 import io.cdap.cdap.common.app.RunIds;
 import io.cdap.cdap.common.conf.CConfiguration;
 import io.cdap.cdap.common.conf.Constants;
+import io.cdap.cdap.common.conf.Constants.Metrics.FlowControl;
 import io.cdap.cdap.common.id.Id;
 import io.cdap.cdap.common.utils.ProjectInfo;
 import io.cdap.cdap.common.utils.Tasks;
@@ -46,6 +47,7 @@ import io.cdap.cdap.internal.app.runtime.workflow.WorkflowStateWriter;
 import io.cdap.cdap.internal.app.store.AppMetadataStore;
 import io.cdap.cdap.internal.app.store.RunRecordDetail;
 import io.cdap.cdap.internal.profile.ProfileService;
+import io.cdap.cdap.proto.ApplicationDetail;
 import io.cdap.cdap.proto.ProgramRunClusterStatus;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramType;
@@ -58,13 +60,6 @@ import io.cdap.cdap.proto.profile.Profile;
 import io.cdap.cdap.reporting.ProgramHeartbeatTable;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-import org.apache.twill.api.RunId;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,6 +70,12 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.apache.twill.api.RunId;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Tests program run state persistence.
@@ -90,10 +91,12 @@ public class ProgramNotificationSubscriberServiceTest {
 
   @BeforeClass
   public static void setupClass() {
-    injector = AppFabricTestHelper.getInjector();
-    cConf = injector.getInstance(CConfiguration.class);
+    cConf = CConfiguration.create();
     // we only want to process and check program status messages processed by heart beat store, so set high value
     cConf.set(Constants.ProgramHeartbeat.HEARTBEAT_INTERVAL_SECONDS, String.valueOf(TimeUnit.HOURS.toSeconds(1)));
+    cConf.setInt(Constants.AppFabric.PROGRAM_STATUS_EVENT_NUM_PARTITIONS, 10);
+
+    injector = AppFabricTestHelper.getInjector(cConf);
 
     programStateWriter = injector.getInstance(ProgramStateWriter.class);
     workflowStateWriter = injector.getInstance(WorkflowStateWriter.class);
@@ -116,9 +119,11 @@ public class ProgramNotificationSubscriberServiceTest {
   @Test
   public void testWorkflowInnerPrograms() throws Exception {
     AppFabricTestHelper.deployApplication(Id.Namespace.DEFAULT, ProgramStateWorkflowApp.class, null, cConf);
+    ApplicationDetail appDetail = AppFabricTestHelper.getAppInfo(Id.Namespace.DEFAULT,
+                                                                 ProgramStateWorkflowApp.class.getSimpleName(), cConf);
 
     ProgramRunId workflowRunId = NamespaceId.DEFAULT
-      .app(ProgramStateWorkflowApp.class.getSimpleName())
+      .app(ProgramStateWorkflowApp.class.getSimpleName(), appDetail.getAppVersion())
       .workflow(ProgramStateWorkflowApp.ProgramStateWorkflow.class.getSimpleName())
       .run(RunIds.generate());
 
@@ -176,6 +181,16 @@ public class ProgramNotificationSubscriberServiceTest {
 
     // Stop the Spark normally
     programStateWriter.completed(sparkRunId);
+
+    // Wait for Spark to turn to COMPLETED
+    Tasks.waitFor(ProgramRunStatus.COMPLETED, () -> TransactionRunners.run(transactionRunner, context -> {
+      AppMetadataStore metadataStoreDataset = AppMetadataStore.create(context);
+      RunRecordDetail meta = metadataStoreDataset.getRun(sparkRunId);
+      if (meta == null) {
+        return null;
+      }
+      return meta.getStatus();
+    }), 10000, TimeUnit.SECONDS);
 
     // Error out the Workflow without stopping the MR
     programStateWriter.error(workflowRunId, new IllegalStateException("Explicitly error out"));
@@ -294,6 +309,67 @@ public class ProgramNotificationSubscriberServiceTest {
     metricStore.deleteAll();
   }
 
+  @Test
+  public void testLaunchingCountMetricsOnRestart() throws Exception {
+    AppFabricTestHelper.deployApplication(Id.Namespace.DEFAULT, ProgramStateWorkflowApp.class, null,
+        cConf);
+    ApplicationDetail appDetail = AppFabricTestHelper.getAppInfo(Id.Namespace.DEFAULT,
+        ProgramStateWorkflowApp.class.getSimpleName(), cConf);
+
+    ProgramRunId workflowRunId = NamespaceId.DEFAULT
+        .app(ProgramStateWorkflowApp.class.getSimpleName(), appDetail.getAppVersion())
+        .workflow(ProgramStateWorkflowApp.ProgramStateWorkflow.class.getSimpleName())
+        .run(RunIds.generate());
+
+    ApplicationSpecification appSpec = TransactionRunners.run(transactionRunner, context -> {
+      return AppMetadataStore.create(context).getApplication(workflowRunId.getParent().getParent())
+          .getSpec();
+    });
+
+    ProgramDescriptor programDescriptor = new ProgramDescriptor(workflowRunId.getParent(), appSpec);
+
+    // Start and run the workflow
+    Map<String, String> systemArgs = new HashMap<>();
+    systemArgs.put(ProgramOptionConstants.SKIP_PROVISIONING, Boolean.TRUE.toString());
+    systemArgs.put(SystemArguments.PROFILE_NAME, ProfileId.NATIVE.getScopedName());
+    TransactionRunners.run(transactionRunner, context -> {
+      programStateWriter.start(workflowRunId, new SimpleProgramOptions(workflowRunId.getParent(),
+          new BasicArguments(systemArgs),
+          new BasicArguments()), null, programDescriptor);
+    });
+    checkProgramStatus(appSpec.getArtifactId(), workflowRunId, ProgramRunStatus.STARTING);
+
+    ProgramNotificationSubscriberService notificationService = AppFabricTestHelper.getService(
+        ProgramNotificationSubscriberService.class);
+    // Restart the Notification service. We are not using the stopAndWait() because we don't want to
+    // terminate the main service.
+    notificationService.shutDown();
+    notificationService.startUp();
+
+    MetricStore metricStore = injector.getInstance(MetricStore.class);
+    // Wait for metrics to be written.
+    Tasks.waitFor(1L, () -> queryMetrics(metricStore,
+        SYSTEM_METRIC_PREFIX + FlowControl.LAUNCHING_COUNT, new HashMap<>()), 10, TimeUnit.SECONDS);
+    Assert.assertEquals(0L, queryMetrics(metricStore,
+        SYSTEM_METRIC_PREFIX + FlowControl.RUNNING_COUNT, new HashMap<>()));
+
+    TransactionRunners.run(transactionRunner, context -> {
+      programStateWriter.running(workflowRunId, null);
+    });
+    checkProgramStatus(appSpec.getArtifactId(), workflowRunId, ProgramRunStatus.RUNNING);
+    // Restart the Notification service. We are not using the stopAndWait() because we don't want to
+    // terminate the main service.
+    notificationService.shutDown();
+    notificationService.startUp();
+    // Running counts are not based on metadata store in FlowControlService so not asserting it
+    // here.
+    Tasks.waitFor(0L, () -> queryMetrics(metricStore,
+        SYSTEM_METRIC_PREFIX + FlowControl.LAUNCHING_COUNT, new HashMap<>()), 10, TimeUnit.SECONDS);
+
+    // Cleanup metrics.
+    metricStore.deleteAll();
+  }
+
   private Map<String, String> getAdditionalTagsForProgramMetrics(ProgramRunStatus existingStatus, String provisioner,
                                                                  ProgramRunClusterStatus clusterStatus) {
     Map<String, String> additionalTags = new HashMap<>();
@@ -402,7 +478,7 @@ public class ProgramNotificationSubscriberServiceTest {
       programStateWriter.stop(runId3, 10);
     });
     checkProgramStatus(artifactId, runId3, ProgramRunStatus.STOPPING);
-    heartbeatDatasetStatusCheck(stopTime, ProgramRunStatus.STOPPING);
+    heartbeatDatasetStatusCheck(stopTime, ProgramRunStatus.KILLED);
   }
 
   private void checkProgramStatus(ArtifactId artifactId, ProgramRunId runId, ProgramRunStatus expectedStatus)
@@ -446,8 +522,13 @@ public class ProgramNotificationSubscriberServiceTest {
       .put(Constants.Metrics.Tag.PROGRAM, programRunId.getProgram())
       .putAll(additionalTags)
       .build();
+    return queryMetrics(metricStore, metricName, tags);
+  }
+
+  private long queryMetrics(MetricStore metricStore, String metricName,
+      Map<String, String> tags) {
     MetricDataQuery query = new MetricDataQuery(0, 0, Integer.MAX_VALUE, metricName, AggregationFunction.SUM,
-                                                tags, new ArrayList<>());
+        tags, new ArrayList<>());
     Collection<MetricTimeSeries> result = metricStore.query(query);
     if (result.isEmpty()) {
       return 0;

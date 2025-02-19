@@ -30,7 +30,6 @@ import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.api.TransformContext;
 import io.cdap.cdap.etl.api.lineage.field.FieldTransformOperation;
 import io.cdap.cdap.etl.proto.v2.ETLPlugin;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,6 +41,7 @@ import java.util.stream.Collectors;
 @Plugin(type = Transform.PLUGIN_TYPE)
 @Name("Identity")
 public class IdentityTransform extends Transform<StructuredRecord, StructuredRecord> {
+
   public static final PluginClass PLUGIN_CLASS = getPluginClass();
 
   @Override
@@ -56,9 +56,9 @@ public class IdentityTransform extends Transform<StructuredRecord, StructuredRec
     Schema schema = context.getInputSchema();
     if (schema != null && schema.getFields() != null) {
       schema.getFields().stream().map(Schema.Field::getName).collect(Collectors.toList())
-        .forEach(field -> context.record(Collections.singletonList(
-          new FieldTransformOperation("Identity transform " + field, "Identity transform",
-                                      Collections.singletonList(field), field))));
+          .forEach(field -> context.record(Collections.singletonList(
+              new FieldTransformOperation("Identity transform " + field, "Identity transform",
+                  Collections.singletonList(field), field))));
     }
   }
 
@@ -67,12 +67,14 @@ public class IdentityTransform extends Transform<StructuredRecord, StructuredRec
     // should never happen, here to test app correctness in unit tests
     Schema inputSchema = context.getInputSchema();
     if (inputSchema != null && !inputSchema.equals(context.getOutputSchema())) {
-      throw new IllegalStateException("runtime schema does not match what was set at configure time.");
+      throw new IllegalStateException(
+          "runtime schema does not match what was set at configure time.");
     }
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
+  public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter)
+      throws Exception {
     emitter.emit(input);
   }
 
@@ -84,7 +86,8 @@ public class IdentityTransform extends Transform<StructuredRecord, StructuredRec
   private static PluginClass getPluginClass() {
     Map<String, PluginPropertyField> properties = new HashMap<>();
     return PluginClass.builder().setName("Identity").setType(Transform.PLUGIN_TYPE)
-             .setDescription("").setClassName(IdentityTransform.class.getName()).setProperties(properties)
-             .build();
+        .setDescription("").setClassName(IdentityTransform.class.getName())
+        .setProperties(properties)
+        .build();
   }
 }

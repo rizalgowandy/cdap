@@ -17,20 +17,20 @@
 package io.cdap.cdap.messaging.client;
 
 import com.google.common.base.Throwables;
-import io.cdap.cdap.messaging.RollbackDetail;
+import io.cdap.cdap.messaging.spi.RollbackDetail;
 import io.cdap.cdap.messaging.Schemas;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DecoderFactory;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-
 /**
- * Client side implementation of {@link RollbackDetail}. It retains the original encoded bytes as it is most likely
- * being used instead of the decoded form. The decoding happens on demand when the actual information is needed.
- * However, the need for decoding should be rare and is not needed in normal operation.
+ * Client side implementation of {@link RollbackDetail}. It retains the original encoded bytes as it
+ * is most likely being used instead of the decoded form. The decoding happens on demand when the
+ * actual information is needed. However, the need for decoding should be rare and is not needed in
+ * normal operation.
  */
 final class ClientRollbackDetail implements RollbackDetail {
 
@@ -42,7 +42,8 @@ final class ClientRollbackDetail implements RollbackDetail {
   }
 
   /**
-   * Returns the information contained in this class in the original encoded form as responded from the server.
+   * Returns the information contained in this class in the original encoded form as responded from
+   * the server.
    */
   byte[] getEncoded() {
     return encoded;
@@ -83,9 +84,11 @@ final class ClientRollbackDetail implements RollbackDetail {
       return decoded;
     }
 
-    BinaryDecoder decoder = DecoderFactory.get().directBinaryDecoder(new ByteArrayInputStream(encoded), null);
+    BinaryDecoder decoder = DecoderFactory.get()
+        .directBinaryDecoder(new ByteArrayInputStream(encoded), null);
     try {
-      decoded = new GenericDatumReader<GenericRecord>(Schemas.V1.PublishResponse.SCHEMA).read(null, decoder);
+      decoded = new GenericDatumReader<GenericRecord>(Schemas.V1.PublishResponse.SCHEMA).read(null,
+          decoder);
       return decoded;
     } catch (IOException e) {
       // This shouldn't happen, otherwise the server and client is not compatible

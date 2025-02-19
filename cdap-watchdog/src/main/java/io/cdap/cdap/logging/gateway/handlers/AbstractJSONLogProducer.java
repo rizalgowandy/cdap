@@ -26,7 +26,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
-
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +44,7 @@ public abstract class AbstractJSONLogProducer extends AbstractChunkedLogProducer
     super(logEventIter);
     this.channelBuffer = Unpooled.buffer(BUFFER_BYTES);
     this.jsonWriter = new JsonWriter(new OutputStreamWriter(new ByteBufOutputStream(channelBuffer),
-                                                            StandardCharsets.UTF_8));
+        StandardCharsets.UTF_8));
   }
 
   @Override

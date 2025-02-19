@@ -23,7 +23,6 @@ import io.cdap.cdap.api.service.http.AbstractHttpServiceHandler;
 import io.cdap.cdap.api.service.http.HttpServiceContext;
 import io.cdap.cdap.api.service.http.HttpServiceRequest;
 import io.cdap.cdap.api.service.http.HttpServiceResponder;
-
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 
@@ -31,6 +30,7 @@ import javax.ws.rs.Path;
  * Echo handler.
  */
 public final class PrefixedEchoHandler extends AbstractHttpServiceHandler {
+
   public static final String NAME = "echoHandler";
 
   private String sdf = "";

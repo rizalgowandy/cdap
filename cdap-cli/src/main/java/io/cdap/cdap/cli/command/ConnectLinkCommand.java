@@ -23,7 +23,6 @@ import io.cdap.cdap.cli.LaunchOptions;
 import io.cdap.cdap.cli.util.InstanceURIParser;
 import io.cdap.common.cli.Arguments;
 import io.cdap.common.cli.Command;
-
 import java.io.PrintStream;
 import javax.inject.Inject;
 
@@ -38,7 +37,7 @@ public class ConnectLinkCommand implements Command {
 
   @Inject
   public ConnectLinkCommand(CLIConfig cliConfig, InstanceURIParser instanceURIParser,
-                            LaunchOptions launchOptions) {
+      LaunchOptions launchOptions) {
     this.cliConfig = cliConfig;
     this.instanceURIParser = instanceURIParser;
     this.debug = launchOptions.isDebug();
@@ -49,7 +48,8 @@ public class ConnectLinkCommand implements Command {
     String instanceURI = arguments.get(ArgumentName.INSTANCE_URI.toString());
     String nameSpace = arguments.getOptional(ArgumentName.NAMESPACE_NAME.toString());
     String verifySSLCertString = arguments.getOptional(ArgumentName.VERIFY_SSL_CERT.toString());
-    boolean verifySSLCert = verifySSLCertString != null ? Boolean.valueOf(verifySSLCertString) : true;
+    boolean verifySSLCert =
+        verifySSLCertString != null ? Boolean.valueOf(verifySSLCertString) : true;
 
     CLIConnectionConfig connection = instanceURIParser.parseInstanceURI(instanceURI, nameSpace);
     try {
@@ -65,7 +65,7 @@ public class ConnectLinkCommand implements Command {
   @Override
   public String getPattern() {
     return String.format("connect-link <%s> [<%s>] [<%s>]",
-                         ArgumentName.INSTANCE_URI, ArgumentName.NAMESPACE_NAME,  ArgumentName.VERIFY_SSL_CERT);
+        ArgumentName.INSTANCE_URI, ArgumentName.NAMESPACE_NAME, ArgumentName.VERIFY_SSL_CERT);
   }
 
   @Override

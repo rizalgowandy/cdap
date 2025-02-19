@@ -22,21 +22,20 @@ import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.cdap.cdap.api.metadata.MetadataException;
 import io.cdap.cdap.api.metadata.MetadataReader;
 import io.cdap.cdap.api.metadata.MetadataScope;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.metadata.AbstractMetadataClient;
 import io.cdap.cdap.common.metadata.MetadataRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Implementation for {@link MetadataReader} which used {@link RemoteMetadataClient} to read metadata.
- * This implementation should only be used while running in-prem mode where the {@link MetadataService} is
- * discoverable.
- * Note: This implementation should not be used in cloud/local mode.
+ * Implementation for {@link MetadataReader} which used {@link RemoteMetadataClient} to read
+ * metadata. This implementation should only be used while running in-prem mode where the {@link
+ * MetadataService} is discoverable. Note: This implementation should not be used in cloud/local
+ * mode.
  */
 public class RemoteMetadataReader implements MetadataReader {
 
@@ -50,7 +49,8 @@ public class RemoteMetadataReader implements MetadataReader {
   }
 
   @Override
-  public Map<MetadataScope, Metadata> getMetadata(MetadataEntity metadataEntity) throws MetadataException {
+  public Map<MetadataScope, Metadata> getMetadata(MetadataEntity metadataEntity)
+      throws MetadataException {
     Map<MetadataScope, Metadata> scopeMetadata = new HashMap<>();
     Set<MetadataRecord> metadata;
     try {
@@ -61,13 +61,14 @@ public class RemoteMetadataReader implements MetadataReader {
       throw new MetadataException(e);
     }
     metadata.forEach(record -> scopeMetadata.put(record.getScope(),
-                                                 new Metadata(record.getProperties(), record.getTags())));
+        new Metadata(record.getProperties(), record.getTags())));
     LOG.trace("Returning metadata record {} for {}", scopeMetadata, metadataEntity);
     return scopeMetadata;
   }
 
   @Override
-  public Metadata getMetadata(MetadataScope scope, MetadataEntity metadataEntity) throws MetadataException {
+  public Metadata getMetadata(MetadataScope scope, MetadataEntity metadataEntity)
+      throws MetadataException {
     Metadata metadata = getMetadata(metadataEntity).get(scope);
     LOG.trace("Returning metadata {} for {} in scope {}", metadata, metadataEntity, scope);
     return metadata;

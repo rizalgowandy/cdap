@@ -17,7 +17,6 @@
 package io.cdap.cdap.proto.id;
 
 import io.cdap.cdap.proto.element.EntityType;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -28,6 +27,7 @@ import java.util.regex.Pattern;
  * Uniquely identifies a Secure store key.
  */
 public class SecureKeyId extends NamespacedEntityId implements ParentedId<NamespaceId> {
+
   // KMS only supports lower case keys.
   private static final Pattern secureKeyNamePattern = Pattern.compile("[a-z0-9_-]+");
 
@@ -40,9 +40,10 @@ public class SecureKeyId extends NamespacedEntityId implements ParentedId<Namesp
       throw new NullPointerException("Secure key cannot be null.");
     }
     if (!isValidSecureKey(name)) {
-      throw new IllegalArgumentException(String.format("Improperly formatted secure key name '%s'." +
-                                                         " The name can contain lower case alphabets," +
-                                                         " numbers, _, and -", name));
+      throw new IllegalArgumentException(
+          String.format("Improperly formatted secure key name '%s'."
+              + " The name can contain lower case english or latin alphabets,"
+              + " numbers, _, and -", name));
     }
     this.name = name;
   }
@@ -69,8 +70,8 @@ public class SecureKeyId extends NamespacedEntityId implements ParentedId<Namesp
       return false;
     }
     SecureKeyId secureKeyId = (SecureKeyId) o;
-    return Objects.equals(namespace, secureKeyId.namespace) &&
-      Objects.equals(name, secureKeyId.name);
+    return Objects.equals(namespace, secureKeyId.namespace)
+        && Objects.equals(name, secureKeyId.name);
   }
 
   @Override

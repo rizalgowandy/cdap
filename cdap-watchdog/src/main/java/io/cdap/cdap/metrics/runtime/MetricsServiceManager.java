@@ -29,13 +29,14 @@ import org.apache.twill.discovery.DiscoveryServiceClient;
 public class MetricsServiceManager extends AbstractMasterServiceManager {
 
   @Inject
-  MetricsServiceManager(CConfiguration cConf, TwillRunner twillRunner, DiscoveryServiceClient discoveryClient) {
+  MetricsServiceManager(CConfiguration cConf, TwillRunner twillRunner,
+      DiscoveryServiceClient discoveryClient) {
     super(cConf, discoveryClient, Constants.Service.METRICS, twillRunner);
   }
 
   @Override
   public int getMaxInstances() {
-    return getCConf().getInt(Constants.Metrics.MAX_INSTANCES);
+    return getCconf().getInt(Constants.Metrics.MAX_INSTANCES);
   }
 
   @Override

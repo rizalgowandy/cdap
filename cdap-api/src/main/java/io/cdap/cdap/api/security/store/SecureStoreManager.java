@@ -17,20 +17,19 @@
 package io.cdap.cdap.api.security.store;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.io.IOException;
 import java.util.Map;
 import javax.annotation.Nullable;
 
 /**
- * Provides write access to the secure store.
- * For read access use {@link SecureStore}.
+ * Provides write access to the secure store. For read access use {@link SecureStore}.
  */
 @Beta
 public interface SecureStoreManager {
 
   /**
    * Stores an element in the secure store.
+   *
    * @param namespace The namespace that this key belongs to
    * @param name This is the identifier that will be used to retrieve this element
    * @param data The sensitive data that has to be securely stored
@@ -40,10 +39,11 @@ public interface SecureStoreManager {
    * @throws Exception If the specified namespace does not exist
    */
   void put(String namespace, String name, String data, @Nullable String description,
-           Map<String, String> properties) throws Exception;
+      Map<String, String> properties) throws Exception;
 
   /**
    * Deletes the element with the given name.
+   *
    * @param namespace The namespace that this key belongs to
    * @param name of the element to delete
    * @throws IOException If the store is not initialized or if the key could not be removed

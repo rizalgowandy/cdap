@@ -28,6 +28,9 @@ import io.cdap.cdap.proto.MRJobInfo;
 import io.cdap.cdap.proto.MRTaskInfo;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramRunId;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.mapred.Counters;
@@ -37,16 +40,13 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TaskReport;
 import org.apache.hadoop.mapreduce.TaskCounter;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 /**
- * Wrapper around Hadoop JobClient that operates with CDAP Program RunIds.
- * This class is responsible for the MapReduce RunId->JobId mapping logic as well as to simplify the response
- * from the Job History Server.
+ * Wrapper around Hadoop JobClient that operates with CDAP Program RunIds. This class is responsible
+ * for the MapReduce RunId->JobId mapping logic as well as to simplify the response from the Job
+ * History Server.
  */
 public class MRJobClient implements MRJobInfoFetcher {
+
   private final Configuration hConf;
 
   @Inject
@@ -75,8 +75,9 @@ public class MRJobClient implements MRJobInfoFetcher {
 
     RunningJob runningJob = jobClient.getJob(thisJob.getJobID());
     if (runningJob == null) {
-      throw new IllegalStateException(String.format("JobClient returned null for RunId: '%s', JobId: '%s'",
-                                                    runId, thisJob.getJobID()));
+      throw new IllegalStateException(
+          String.format("JobClient returned null for RunId: '%s', JobId: '%s'",
+              runId, thisJob.getJobID()));
     }
     Counters counters = runningJob.getCounters();
 
@@ -84,8 +85,8 @@ public class MRJobClient implements MRJobInfoFetcher {
     TaskReport[] reduceTaskReports = jobClient.getReduceTaskReports(thisJob.getJobID());
 
     return new MRJobInfo(runningJob.mapProgress(), runningJob.reduceProgress(),
-                         groupToMap(counters.getGroup(TaskCounter.class.getName())),
-                         toMRTaskInfos(mapTaskReports), toMRTaskInfos(reduceTaskReports), true);
+        groupToMap(counters.getGroup(TaskCounter.class.getName())),
+        toMRTaskInfos(mapTaskReports), toMRTaskInfos(reduceTaskReports), true);
   }
 
   private JobStatus findJobForRunId(JobStatus[] jobs, ProgramRunId runId) throws NotFoundException {
@@ -103,8 +104,8 @@ public class MRJobClient implements MRJobInfoFetcher {
 
     for (TaskReport taskReport : taskReports) {
       taskInfos.add(new MRTaskInfo(taskReport.getTaskId(), taskReport.getState(),
-                                   taskReport.getStartTime(), taskReport.getFinishTime(), taskReport.getProgress(),
-                                   groupToMap(taskReport.getCounters().getGroup(TaskCounter.class.getName()))));
+          taskReport.getStartTime(), taskReport.getFinishTime(), taskReport.getProgress(),
+          groupToMap(taskReport.getCounters().getGroup(TaskCounter.class.getName()))));
     }
     return taskInfos;
   }

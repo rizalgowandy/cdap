@@ -29,16 +29,17 @@ import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.internal.app.services.ApplicationLifecycleService;
 import io.cdap.cdap.proto.artifact.AppRequest;
 import io.cdap.cdap.proto.id.ApplicationId;
+import io.cdap.cdap.proto.id.ApplicationReference;
 import io.cdap.cdap.proto.id.KerberosPrincipalId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.util.Collections;
 
 /**
  * Creates an application if it doesn't already exist.
  */
 public class AppCreator extends BaseStepExecutor<AppCreator.Arguments> {
+
   private static final Gson GSON = new Gson();
   private final ApplicationLifecycleService appLifecycleService;
 
@@ -49,23 +50,27 @@ public class AppCreator extends BaseStepExecutor<AppCreator.Arguments> {
 
   @Override
   public void execute(Arguments arguments) throws Exception {
-    ApplicationId appId = arguments.getId();
+    ApplicationReference appRef = arguments.getId();
     ArtifactSummary artifactSummary = arguments.getArtifact();
 
-    if (appExists(appId) && !arguments.overwrite) {
+    if (appExists(appRef) && !arguments.overwrite) {
       return;
     }
 
     KerberosPrincipalId ownerPrincipalId =
-      arguments.getOwnerPrincipal() == null ? null : new KerberosPrincipalId(arguments.getOwnerPrincipal());
+        arguments.getOwnerPrincipal() == null ? null
+            : new KerberosPrincipalId(arguments.getOwnerPrincipal());
 
     // if we don't null check, it gets serialized to "null"
     String configString = arguments.getConfig() == null ? null : GSON.toJson(arguments.getConfig());
 
     try {
-      appLifecycleService.deployApp(appId.getParent(), appId.getApplication(), appId.getVersion(),
-                                    artifactSummary, configString, x -> { },
-                                    ownerPrincipalId, arguments.canUpdateSchedules(), false, Collections.emptyMap());
+      appLifecycleService.deployApp(appRef.getParent(), appRef.getApplication(),
+          ApplicationId.DEFAULT_VERSION,
+          artifactSummary, configString, arguments.getChange(), null, x -> {
+          },
+          ownerPrincipalId, arguments.canUpdateSchedules(), false, false,
+          Collections.emptyMap());
     } catch (NotFoundException | UnauthorizedException | InvalidArtifactException e) {
       // these exceptions are for sure not retry-able. It's hard to tell if the others are, so we just try retrying
       // up to the default time limit
@@ -81,9 +86,9 @@ public class AppCreator extends BaseStepExecutor<AppCreator.Arguments> {
     }
   }
 
-  private boolean appExists(ApplicationId applicationId) throws Exception {
+  private boolean appExists(ApplicationReference appRef) throws Exception {
     try {
-      appLifecycleService.getAppDetail(applicationId);
+      appLifecycleService.getLatestAppDetail(appRef);
       return true;
     } catch (ApplicationNotFoundException e) {
       return false;
@@ -94,20 +99,22 @@ public class AppCreator extends BaseStepExecutor<AppCreator.Arguments> {
    * Arguments required to create an application
    */
   static class Arguments extends AppRequest<JsonObject> implements Validatable {
+
     private String namespace;
     private String name;
     private boolean overwrite;
 
     Arguments(AppRequest<JsonObject> appRequest, String namespace, String name, boolean overwrite) {
-      super(appRequest.getArtifact(), appRequest.getConfig(), appRequest.getPreview(), appRequest.getOwnerPrincipal(),
-            appRequest.canUpdateSchedules());
+      super(appRequest.getArtifact(), appRequest.getConfig(), appRequest.getPreview(),
+          appRequest.getOwnerPrincipal(),
+          appRequest.canUpdateSchedules());
       this.namespace = namespace;
       this.name = name;
       this.overwrite = overwrite;
     }
 
-    private ApplicationId getId() {
-      return new NamespaceId(namespace).app(name);
+    private ApplicationReference getId() {
+      return new NamespaceId(namespace).appReference(name);
     }
 
     @Override

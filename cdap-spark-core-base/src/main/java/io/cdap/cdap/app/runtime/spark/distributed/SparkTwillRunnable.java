@@ -16,6 +16,7 @@
 
 package io.cdap.cdap.app.runtime.spark.distributed;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.google.inject.Module;
@@ -32,6 +33,7 @@ import io.cdap.cdap.internal.app.runtime.ProgramRunners;
 import io.cdap.cdap.internal.app.runtime.artifact.PluginFinder;
 import io.cdap.cdap.internal.app.runtime.distributed.AbstractProgramTwillRunnable;
 import io.cdap.cdap.internal.app.spark.SparkCompatReader;
+import io.cdap.cdap.master.spi.twill.Completable;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramRunId;
 import org.apache.hadoop.conf.Configuration;
@@ -40,9 +42,10 @@ import org.apache.twill.api.TwillRunnable;
 /**
  * A {@link TwillRunnable} wrapper for {@link ProgramRunner} that runs spark.
  */
+@Completable
 public class SparkTwillRunnable extends AbstractProgramTwillRunnable<ProgramRunner> {
 
-  SparkTwillRunnable(String name) {
+  public SparkTwillRunnable(String name) {
     super(name);
   }
 
@@ -56,9 +59,10 @@ public class SparkTwillRunnable extends AbstractProgramTwillRunnable<ProgramRunn
       .createProgramRunner(ProgramType.SPARK, ProgramRuntimeProvider.Mode.LOCAL, injector);
   }
 
+  @VisibleForTesting
   @Override
-  protected Module createModule(CConfiguration cConf, Configuration hConf,
-                                ProgramOptions programOptions, ProgramRunId programRunId) {
+  public Module createModule(CConfiguration cConf, Configuration hConf,
+                             ProgramOptions programOptions, ProgramRunId programRunId) {
 
     Module module = super.createModule(cConf, hConf, programOptions, programRunId);
 

@@ -25,6 +25,8 @@ import io.cdap.cdap.common.conf.AbstractPropertyStore;
 import io.cdap.cdap.common.conf.PropertyUpdater;
 import io.cdap.cdap.common.io.Codec;
 import io.cdap.cdap.common.zookeeper.ZKExtOperations;
+import java.io.IOException;
+import java.util.Set;
 import org.apache.twill.common.Threads;
 import org.apache.twill.zookeeper.NodeData;
 import org.apache.twill.zookeeper.ZKClient;
@@ -36,12 +38,9 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.Set;
-
 /**
- * This class uses ZK for storing properties/configures. It provides update methods for updating properties,
- * and listener methods for watching for changes in properties.
+ * This class uses ZK for storing properties/configures. It provides update methods for updating
+ * properties, and listener methods for watching for changes in properties.
  *
  * TODO: Unify this and SharedResourceCache in security module.
  *
@@ -59,7 +58,8 @@ public final class ZKPropertyStore<T> extends AbstractPropertyStore<T> {
   /**
    * Creates an instance of {@link ZKPropertyStore}.
    *
-   * @param zkClient client for interacting with ZooKeeper. Nodes will be created at root represented by this ZKClient.
+   * @param zkClient client for interacting with ZooKeeper. Nodes will be created at root
+   *     represented by this ZKClient.
    * @param codec The codec for encode/decode property
    */
   public static <T> ZKPropertyStore<T> create(ZKClient zkClient, Codec<T> codec) {
@@ -94,7 +94,7 @@ public final class ZKPropertyStore<T> extends AbstractPropertyStore<T> {
   @Override
   public ListenableFuture<T> set(String name, T property) {
     return ZKExtOperations.setOrCreate(zkClient, getPath(name), Suppliers.ofInstance(property),
-                                       codec, MAX_ZK_FAILURE_RETRIES);
+        codec, MAX_ZK_FAILURE_RETRIES);
   }
 
   @Override
@@ -141,7 +141,8 @@ public final class ZKPropertyStore<T> extends AbstractPropertyStore<T> {
           try {
             updateAndNotify(name, codec.decode(data));
           } catch (IOException e) {
-            LOG.error("Failed to decode property data for {}: {}", name, Bytes.toStringBinary(data), e);
+            LOG.error("Failed to decode property data for {}: {}", name, Bytes.toStringBinary(data),
+                e);
             notifyError(name, e);
           }
         }

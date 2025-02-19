@@ -19,18 +19,17 @@ package io.cdap.cdap.config;
 import com.google.inject.Inject;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
-
 import java.util.List;
 
 /**
- * Default Configuration Store. A "configuration" consists of a namespace, type, name, and properties map
- * The primary key is namespace, type, and name.
+ * Default Configuration Store. A "configuration" consists of a namespace, type, name, and
+ * properties map The primary key is namespace, type, and name.
  *
- * For example, the ConsoleSettingsStore uses this to store user-specific configurations.
- * The type is "usersettings", and name is the user name.
- * "
+ * For example, the ConsoleSettingsStore uses this to store user-specific configurations. The type
+ * is "usersettings", and name is the user name. "
  */
 public class DefaultConfigStore implements ConfigStore {
+
   private final TransactionRunner transactionRunner;
 
   @Inject

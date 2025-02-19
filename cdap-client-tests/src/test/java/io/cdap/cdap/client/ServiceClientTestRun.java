@@ -16,6 +16,8 @@
 
 package io.cdap.cdap.client;
 
+import static org.junit.Assert.assertEquals;
+
 import io.cdap.cdap.api.service.ServiceSpecification;
 import io.cdap.cdap.api.service.http.ServiceHttpEndpoint;
 import io.cdap.cdap.app.program.ManifestFields;
@@ -24,7 +26,7 @@ import io.cdap.cdap.client.app.FakeApp;
 import io.cdap.cdap.client.app.PingService;
 import io.cdap.cdap.client.common.ClientTestBase;
 import io.cdap.cdap.common.NotFoundException;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.http.DefaultHttpRequestConfig;
 import io.cdap.cdap.common.test.AppJarHelper;
 import io.cdap.cdap.proto.id.ApplicationId;
@@ -36,6 +38,10 @@ import io.cdap.common.http.HttpMethod;
 import io.cdap.common.http.HttpRequest;
 import io.cdap.common.http.HttpRequests;
 import io.cdap.common.http.HttpResponse;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.List;
+import java.util.jar.Manifest;
 import org.apache.twill.filesystem.LocalLocationFactory;
 import org.apache.twill.filesystem.Location;
 import org.junit.After;
@@ -45,13 +51,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.List;
-import java.util.jar.Manifest;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * Tests for {@link ServiceClient}.
@@ -102,7 +101,7 @@ public class ServiceClientTestRun extends ClientTestBase {
     programClient.stop(service);
     assertProgramStopped(programClient, service);
     try {
-      appClient.delete(app);
+      appClient.deleteApp(app);
     } catch (Exception e) {
       LOG.error("Error deleting app {} during test cleanup.", e);
     }
@@ -123,7 +122,7 @@ public class ServiceClientTestRun extends ClientTestBase {
     assertEquals("GET", endpoint.getMethod());
     assertEquals("/ping", endpoint.getPath());
   }
-
+  
   @Test
   public void testActiveStatus() throws Exception {
     serviceClient.checkAvailability(service);

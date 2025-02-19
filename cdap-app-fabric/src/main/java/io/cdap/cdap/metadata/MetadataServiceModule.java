@@ -24,7 +24,6 @@ import com.google.inject.name.Names;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.gateway.handlers.CommonHandlers;
 import io.cdap.http.HttpHandler;
-
 import java.util.Set;
 
 /**
@@ -35,12 +34,13 @@ public class MetadataServiceModule extends PrivateModule {
   @Override
   protected void configure() {
     Multibinder<HttpHandler> handlerBinder = Multibinder.newSetBinder(
-      binder(), HttpHandler.class, Names.named(Constants.Metadata.HANDLERS_NAME));
+        binder(), HttpHandler.class, Names.named(Constants.Metadata.HANDLERS_NAME));
 
     CommonHandlers.add(handlerBinder);
     handlerBinder.addBinding().to(MetadataHttpHandler.class);
     handlerBinder.addBinding().to(LineageHTTPHandler.class);
-    expose(Key.get(new TypeLiteral<Set<HttpHandler>>() { }, Names.named(Constants.Metadata.HANDLERS_NAME)));
+    expose(Key.get(new TypeLiteral<Set<HttpHandler>>() {
+    }, Names.named(Constants.Metadata.HANDLERS_NAME)));
     bind(MetadataAdmin.class).to(DefaultMetadataAdmin.class);
     expose(MetadataAdmin.class);
   }

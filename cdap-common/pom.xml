@@ -23,7 +23,7 @@
   <parent>
     <groupId>io.cdap.cdap</groupId>
     <artifactId>cdap</artifactId>
-    <version>6.7.0-SNAPSHOT</version>
+    <version>6.12.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>cdap-common</artifactId>
@@ -45,6 +45,11 @@
     <dependency>
       <groupId>io.cdap.cdap</groupId>
       <artifactId>cdap-system-app-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.cdap.cdap</groupId>
+      <artifactId>cdap-features</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -224,18 +229,12 @@
     <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
-      <version>1.8.2</version>
+      <version>1.11.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.kafka</groupId>
-      <artifactId>kafka_2.11</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.scala-lang</groupId>
-      <artifactId>scala-library</artifactId>
-      <version>${scala2.11.version}</version>
+      <groupId>org.slf4j</groupId>
+      <artifactId>log4j-over-slf4j</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -274,5 +273,53 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <!-- Use when the default configs need to be extended -->
+      <id>extend-default-configs</id>
+      <activation>
+        <property>
+          <name>extend-default-configs</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>xml-maven-plugin</artifactId>
+            <version>1.0.2</version>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>transform</goal>
+                </goals>
+                <configuration>
+                  <transformationSets>
+                    <transformationSet>
+                      <dir>src/main/resources</dir>
+                      <includes>
+                        <include>cdap-default.xml</include>
+                      </includes>
+                      <!--  <stylesheet>configuration-transform.xsl</stylesheet> -->
+                      <parameters>
+                        <parameter>
+                          <name>config-path</name>
+                          <value>${config-path}</value>
+                        </parameter>
+                      </parameters>
+                      <stylesheet>merge-config-transform.xsl</stylesheet>
+                      <outputDir>src/main/resources</outputDir>
+                    </transformationSet>
+                  </transformationSets>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
 </project>

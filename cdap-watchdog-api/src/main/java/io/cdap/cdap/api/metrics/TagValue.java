@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.metrics;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import javax.annotation.Nullable;
 
 /**
@@ -25,6 +24,7 @@ import javax.annotation.Nullable;
  */
 @Beta
 public final class TagValue {
+
   private final String name;
   private final String value;
 

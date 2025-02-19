@@ -17,16 +17,17 @@
 package io.cdap.cdap.api.annotation;
 
 import io.cdap.cdap.api.dataset.Dataset;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation to denote if a {@link Dataset} constructor or method performs both read and write operations.
+ * Annotation to denote if a {@link Dataset} constructor or method performs both read and write
+ * operations.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.CONSTRUCTOR, ElementType.METHOD})
 public @interface ReadWrite {
+
 }

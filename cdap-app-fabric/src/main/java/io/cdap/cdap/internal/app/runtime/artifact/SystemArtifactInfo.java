@@ -18,13 +18,13 @@ package io.cdap.cdap.internal.app.runtime.artifact;
 
 import io.cdap.cdap.common.conf.ArtifactConfig;
 import io.cdap.cdap.common.id.Id;
-
 import java.io.File;
 
 /**
  * Container for information about a system artifact.
  */
 public class SystemArtifactInfo {
+
   private final Id.Artifact artifactId;
   private final File artifactFile;
   private final ArtifactConfig config;

@@ -16,16 +16,16 @@
 
 package io.cdap.cdap.messaging.service;
 
-import io.cdap.cdap.messaging.StoreRequest;
-import io.cdap.cdap.messaging.TopicMetadata;
-
+import io.cdap.cdap.messaging.spi.StoreRequest;
+import io.cdap.cdap.messaging.DefaultStoreRequest;
+import io.cdap.cdap.messaging.spi.TopicMetadata;
 import java.util.Iterator;
 import javax.annotation.Nullable;
 
 /**
  * A {@link StoreRequest} that represents a pending store request to the underlying storage table.
  */
-final class PendingStoreRequest extends StoreRequest {
+final class PendingStoreRequest extends DefaultStoreRequest {
 
   private final StoreRequest originalRequest;
   private final TopicMetadata metadata;
@@ -39,7 +39,7 @@ final class PendingStoreRequest extends StoreRequest {
 
   PendingStoreRequest(StoreRequest originalRequest, TopicMetadata topicMetadata) {
     super(originalRequest.getTopicId(), originalRequest.isTransactional(),
-          originalRequest.getTransactionWritePointer());
+        originalRequest.getTransactionWritePointer());
     this.originalRequest = originalRequest;
     this.metadata = topicMetadata;
   }
@@ -113,13 +113,13 @@ final class PendingStoreRequest extends StoreRequest {
 
   @Override
   public String toString() {
-    return "PendingStoreRequest{" +
-      "completed=" + completed +
-      ", startTimestamp=" + startTimestamp +
-      ", startSequenceId=" + startSequenceId +
-      ", endTimestamp=" + endTimestamp +
-      ", endSequenceId=" + endSequenceId +
-      ", failureCause=" + failureCause +
-      '}';
+    return "PendingStoreRequest{"
+        + "completed=" + completed
+        + ", startTimestamp=" + startTimestamp
+        + ", startSequenceId=" + startSequenceId
+        + ", endTimestamp=" + endTimestamp
+        + ", endSequenceId=" + endSequenceId
+        + ", failureCause=" + failureCause
+        + '}';
   }
 }

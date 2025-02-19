@@ -16,69 +16,66 @@
 
 package io.cdap.cdap.k8s.runtime;
 
-import com.google.gson.reflect.TypeToken;
 import io.cdap.cdap.k8s.common.AbstractWatcherThread;
 import io.cdap.cdap.k8s.common.ResourceChangeListener;
-import io.kubernetes.client.openapi.ApiClient;
-import io.kubernetes.client.openapi.ApiException;
-import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+import io.cdap.cdap.master.environment.k8s.ApiClientFactory;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1Deployment;
 import io.kubernetes.client.openapi.models.V1Job;
 import io.kubernetes.client.openapi.models.V1StatefulSet;
-import io.kubernetes.client.util.Config;
-import io.kubernetes.client.util.Watch;
-import io.kubernetes.client.util.Watchable;
-import okhttp3.Call;
-import org.apache.twill.common.Cancellable;
-
-import java.io.IOException;
-import java.lang.reflect.Type;
+import io.kubernetes.client.util.generic.options.ListOptions;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
+import org.apache.twill.common.Cancellable;
 
 /**
  * A thread for monitoring Kubernetes application resource state change.
  *
  * @param <T> type of Kubernetes resource for which state changes to be monitored
  */
-abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
+abstract class AppResourceWatcherThread<T extends KubernetesObject> extends
+    AbstractWatcherThread<T> {
 
   /**
    * Creates a {@link AppResourceWatcherThread} for watching {@link V1Deployment} events.
    */
-  static AppResourceWatcherThread<V1Deployment> createDeploymentWatcher(String namespace, String selector) {
-    return new AppResourceWatcherThread<V1Deployment>("apps", "v1", "deployments", namespace, selector) { };
+  static AppResourceWatcherThread<V1Deployment> createDeploymentWatcher(String namespace,
+      String selector,
+      ApiClientFactory apiClientFactory) {
+    return new AppResourceWatcherThread<V1Deployment>("apps", "v1", "deployments",
+        namespace, selector, apiClientFactory) {
+    };
   }
 
   /**
    * Creates a {@link AppResourceWatcherThread} for watching {@link V1StatefulSet} events.
    */
-  static AppResourceWatcherThread<V1StatefulSet> createStatefulSetWatcher(String namespace, String selector) {
-    return new AppResourceWatcherThread<V1StatefulSet>("apps", "v1", "statefulsets", namespace, selector) { };
+  static AppResourceWatcherThread<V1StatefulSet> createStatefulSetWatcher(String namespace,
+      String selector,
+      ApiClientFactory apiClientFactory) {
+    return new AppResourceWatcherThread<V1StatefulSet>("apps", "v1", "statefulsets",
+        namespace, selector, apiClientFactory) {
+    };
   }
 
   /**
    * Creates a {@link AppResourceWatcherThread} for watching {@link V1Job} events.
    */
-  static AppResourceWatcherThread<V1Job> createJobWatcher(String namespace, String selector) {
-    return new AppResourceWatcherThread<V1Job>("batch", "v1", "jobs", namespace, selector) { };
+  static AppResourceWatcherThread<V1Job> createJobWatcher(String namespace, String selector,
+      ApiClientFactory apiClientFactory) {
+    return new AppResourceWatcherThread<V1Job>("batch", "v1", "jobs",
+        namespace, selector, apiClientFactory) {
+    };
   }
 
-  private final String group;
-  private final String version;
-  private final String plural;
   private final String selector;
   private final Queue<ResourceChangeListener<T>> listeners;
-  private volatile ApiClient apiClient;
 
-  private AppResourceWatcherThread(String group, String version, String plural, String namespace, String selector) {
-    super("kube-" + plural + "-watch", namespace);
+  private AppResourceWatcherThread(String group, String version, String plural, String namespace,
+      String selector,
+      ApiClientFactory apiClientFactory) {
+    super("kube-" + plural + "-watch", namespace, group, version, plural, apiClientFactory);
     setDaemon(true);
-    this.group = group;
-    this.version = version;
-    this.plural = plural;
     this.selector = selector;
     this.listeners = new ConcurrentLinkedQueue<>();
   }
@@ -87,25 +84,16 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
     // Wrap the listener for removal
     ResourceChangeListener<T> wrappedListener = wrapListener(listener);
     listeners.add(wrappedListener);
-    resetWatch();
+    closeWatch();
     return () -> listeners.remove(wrappedListener);
   }
 
-  @Override
-  protected Watchable<T> createWatchable(Type resourceType, String namespace,
-                                         @Nullable String labelSelector) throws IOException, ApiException {
-    ApiClient apiClient = getApiClient();
-    CustomObjectsApi api = new CustomObjectsApi(apiClient);
-    Call call = api.listNamespacedCustomObjectCall(group, version, namespace, plural, null, null, null,
-                                                   labelSelector, null, null, null, true, null);
-    return Watch.createWatch(apiClient, call, TypeToken.getParameterized(Watch.Response.class,
-                                                                         resourceType).getType());
-  }
 
-  @Nullable
   @Override
-  protected String getSelector() {
-    return selector;
+  protected void updateListOptions(ListOptions options) {
+    if (selector != null) {
+      options.setLabelSelector(selector);
+    }
   }
 
   @Override
@@ -121,27 +109,6 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
   @Override
   public void resourceDeleted(T resource) {
     listeners.forEach(l -> l.resourceDeleted(resource));
-  }
-
-  private ApiClient getApiClient() throws IOException {
-    ApiClient client = apiClient;
-    if (client != null) {
-      return client;
-    }
-
-    synchronized (this) {
-      client = apiClient;
-      if (client != null) {
-        return client;
-      }
-
-      client = Config.defaultClient();
-
-      // Set a reasonable timeout for the watch.
-      client.setReadTimeout((int) TimeUnit.MINUTES.toMillis(5));
-      apiClient = client;
-      return client;
-    }
   }
 
   private ResourceChangeListener<T> wrapListener(ResourceChangeListener<T> listener) {

@@ -21,16 +21,15 @@ import io.cdap.cdap.api.Transactionals;
 import io.cdap.cdap.api.TxRunnable;
 import io.cdap.cdap.api.data.DatasetContext;
 import io.cdap.cdap.etl.api.Lookup;
-
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 
 /**
- * Implementation of {@link AbstractLookupProvider} that uses {@link Transactional}.
- * This class will provide a {@link Lookup} that wraps each call within a transaction
- * using {@link Transactional}, and therefore can be used when executing lookup functions outside a transaction.
+ * Implementation of {@link AbstractLookupProvider} that uses {@link Transactional}. This class will
+ * provide a {@link Lookup} that wraps each call within a transaction using {@link Transactional},
+ * and therefore can be used when executing lookup functions outside a transaction.
  */
 public class TxLookupProvider extends AbstractLookupProvider {
 
@@ -82,7 +81,7 @@ public class TxLookupProvider extends AbstractLookupProvider {
 
   @Nullable
   private <T, R> R executeLookup(final String table, final Map<String, String> arguments,
-                                 final Function<Lookup<T>, R> func) {
+      final Function<Lookup<T>, R> func) {
     final AtomicReference<R> result = new AtomicReference<>();
     Transactionals.execute(tx, new TxRunnable() {
       @Override

@@ -24,18 +24,19 @@ import io.cdap.cdap.common.NotFoundException;
 import io.cdap.cdap.internal.app.runtime.schedule.trigger.AbstractSatisfiableCompositeTrigger;
 import io.cdap.cdap.internal.app.runtime.schedule.trigger.TimeTrigger;
 import io.cdap.cdap.proto.ScheduledRuntime;
+import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.ProgramId;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-
 /**
- * Abstract scheduler service common scheduling functionality. Actual work will be delegated to {@link TimeScheduler}.
- * The extending classes should implement prestart and poststop hooks to perform any action before starting all
- * underlying schedulers and after stopping them.
+ * Abstract scheduler service common scheduling functionality. Actual work will be delegated to
+ * {@link TimeScheduler}. The extending classes should implement prestart and poststop hooks to
+ * perform any action before starting all underlying schedulers and after stopping them.
  */
-public abstract class AbstractTimeSchedulerService extends AbstractIdleService implements TimeSchedulerService {
+public abstract class AbstractTimeSchedulerService extends AbstractIdleService implements
+    TimeSchedulerService {
 
   private static final Logger LOG = LoggerFactory.getLogger(AbstractTimeSchedulerService.class);
   private final TimeScheduler timeScheduler;
@@ -73,28 +74,31 @@ public abstract class AbstractTimeSchedulerService extends AbstractIdleService i
   }
 
   @Override
-  public void addProgramSchedule(ProgramSchedule schedule) throws AlreadyExistsException, SchedulerException {
+  public void addProgramSchedule(ProgramSchedule schedule)
+      throws AlreadyExistsException, SchedulerException {
     if (containsTimeTrigger(schedule)) {
       timeScheduler.addProgramSchedule(schedule);
     }
   }
 
   @Override
-  public void deleteProgramSchedule(ProgramSchedule schedule) throws NotFoundException, SchedulerException {
+  public void deleteProgramSchedule(ProgramSchedule schedule) throws SchedulerException {
     if (containsTimeTrigger(schedule)) {
       timeScheduler.deleteProgramSchedule(schedule);
     }
   }
 
   @Override
-  public void suspendProgramSchedule(ProgramSchedule schedule) throws NotFoundException, SchedulerException {
+  public void suspendProgramSchedule(ProgramSchedule schedule)
+      throws NotFoundException, SchedulerException {
     if (containsTimeTrigger(schedule)) {
       timeScheduler.suspendProgramSchedule(schedule);
     }
   }
 
   @Override
-  public void resumeProgramSchedule(ProgramSchedule schedule) throws NotFoundException, SchedulerException {
+  public void resumeProgramSchedule(ProgramSchedule schedule)
+      throws NotFoundException, SchedulerException {
     if (containsTimeTrigger(schedule)) {
       timeScheduler.resumeProgramSchedule(schedule);
     }
@@ -103,39 +107,42 @@ public abstract class AbstractTimeSchedulerService extends AbstractIdleService i
   private boolean containsTimeTrigger(ProgramSchedule schedule) {
     // A composite trigger may contain a TimeTrigger
     return schedule.getTrigger() instanceof TimeTrigger
-      || schedule.getTrigger() instanceof AbstractSatisfiableCompositeTrigger;
+        || schedule.getTrigger() instanceof AbstractSatisfiableCompositeTrigger;
   }
 
   @Override
   public List<ScheduledRuntime> previousScheduledRuntime(ProgramId program)
-    throws SchedulerException {
+      throws SchedulerException {
     return timeScheduler.previousScheduledRuntime(program);
   }
 
   @Override
   public List<ScheduledRuntime> nextScheduledRuntime(ProgramId program)
-    throws SchedulerException {
+      throws SchedulerException {
     return timeScheduler.nextScheduledRuntime(program);
   }
 
   @Override
-  public List<ScheduledRuntime> getAllScheduledRunTimes(ProgramId program, SchedulableProgramType programType,
-                                                        long startTimeSecs, long endTimeSecs)
-    throws SchedulerException {
+  public List<ScheduledRuntime> getAllScheduledRunTimes(ProgramId program,
+      SchedulableProgramType programType,
+      long startTimeSecs, long endTimeSecs)
+      throws SchedulerException {
     return timeScheduler.getAllScheduledRunTimes(program, programType, startTimeSecs, endTimeSecs);
   }
 
-  public static String scheduleIdFor(ProgramId program, SchedulableProgramType programType, String scheduleName) {
+  public static String scheduleIdFor(ProgramId program, SchedulableProgramType programType,
+      String scheduleName) {
     return String.format("%s:%s", programIdFor(program, programType), scheduleName);
   }
 
-  public static String getTriggerName(ProgramId program, SchedulableProgramType programType, String scheduleName,
-                                      String cronEntry) {
+  public static String getTriggerName(ProgramId program, SchedulableProgramType programType,
+      String scheduleName,
+      String cronEntry) {
     return String.format("%s:%s:%s", programIdFor(program, programType), scheduleName, cronEntry);
   }
 
   public static String programIdFor(ProgramId program, SchedulableProgramType programType) {
-    return String.format("%s:%s:%s:%s:%s", program.getNamespace(), program.getApplication(), program.getVersion(),
-                         programType.name(), program.getProgram());
+    return String.format("%s:%s:%s:%s:%s", program.getNamespace(), program.getApplication(),
+        ApplicationId.DEFAULT_VERSION, programType.name(), program.getProgram());
   }
 }

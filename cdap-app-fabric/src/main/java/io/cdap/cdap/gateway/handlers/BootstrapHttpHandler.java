@@ -24,7 +24,6 @@ import io.cdap.http.AbstractHttpHandler;
 import io.cdap.http.HttpResponder;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 
@@ -33,6 +32,7 @@ import javax.ws.rs.Path;
  */
 @Path(Constants.Gateway.API_VERSION_3)
 public class BootstrapHttpHandler extends AbstractHttpHandler {
+
   private final BootstrapService bootstrapService;
 
   @Inject

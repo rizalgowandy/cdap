@@ -34,11 +34,10 @@ import io.cdap.cdap.data2.datafabric.dataset.service.DatasetServiceTestBase;
 import io.cdap.cdap.data2.dataset2.DatasetFrameworkTestUtil;
 import io.cdap.cdap.data2.dataset2.TestObject;
 import io.cdap.cdap.proto.id.NamespaceId;
+import java.util.Map;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.Map;
 
 public class DatasetsUtilTest extends DatasetServiceTestBase {
 
@@ -52,7 +51,7 @@ public class DatasetsUtilTest extends DatasetServiceTestBase {
     testFix("fileSet",
             FileSetProperties.builder().setBasePath("/tmp/nn").setDataExternal(true).build());
     testFix(FileSet.class.getName(),
-            FileSetProperties.builder().setEnableExploreOnCreate(true).setExploreFormat("csv").build());
+            FileSetProperties.builder().build());
 
     testFix("timePartitionedFileSet",
             FileSetProperties.builder().setBasePath("relative").build());

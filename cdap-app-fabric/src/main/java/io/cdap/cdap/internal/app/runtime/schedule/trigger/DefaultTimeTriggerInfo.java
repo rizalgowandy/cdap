@@ -17,13 +17,14 @@
 package io.cdap.cdap.internal.app.runtime.schedule.trigger;
 
 import io.cdap.cdap.api.schedule.TimeTriggerInfo;
-
 import java.io.Serializable;
 
 /**
  * The time trigger information to be passed to the triggered program.
  */
-public class DefaultTimeTriggerInfo extends AbstractTriggerInfo implements TimeTriggerInfo, Serializable {
+public class DefaultTimeTriggerInfo extends AbstractTriggerInfo implements TimeTriggerInfo,
+    Serializable {
+
   private final String cronExpression;
   private final long logicalStartTime;
 

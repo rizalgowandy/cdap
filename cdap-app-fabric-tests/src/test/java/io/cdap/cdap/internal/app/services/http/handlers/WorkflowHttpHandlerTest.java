@@ -44,6 +44,8 @@ import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.gateway.handlers.WorkflowHttpHandler;
 import io.cdap.cdap.internal.app.runtime.schedule.ProgramScheduleStatus;
 import io.cdap.cdap.internal.app.services.http.AppFabricTestBase;
+import io.cdap.cdap.internal.app.store.AppMetadataStore;
+import io.cdap.cdap.proto.ApplicationDetail;
 import io.cdap.cdap.proto.DatasetSpecificationSummary;
 import io.cdap.cdap.proto.ProgramRunStatus;
 import io.cdap.cdap.proto.ProgramStatus;
@@ -63,11 +65,6 @@ import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.WorkflowId;
 import io.cdap.cdap.test.XSlowTests;
 import io.cdap.common.http.HttpResponse;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -79,6 +76,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Tests for {@link WorkflowHttpHandler}
@@ -116,7 +117,7 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
   private void waitForStatusCode(final String path, final Id.Program program, final int expectedStatusCode)
     throws Exception {
     Tasks.waitFor(true, () -> {
-      HttpResponse response = doPost(getVersionedAPIPath(path, Constants.Gateway.API_VERSION_3_TOKEN,
+      HttpResponse response = doPost(getVersionedApiPath(path, Constants.Gateway.API_VERSION_3_TOKEN,
                                                          program.getNamespaceId()));
       return expectedStatusCode == response.getResponseCode();
     }, 60, TimeUnit.SECONDS);
@@ -133,7 +134,7 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     String argString = GSON.toJson(args, new TypeToken<Map<String, String>>() {
     }.getType());
     String path = String.format("apps/%s/workflows/%s/runtimeargs", programId.getApplicationId(), programId.getId());
-    String versionedRuntimeArgsUrl = getVersionedAPIPath(path, Constants.Gateway.API_VERSION_3_TOKEN,
+    String versionedRuntimeArgsUrl = getVersionedApiPath(path, Constants.Gateway.API_VERSION_3_TOKEN,
                                                          programId.getNamespaceId());
     response = doPut(versionedRuntimeArgsUrl, argString);
 
@@ -173,7 +174,7 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     String path = String.format("apps/%s/workflows/%s/runs/%s/localdatasets", workflowId.getApplication(),
                                 workflowId.getProgram(), runId);
 
-    return getVersionedAPIPath(path, Constants.Gateway.API_VERSION_3_TOKEN, workflowId.getNamespace());
+    return getVersionedApiPath(path, Constants.Gateway.API_VERSION_3_TOKEN, workflowId.getNamespace());
   }
 
   private Map<String, DatasetSpecificationSummary> getWorkflowLocalDatasets(ProgramId workflowId, String runId)
@@ -277,8 +278,10 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     File lastSimpleActionDoneFile = new File(tmpFolder.newFolder() + "/lastsimpleaction.file.done");
 
     deploy(PauseResumeWorklowApp.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, TEST_NAMESPACE2);
+    ApplicationDetail applicationDetail = getAppDetails(TEST_NAMESPACE2, "PauseResumeWorkflowApp");
 
-    Id.Program programId = Id.Program.from(TEST_NAMESPACE2, pauseResumeWorkflowApp, ProgramType.WORKFLOW,
+    Id.Program programId = Id.Program.from(TEST_NAMESPACE2, pauseResumeWorkflowApp,
+                                           applicationDetail.getAppVersion(), ProgramType.WORKFLOW,
                                            pauseResumeWorkflow);
 
     Map<String, String> runtimeArguments = Maps.newHashMap();
@@ -387,7 +390,10 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
   public void testKillSuspendedWorkflow() throws Exception {
     deploy(SleepingWorkflowApp.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, TEST_NAMESPACE2);
 
-    WorkflowId workflow = new WorkflowId(TEST_NAMESPACE2, "SleepWorkflowApp", "SleepWorkflow");
+    ApplicationDetail applicationDetail = getAppDetails(TEST_NAMESPACE2, "SleepWorkflowApp");
+    ApplicationId appId = new ApplicationId(TEST_NAMESPACE2, "SleepWorkflowApp",
+                                            applicationDetail.getAppVersion());
+    WorkflowId workflow = new WorkflowId(appId, "SleepWorkflow");
 
     // Start the workflow, with max long as sleep time. This make the workflow never complete by itself.
     startProgram(workflow, Collections.singletonMap("sleep.ms", Long.toString(Long.MAX_VALUE)), 200);
@@ -419,8 +425,10 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     // create app in default namespace so that v2 and v3 api can be tested in the same test
     String defaultNamespace = Id.Namespace.DEFAULT.getId();
     deploy(ConcurrentWorkflowApp.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, defaultNamespace);
+    ApplicationDetail applicationDetail = getAppDetails(defaultNamespace, appWithConcurrentWorkflow);
 
-    Id.Program programId = Id.Program.from(Id.Namespace.DEFAULT, appWithConcurrentWorkflow, ProgramType.WORKFLOW,
+    Id.Program programId = Id.Program.from(Id.Namespace.DEFAULT.getId(), appWithConcurrentWorkflow,
+                                           applicationDetail.getAppVersion(), ProgramType.WORKFLOW,
                                            ConcurrentWorkflowApp.ConcurrentWorkflow.class.getSimpleName());
 
     // start run 1
@@ -500,10 +508,11 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     runtimeArgs.put("branch2.donefile", branch2DoneFile.getAbsolutePath());
 
     deploy(WorkflowAppWithFork.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, TEST_NAMESPACE2);
-
+    ApplicationDetail applicationDetail = getAppDetails(TEST_NAMESPACE2, WorkflowAppWithFork.class.getSimpleName());
+    
     Id.Program programId = Id.Program.from(
-      TEST_NAMESPACE2, WorkflowAppWithFork.class.getSimpleName(), ProgramType.WORKFLOW,
-      WorkflowAppWithFork.WorkflowWithFork.class.getSimpleName());
+      TEST_NAMESPACE2, WorkflowAppWithFork.class.getSimpleName(), applicationDetail.getAppVersion(),
+      ProgramType.WORKFLOW, WorkflowAppWithFork.WorkflowWithFork.class.getSimpleName());
 
     setAndTestRuntimeArgs(programId, runtimeArgs);
 
@@ -539,8 +548,10 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     // Get the runId for the currently running Workflow
     String newRunId = getRunIdOfRunningProgram(programId);
     Assert.assertTrue(
-      String.format("Expected a new runId to be generated after starting the workflow for the second time, but " +
-                      "found old runId '%s' = new runId '%s'", runId, newRunId), !runId.equals(newRunId));
+        String.format(
+            "Expected a new runId to be generated after starting the workflow for the second time, but "
+                + "found old runId '%s' = new runId '%s'", runId, newRunId),
+        !runId.equals(newRunId));
 
     // Store the new RunId
     runId = newRunId;
@@ -622,16 +633,16 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
   private HttpResponse getWorkflowNodeStatesResponse(ProgramId workflowId, String runId) throws Exception {
     String path = String.format("apps/%s/workflows/%s/runs/%s/nodes/state", workflowId.getApplication(),
                                 workflowId.getProgram(), runId);
-    path = getVersionedAPIPath(path, Constants.Gateway.API_VERSION_3_TOKEN, workflowId.getNamespace());
+    path = getVersionedApiPath(path, Constants.Gateway.API_VERSION_3_TOKEN, workflowId.getNamespace());
     return doGet(path);
   }
 
   @Category(XSlowTests.class)
   @Test
   public void testWorkflowScopedArguments() throws Exception {
-    String workflowRunIdProperty = "workflowrunid";
+    String workflowRunIdProperty = AppMetadataStore.WORKFLOW_RUNID;
     deploy(WorkflowAppWithScopedParameters.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, TEST_NAMESPACE2);
-
+    ApplicationDetail applicationDetail = getAppDetails(TEST_NAMESPACE2, WorkflowAppWithScopedParameters.APP_NAME);
     ProgramId programId = Ids.namespace(TEST_NAMESPACE2).app(WorkflowAppWithScopedParameters.APP_NAME)
       .workflow(WorkflowAppWithScopedParameters.ONE_WORKFLOW);
 
@@ -663,31 +674,40 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     setAndTestRuntimeArgs(Id.Program.fromEntityId(programId), runtimeArguments);
 
     // Start the workflow
-    startProgram(programId, 200);
+    startProgram(Id.Program.fromEntityId(programId), 200);
 
     // Wait until we have a run record
-    verifyProgramRuns(programId, ProgramRunStatus.RUNNING);
-    List<RunRecord> workflowHistoryRuns = getProgramRuns(programId, ProgramRunStatus.ALL);
+    verifyProgramRuns(Id.Program.fromEntityId(programId), ProgramRunStatus.RUNNING);
+    List<RunRecord> workflowHistoryRuns = getProgramRuns(Id.Program.fromEntityId(programId), ProgramRunStatus.ALL);
     String workflowRunId = workflowHistoryRuns.get(0).getPid();
 
-    ProgramId mr1ProgramId = Ids.namespace(TEST_NAMESPACE2).app(WorkflowAppWithScopedParameters.APP_NAME)
-      .mr(WorkflowAppWithScopedParameters.ONE_MR);
+    // Making this version specific for correct version in the expected error message string below
+    ProgramId mr1ProgramId = Ids.namespace(TEST_NAMESPACE2)
+        .app(WorkflowAppWithScopedParameters.APP_NAME,
+            applicationDetail.getAppVersion())
+        .mr(WorkflowAppWithScopedParameters.ONE_MR);
 
-    verifyProgramRuns(mr1ProgramId, ProgramRunStatus.RUNNING);
-    List<RunRecord> oneMRHistoryRuns = getProgramRuns(mr1ProgramId, ProgramRunStatus.ALL);
+    verifyProgramRuns(Id.Program.fromEntityId(mr1ProgramId), ProgramRunStatus.RUNNING);
+    List<RunRecord> oneMRHistoryRuns = getProgramRuns(Id.Program.fromEntityId(mr1ProgramId),
+        ProgramRunStatus.ALL);
 
-    String expectedMessage = String.format("Cannot stop the program '%s' started by the Workflow run '%s'. " +
-                                             "Please stop the Workflow.",
-                                           mr1ProgramId.run(oneMRHistoryRuns.get(0).getPid()), workflowRunId);
-    stopProgram(Id.Program.fromEntityId(mr1ProgramId), oneMRHistoryRuns.get(0).getPid(), 400, expectedMessage);
+    String expectedMessage = String.format(
+        "Cannot stop the program run '%s' started by the Workflow run '%s'. "
+            + "Please stop the Workflow.",
+        mr1ProgramId.run(oneMRHistoryRuns.get(0).getPid()), workflowRunId);
+    stopProgram(Id.Program.fromEntityId(mr1ProgramId), oneMRHistoryRuns.get(0).getPid(), 400,
+        expectedMessage);
 
     verifyProgramRuns(Id.Program.fromEntityId(programId), ProgramRunStatus.COMPLETED);
 
-    workflowHistoryRuns = getProgramRuns(Id.Program.fromEntityId(programId), ProgramRunStatus.COMPLETED);
+    workflowHistoryRuns = getProgramRuns(Id.Program.fromEntityId(programId),
+        ProgramRunStatus.COMPLETED);
 
-    oneMRHistoryRuns = getProgramRuns(mr1ProgramId, ProgramRunStatus.COMPLETED);
+    oneMRHistoryRuns = getProgramRuns(Id.Program.fromEntityId(mr1ProgramId),
+        ProgramRunStatus.COMPLETED);
 
-    Id.Program mr2ProgramId = Id.Program.from(TEST_NAMESPACE2, WorkflowAppWithScopedParameters.APP_NAME,
+    Id.Program mr2ProgramId = Id.Program.from(TEST_NAMESPACE2,
+        WorkflowAppWithScopedParameters.APP_NAME,
                                               ProgramType.MAPREDUCE, WorkflowAppWithScopedParameters.ANOTHER_MR);
 
     List<RunRecord> anotherMRHistoryRuns = getProgramRuns(mr2ProgramId, ProgramRunStatus.COMPLETED);
@@ -836,7 +856,6 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     Assert.assertEquals(1, schedules.size());
     Assert.assertEquals(TEST_NAMESPACE2, schedules.get(0).getNamespace());
     Assert.assertEquals(appName, schedules.get(0).getApplication());
-    Assert.assertEquals(ApplicationId.DEFAULT_VERSION, schedules.get(0).getApplicationVersion());
     Assert.assertEquals(sampleSchedule, schedules.get(0).getName());
 
     List<ScheduledRuntime> runtimes = getScheduledRunTimes(programId.toEntityId(), true);
@@ -859,8 +878,9 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     // check that there were at least 1 previous runs
     List<ScheduledRuntime> previousRuntimes = getScheduledRunTimes(programId.toEntityId(), false);
     int numRuns = previousRuntimes.size();
-    Assert.assertTrue(String.format("After sleeping for two seconds, the schedule should have at least triggered " +
-                                      "once, but found %s previous runs", numRuns), numRuns >= 1);
+    Assert.assertTrue(
+        String.format("After sleeping for two seconds, the schedule should have at least triggered "
+            + "once, but found %s previous runs", numRuns), numRuns >= 1);
 
     // Verify no program running
     verifyNoRunWithStatus(programId, ProgramRunStatus.RUNNING);
@@ -1000,8 +1020,10 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     String conditionalWorkflow = "ConditionalWorkflow";
 
     deploy(ConditionalWorkflowApp.class, 200, Constants.Gateway.API_VERSION_3_TOKEN, TEST_NAMESPACE2);
-
-    Id.Program programId = Id.Program.from(TEST_NAMESPACE2, conditionalWorkflowApp, ProgramType.WORKFLOW,
+    ApplicationDetail applicationDetail = getAppDetails(TEST_NAMESPACE2, conditionalWorkflowApp);
+    
+    Id.Program programId = Id.Program.from(TEST_NAMESPACE2, conditionalWorkflowApp,
+                                           applicationDetail.getAppVersion(), ProgramType.WORKFLOW,
                                            conditionalWorkflow);
 
     Map<String, String> runtimeArguments = Maps.newHashMap();
@@ -1034,7 +1056,8 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
 
     // create input data in which number of good records are lesser than the number of bad records
     runtimeArguments.put("inputPath", createConditionInput("ConditionProgramInput", 2, 12));
-    runtimeArguments.put("outputPath", new File(tmpFolder.newFolder(), "ConditionProgramOutput").getAbsolutePath());
+    runtimeArguments.put("outputPath",
+        new File(tmpFolder.newFolder(), "ConditionProgramOutput").getAbsolutePath());
     setAndTestRuntimeArgs(programId, runtimeArguments);
 
     // Start the workflow
@@ -1043,9 +1066,9 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
     // Since the number of good records are lesser than the number of bad records,
     // 'else' branch of the condition will get executed.
     // Wait until the execution of the fork on the else branch starts
-    while (!(elseForkOneActionFile.exists() &&
-             elseForkAnotherActionFile.exists() &&
-             elseForkThirdActionFile.exists())) {
+    while (!(elseForkOneActionFile.exists()
+        && elseForkAnotherActionFile.exists()
+        && elseForkThirdActionFile.exists())) {
       TimeUnit.MILLISECONDS.sleep(50);
     }
 
@@ -1065,12 +1088,14 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
 
     List<RunRecord> workflowHistoryRuns = getProgramRuns(programId, ProgramRunStatus.COMPLETED);
 
-    Id.Program recordVerifierProgramId = Id.Program.from(TEST_NAMESPACE2, conditionalWorkflowApp, ProgramType.MAPREDUCE,
+    Id.Program recordVerifierProgramId = Id.Program.from(TEST_NAMESPACE2, conditionalWorkflowApp,
+                                                         applicationDetail.getAppVersion(), ProgramType.MAPREDUCE,
                                                          "RecordVerifier");
 
     List<RunRecord> recordVerifierRuns = getProgramRuns(recordVerifierProgramId, ProgramRunStatus.COMPLETED);
 
-    Id.Program wordCountProgramId = Id.Program.from(TEST_NAMESPACE2, conditionalWorkflowApp, ProgramType.MAPREDUCE,
+    Id.Program wordCountProgramId = Id.Program.from(TEST_NAMESPACE2, conditionalWorkflowApp,
+                                                    applicationDetail.getAppVersion(), ProgramType.MAPREDUCE,
                                                     "ClassicWordCount");
 
     List<RunRecord> wordCountRuns = getProgramRuns(wordCountProgramId, ProgramRunStatus.COMPLETED);
@@ -1124,7 +1149,9 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
   @SuppressWarnings("ConstantConditions")
   public void testWorkflowToken() throws Exception {
     deploy(AppWithWorkflow.class, 200);
-    Id.Application appId = Id.Application.from(Id.Namespace.DEFAULT, AppWithWorkflow.NAME);
+    ApplicationDetail applicationDetail = getAppDetails(Id.Namespace.DEFAULT.getId(), AppWithWorkflow.NAME);
+    Id.Application appId = Id.Application.from(Id.Namespace.DEFAULT, AppWithWorkflow.NAME,
+                                               applicationDetail.getAppVersion());
     final Id.Workflow workflowId = Id.Workflow.from(appId, AppWithWorkflow.SampleWorkflow.NAME);
     String outputPath = new File(tmpFolder.newFolder(), "output").getAbsolutePath();
     startProgram(workflowId, ImmutableMap.of("inputPath", createInput("input"),
@@ -1185,7 +1212,7 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
                                                @Nullable String key) throws Exception {
     String workflowTokenUrl = String.format("apps/%s/workflows/%s/runs/%s/token", workflowId.getApplicationId(),
                                             workflowId.getId(), runId);
-    String versionedUrl = getVersionedAPIPath(appendScopeAndKeyToUrl(workflowTokenUrl, scope, key),
+    String versionedUrl = getVersionedApiPath(appendScopeAndKeyToUrl(workflowTokenUrl, scope, key),
                                               Constants.Gateway.API_VERSION_3_TOKEN, workflowId.getNamespaceId());
     HttpResponse response = doGet(versionedUrl);
     return readResponse(response, new TypeToken<WorkflowTokenDetail>() { }.getType(), GSON);
@@ -1196,7 +1223,7 @@ public class WorkflowHttpHandlerTest extends AppFabricTestBase {
                                                    @Nullable String key) throws Exception {
     String workflowTokenUrl = String.format("apps/%s/workflows/%s/runs/%s/nodes/%s/token",
                                             workflowId.getApplicationId(), workflowId.getId(), runId, nodeName);
-    String versionedUrl = getVersionedAPIPath(appendScopeAndKeyToUrl(workflowTokenUrl, scope, key),
+    String versionedUrl = getVersionedApiPath(appendScopeAndKeyToUrl(workflowTokenUrl, scope, key),
                                               Constants.Gateway.API_VERSION_3_TOKEN, workflowId.getNamespaceId());
     HttpResponse response = doGet(versionedUrl);
     return readResponse(response, new TypeToken<WorkflowTokenNodeDetail>() { }.getType(), GSON);

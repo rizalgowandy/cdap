@@ -17,25 +17,22 @@
 package io.cdap.cdap.app.services;
 
 import io.cdap.cdap.api.ServiceDiscoverer;
-import io.cdap.cdap.common.ServiceUnavailableException;
+import io.cdap.cdap.api.service.ServiceUnavailableException;
 import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.internal.remote.RemoteClient;
 import io.cdap.cdap.common.internal.remote.RemoteClientFactory;
 import io.cdap.cdap.common.service.ServiceDiscoverable;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramId;
-import io.cdap.common.http.HttpRequestConfig;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import javax.annotation.Nullable;
 
 /**
- * An abstract implementation of {@link ServiceDiscoverer}.
- * It provides definition for {@link ServiceDiscoverer#getServiceURL}  and expects the sub-classes to give definition
- * for {@link AbstractServiceDiscoverer#getDiscoveryServiceClient}.
+ * An abstract implementation of {@link ServiceDiscoverer}. It provides definition for {@link
+ * ServiceDiscoverer#getServiceURL}  and expects the sub-classes to give definition for {@link
+ * AbstractServiceDiscoverer#getDiscoveryServiceClient}.
  */
 public abstract class AbstractServiceDiscoverer implements ServiceDiscoverer {
 
@@ -78,7 +75,7 @@ public abstract class AbstractServiceDiscoverer implements ServiceDiscoverer {
   @Nullable
   @Override
   public HttpURLConnection openConnection(String namespaceId, String applicationId,
-                                          String serviceId, String methodPath) throws IOException {
+      String serviceId, String methodPath) throws IOException {
     try {
       return createRemoteClient(namespaceId, applicationId, serviceId).openConnection(methodPath);
     } catch (ServiceUnavailableException e) {
@@ -87,6 +84,8 @@ public abstract class AbstractServiceDiscoverer implements ServiceDiscoverer {
   }
 
   /**
+   * Gets a factory for creating clients for CDAP services.
+   *
    * @return the {@link RemoteClientFactory}
    */
   protected abstract RemoteClientFactory getRemoteClientFactory();
@@ -99,10 +98,13 @@ public abstract class AbstractServiceDiscoverer implements ServiceDiscoverer {
    * @param serviceId service name of the service
    * @return a {@link RemoteClient} that is setup to be used in the current execution environment.
    */
-  private RemoteClient createRemoteClient(String namespaceId, String applicationId, String serviceId) {
-    String discoveryName = ServiceDiscoverable.getName(namespaceId, applicationId, ProgramType.SERVICE, serviceId);
+  private RemoteClient createRemoteClient(String namespaceId, String applicationId,
+      String serviceId) {
+    String discoveryName = ServiceDiscoverable.getName(namespaceId, applicationId,
+        ProgramType.SERVICE, serviceId);
     String basePath = String.format("%s/namespaces/%s/apps/%s/services/%s/methods/",
-                                    Constants.Gateway.API_VERSION_3_TOKEN, namespaceId, applicationId, serviceId);
-    return getRemoteClientFactory().createRemoteClient(discoveryName, HttpRequestConfig.DEFAULT, basePath);
+        Constants.Gateway.API_VERSION_3_TOKEN, namespaceId, applicationId, serviceId);
+    return getRemoteClientFactory().createRemoteClient(discoveryName,
+        RemoteClientFactory.NO_VERIFY_HTTP_REQUEST_CONFIG, basePath);
   }
 }

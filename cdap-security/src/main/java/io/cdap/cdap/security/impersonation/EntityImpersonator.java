@@ -18,7 +18,6 @@ package io.cdap.cdap.security.impersonation;
 
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.NamespacedEntityId;
-
 import java.util.concurrent.Callable;
 import javax.annotation.Nullable;
 
@@ -26,6 +25,7 @@ import javax.annotation.Nullable;
  * Delegates to impersonator's doAs, but uses the namespace passed during initialization.
  */
 public class EntityImpersonator {
+
   private final NamespacedEntityId entityId;
   private final Impersonator impersonator;
 
@@ -35,8 +35,9 @@ public class EntityImpersonator {
   }
 
   /**
-   * use impersonator to call the passed callable,
-   * use namespaceId of the instance while calling the doAs of impersonator, return the result of callable.
+   * use impersonator to call the passed callable, use namespaceId of the instance while calling the
+   * doAs of impersonator, return the result of callable.
+   *
    * @param callable callable
    * @param <T> callable return type
    * @return result of callable

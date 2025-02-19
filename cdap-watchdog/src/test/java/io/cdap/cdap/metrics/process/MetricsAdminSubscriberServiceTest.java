@@ -31,21 +31,17 @@ import io.cdap.cdap.common.conf.Constants;
 import io.cdap.cdap.common.guice.ConfigModule;
 import io.cdap.cdap.common.guice.IOModule;
 import io.cdap.cdap.common.guice.InMemoryDiscoveryModule;
+import io.cdap.cdap.common.guice.NoOpAuditLogModule;
 import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.data.runtime.SystemDatasetRuntimeModule;
-import io.cdap.cdap.messaging.MessagingService;
+import io.cdap.cdap.messaging.spi.MessagingService;
 import io.cdap.cdap.messaging.guice.MessagingServerRuntimeModule;
 import io.cdap.cdap.metrics.collect.LocalMetricsCollectionService;
 import io.cdap.cdap.metrics.guice.MetricsHandlerModule;
 import io.cdap.cdap.metrics.guice.MetricsStoreModule;
 import io.cdap.cdap.metrics.query.MetricsQueryService;
 import io.cdap.cdap.proto.id.NamespaceId;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import io.cdap.cdap.security.authorization.AuthorizationEnforcementModule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +50,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Unit test for {@link MetricsAdminSubscriberService}.
@@ -79,6 +80,7 @@ public class MetricsAdminSubscriberServiceTest {
       new ConfigModule(cConf),
       new IOModule(),
       new InMemoryDiscoveryModule(),
+      new AuthorizationEnforcementModule().getNoOpModules(),
       new MessagingServerRuntimeModule().getStandaloneModules(),
       new SystemDatasetRuntimeModule().getStandaloneModules(),
       // Instead of using the standard MetricsClientRuntimeModule, we need to define custom bindings here
@@ -103,7 +105,8 @@ public class MetricsAdminSubscriberServiceTest {
           bind(MetricsAdminSubscriberService.class).in(Scopes.SINGLETON);
           expose(MetricsAdminSubscriberService.class);
         }
-      }
+      },
+      new NoOpAuditLogModule()
     );
 
     messagingService = injector.getInstance(MessagingService.class);

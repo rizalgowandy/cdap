@@ -16,20 +16,15 @@
 
 package io.cdap.cdap.etl.api.engine.sql;
 
-import io.cdap.cdap.api.RuntimeContext;
+import io.cdap.cdap.api.SQLEngineContext;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
-import io.cdap.cdap.etl.api.StageContext;
-import io.cdap.cdap.etl.api.batch.BatchContext;
 
 /**
  * Base implementation for the SQLEngine interface.
- * @param <KEY_IN>
- * @param <VALUE_IN>
- * @param <KEY_OUT>
- * @param <VALUE_OUT>
  */
 public abstract class BatchSQLEngine<KEY_IN, VALUE_IN, KEY_OUT, VALUE_OUT>
-  implements SQLEngine<KEY_IN, VALUE_IN, KEY_OUT, VALUE_OUT> {
+    implements SQLEngine<KEY_IN, VALUE_IN, KEY_OUT, VALUE_OUT> {
+
   public static final String PLUGIN_TYPE = "sqlengine";
 
   @Override
@@ -38,12 +33,12 @@ public abstract class BatchSQLEngine<KEY_IN, VALUE_IN, KEY_OUT, VALUE_OUT>
   }
 
   @Override
-  public void prepareRun(RuntimeContext context) throws Exception {
+  public void prepareRun(SQLEngineContext context) throws Exception {
     // no-op
   }
 
   @Override
-  public void onRunFinish(boolean succeeded, RuntimeContext context) {
+  public void onRunFinish(boolean succeeded, SQLEngineContext context) {
     // no-op
   }
 }

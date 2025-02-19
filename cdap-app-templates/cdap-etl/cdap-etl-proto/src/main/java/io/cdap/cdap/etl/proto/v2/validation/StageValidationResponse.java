@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.proto.v2.validation;
 
 import io.cdap.cdap.etl.api.validation.ValidationFailure;
 import io.cdap.cdap.etl.proto.v2.spec.StageSpec;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +28,7 @@ import javax.annotation.Nullable;
  * Response for validating a pipeline stage.
  */
 public class StageValidationResponse {
+
   private final List<ValidationFailure> failures;
   private final StageSpec spec;
 

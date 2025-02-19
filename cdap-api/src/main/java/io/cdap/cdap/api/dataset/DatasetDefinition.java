@@ -17,7 +17,6 @@
 package io.cdap.cdap.api.dataset;
 
 import io.cdap.cdap.api.annotation.Beta;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -44,8 +43,9 @@ import java.util.Map;
  *
  * @param <D> defines data operations that can be performed on this dataset instance
  * @param <A> defines administrative operations that can be performed on this dataset instance
+ * @deprecated custom datasets will be removed in a future version
  */
-@Beta
+@Deprecated
 public interface DatasetDefinition<D extends Dataset, A extends DatasetAdmin> {
 
   /**
@@ -60,42 +60,41 @@ public interface DatasetDefinition<D extends Dataset, A extends DatasetAdmin> {
 
   /**
    * Configures new instance of the dataset.
+   *
    * @param instanceName name of the instance
    * @param properties instance configuration properties
-   * @return instance of {@link DatasetSpecification} that fully describes dataset instance.
-   *         The {@link DatasetSpecification} can be used to create {@link DatasetAdmin} and {@link Dataset} to perform
-   *         administrative and data operations respectively, see {@link #getAdmin(DatasetContext,
-   *         DatasetSpecification, ClassLoader)}
-   *         and {@link #getDataset(DatasetContext, DatasetSpecification, Map, ClassLoader)}.
+   * @return instance of {@link DatasetSpecification} that fully describes dataset instance. The
+   *     {@link DatasetSpecification} can be used to create {@link DatasetAdmin} and {@link Dataset}
+   *     to perform administrative and data operations respectively, see {@link
+   *     #getAdmin(DatasetContext, DatasetSpecification, ClassLoader)} and {@link
+   *     #getDataset(DatasetContext, DatasetSpecification, Map, ClassLoader)}.
    */
   DatasetSpecification configure(String instanceName, DatasetProperties properties);
 
   /**
-   * Provides dataset admin to be used to perform administrative operations on the dataset instance defined by passed
-   * {@link DatasetSpecification}.
-   *
+   * Provides dataset admin to be used to perform administrative operations on the dataset instance
+   * defined by passed {@link DatasetSpecification}.
    *
    * @param datasetContext context for the dataset
    * @param spec specification of the dataset instance.
    * @param classLoader classloader to use when executing admin operations
    * @return dataset admin to perform administrative operations
-   * @throws IOException
    */
-  A getAdmin(DatasetContext datasetContext, DatasetSpecification spec, ClassLoader classLoader) throws IOException;
+  A getAdmin(DatasetContext datasetContext, DatasetSpecification spec, ClassLoader classLoader)
+      throws IOException;
 
   /**
-   * Provides dataset to be used to perform data operations on the dataset instance data defined by passed
-   * {@link DatasetSpecification} and the given arguments.
-   *
+   * Provides dataset to be used to perform data operations on the dataset instance data defined by
+   * passed {@link DatasetSpecification} and the given arguments.
    *
    * @param datasetContext context for the dataset
    * @param spec specification of the dataset instance.
-   * @param arguments arguments for this instance of the dataset. Should not be null - provide an empty map for no
-   *                  arguments.
+   * @param arguments arguments for this instance of the dataset. Should not be null - provide
+   *     an empty map for no arguments.
    * @param classLoader classloader to use when executing dataset operations
    * @return dataset to perform object operations
-   * @throws IOException
    */
-  D getDataset(DatasetContext datasetContext, DatasetSpecification spec, Map<String, String> arguments,
-               ClassLoader classLoader) throws IOException;
+  D getDataset(DatasetContext datasetContext, DatasetSpecification spec,
+      Map<String, String> arguments,
+      ClassLoader classLoader) throws IOException;
 }

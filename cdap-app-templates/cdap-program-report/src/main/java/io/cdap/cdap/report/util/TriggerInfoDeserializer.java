@@ -23,7 +23,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import io.cdap.cdap.api.schedule.TriggerInfo;
 import io.cdap.cdap.report.proto.SimpleTriggerInfo;
-
 import java.lang.reflect.Type;
 
 /**
@@ -33,12 +32,13 @@ public class TriggerInfoDeserializer implements JsonDeserializer<TriggerInfo> {
 
   @Override
   public TriggerInfo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+      throws JsonParseException {
     if (json == null) {
       return null;
     }
     if (!(json instanceof JsonObject)) {
-      throw new JsonParseException("Expected a JsonObject but found a " + json.getClass().getName());
+      throw new JsonParseException(
+          "Expected a JsonObject but found a " + json.getClass().getName());
     }
     JsonObject object = (JsonObject) json;
     JsonElement typeJson = object.get("type");

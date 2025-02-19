@@ -24,22 +24,22 @@ import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
 import io.cdap.cdap.security.spi.authorization.ContextAccessEnforcer;
-
 import java.util.Set;
 import javax.inject.Inject;
 
 /**
- * An implementation of {@link ContextAccessEnforcer} that retrieves current principal
- * using {@link AuthenticationContext} and delegates to
- * {@link AccessEnforcer}
+ * An implementation of {@link ContextAccessEnforcer} that retrieves current principal using {@link
+ * AuthenticationContext} and delegates to {@link AccessEnforcer}
  */
 @Singleton
 public class DefaultContextAccessEnforcer implements ContextAccessEnforcer {
+
   private final AuthenticationContext authenticationContext;
   private final AccessEnforcer accessEnforcer;
 
   @Inject
-  public DefaultContextAccessEnforcer(AuthenticationContext authenticationContext, AccessEnforcer accessEnforcer) {
+  public DefaultContextAccessEnforcer(AuthenticationContext authenticationContext,
+      AccessEnforcer accessEnforcer) {
     this.authenticationContext = authenticationContext;
     this.accessEnforcer = accessEnforcer;
   }
@@ -50,18 +50,22 @@ public class DefaultContextAccessEnforcer implements ContextAccessEnforcer {
   }
 
   @Override
-  public void enforce(EntityId entity, Set<? extends Permission> permissions) throws AccessException {
+  public void enforce(EntityId entity, Set<? extends Permission> permissions)
+      throws AccessException {
     accessEnforcer.enforce(entity, authenticationContext.getPrincipal(), permissions);
   }
 
   @Override
-  public void enforceOnParent(EntityType entityType, EntityId parentId, Permission permission) throws AccessException {
-    accessEnforcer.enforceOnParent(entityType, parentId, authenticationContext.getPrincipal(), permission);
+  public void enforceOnParent(EntityType entityType, EntityId parentId, Permission permission)
+      throws AccessException {
+    accessEnforcer.enforceOnParent(entityType, parentId, authenticationContext.getPrincipal(),
+        permission);
 
   }
 
   @Override
-  public Set<? extends EntityId> isVisible(Set<? extends EntityId> entityIds) throws AccessException {
+  public Set<? extends EntityId> isVisible(Set<? extends EntityId> entityIds)
+      throws AccessException {
     return accessEnforcer.isVisible(entityIds, authenticationContext.getPrincipal());
   }
 }

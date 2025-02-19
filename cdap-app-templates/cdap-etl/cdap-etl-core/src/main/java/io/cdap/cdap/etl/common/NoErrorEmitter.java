@@ -19,7 +19,6 @@ package io.cdap.cdap.etl.common;
 import com.google.common.collect.Lists;
 import io.cdap.cdap.etl.api.Emitter;
 import io.cdap.cdap.etl.api.InvalidEntry;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +29,7 @@ import java.util.Map;
  * @param <T> the type of object to emit
  */
 public class NoErrorEmitter<T> implements Emitter<T> {
+
   private final List<T> entryList;
   private final String errorMessage;
 

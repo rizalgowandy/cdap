@@ -23,9 +23,6 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.io.CharStreams;
 import com.google.gson.Gson;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -41,11 +38,15 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Provides ComputeEngineCredentials either locally if no endpoint is provided, or remotely if endpoint is provided.
+ * Provides ComputeEngineCredentials either locally if no endpoint is provided, or remotely if
+ * endpoint is provided.
  */
 public final class ComputeEngineCredentials extends GoogleCredentials {
+
   private static final Logger LOG = LoggerFactory.getLogger(ComputeEngineCredentials.class);
   private static final Gson GSON = new Gson();
 
@@ -53,35 +54,37 @@ public final class ComputeEngineCredentials extends GoogleCredentials {
   private static final String EXPIRES_IN_KEY = "expires_in";
   private static final String LOCAL_COMPUTE_ENGINE_CREDENTIALS = "local";
   private static final ConcurrentHashMap<String, ComputeEngineCredentials> cachedComputeEngineCredentials =
-    new ConcurrentHashMap<>();
+      new ConcurrentHashMap<>();
 
   /**
    * Time (in millisecond) to refresh the credentials before it expires.
    */
-  private static final int NUMBER_OF_RETRIES = 10;
-  private static final int MIN_WAIT_TIME_MILLISECOND = 500;
-  private static final int MAX_WAIT_TIME_MILLISECOND = 10000;
+  private static final int MIN_WAIT_TIME_MILLISECOND = 2000;
+  private static final int MAX_WAIT_TIME_MILLISECOND = 20000;
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   private final String endPoint;
+  private final int maxRetries;
 
-  private ComputeEngineCredentials(@Nullable String endPoint) {
+  private ComputeEngineCredentials(@Nullable String endPoint, int maxRetries) {
     this.endPoint = endPoint;
+    this.maxRetries = maxRetries;
   }
 
   /**
    * Return a ComputeEngineCredentials with the provided endpoint if it has already been created.
    * Otherwise, it instantiates one, and returns it.
    *
-   * @param endpoint endpoint for fetching the token from. A null endpoint results in fetching the token locally.
+   * @param endpoint endpoint for fetching the token from. A null endpoint results in fetching
+   *     the token locally.
    * @return ComputeEngineCredentials
-   * @throws IOException
    */
-  public static ComputeEngineCredentials getOrCreate(@Nullable String endpoint) throws IOException {
+  public static ComputeEngineCredentials getOrCreate(@Nullable String endpoint,
+      int maxRetries) throws IOException {
     String key = endpoint != null ? endpoint : LOCAL_COMPUTE_ENGINE_CREDENTIALS;
     if (!cachedComputeEngineCredentials.containsKey(key)) {
       synchronized (cachedComputeEngineCredentials) {
         if (!cachedComputeEngineCredentials.containsKey(key)) {
-          ComputeEngineCredentials credentials = new ComputeEngineCredentials(endpoint);
+          ComputeEngineCredentials credentials = new ComputeEngineCredentials(endpoint, maxRetries);
           credentials.refresh();
           cachedComputeEngineCredentials.put(key, credentials);
         }
@@ -97,14 +100,14 @@ public final class ComputeEngineCredentials extends GoogleCredentials {
       return googleCredentials.refreshAccessToken();
     } catch (IOException e) {
       throw new IOException("Unable to get credentials from the environment. "
-                              + "Please explicitly set the account key.", e);
+          + "Please explicitly set the account key.", e);
     }
   }
 
-  private void disableVerifySSL(HttpsURLConnection connection) throws IOException {
+  private void disableVerifySsl(HttpsURLConnection connection) throws IOException {
     try {
       SSLContext sslContextWithNoVerify = SSLContext.getInstance("SSL");
-      TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
+      TrustManager[] trustAllCerts = new TrustManager[]{ new X509TrustManager() {
         public X509Certificate[] getAcceptedIssuers() {
           return null;
         }
@@ -118,7 +121,7 @@ public final class ComputeEngineCredentials extends GoogleCredentials {
         public void checkServerTrusted(X509Certificate[] arg0, String arg1) {
           // No-op
         }
-      }};
+      } };
       sslContextWithNoVerify.init(null, trustAllCerts, SECURE_RANDOM);
       connection.setSSLSocketFactory(sslContextWithNoVerify.getSocketFactory());
       connection.setHostnameVerifier((s, sslSession) -> true);
@@ -133,10 +136,11 @@ public final class ComputeEngineCredentials extends GoogleCredentials {
     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
     if (connection instanceof HttpsURLConnection) {
       // TODO (CDAP-18047) enable ssl verification
-      disableVerifySSL(((HttpsURLConnection) connection));
+      disableVerifySsl(((HttpsURLConnection) connection));
     }
     connection.connect();
-    try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
+    try (Reader reader = new InputStreamReader(connection.getInputStream(),
+        StandardCharsets.UTF_8)) {
       if (connection.getResponseCode() != HttpResponseStatus.OK.code()) {
         throw new IOException(CharStreams.toString(reader));
       }
@@ -148,8 +152,8 @@ public final class ComputeEngineCredentials extends GoogleCredentials {
 
       String key = token.get(ACCESS_TOKEN_KEY).toString();
       Double expiration = Double.parseDouble(token.get(EXPIRES_IN_KEY).toString());
-      long expiresAtMilliseconds = System.currentTimeMillis() +
-        expiration.longValue() * 1000;
+      long expiresAtMilliseconds = System.currentTimeMillis()
+          + expiration.longValue() * 1000;
 
       return new AccessToken(key, new Date(expiresAtMilliseconds));
     } finally {
@@ -160,12 +164,12 @@ public final class ComputeEngineCredentials extends GoogleCredentials {
   @Override
   public AccessToken refreshAccessToken() throws IOException {
     ExponentialBackOff backOff = new ExponentialBackOff.Builder()
-      .setInitialIntervalMillis(MIN_WAIT_TIME_MILLISECOND)
-      .setMaxIntervalMillis(MAX_WAIT_TIME_MILLISECOND).build();
+        .setInitialIntervalMillis(MIN_WAIT_TIME_MILLISECOND)
+        .setMaxIntervalMillis(MAX_WAIT_TIME_MILLISECOND).build();
 
     Exception exception = null;
     int counter = 0;
-    while (counter < NUMBER_OF_RETRIES) {
+    while (counter < maxRetries) {
       counter++;
 
       try {

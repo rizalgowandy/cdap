@@ -51,6 +51,14 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.ReferenceCountUtil;
+import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.URL;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.apache.twill.discovery.Discoverable;
 import org.apache.twill.discovery.DiscoveryService;
 import org.apache.twill.discovery.DiscoveryServiceClient;
@@ -67,17 +75,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.URL;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Verify the ordering of events in the RouterPipeline.
@@ -126,7 +123,7 @@ public class NettyRouterPipelineTest {
     final Request request = new RequestBuilder("POST")
       .setUrl(String.format("http://%s:%d%s", address.getHostName(), address.getPort(), "/v1/upload"))
       .setContentLength(requestBody.length)
-      .setBody(new ByteEntityWriter(requestBody))
+      .setBody(requestBody)
       .build();
 
     final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -148,7 +145,7 @@ public class NettyRouterPipelineTest {
   }
 
   @Test
-  public void testDeployNTimes() throws Exception {
+  public void testDeployNtimes() throws Exception {
     // regression tests for race condition during multiple deploys.
     deploy(100);
   }
@@ -227,21 +224,6 @@ public class NettyRouterPipelineTest {
       Assert.assertEquals(200, urlConn.getResponseCode());
       urlConn.getInputStream().close();
       urlConn.disconnect();
-    }
-  }
-
-  private static class ByteEntityWriter implements Request.EntityWriter {
-    private final byte [] bytes;
-
-    private ByteEntityWriter(byte[] bytes) {
-      this.bytes = bytes;
-    }
-
-    @Override
-    public void writeEntity(OutputStream out) throws IOException {
-      for (int i = 0; i < MAX_UPLOAD_BYTES; i += ServerResource.CHUNK_SIZE) {
-        out.write(bytes, i, ServerResource.CHUNK_SIZE);
-      }
     }
   }
 

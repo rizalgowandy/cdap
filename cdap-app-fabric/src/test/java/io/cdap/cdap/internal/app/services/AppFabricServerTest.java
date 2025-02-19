@@ -27,17 +27,16 @@ import io.cdap.cdap.common.discovery.RandomEndpointStrategy;
 import io.cdap.cdap.common.discovery.URIScheme;
 import io.cdap.cdap.common.utils.Tasks;
 import io.cdap.cdap.internal.AppFabricTestHelper;
-import io.cdap.cdap.security.server.LDAPLoginModule;
-import org.apache.twill.discovery.Discoverable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
-import org.junit.Assert;
-import org.junit.Test;
-
+import io.cdap.cdap.security.server.LdapLoginModule;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import javax.net.ssl.SSLSocket;
+import org.apache.twill.discovery.Discoverable;
+import org.apache.twill.discovery.DiscoveryServiceClient;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  *
@@ -67,7 +66,7 @@ public class AppFabricServerTest {
   }
 
   @Test
-  public void testSSL() throws IOException {
+  public void testSsl() throws IOException {
     CConfiguration cConf = CConfiguration.create();
     cConf.setBoolean(Constants.Security.SSL.INTERNAL_ENABLED, true);
     SConfiguration sConf = SConfiguration.create();
@@ -86,7 +85,7 @@ public class AppFabricServerTest {
       Assert.assertTrue(URIScheme.HTTPS.isMatch(discoverable));
       InetSocketAddress addr = discoverable.getSocketAddress();
       // Since the server uses a self signed certificate we need a client that trusts all certificates
-      SSLSocket socket = (SSLSocket) LDAPLoginModule.TrustAllSSLSocketFactory.getDefault()
+      SSLSocket socket = (SSLSocket) LdapLoginModule.TrustAllSslSocketFactory.getDefault()
         .createSocket(addr.getHostName(), addr.getPort());
       socket.setSoTimeout(5000); // in millis
       // Would throw exception if the server does not support ssl.

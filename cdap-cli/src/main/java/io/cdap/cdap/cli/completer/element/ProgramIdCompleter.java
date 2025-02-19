@@ -24,7 +24,6 @@ import io.cdap.cdap.proto.ProgramRecord;
 import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.security.spi.authentication.UnauthenticatedException;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,13 +35,14 @@ import java.util.List;
 public class ProgramIdCompleter extends StringsCompleter {
 
   public ProgramIdCompleter(final ApplicationClient appClient,
-                            final CLIConfig cliConfig,
-                            final ProgramType programType) {
+      final CLIConfig cliConfig,
+      final ProgramType programType) {
     super(new Supplier<Collection<String>>() {
       @Override
       public Collection<String> get() {
         try {
-          List<ProgramRecord> programs = appClient.listAllPrograms(cliConfig.getCurrentNamespace(), programType);
+          List<ProgramRecord> programs = appClient.listAllPrograms(cliConfig.getCurrentNamespace(),
+              programType);
           List<String> programIds = new ArrayList<>();
           for (ProgramRecord programRecord : programs) {
             programIds.add(programRecord.getApp() + "." + programRecord.getName());

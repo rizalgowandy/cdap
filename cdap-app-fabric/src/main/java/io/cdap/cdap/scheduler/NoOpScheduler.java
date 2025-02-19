@@ -26,7 +26,6 @@ import io.cdap.cdap.proto.id.ApplicationId;
 import io.cdap.cdap.proto.id.NamespaceId;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.proto.id.ScheduleId;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -36,13 +35,15 @@ import java.util.function.Predicate;
  * Noop scheduler.
  */
 public class NoOpScheduler implements Scheduler {
+
   @Override
   public void addSchedule(ProgramSchedule schedule) throws AlreadyExistsException {
 
   }
 
   @Override
-  public void addSchedules(Iterable<? extends ProgramSchedule> schedules) throws AlreadyExistsException {
+  public void addSchedules(Iterable<? extends ProgramSchedule> schedules)
+      throws AlreadyExistsException {
 
   }
 
@@ -113,7 +114,7 @@ public class NoOpScheduler implements Scheduler {
 
   @Override
   public List<ProgramSchedule> listSchedules(NamespaceId namespaceId,
-                                             Predicate<ProgramSchedule> filter) {
+      Predicate<ProgramSchedule> filter) {
     return Collections.EMPTY_LIST;
   }
 

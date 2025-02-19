@@ -35,14 +35,6 @@ import io.cdap.cdap.proto.ProgramType;
 import io.cdap.cdap.proto.id.ProgramId;
 import io.cdap.cdap.security.spi.authentication.UnauthenticatedException;
 import io.cdap.cdap.security.spi.authorization.UnauthorizedException;
-import org.apache.twill.filesystem.LocalLocationFactory;
-import org.apache.twill.filesystem.Location;
-import org.apache.twill.filesystem.LocationFactory;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,6 +47,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.jar.Manifest;
+import org.apache.twill.filesystem.LocalLocationFactory;
+import org.apache.twill.filesystem.Location;
+import org.apache.twill.filesystem.LocationFactory;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Base class for writing client unit-test. It provides common functionality for writing client tests.
@@ -103,7 +102,7 @@ public abstract class AbstractClientTest {
       .setVerifySSLCert(false)
       .setDefaultReadTimeout(60 * 1000)
       .setUploadReadTimeout(120 * 1000)
-      .setConnectionConfig(connectionConfig).build();
+      .setConnectionConfig(connectionConfig).setAppListPageSize(25).build();
   }
 
   protected ClientConfig getClientConfig() {
@@ -212,8 +211,8 @@ public abstract class AbstractClientTest {
         return false;
       }
       ArtifactJarInfo that = (ArtifactJarInfo) o;
-      return Objects.equals(appClass, that.appClass) &&
-        Objects.equals(manifest, that.manifest);
+      return Objects.equals(appClass, that.appClass)
+          && Objects.equals(manifest, that.manifest);
     }
 
     @Override

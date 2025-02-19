@@ -19,7 +19,6 @@ package io.cdap.cdap.common.metadata;
 import io.cdap.cdap.api.common.HttpErrorStatusProvider;
 import io.cdap.cdap.api.metadata.MetadataEntity;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -34,8 +33,8 @@ public class MetadataConflictException extends IOException implements HttpErrorS
   private final List<MetadataEntity> conflictingEntities;
 
   /**
-   * @param message the error message. If it contains the string "${conflicting}", it will be replaced
-   *                with the conflicting entity.
+   * @param message the error message. If it contains the string "${conflicting}", it will be
+   *     replaced with the conflicting entity.
    * @param conflictingEntity the entity that has a conflict
    */
   public MetadataConflictException(String message, MetadataEntity conflictingEntity) {
@@ -43,8 +42,8 @@ public class MetadataConflictException extends IOException implements HttpErrorS
   }
 
   /**
-   * @param message the error message. If it contains the string "${conflicting}", it will be replaced
-   *                with the list of conflicting entities.
+   * @param message the error message. If it contains the string "${conflicting}", it will be
+   *     replaced with the list of conflicting entities.
    * @param conflictingEntities the entities that have a conflict
    */
   public MetadataConflictException(String message, List<MetadataEntity> conflictingEntities) {

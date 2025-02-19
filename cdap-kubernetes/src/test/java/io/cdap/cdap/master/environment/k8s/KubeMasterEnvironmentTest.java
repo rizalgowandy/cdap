@@ -16,61 +16,52 @@
 
 package io.cdap.cdap.master.environment.k8s;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import io.cdap.cdap.k8s.common.TemporaryLocalFileProvider;
+import io.cdap.cdap.k8s.runtime.KubeTwillRunnerService;
+import io.cdap.cdap.k8s.util.WorkloadIdentityUtil;
 import io.cdap.cdap.master.spi.environment.spark.SparkConfig;
 import io.cdap.cdap.master.spi.environment.spark.SparkSubmitContext;
-import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ConfigMapProjection;
 import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1EnvVar;
 import io.kubernetes.client.openapi.models.V1KeyToPath;
-import io.kubernetes.client.openapi.models.V1Namespace;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.openapi.models.V1PodSpec;
 import io.kubernetes.client.openapi.models.V1ProjectedVolumeSource;
 import io.kubernetes.client.openapi.models.V1ServiceAccountTokenProjection;
 import io.kubernetes.client.openapi.models.V1Volume;
 import io.kubernetes.client.openapi.models.V1VolumeMount;
 import io.kubernetes.client.openapi.models.V1VolumeProjection;
 import io.kubernetes.client.util.Yaml;
-import org.hamcrest.CoreMatchers;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Test for {@link KubeMasterEnvironment}
  */
 public class KubeMasterEnvironmentTest {
 
-  private static final String CDAP_NAMESPACE = "TEST_CDAP_Namespace";
   private static final String KUBE_NAMESPACE = "test-kube-namespace";
+  private static final String KUBE_INSTALL_NAMESPACE = "kube-install-namespace";
 
   private CoreV1Api coreV1Api;
   private KubeMasterEnvironment kubeMasterEnvironment;
-
-  @Rule
-  public ExpectedException thrown = ExpectedException.none();
+  private KubeTwillRunnerService twillRunnerService;
 
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -78,9 +69,10 @@ public class KubeMasterEnvironmentTest {
   @Before
   public void init() throws IOException {
     coreV1Api = mock(CoreV1Api.class);
+    twillRunnerService = mock(KubeTwillRunnerService.class);
     kubeMasterEnvironment = new KubeMasterEnvironment();
     kubeMasterEnvironment.setCoreV1Api(coreV1Api);
-    kubeMasterEnvironment.setNamespaceCreationEnabled();
+    kubeMasterEnvironment.setTwillRunner(twillRunnerService);
     kubeMasterEnvironment.setLocalFileProvider(new TemporaryLocalFileProvider(temporaryFolder));
     KubeMasterPathProvider mockKubeMasterPathProvider = mock(KubeMasterPathProvider.class);
     when(mockKubeMasterPathProvider.getMasterPath()).thenReturn("https://127.0.0.1:443");
@@ -92,240 +84,267 @@ public class KubeMasterEnvironmentTest {
     kubeMasterEnvironment.setPodLabelsFile(dummyFile);
     kubeMasterEnvironment.setPodNameFile(dummyFile);
     kubeMasterEnvironment.setPodUidFile(dummyFile);
+    kubeMasterEnvironment.setPodNamespaceFile(dummyFile);
     kubeMasterEnvironment.setPodInfo(new PodInfo("pod-info", "pod-info-dir", dummyFile.getAbsolutePath(),
                                                  dummyFile.getAbsolutePath(), UUID.randomUUID().toString(),
-                                                 dummyFile.getAbsolutePath(), KUBE_NAMESPACE, Collections.emptyMap(),
+                                                 dummyFile.getAbsolutePath(), dummyFile.getAbsolutePath(),
+                                                 KUBE_NAMESPACE, Collections.emptyMap(),
                                                  Collections.emptyList(), "service-account", "runtime-class",
                                                  Collections.emptyList(), "container-label-name", "container-image",
                                                  Collections.emptyList(), Collections.emptyList(), null,
                                                  "image-pull-policy"));
+    kubeMasterEnvironment.setProgramCpuMultiplier("1");
   }
 
   @Test
-  public void testOnNamespaceCreationWithNoNamespace() throws Exception {
-    Map<String, String> properties = new HashMap<>();
-    thrown.expect(IOException.class);
-    thrown.expectMessage(String.format("Cannot create Kubernetes namespace for %s because no name was provided",
-            CDAP_NAMESPACE));
-    kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
+  public void testGenerateSparkConfigWithNamespace() throws Exception {
+    Map<String, String> config = new HashMap<>();
+    String ns = "some-ns";
+    config.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, ns);
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), config, 1, 1);
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+    Assert.assertEquals(ns, sparkConfig.getConfigs().get("spark.kubernetes.namespace"));
   }
 
   @Test
-  public void testOnNamespaceCreationWithBootstrapNamespace() {
-    Map<String, String> properties = new HashMap<>();
-    try {
-      kubeMasterEnvironment.onNamespaceCreation("default", properties);
-    } catch (Exception e) {
-      Assert.fail("Kubernetes creation should not error for bootstrap namespace. Exception: " + e);
-    }
+  public void testGenerateSparkConfigWithDriverTimeouts() throws Exception {
+    Map<String, String> config = new HashMap<>();
+    String requestTimeout = "20000";
+    String connectTimeout = "20000";
+    config.put(KubeMasterEnvironment.SPARK_DRIVER_REQUEST_TIMEOUT_MILLIS, requestTimeout);
+    config.put(KubeMasterEnvironment.SPARK_DRIVER_CONNECTION_TIMEOUT_MILLIS, connectTimeout);
+
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), config, 1, 1);
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+    Assert.assertEquals(requestTimeout,
+                        sparkConfig.getConfigs().get(KubeMasterEnvironment.SPARK_DRIVER_REQUEST_TIMEOUT_MILLIS));
+    Assert.assertEquals(connectTimeout,
+                        sparkConfig.getConfigs().get(KubeMasterEnvironment.SPARK_DRIVER_CONNECTION_TIMEOUT_MILLIS));
   }
 
   @Test
-  public void testOnNamespaceCreationWithExistingNamespace() throws Exception {
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
+  public void testGenerateSparkConfigWithDefaultDriverTimeouts() throws Exception {
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), Collections.emptyMap(),
+                                                                   1, 1);
+    kubeMasterEnvironment.setConnectTimeout(Integer.parseInt(KubeMasterEnvironment.CONNECT_TIMEOUT_DEFAULT));
+    kubeMasterEnvironment.setReadTimeout(Integer.parseInt(KubeMasterEnvironment.READ_TIMEOUT_DEFAULT));
 
-    V1Namespace returnedNamespace = new V1Namespace().metadata(new V1ObjectMeta().name(KUBE_NAMESPACE));
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any())).thenReturn(returnedNamespace);
-
-    thrown.expect(IOException.class);
-    thrown.expectMessage(String.format("Kubernetes namespace %s exists but was not created by CDAP", KUBE_NAMESPACE));
-    kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+    int readTimeoutMillis = Integer.parseInt(KubeMasterEnvironment.READ_TIMEOUT_DEFAULT) * 1000;
+    Assert.assertEquals(String.valueOf(readTimeoutMillis),
+                        sparkConfig.getConfigs().get(KubeMasterEnvironment.SPARK_DRIVER_REQUEST_TIMEOUT_MILLIS));
+    int connectTimeoutMillis = Integer.parseInt(KubeMasterEnvironment.CONNECT_TIMEOUT_DEFAULT) * 1000;
+    Assert.assertEquals(String.valueOf(connectTimeoutMillis),
+                        sparkConfig.getConfigs().get(KubeMasterEnvironment.SPARK_DRIVER_CONNECTION_TIMEOUT_MILLIS));
   }
 
   @Test
-  public void testOnNamespaceCreationWithExistingNamespaceAndWrongCdapInstance() throws Exception {
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-
-    V1ObjectMeta returnedMeta = new V1ObjectMeta().name(KUBE_NAMESPACE)
-      .putLabelsItem("cdap.namespace", "wrong namespace");
-    V1Namespace returnedNamespace = new V1Namespace().metadata(returnedMeta);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any())).thenReturn(returnedNamespace);
-
-    thrown.expect(IOException.class);
-    thrown.expectMessage(String.format("Kubernetes namespace %s exists but was not created by CDAP namespace %s",
-                                       KUBE_NAMESPACE, CDAP_NAMESPACE));
-    kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-  }
-
-  @Test
-  public void testOnNamespaceCreationSuccess() throws Exception {
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    try {
-      kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-    } catch (Exception e) {
-      Assert.fail("Kubernetes creation should not error if namespace does not exist. Exception: " + e);
-    }
-    verify(coreV1Api, times(0)).createNamespacedConfigMap(any(), any(), any(), any(), any());
-  }
-
-  @Test
-  public void testOnNamespaceCreationWithSuppressedDeletionError() throws Exception {
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-
-    V1ObjectMeta returnedMeta = new V1ObjectMeta().name(KUBE_NAMESPACE)
-      .putLabelsItem("cdap.namespace", CDAP_NAMESPACE);
-    V1Namespace returnedNamespace = new V1Namespace().metadata(returnedMeta);
-
-    // throw ApiException when coreV1Api.readNamespace() is called in findOrCreateKubeNamespace()
-    // return returnedNamespace when coreV1Api.readNamespace() is called in deleteKubeNamespace()
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"))
-      .thenReturn(returnedNamespace);
-    when(coreV1Api.createNamespace(any(), any(), any(), any()))
-      .thenThrow(new ApiException());
-    when(coreV1Api.deleteNamespace(eq(KUBE_NAMESPACE), any(), any(), any(), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_INTERNAL_ERROR, "internal error message"));
-
-    try {
-      kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-    } catch (IOException e) {
-      Assert.assertThat(e.getMessage(),
-                        CoreMatchers.containsString("Error occurred while creating Kubernetes namespace"));
-      Assert.assertEquals(1, e.getCause().getSuppressed().length);
-      Assert.assertThat(e.getCause().getSuppressed()[0].getMessage(),
-                        CoreMatchers.containsString("Error occurred while deleting Kubernetes namespace."));
-    }
-  }
-
-  @Test
-  public void testOnNamespaceDeletionWithKubernetesNotFoundError() throws Exception {
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    try {
-      kubeMasterEnvironment.onNamespaceDeletion(CDAP_NAMESPACE, properties);
-    } catch (Exception e) {
-      Assert.fail("Kubernetes deletion should not error if namespace does not exist. Exception: " + e);
-    }
-  }
-
-  @Test
-  public void testOnNamespaceCreationWithWorkloadIdentityEnabled() throws Exception {
-    String workloadIdentityPool = "test-workload-pool";
-    String workloadIdentityGCPServiceAccount = "test-service-account@test-project-id.iam.gserviceaccount.com";
-    String workloadIdentityProvider = "https://gkehub.googleapis.com/projects/test-project-id/locations/global/" +
-      "memberships/test-cluster";
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    properties.put(KubeMasterEnvironment.WORKLOAD_IDENTITY_GCP_SERVICE_ACCOUNT_EMAIL_PROPERTY,
-                   workloadIdentityGCPServiceAccount);
-    kubeMasterEnvironment.setNamespaceCreationEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
-    kubeMasterEnvironment.setWorkloadIdentityProvider(workloadIdentityProvider);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    when(coreV1Api.readNamespacedConfigMap(eq(KUBE_NAMESPACE), eq("workload-identity-config"), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "config map not found"));
-    try {
-      kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-    } catch (Exception e) {
-      Assert.fail("Kubernetes creation should not error if namespace does not exist. Exception: " + e);
-    }
-    verify(coreV1Api, times(1)).createNamespacedConfigMap(any(), any(), any(), any(), any());
-  }
-
-  @Test
-  public void testOnNamespaceCreationWithWorkloadIdentityEnabledDoesNotCreateExistingConfigMap() throws Exception {
-    String workloadIdentityPool = "test-workload-pool";
-    String workloadIdentityGCPServiceAccount = "test-service-account@test-project-id.iam.gserviceaccount.com";
-    String workloadIdentityProvider = "https://gkehub.googleapis.com/projects/test-project-id/locations/global/" +
-      "memberships/test-cluster";
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    properties.put(KubeMasterEnvironment.WORKLOAD_IDENTITY_GCP_SERVICE_ACCOUNT_EMAIL_PROPERTY,
-                   workloadIdentityGCPServiceAccount);
-    kubeMasterEnvironment.setNamespaceCreationEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
-    kubeMasterEnvironment.setWorkloadIdentityProvider(workloadIdentityProvider);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    when(coreV1Api.readNamespacedConfigMap(eq(KUBE_NAMESPACE), eq("workload-identity-config"), any(), any(), any()))
-      .thenReturn(new V1ConfigMap().metadata(new V1ObjectMeta().name("workload-identity-config")
-                                               .namespace(KUBE_NAMESPACE)));
-    try {
-      kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-    } catch (Exception e) {
-      Assert.fail("Kubernetes creation should not error if namespace does not exist. Exception: " + e);
-    }
-    verify(coreV1Api, times(0)).createNamespacedConfigMap(any(), any(), any(), any(), any());
-  }
-
-
-  @Test(expected = IOException.class)
-  public void testOnNamespaceCreationWithWorkloadIdentityEnabledReadConfigMapPropagatesException() throws Exception {
-    String workloadIdentityPool = "test-workload-pool";
-    String workloadIdentityGCPServiceAccount = "test-service-account@test-project-id.iam.gserviceaccount.com";
-    String workloadIdentityProvider = "https://gkehub.googleapis.com/projects/test-project-id/locations/global/" +
-      "memberships/test-cluster";
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    properties.put(KubeMasterEnvironment.WORKLOAD_IDENTITY_GCP_SERVICE_ACCOUNT_EMAIL_PROPERTY,
-                   workloadIdentityGCPServiceAccount);
-    kubeMasterEnvironment.setNamespaceCreationEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
-    kubeMasterEnvironment.setWorkloadIdentityProvider(workloadIdentityProvider);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    when(coreV1Api.readNamespacedConfigMap(any(), any(), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_INTERNAL_ERROR, "internal error"));
-    when(coreV1Api.createNamespacedConfigMap(any(), any(), any(), any(), any())).thenThrow(new ApiException());
-    kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-  }
-
-  @Test(expected = ApiException.class)
-  public void testOnNamespaceCreationWithWorkloadIdentityEnabledCreateNamespacePropagatesException() throws Exception {
-    String workloadIdentityPool = "test-workload-pool";
-    String workloadIdentityGCPServiceAccount = "test-service-account@test-project-id.iam.gserviceaccount.com";
-    String workloadIdentityProvider = "https://gkehub.googleapis.com/projects/test-project-id/locations/global/" +
-      "memberships/test-cluster";
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    properties.put(KubeMasterEnvironment.WORKLOAD_IDENTITY_GCP_SERVICE_ACCOUNT_EMAIL_PROPERTY,
-                   workloadIdentityGCPServiceAccount);
-    kubeMasterEnvironment.setNamespaceCreationEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
-    kubeMasterEnvironment.setWorkloadIdentityProvider(workloadIdentityProvider);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    when(coreV1Api.readNamespacedConfigMap(eq(KUBE_NAMESPACE), eq("workload-identity-config"), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "config map not found"));
-    when(coreV1Api.createNamespacedConfigMap(any(), any(), any(), any(), any())).thenThrow(new ApiException());
-    kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-  }
-
-  @Test
-  public void testOnNamespaceCreationWithWorkloadIdentityEnabledNoServiceAccountPropertyCreatesNoVolumes()
+  public void testGenerateSparkConfigWithWorkloadIdentityEnabledInNonInstallNamespaceMountsConfigMap()
     throws Exception {
     String workloadIdentityPool = "test-workload-pool";
-    String workloadIdentityProvider = "https://gkehub.googleapis.com/projects/test-project-id/locations/global/" +
-      "memberships/test-cluster";
-    Map<String, String> properties = new HashMap<>();
-    properties.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
-    kubeMasterEnvironment.setNamespaceCreationEnabled();
     kubeMasterEnvironment.setWorkloadIdentityEnabled();
     kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
-    kubeMasterEnvironment.setWorkloadIdentityProvider(workloadIdentityProvider);
-    when(coreV1Api.readNamespace(eq(KUBE_NAMESPACE), any(), any(), any()))
-      .thenThrow(new ApiException(HttpURLConnection.HTTP_NOT_FOUND, "namespace not found"));
-    try {
-      kubeMasterEnvironment.onNamespaceCreation(CDAP_NAMESPACE, properties);
-    } catch (Exception e) {
-      Assert.fail("Kubernetes creation should not error if namespace does not exist. Exception: " + e);
-    }
-    verify(coreV1Api, times(0)).createNamespacedConfigMap(any(), any(), any(), any(), any());
-    verify(coreV1Api, times(0)).readNamespacedConfigMap(any(), any(), any(), any(), any());
+    kubeMasterEnvironment.setWorkloadIdentityServiceAccountTokenTtlSeconds(172800L);
+    kubeMasterEnvironment.setCdapInstallNamespace(KUBE_INSTALL_NAMESPACE);
 
+    Map<String, String> conf = new HashMap<>();
+    conf.put(KubeTwillRunnerService.WORKLOAD_IDENTITY_GCP_SERVICE_ACCOUNT_EMAIL_PROPERTY,
+        "test-email@gmail.com");
+    conf.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
+
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), conf, 1,
+        1);
+
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+
+    // Verify volume, volume mount, and environment variables are set for workload identity
+    Map<String, String> configs = sparkConfig.getConfigs();
+    File sparkDriverPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_DRIVER_POD_TEMPLATE));
+    File sparkExecutorPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_EXECUTOR_POD_TEMPLATE));
+    V1Pod driverPod = Yaml.loadAs(sparkDriverPodFile, V1Pod.class);
+    V1Pod executorPod = Yaml.loadAs(sparkExecutorPodFile, V1Pod.class);
+
+    assertMountsWorkloadIdentityVolume(workloadIdentityPool, driverPod, executorPod);
+  }
+
+  @Test
+  public void testGenerateSparkConfigWithWorkloadIdentityEnabledInInstallNamespaceWithNoEmailMountsConfigMap()
+    throws Exception {
+    String workloadIdentityPool = "test-workload-pool";
+    kubeMasterEnvironment.setWorkloadIdentityEnabled();
+    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
+    kubeMasterEnvironment.setWorkloadIdentityServiceAccountTokenTtlSeconds(172800L);
+    kubeMasterEnvironment.setCdapInstallNamespace(KUBE_INSTALL_NAMESPACE);
+
+    Map<String, String> conf = new HashMap<>();
+    conf.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_INSTALL_NAMESPACE);
+
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), conf, 1,
+        1);
+
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+
+    // Verify volume, volume mount, and environment variables are set for workload identity
+    Map<String, String> configs = sparkConfig.getConfigs();
+    File sparkDriverPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_DRIVER_POD_TEMPLATE));
+    File sparkExecutorPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_EXECUTOR_POD_TEMPLATE));
+    V1Pod driverPod = Yaml.loadAs(sparkDriverPodFile, V1Pod.class);
+    V1Pod executorPod = Yaml.loadAs(sparkExecutorPodFile, V1Pod.class);
+
+    assertMountsWorkloadIdentityVolume(workloadIdentityPool, driverPod, executorPod);
+  }
+
+  @Test
+  public void testGenerateSparkConfigWithWorkloadIdentityDisabledDoesNotMountConfigMap()
+    throws Exception {
+    String workloadIdentityPool = "test-workload-pool";
+    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
+    kubeMasterEnvironment.setWorkloadIdentityServiceAccountTokenTtlSeconds(172800L);
+    kubeMasterEnvironment.setCdapInstallNamespace(KUBE_INSTALL_NAMESPACE);
+
+    Map<String, String> conf = new HashMap<>();
+    conf.put(KubeTwillRunnerService.WORKLOAD_IDENTITY_GCP_SERVICE_ACCOUNT_EMAIL_PROPERTY,
+        "test-email@gmail.com");
+    conf.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
+
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), conf, 1,
+        1);
+
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+
+    // Verify volume, volume mount, and environment variables are set for workload identity
+    Map<String, String> configs = sparkConfig.getConfigs();
+    File sparkDriverPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_DRIVER_POD_TEMPLATE));
+    File sparkExecutorPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_EXECUTOR_POD_TEMPLATE));
+    V1Pod driverPod = Yaml.loadAs(sparkDriverPodFile, V1Pod.class);
+    V1Pod executorPod = Yaml.loadAs(sparkExecutorPodFile, V1Pod.class);
+
+    assertDoesNotMountWorkloadIdentityVolume(driverPod, executorPod);
+  }
+
+  @Test
+  public void testGenerateSparkConfigWithWorkloadIdentityEnabledInDifferentNamespaceWithNoEmailDoesNotMountConfigMap()
+    throws Exception {
+    String workloadIdentityPool = "test-workload-pool";
+    kubeMasterEnvironment.setWorkloadIdentityEnabled();
+    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
+    kubeMasterEnvironment.setWorkloadIdentityServiceAccountTokenTtlSeconds(172800L);
+    kubeMasterEnvironment.setCdapInstallNamespace(KUBE_INSTALL_NAMESPACE);
+
+    Map<String, String> conf = new HashMap<>();
+    conf.put(KubeMasterEnvironment.NAMESPACE_PROPERTY, KUBE_NAMESPACE);
+
+    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap(), conf, 1,
+        1);
+
+    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
+
+    // Verify volume, volume mount, and environment variables are set for workload identity
+    Map<String, String> configs = sparkConfig.getConfigs();
+    File sparkDriverPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_DRIVER_POD_TEMPLATE));
+    File sparkExecutorPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_EXECUTOR_POD_TEMPLATE));
+    V1Pod driverPod = Yaml.loadAs(sparkDriverPodFile, V1Pod.class);
+    V1Pod executorPod = Yaml.loadAs(sparkExecutorPodFile, V1Pod.class);
+
+    assertDoesNotMountWorkloadIdentityVolume(driverPod, executorPod);
+  }
+
+  @Test
+  public void testGetComponentName() {
+    // Ensure valid pod names are parsed correctly
+    String gotName = KubeMasterEnvironment.getComponentName(
+      "instance-abc", "cdap-instance-abc-appfabric-0");
+    Assert.assertEquals("appfabric-0", gotName);
+
+    gotName = KubeMasterEnvironment.getComponentName(
+      "123", "cdap-123-appfabric-23");
+    Assert.assertEquals("appfabric-23", gotName);
+
+    gotName = KubeMasterEnvironment.getComponentName(
+      "cdap", "cdap-cdap-appfabric-0");
+    Assert.assertEquals("appfabric-0", gotName);
+
+    gotName = KubeMasterEnvironment.getComponentName(
+      "", "cdap-test-metrics-0");
+    Assert.assertEquals("test-metrics-0", gotName);
+
+    gotName = KubeMasterEnvironment.getComponentName(
+      "test-cdap", "cdap-test-cdap-preview-runner-b5786a15-e8f4-47-0cebad7d67-0");
+    Assert.assertEquals("preview-runner-b5786a15-e8f4-47-0cebad7d67-0", gotName);
+
+    gotName = KubeMasterEnvironment.getComponentName(
+      "dap", "cdap-dap-preview-runner-b5786a15-e8f4-47-0cebad7d67-0");
+    Assert.assertEquals("preview-runner-b5786a15-e8f4-47-0cebad7d67-0", gotName);
+  }
+
+  @Test
+  public void testParseLoadBalancerAnnotations() {
+    Map<String, String> expected = new HashMap<>();
+    expected.put("key1", "value1");
+    expected.put("networking.gke.io/load-balancer-type", "Internal");
+
+    Assert.assertEquals(expected, kubeMasterEnvironment
+        .parseLoadBalancerAnnotations("key1=value1,networking.gke.io/load-balancer-type=Internal"));
+  }
+
+  @Test
+  public void testParseLoadBalancerAnnotationsEmpty() {
+    Assert.assertTrue(kubeMasterEnvironment.parseLoadBalancerAnnotations("").isEmpty());
+    Assert.assertTrue(kubeMasterEnvironment.parseLoadBalancerAnnotations(null).isEmpty());
+  }
+
+  private void assertDoesNotMountWorkloadIdentityVolume(V1Pod driverPod, V1Pod executorPod) {
+    List<V1Pod> pods = Arrays.asList(driverPod, executorPod);
+    for (V1Pod pod : pods) {
+      V1PodSpec podSpec = pod.getSpec();
+      for (V1Volume volume : podSpec.getVolumes()) {
+        if (volume.getName().equals(WorkloadIdentityUtil.WORKLOAD_IDENTITY_PROJECTED_VOLUME_NAME)) {
+          Assert.fail(String.format("Found unexpected volume '%s' in pod spec '%s'",
+                                    WorkloadIdentityUtil.WORKLOAD_IDENTITY_PROJECTED_VOLUME_NAME,
+                                    pod.getMetadata().getName()));
+        }
+      }
+      for (V1Container container : podSpec.getContainers()) {
+        for (V1VolumeMount volumeMount : container.getVolumeMounts()) {
+          if (volumeMount.getName().equals(WorkloadIdentityUtil.WORKLOAD_IDENTITY_PROJECTED_VOLUME_NAME)) {
+            Assert.fail(String.format("Found unexpected volume mount '%s' in container '%s' in pod '%s'",
+                                      WorkloadIdentityUtil.WORKLOAD_IDENTITY_PROJECTED_VOLUME_NAME,
+                                      container.getName(),
+                                      pod.getMetadata().getName()));
+          }
+        }
+      }
+    }
+  }
+
+  private void assertMountsWorkloadIdentityVolume(String workloadIdentityPool, V1Pod driverPod,
+                                                  V1Pod executorPod) {
+    // NOTE: Several of these values are hard-coded to ensure that it is not changed by accident as it can cause other
+    // pieces to fail. If one of the values changed, the other constants must be validated!
+    V1ServiceAccountTokenProjection workloadIdentityKsaTokenProjection = new V1ServiceAccountTokenProjection()
+      .path("token")
+      .expirationSeconds(172800L)
+      .audience(workloadIdentityPool);
+    V1ConfigMapProjection workloadIdentityGsaConfigMapProjection = new V1ConfigMapProjection()
+      .name("workload-identity-config")
+      .optional(false)
+      .addItemsItem(new V1KeyToPath().key("config").path("google-application-credentials.json"));
+    V1Volume expectedWorkloadIdentityProjectedVolume = new V1Volume().name("gcp-ksa")
+      .projected(new V1ProjectedVolumeSource()
+                   .defaultMode(420)
+                   .addSourcesItem(new V1VolumeProjection().serviceAccountToken(workloadIdentityKsaTokenProjection))
+                   .addSourcesItem(new V1VolumeProjection().configMap(workloadIdentityGsaConfigMapProjection)));
+    V1VolumeMount expectedWorkloadIdentityProjectedVolumeMount = new V1VolumeMount().name("gcp-ksa")
+      .mountPath("/var/run/secrets/tokens/gcp-ksa").readOnly(true);
+    V1EnvVar expectedGoogleApplicationCredentialsEnvVar = new V1EnvVar().name("GOOGLE_APPLICATION_CREDENTIALS")
+      .value("/var/run/secrets/tokens/gcp-ksa/google-application-credentials.json");
+    // Verify pod specs
+    assertContainsVolume(driverPod, expectedWorkloadIdentityProjectedVolume);
+    assertContainersContainVolumeMount(driverPod, expectedWorkloadIdentityProjectedVolumeMount);
+    assertContainersContainEnvVar(driverPod, expectedGoogleApplicationCredentialsEnvVar);
+    assertContainsVolume(executorPod, expectedWorkloadIdentityProjectedVolume);
+    assertContainersContainVolumeMount(executorPod, expectedWorkloadIdentityProjectedVolumeMount);
+    assertContainersContainEnvVar(executorPod, expectedGoogleApplicationCredentialsEnvVar);
   }
 
   private void assertContainsVolume(V1Pod pod, V1Volume expectedVolume) {
@@ -367,82 +386,5 @@ public class KubeMasterEnvironmentTest {
                                 container.getName(),
                                 pod.getMetadata().getName()));
     }
-  }
-
-  @Test
-  public void testGenerateSparkConfigWithWorkloadIdentityEnabled() throws Exception {
-    String workloadIdentityPool = "test-workload-pool";
-    String workloadIdentityProvider = "https://gkehub.googleapis.com/projects/test-project-id/locations/global/" +
-      "memberships/test-cluster";
-    kubeMasterEnvironment.setWorkloadIdentityEnabled();
-    kubeMasterEnvironment.setWorkloadIdentityPool(workloadIdentityPool);
-    kubeMasterEnvironment.setWorkloadIdentityProvider(workloadIdentityProvider);
-    kubeMasterEnvironment.setWorkloadIdentityServiceAccountTokenTTLSeconds(172800L);
-
-    SparkSubmitContext sparkSubmitContext = new SparkSubmitContext(Collections.emptyMap());
-
-    SparkConfig sparkConfig = kubeMasterEnvironment.generateSparkSubmitConfig(sparkSubmitContext);
-
-    // Verify volume, volume mount, and environment variables are set for workload identity
-    Map<String, String> configs = sparkConfig.getConfigs();
-    File sparkDriverPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_DRIVER_POD_TEMPLATE));
-    File sparkExecutorPodFile = new File(configs.get(KubeMasterEnvironment.SPARK_KUBERNETES_EXECUTOR_POD_TEMPLATE));
-    V1Pod driverPod = Yaml.loadAs(sparkDriverPodFile, V1Pod.class);
-    V1Pod executorPod = Yaml.loadAs(sparkExecutorPodFile, V1Pod.class);
-
-    // NOTE: Several of these values are hard-coded to ensure that it is not changed by accident as it can cause other
-    // pieces to fail. If one of the values changed, the other constants must be validated!
-    V1ServiceAccountTokenProjection workloadIdentityKSATokenProjection = new V1ServiceAccountTokenProjection()
-      .path("token")
-      .expirationSeconds(172800L)
-      .audience(workloadIdentityPool);
-    V1ConfigMapProjection workloadIdentityGSAConfigMapProjection = new V1ConfigMapProjection()
-      .name("workload-identity-config")
-      .optional(false)
-      .addItemsItem(new V1KeyToPath().key("config").path("google-application-credentials.json"));
-    V1Volume expectedWorkloadIdentityProjectedVolume = new V1Volume().name("gcp-ksa")
-      .projected(new V1ProjectedVolumeSource()
-                   .defaultMode(420)
-                   .addSourcesItem(new V1VolumeProjection().serviceAccountToken(workloadIdentityKSATokenProjection))
-                   .addSourcesItem(new V1VolumeProjection().configMap(workloadIdentityGSAConfigMapProjection)));
-    V1VolumeMount expectedWorkloadIdentityProjectedVolumeMount = new V1VolumeMount().name("gcp-ksa")
-      .mountPath("/var/run/secrets/tokens/gcp-ksa").readOnly(true);
-    V1EnvVar expectedGoogleApplicationCredentialsEnvVar = new V1EnvVar().name("GOOGLE_APPLICATION_CREDENTIALS")
-      .value("/var/run/secrets/tokens/gcp-ksa/google-application-credentials.json");
-    // Verify pod specs
-    assertContainsVolume(driverPod, expectedWorkloadIdentityProjectedVolume);
-    assertContainersContainVolumeMount(driverPod, expectedWorkloadIdentityProjectedVolumeMount);
-    assertContainersContainEnvVar(driverPod, expectedGoogleApplicationCredentialsEnvVar);
-    assertContainsVolume(executorPod, expectedWorkloadIdentityProjectedVolume);
-    assertContainersContainVolumeMount(executorPod, expectedWorkloadIdentityProjectedVolumeMount);
-    assertContainersContainEnvVar(executorPod, expectedGoogleApplicationCredentialsEnvVar);
-  }
-
-  @Test
-  public void testGetComponentName() {
-    // Ensure valid pod names are parsed correctly
-    String gotName = KubeMasterEnvironment.getComponentName(
-      "instance-abc", "cdap-instance-abc-appfabric-0");
-    Assert.assertEquals("appfabric-0", gotName);
-
-    gotName = KubeMasterEnvironment.getComponentName(
-      "123", "cdap-123-appfabric-23");
-    Assert.assertEquals("appfabric-23", gotName);
-
-    gotName = KubeMasterEnvironment.getComponentName(
-      "cdap", "cdap-cdap-appfabric-0");
-    Assert.assertEquals("appfabric-0", gotName);
-
-    gotName = KubeMasterEnvironment.getComponentName(
-      "", "cdap-test-metrics-0");
-    Assert.assertEquals("test-metrics-0", gotName);
-
-    gotName = KubeMasterEnvironment.getComponentName(
-      "test-cdap", "cdap-test-cdap-preview-runner-b5786a15-e8f4-47-0cebad7d67-0");
-    Assert.assertEquals("preview-runner-b5786a15-e8f4-47-0cebad7d67-0", gotName);
-
-    gotName = KubeMasterEnvironment.getComponentName(
-      "dap", "cdap-dap-preview-runner-b5786a15-e8f4-47-0cebad7d67-0");
-    Assert.assertEquals("preview-runner-b5786a15-e8f4-47-0cebad7d67-0", gotName);
   }
 }

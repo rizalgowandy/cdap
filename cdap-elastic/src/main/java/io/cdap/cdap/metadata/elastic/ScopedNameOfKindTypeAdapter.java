@@ -24,22 +24,25 @@ import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import io.cdap.cdap.spi.metadata.ScopedNameOfKind;
-
 import java.lang.reflect.Type;
 
 /**
- * Type adapter for the ScopedName. Because it is used in as a Map key, it must be serialized as a String.
+ * Type adapter for the ScopedName. Because it is used in as a Map key, it must be serialized as a
+ * String.
  */
 public class ScopedNameOfKindTypeAdapter
-  implements JsonSerializer<ScopedNameOfKind>, JsonDeserializer<ScopedNameOfKind> {
+    implements JsonSerializer<ScopedNameOfKind>, JsonDeserializer<ScopedNameOfKind> {
+
   @Override
-  public ScopedNameOfKind deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
-    throws JsonParseException {
+  public ScopedNameOfKind deserialize(JsonElement json, Type typeOfT,
+      JsonDeserializationContext context)
+      throws JsonParseException {
     return ScopedNameOfKind.fromString(json.getAsString());
   }
 
   @Override
-  public JsonElement serialize(ScopedNameOfKind src, Type typeOfSrc, JsonSerializationContext context) {
+  public JsonElement serialize(ScopedNameOfKind src, Type typeOfSrc,
+      JsonSerializationContext context) {
     return new JsonPrimitive(src.toString());
   }
 }

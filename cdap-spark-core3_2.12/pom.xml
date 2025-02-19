@@ -23,7 +23,7 @@
   <parent>
     <groupId>io.cdap.cdap</groupId>
     <artifactId>cdap</artifactId>
-    <version>6.7.0-SNAPSHOT</version>
+    <version>6.12.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>cdap-spark-core3_2.12</artifactId>
@@ -181,6 +181,15 @@
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-minicluster</artifactId>
     </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
   </dependencies>
 
   <build>
@@ -310,7 +319,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-antrun-plugin</artifactId>
-            <version>1.7</version>
+            <version>3.1.0</version>
             <configuration>
               <skip>true</skip>
             </configuration>
@@ -413,6 +422,7 @@
                   <silent>true</silent>
                   <includeScope>compile</includeScope>
                   <excludeGroupIds>
+                    org.apache.commons,
                     org.apache.spark,
                     org.spark-project.spark,
                     org.apache.hadoop,

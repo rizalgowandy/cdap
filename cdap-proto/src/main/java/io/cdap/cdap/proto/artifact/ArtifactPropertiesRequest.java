@@ -18,7 +18,6 @@ package io.cdap.cdap.proto.artifact;
 
 import io.cdap.cdap.api.artifact.ArtifactScope;
 import io.cdap.cdap.api.artifact.ArtifactSummary;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,9 +27,11 @@ import java.util.Objects;
  * A request to get properties for an artifact.
  */
 public class ArtifactPropertiesRequest extends ArtifactSummary {
+
   private final List<String> properties;
 
-  public ArtifactPropertiesRequest(String name, String version, ArtifactScope scope, List<String> properties) {
+  public ArtifactPropertiesRequest(String name, String version, ArtifactScope scope,
+      List<String> properties) {
     super(name, version, scope);
     this.properties = Collections.unmodifiableList(new ArrayList<>(properties));
   }
